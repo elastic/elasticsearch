@@ -1535,6 +1535,11 @@ public class EsqlCapabilities {
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support non-correlated IN subqueries in the {@code EVAL} command.
+         */
+        EVAL_IN_SUBQUERY,
+
+        /**
          * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
          * {@code STATS c = COUNT(*) WHERE id IN (FROM other | KEEP id) BY dept}, including filters that wrap the IN subquery in
          * {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL}. INLINE STATS remains unsupported.

@@ -92,6 +92,9 @@ public enum FeatureMetric {
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
+    // SemiJoin and AntiJoin only originate from `WHERE x IN (sub)` at the top of an AND-conjunct (rewritten by InSubqueryResolver).
+    // MarkJoin can also originate from `EVAL m = x IN (sub)`, so it is not counted here; the surrounding Eval node (above the MarkJoin)
+    // counts for EVAL. Every WHERE MarkJoin path also creates a Filter above the join, so Filter covers that case.
     WHERE(plan -> plan instanceof Filter || plan instanceof SemiJoin || plan instanceof AntiJoin),
     ENRICH(Enrich.class::isInstance),
     EXPLAIN(Explain.class::isInstance),
@@ -144,14 +147,16 @@ public enum FeatureMetric {
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
         Aggregate.class, // STATS is managed in another way, see above
-        MarkJoin.class, // produced for STATS WHERE too; WHERE-originating MarkJoin nodes retain their enclosing Filter
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
-        InsertEmptyBuckets.class // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
+        InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
+        // MarkJoin's enclosing command (WHERE, EVAL, or the STATS whose per-aggregate WHERE produced it) already
+        // records the telemetry; STATS itself is counted via the Aggregate exclusion above.
+        MarkJoin.class
     );
 
     private Predicate<LogicalPlan> planCheck;

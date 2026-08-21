@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -630,7 +631,7 @@ public class TestAnalyzer {
      * {@code ViewResolver#replaceViews} followed by {@code InSubqueryResolver#verify} in {@code EsqlSession#execute}.
      * <p>
      * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
-     * such as EVAL or SORT).
+     * such as SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
@@ -651,6 +652,7 @@ public class TestAnalyzer {
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
      */
     private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
+        // TODO remove inlineStatsAggregates after in subquery is supported in inline stats where.
         Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
         return parsed.transformDown(p -> {
             if (p instanceof Filter filter) {
@@ -658,6 +660,11 @@ public class TestAnalyzer {
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
                 return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Eval eval) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
             }
             if (p instanceof InlineStats inlineStats) {
                 // INLINE STATS aggregate filters remain unsupported; remember its owned Aggregate so the case below leaves it intact.

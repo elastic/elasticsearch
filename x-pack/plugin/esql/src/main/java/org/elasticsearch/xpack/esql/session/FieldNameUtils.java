@@ -251,9 +251,9 @@ public class FieldNameUtils {
                     joinRefs.addAll(keepRefs);
                 }
             } else if (p instanceof AbstractSubqueryJoin sj) {
+                // The top-down traversal has already collected references from plans above this join. For a MarkJoin, those references
+                // include the synthetic mark produced by the join itself, which must not be requested from field_caps as an index field.
                 if (sj instanceof MarkJoin markJoin) {
-                    // The aggregate filter references this resolver-generated attribute, but it is produced by the join rather than
-                    // loaded from an index.
                     referencesBuilder.get().remove(markJoin.markAttribute());
                 }
                 // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through

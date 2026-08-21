@@ -56,8 +56,11 @@ import static org.hamcrest.Matchers.containsString;
  *       (or under {@code NOT}/{@code AND} below {@code OR}); each emits a synthetic boolean
  *       mark attribute that the rewritten {@code WHERE} condition references, so SQL
  *       three-valued logic flows through the surrounding boolean expression naturally.</li>
+ *   <li>In an {@link Eval} field definition, only {@link MarkJoin} is ever created — EVAL
+ *       preserves every row and produces a value, so SemiJoin/AntiJoin don't apply. The rewrite
+ *       allowlist is identical to the WHERE case.</li>
  * </ul>
- * The resolver also rejects {@link InSubquery} in unsupported positions (EVAL, SORT, STATS BY,
+ * The resolver also rejects {@link InSubquery} in unsupported positions (SORT, STATS BY,
  * arithmetic operators, etc.).
  */
 public class InSubqueryResolverTests extends ESTestCase {
@@ -744,41 +747,10 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals(xMark.id(), xJoin.markAttribute().id());
     }
 
-    // ---- negative: IN subquery in EVAL ----
-
-    public void testRejectsInSubqueryInEval() {
-        assertResolveError("FROM main | EVAL z = x IN (FROM sub)", "line 1:22: IN subquery is not supported in [EVAL z = x IN (FROM sub)]");
-    }
-
-    public void testRejectsNotInSubqueryInEval() {
-        assertResolveError(
-            "FROM main | EVAL z = x NOT IN (FROM sub)",
-            "line 1:22: IN subquery is not supported in [EVAL z = x NOT IN (FROM sub)]"
-        );
-    }
-
     // ---- negative: IN subquery in SORT ----
 
     public void testRejectsInSubqueryInSort() {
         assertResolveError("FROM main | SORT x IN (FROM sub)", "line 1:18: IN subquery is not supported in [SORT x IN (FROM sub)]");
-    }
-
-    // ---- negative: IN subquery in STATS BY ----
-
-    public void testRejectsInSubqueryInStatsBy() {
-        assertResolveError(
-            "FROM main | STATS c = COUNT(*) BY x IN (FROM sub)",
-            "line 1:35: IN subquery is not supported in [STATS c = COUNT(*) BY x IN (FROM sub)]"
-        );
-    }
-
-    /**
-     * Multi-column IN subquery in a STATS BY grouping expression must be rejected.
-     */
-    public void testRejectsMultiColumnInSubqueryInStatsBy() {
-        checkMultiColumnInSubquery();
-        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)"));
-        assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)]"));
     }
 
     // ---- negative: IN subquery in LIMIT BY ----
@@ -1528,7 +1500,7 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testRejectsInSubqueryDirectlyNestedInEquals() {
         var e = expectThrows(VerificationException.class, () -> resolve("FROM main | WHERE (x IN (FROM sub)) == true"));
-        assertThat(e.getMessage(), containsString("IN subquery is not supported within other expressions"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported within expression [(x IN (FROM sub)) == true]"));
     }
 
     public void testRejectsComplexLHSInCaseNestedInEquals() {
@@ -1546,7 +1518,7 @@ public class InSubqueryResolverTests extends ESTestCase {
         requireLambda();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> x IN (FROM sub))",
-            "line 1:34: IN subquery is not supported within other expressions [filter(a, x -> x IN (FROM sub))]"
+            "line 1:34: IN subquery is not supported within expression [filter(a, x -> x IN (FROM sub))]"
         );
     }
 
@@ -1554,7 +1526,7 @@ public class InSubqueryResolverTests extends ESTestCase {
         requireLambda();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> COALESCE(x IN (FROM sub), false))",
-            "line 1:43: IN subquery is not supported within other expressions [filter(a, x -> COALESCE(x IN (FROM sub), false))]"
+            "line 1:43: IN subquery is not supported within expression [filter(a, x -> COALESCE(x IN (FROM sub), false))]"
         );
     }
 
@@ -1984,7 +1956,7 @@ public class InSubqueryResolverTests extends ESTestCase {
         checkMultiColumnInSubquery();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> (x, f2) IN (FROM sub | KEEP x, f2))",
-            "line 1:34: IN subquery is not supported within other expressions [filter(a, x -> (x, f2) IN (FROM sub | KEEP x, f2))]"
+            "line 1:34: IN subquery is not supported within expression [filter(a, x -> (x, f2) IN (FROM sub | KEEP x, f2))]"
         );
     }
 
@@ -1993,7 +1965,7 @@ public class InSubqueryResolverTests extends ESTestCase {
         checkMultiColumnInSubquery();
         assertResolveError(
             "FROM main | WHERE filter(a, x -> COALESCE((x, f2) IN (FROM sub | KEEP x, f2), false))",
-            "line 1:43: IN subquery is not supported within other expressions "
+            "line 1:43: IN subquery is not supported within expression "
                 + "[filter(a, x -> COALESCE((x, f2) IN (FROM sub | KEEP x, f2), false))]"
         );
     }
@@ -2004,7 +1976,10 @@ public class InSubqueryResolverTests extends ESTestCase {
             VerificationException.class,
             () -> resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) == true")
         );
-        assertThat(e.getMessage(), containsString("IN subquery is not supported within other expressions"));
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not supported within expression [((f1, f2) IN (FROM sub | KEEP f1, f2)) == true]")
+        );
     }
 
     // ---- positive: synthetic constant aliases stay unique within one WHERE rewrite ----
@@ -2045,6 +2020,819 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals(outer.config().leftFields().get(0).id(), eval.fields().get(1).id());
     }
 
+    /**
+     * {@code WHERE x IN (FROM sub) OR x IN (FROM sub)}: the same {@link InSubquery} predicate appearing twice in one OR
+     * produces two distinct mark attribute names. Without an ordinal in {@code syntheticMarkName} both marks would share
+     * a name (differing only by {@link NameId}), making EXPLAIN output misleading.
+     */
+    public void testDuplicateInSubqueryInOrGetsDistinctMarkNames() {
+        LogicalPlan plan = resolve("FROM main | WHERE x IN (FROM sub) OR x IN (FROM sub)");
+        Filter filter = as(plan, Filter.class);
+        Or or = as(filter.condition(), Or.class);
+        Attribute leftMark = as(or.left(), Attribute.class);
+        Attribute rightMark = as(or.right(), Attribute.class);
+        assertNotEquals(leftMark.name(), rightMark.name());
+        MarkJoin outer = as(filter.child(), MarkJoin.class);
+        assertEquals(rightMark.id(), outer.markAttribute().id());
+        MarkJoin inner = as(outer.left(), MarkJoin.class);
+        assertEquals(leftMark.id(), inner.markAttribute().id());
+        assertEquals("main", as(inner.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    // ---- positive: EVAL IN subquery → MarkJoin ----
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub)}:
+     * the resolver produces {@code Eval[z=$mark] → MarkJoin[left=x] → UnresolvedRelation[main]}.
+     */
+    public void testInSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub)");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, join.config().type());
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        UnresolvedRelation main = as(join.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
+        UnresolvedRelation sub = as(join.right(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x NOT IN (FROM sub)}:
+     * the resolver produces {@code Eval[z=NOT($mark)] → MarkJoin[left=x] → UnresolvedRelation[main]}.
+     */
+    public void testNotInSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x NOT IN (FROM sub)");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        Not not = as(eval.fields().get(0).child(), Not.class);
+        Attribute mark = as(not.field(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        UnresolvedRelation main = as(join.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
+        UnresolvedRelation sub = as(join.right(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = 1, z = x IN (FROM sub), b = 2}: multi-field EVAL with no
+     * intra-EVAL LHS dependency — single MarkJoin below the whole Eval, no split.
+     */
+    public void testInSubqueryInEvalWithMultipleFields() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = 1, z = x IN (FROM sub), b = 2");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(3, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("z", eval.fields().get(1).name());
+        assertEquals("b", eval.fields().get(2).name());
+        Attribute mark = as(eval.fields().get(1).child(), Attribute.class);
+        // Single MarkJoin below the one Eval — no split
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        UnresolvedRelation main = as(join.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
+        UnresolvedRelation sub = as(join.right(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = x + 1, z = a IN (FROM sub)}: intra-EVAL LHS dependency —
+     * the resolver must split: {@code Eval[z=$mark] → MarkJoin[left=a] → Eval[a=x+1] → Relation}.
+     */
+    public void testInSubqueryInEvalWithLHSDerivedFromAnotherField() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x + 1, z = a IN (FROM sub)");
+
+        // Upper Eval: just z
+        Eval upperEval = as(plan, Eval.class);
+        assertEquals(1, upperEval.fields().size());
+        assertEquals("z", upperEval.fields().get(0).name());
+        Attribute mark = as(upperEval.fields().get(0).child(), Attribute.class);
+
+        // MarkJoin with left field "a"
+        MarkJoin join = as(upperEval.child(), MarkJoin.class);
+        assertEquals("a", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+
+        // Lower Eval: a = x + 1
+        Eval lowerEval = as(join.left(), Eval.class);
+        assertEquals(1, lowerEval.fields().size());
+        assertEquals("a", lowerEval.fields().get(0).name());
+
+        UnresolvedRelation main = as(lowerEval.child(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
+        UnresolvedRelation sub = as(join.right(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    // ---- positive: EVAL IN subquery — name-collision flush ----
+
+    /**
+     * {@code FROM main | EVAL a = 1, z = a + 1, a = y IN (FROM sub)}: the third field reuses name {@code a},
+     * which is already in {@code pending}. Without the name-collision flush the first {@code Alias(a,1,NameId1)}
+     * would be silently overwritten and {@code z}'s reference to {@code NameId1} would become dangling.
+     * Expected plan: {@code Eval[a=$$mark] → MarkJoin[y→$$mark] → Eval[a=1, z=a+1] → Relation[main]}.
+     */
+    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = 1, z = a + 1, a = y IN (FROM sub)");
+
+        // Upper Eval: just the redefined `a`
+        Eval upperEval = as(plan, Eval.class);
+        assertEquals(1, upperEval.fields().size());
+        assertEquals("a", upperEval.fields().get(0).name());
+        Attribute mark = as(upperEval.fields().get(0).child(), Attribute.class);
+
+        // MarkJoin with left field "y"
+        MarkJoin join = as(upperEval.child(), MarkJoin.class);
+        assertEquals("y", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+
+        // Lower Eval: a=1 and z=a+1 were flushed together
+        Eval lowerEval = as(join.left(), Eval.class);
+        assertEquals(2, lowerEval.fields().size());
+        assertEquals("a", lowerEval.fields().get(0).name());
+        assertEquals("z", lowerEval.fields().get(1).name());
+
+        assertEquals("main", as(lowerEval.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = 1, a = y IN (FROM sub)}: simpler name collision with no
+     * dependent field between the two definitions.
+     * Expected plan: {@code Eval[a=$$mark] → MarkJoin[y→$$mark] → Eval[a=1] → Relation[main]}.
+     */
+    public void testInSubqueryInEvalNameCollisionNoInterveningField() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = 1, a = y IN (FROM sub)");
+
+        Eval upperEval = as(plan, Eval.class);
+        assertEquals(1, upperEval.fields().size());
+        assertEquals("a", upperEval.fields().get(0).name());
+        Attribute mark = as(upperEval.fields().get(0).child(), Attribute.class);
+
+        MarkJoin join = as(upperEval.child(), MarkJoin.class);
+        assertEquals("y", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+
+        Eval lowerEval = as(join.left(), Eval.class);
+        assertEquals(1, lowerEval.fields().size());
+        assertEquals("a", lowerEval.fields().get(0).name());
+
+        assertEquals("main", as(lowerEval.child(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = x IN (FROM sub1), a = y IN (FROM sub2)}: both definitions use
+     * InSubquery; the second must flush the first's pending entry before stacking its own MarkJoin.
+     * Expected plan:
+     * {@code Eval[a=$$m2] → MarkJoin[y→$$m2,sub2] → Eval[a=$$m1] → MarkJoin[x→$$m1,sub1] → Relation[main]}.
+     */
+    public void testInSubqueryInEvalNameCollisionBothInSubquery() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x IN (FROM sub1), a = y IN (FROM sub2)");
+
+        // Upper Eval: a = $$m2
+        Eval upperEval = as(plan, Eval.class);
+        assertEquals(1, upperEval.fields().size());
+        assertEquals("a", upperEval.fields().get(0).name());
+        Attribute mark2 = as(upperEval.fields().get(0).child(), Attribute.class);
+
+        // Outer MarkJoin: y → $$m2, right=sub2
+        MarkJoin outerJoin = as(upperEval.child(), MarkJoin.class);
+        assertEquals("y", outerJoin.config().leftFields().get(0).name());
+        assertEquals(mark2.id(), outerJoin.markAttribute().id());
+        assertEquals("sub2", as(outerJoin.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        // Middle Eval: a = $$m1 (flushed when the second `a` was encountered)
+        Eval middleEval = as(outerJoin.left(), Eval.class);
+        assertEquals(1, middleEval.fields().size());
+        assertEquals("a", middleEval.fields().get(0).name());
+        Attribute mark1 = as(middleEval.fields().get(0).child(), Attribute.class);
+
+        // Inner MarkJoin: x → $$m1, right=sub1
+        MarkJoin innerJoin = as(middleEval.child(), MarkJoin.class);
+        assertEquals("x", innerJoin.config().leftFields().get(0).name());
+        assertEquals(mark1.id(), innerJoin.markAttribute().id());
+        assertEquals("sub1", as(innerJoin.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub) | WHERE z}: mark feeds a later WHERE —
+     * the Filter references the boolean column produced by the EVAL.
+     */
+    public void testInSubqueryInEvalReferencedInWhere() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub) | WHERE z");
+        Filter filter = as(plan, Filter.class);
+        Eval eval = as(filter.child(), Eval.class);
+        assertEquals("z", eval.fields().get(0).name());
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        UnresolvedRelation main = as(join.left(), UnresolvedRelation.class);
+        assertEquals("main", main.indexPattern().indexPattern());
+        UnresolvedRelation sub = as(join.right(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    // ---- positive: IN subquery inside CASE, COALESCE, IS [NOT] NULL in EVAL ----
+
+    /**
+     * {@code FROM main | EVAL z = CASE(x IN (FROM sub), "yes", "no")}: CASE wrapping an IN subquery
+     * in an EVAL field — the resolver produces a MarkJoin below the Eval and replaces the InSubquery
+     * with the mark attribute inside the CASE expression:
+     * <pre>
+     * Eval[z=CASE($$mark, "yes", "no")]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     *     UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testCaseInSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = CASE(x IN (FROM sub), \"yes\", \"no\")");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        UnresolvedFunction caseExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Attribute mark = as(caseExpr.children().get(0), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, join.config().type());
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = COALESCE(x IN (FROM sub), false)}: COALESCE wrapping an IN subquery
+     * in an EVAL field:
+     * <pre>
+     * Eval[z=COALESCE($$mark, false)]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     *     UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testCoalesceInSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = COALESCE(x IN (FROM sub), false)");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        UnresolvedFunction coalesceExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceExpr.name());
+        Attribute mark = as(coalesceExpr.children().get(0), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, join.config().type());
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (x IN (FROM sub)) IS NULL}: IS NULL applied to an IN subquery mark
+     * in an EVAL field:
+     * <pre>
+     * Eval[z=IsNull($$mark)]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     *     UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testIsNullInSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = (x IN (FROM sub)) IS NULL");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        IsNull isNull = as(eval.fields().get(0).child(), IsNull.class);
+        Attribute mark = as(isNull.field(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, join.config().type());
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (x IN (FROM sub)) IS NOT NULL}: IS NOT NULL applied to an IN
+     * subquery mark in an EVAL field:
+     * <pre>
+     * Eval[z=IsNotNull($$mark)]
+     *   MarkJoin[x → $$mark, left=main, right=sub]
+     *     UnresolvedRelation[main]
+     * </pre>
+     */
+    public void testIsNotNullInSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = (x IN (FROM sub)) IS NOT NULL");
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        assertEquals("z", eval.fields().get(0).name());
+        IsNotNull isNotNull = as(eval.fields().get(0).child(), IsNotNull.class);
+        Attribute mark = as(isNotNull.field(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(JoinTypes.MARK, join.config().type());
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub1) AND y IN (FROM sub2)}: two IN subqueries connected by AND
+     * produce two MarkJoins whose marks replace the original predicates.
+     */
+    public void testConjunctiveInSubqueriesInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub1) AND y IN (FROM sub2)");
+        Eval eval = as(plan, Eval.class);
+        And and = as(eval.fields().get(0).child(), And.class);
+
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
+        Attribute yMark = assertMarkJoin(outerJoin, "y", "sub2");
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
+        Attribute xMark = assertMarkJoin(innerJoin, "x", "sub1");
+
+        assertEquals(xMark.id(), as(and.left(), Attribute.class).id());
+        assertEquals(yMark.id(), as(and.right(), Attribute.class).id());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub1) OR y IN (FROM sub2)}: two IN subqueries connected by OR
+     * produce two MarkJoins whose marks replace the original predicates.
+     */
+    public void testDisjunctiveInSubqueriesInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub1) OR y IN (FROM sub2)");
+        Eval eval = as(plan, Eval.class);
+        Or or = as(eval.fields().get(0).child(), Or.class);
+
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
+        Attribute yMark = assertMarkJoin(outerJoin, "y", "sub2");
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
+        Attribute xMark = assertMarkJoin(innerJoin, "x", "sub1");
+
+        assertEquals(xMark.id(), as(or.left(), Attribute.class).id());
+        assertEquals(yMark.id(), as(or.right(), Attribute.class).id());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub) OR x IN (FROM sub)}: the same {@link InSubquery} predicate appearing twice in one
+     * EVAL field produces two MarkJoins with distinct mark attribute names. Mirrors
+     * {@link #testDuplicateInSubqueryInOrGetsDistinctMarkNames} for the EVAL context.
+     */
+    public void testDuplicateInSubqueryInEvalGetsDistinctMarkNames() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub) OR x IN (FROM sub)");
+        Eval eval = as(plan, Eval.class);
+        Or or = as(eval.fields().get(0).child(), Or.class);
+        Attribute leftMark = as(or.left(), Attribute.class);
+        Attribute rightMark = as(or.right(), Attribute.class);
+        assertNotEquals(leftMark.name(), rightMark.name());
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
+        assertEquals(rightMark.id(), outerJoin.markAttribute().id());
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
+        assertEquals(leftMark.id(), innerJoin.markAttribute().id());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = x IN (FROM sub), b = x IN (FROM sub)}: two fields with identical IN subquery expressions must receive
+     * distinct mark attribute names and NameIds — otherwise downstream name-based resolution would silently return the wrong boolean for
+     * one of the fields.
+     * This could be a potential optimization in the future, but for now we require distinct names to avoid confusion.
+     */
+    public void testTwoEvalFieldsWithIdenticalInSubqueryGetDistinctMarkNames() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x IN (FROM sub), b = x IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        Attribute markA = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(eval.fields().get(1).child(), Attribute.class);
+
+        assertNotEquals("mark names must be distinct", markA.name(), markB.name());
+        assertNotEquals("mark NameIds must be distinct", markA.id(), markB.id());
+
+        // Two stacked MarkJoins: b's join is outermost (stacked last)
+        MarkJoin joinB = as(eval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+        MarkJoin joinA = as(joinB.left(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+    }
+
+    /**
+     * {@code FROM main | EVAL a = 42 IN (FROM sub), b = 42 IN (FROM sub)}: two fields with identical foldable LHS constants and identical
+     * subqueries must receive distinct synthetic const alias names, so the join key for each MarkJoin resolves to its own materialized
+     * constant column.
+     */
+    public void testTwoEvalFieldsWithIdenticalConstInSubqueryGetDistinctConstNames() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = 42 IN (FROM sub), b = 42 IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        Attribute markA = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(eval.fields().get(1).child(), Attribute.class);
+
+        assertNotEquals("mark names must be distinct", markA.name(), markB.name());
+        assertNotEquals("mark NameIds must be distinct", markA.id(), markB.id());
+
+        // Each MarkJoin has its own const Eval below it — the join key names must differ
+        MarkJoin joinB = as(eval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+        Eval constEvalB = as(joinB.left(), Eval.class);
+
+        MarkJoin joinA = as(constEvalB.child(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+        Eval constEvalA = as(joinA.left(), Eval.class);
+
+        String constNameA = constEvalA.fields().get(0).name();
+        String constNameB = constEvalB.fields().get(0).name();
+        assertNotEquals("const alias names must be distinct", constNameA, constNameB);
+        assertNotNull(joinA.left()); // sanity: main relation is below
+    }
+
+    /**
+     * {@code FROM main | EVAL a = x IN (FROM sub), b = 42 IN (FROM sub)}: two fields in one EVAL
+     * with different LHS kinds — attribute and foldable constant. Field {@code a} uses an attribute LHS
+     * (no synthetic const alias), field {@code b} uses a foldable constant (materialised as a synthetic
+     * const alias). Both must receive distinct mark attribute names and NameIds:
+     * <pre>
+     * Eval[a=$$markA, b=$$markB]
+     *   MarkJoin_b[left=$$const, right=sub]
+     *     Eval[$$const=42]
+     *       MarkJoin_a[left=x, right=sub]
+     *         FROM main
+     * </pre>
+     */
+    public void testEvalWithMixedLhsInSubqueries() {
+        LogicalPlan plan = resolve("FROM main | EVAL a = x IN (FROM sub), b = 42 IN (FROM sub)");
+
+        Eval eval = as(plan, Eval.class);
+        assertEquals(2, eval.fields().size());
+        assertEquals("a", eval.fields().get(0).name());
+        assertEquals("b", eval.fields().get(1).name());
+        Attribute markA = as(eval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(eval.fields().get(1).child(), Attribute.class);
+        assertNotEquals("mark names must be distinct", markA.name(), markB.name());
+        assertNotEquals("mark NameIds must be distinct", markA.id(), markB.id());
+
+        // b's MarkJoin is outermost (stacked after a's)
+        MarkJoin joinB = as(eval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+
+        // const Eval materialises 42 below b's MarkJoin
+        Eval constEval = as(joinB.left(), Eval.class);
+        assertEquals(1, constEval.fields().size());
+        assertTrue(constEval.fields().get(0).name().startsWith("$$in_subquery_const"));
+        assertEquals("sub", as(joinB.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+
+        // a's MarkJoin is below the const Eval
+        MarkJoin joinA = as(constEval.child(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+        assertEquals("x", joinA.config().leftFields().get(0).name());
+        as(joinA.left(), UnresolvedRelation.class); // FROM main
+        assertEquals("sub", as(joinA.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * two chained EVAL commands each containing multiple IN subqueries. The two {@link Eval} nodes are
+     * processed independently by {@code transformUp}, so each gets its own fresh accumulator. Within each
+     * EVAL the shared accumulator guarantees globally-unique ordinals. All five mark attributes must have
+     * distinct names and NameIds; the two const aliases inside the second EVAL must also be distinct:
+     * <pre>
+     * Eval[c=$$markC, d=$$markD, e=$$markE]
+     *   MarkJoin_e[left=x, right=sub]
+     *     Eval[$$constD=42]
+     *       MarkJoin_d[left=$$constD, right=sub]
+     *         Eval[$$constC=42]
+     *           MarkJoin_c[left=$$constC, right=sub]
+     *             Eval[a=$$markA, b=$$markB]
+     *               MarkJoin_b[left=x, right=sub]
+     *                 MarkJoin_a[left=x, right=sub]
+     *                   FROM main
+     * </pre>
+     */
+    public void testChainedEvalsWithMultipleInSubqueriesGetDistinctMarkNames() {
+        LogicalPlan plan = resolve("""
+            FROM main
+            | EVAL a = x IN (FROM sub), b = x IN (FROM sub)
+            | EVAL c = 42 IN (FROM sub), d = 42 IN (FROM sub), e = x IN (FROM sub)
+            """);
+
+        // Outer EVAL for c, d, e
+        Eval outerEval = as(plan, Eval.class);
+        assertEquals(3, outerEval.fields().size());
+        assertEquals("c", outerEval.fields().get(0).name());
+        assertEquals("d", outerEval.fields().get(1).name());
+        assertEquals("e", outerEval.fields().get(2).name());
+        Attribute markC = as(outerEval.fields().get(0).child(), Attribute.class);
+        Attribute markD = as(outerEval.fields().get(1).child(), Attribute.class);
+        Attribute markE = as(outerEval.fields().get(2).child(), Attribute.class);
+
+        // e's MarkJoin is outermost — no const Eval needed because e's LHS is an attribute
+        MarkJoin joinE = as(outerEval.child(), MarkJoin.class);
+        assertEquals(markE.id(), joinE.markAttribute().id());
+        assertEquals("x", joinE.config().leftFields().get(0).name());
+
+        // d's MarkJoin is directly below e's (const Eval is below d's MarkJoin, not above)
+        MarkJoin joinD = as(joinE.left(), MarkJoin.class);
+        assertEquals(markD.id(), joinD.markAttribute().id());
+
+        // const Eval for d is below d's MarkJoin
+        Eval constEvalD = as(joinD.left(), Eval.class);
+        assertEquals(1, constEvalD.fields().size());
+        String constNameD = constEvalD.fields().get(0).name();
+
+        // c's MarkJoin is below d's const Eval
+        MarkJoin joinC = as(constEvalD.child(), MarkJoin.class);
+        assertEquals(markC.id(), joinC.markAttribute().id());
+
+        // const Eval for c is below c's MarkJoin
+        Eval constEvalC = as(joinC.left(), Eval.class);
+        assertEquals(1, constEvalC.fields().size());
+        String constNameC = constEvalC.fields().get(0).name();
+        assertNotEquals("const names for c and d must be distinct", constNameC, constNameD);
+
+        // Inner EVAL for a and b
+        Eval innerEval = as(constEvalC.child(), Eval.class);
+        assertEquals(2, innerEval.fields().size());
+        assertEquals("a", innerEval.fields().get(0).name());
+        assertEquals("b", innerEval.fields().get(1).name());
+        Attribute markA = as(innerEval.fields().get(0).child(), Attribute.class);
+        Attribute markB = as(innerEval.fields().get(1).child(), Attribute.class);
+
+        MarkJoin joinB = as(innerEval.child(), MarkJoin.class);
+        assertEquals(markB.id(), joinB.markAttribute().id());
+        MarkJoin joinA = as(joinB.left(), MarkJoin.class);
+        assertEquals(markA.id(), joinA.markAttribute().id());
+        as(joinA.left(), UnresolvedRelation.class); // FROM main
+
+        // All five marks have distinct names and NameIds
+        Set<String> markNames = new HashSet<>();
+        Set<NameId> markIds = new HashSet<>();
+        for (Attribute mark : new Attribute[] { markA, markB, markC, markD, markE }) {
+            assertTrue("mark name must be unique: " + mark.name(), markNames.add(mark.name()));
+            assertTrue("mark NameId must be unique: " + mark.id(), markIds.add(mark.id()));
+        }
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub) AND y > 0}: an IN subquery connected to a regular predicate by AND
+     * produces one MarkJoin and preserves the regular predicate.
+     */
+    public void testInSubqueryAndGreaterThanInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub) AND y > 0");
+        Eval eval = as(plan, Eval.class);
+        And and = as(eval.fields().get(0).child(), And.class);
+
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        Attribute mark = assertMarkJoin(join, "x", "sub");
+
+        assertEquals(mark.id(), as(and.left(), Attribute.class).id());
+        as(and.right(), GreaterThan.class);
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (FROM sub) OR y > 0}: an IN subquery connected to a regular predicate by OR
+     * produces one MarkJoin and preserves the regular predicate.
+     */
+    public void testInSubqueryOrGreaterThanInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (FROM sub) OR y > 0");
+        Eval eval = as(plan, Eval.class);
+        Or or = as(eval.fields().get(0).child(), Or.class);
+
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        Attribute mark = assertMarkJoin(join, "x", "sub");
+
+        assertEquals(mark.id(), as(or.left(), Attribute.class).id());
+        as(or.right(), GreaterThan.class);
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = CASE(x IN (FROM sub1) AND y IN (FROM sub2), true, false)}:
+     * CASE can wrap a compound expression containing two IN subqueries.
+     */
+    public void testConjunctiveInSubqueriesInsideCaseInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = CASE(x IN (FROM sub1) AND y IN (FROM sub2), true, false)");
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction caseExpression = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpression.name());
+        And and = as(caseExpression.children().get(0), And.class);
+
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
+        Attribute yMark = assertMarkJoin(outerJoin, "y", "sub2");
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
+        Attribute xMark = assertMarkJoin(innerJoin, "x", "sub1");
+
+        assertEquals(xMark.id(), as(and.left(), Attribute.class).id());
+        assertEquals(yMark.id(), as(and.right(), Attribute.class).id());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = COALESCE(x IN (FROM sub1) OR y IN (FROM sub2), false)}:
+     * COALESCE can wrap a compound expression containing two IN subqueries.
+     */
+    public void testDisjunctiveInSubqueriesInsideCoalesceInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = COALESCE(x IN (FROM sub1) OR y IN (FROM sub2), false)");
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction coalesceExpression = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceExpression.name());
+        Or or = as(coalesceExpression.children().get(0), Or.class);
+
+        MarkJoin outerJoin = as(eval.child(), MarkJoin.class);
+        Attribute yMark = assertMarkJoin(outerJoin, "y", "sub2");
+        MarkJoin innerJoin = as(outerJoin.left(), MarkJoin.class);
+        Attribute xMark = assertMarkJoin(innerJoin, "x", "sub1");
+
+        assertEquals(xMark.id(), as(or.left(), Attribute.class).id());
+        assertEquals(yMark.id(), as(or.right(), Attribute.class).id());
+        assertEquals("main", as(innerJoin.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (x IN (FROM sub) AND y > 0) IS NULL}:
+     * IS NULL can wrap a compound expression containing an IN subquery and a regular predicate.
+     */
+    public void testCompoundInSubqueryInsideIsNullInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = (x IN (FROM sub) AND y > 0) IS NULL");
+        Eval eval = as(plan, Eval.class);
+        IsNull isNull = as(eval.fields().get(0).child(), IsNull.class);
+        And and = as(isNull.field(), And.class);
+
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        Attribute mark = assertMarkJoin(join, "x", "sub");
+
+        assertEquals(mark.id(), as(and.left(), Attribute.class).id());
+        as(and.right(), GreaterThan.class);
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (x IN (FROM sub) OR y > 0) IS NOT NULL}:
+     * IS NOT NULL can wrap a compound expression containing an IN subquery and a regular predicate.
+     */
+    public void testCompoundInSubqueryInsideIsNotNullInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = (x IN (FROM sub) OR y > 0) IS NOT NULL");
+        Eval eval = as(plan, Eval.class);
+        IsNotNull isNotNull = as(eval.fields().get(0).child(), IsNotNull.class);
+        Or or = as(isNotNull.field(), Or.class);
+
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        Attribute mark = assertMarkJoin(join, "x", "sub");
+
+        assertEquals(mark.id(), as(or.left(), Attribute.class).id());
+        as(or.right(), GreaterThan.class);
+        assertEquals("main", as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    // ---- positive: IN subquery with TS, ROW source in EVAL ----
+
+    /**
+     * {@code FROM main | EVAL z = x IN (TS sub)}
+     */
+    public void testInTsSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (TS sub)");
+        Eval eval = as(plan, Eval.class);
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        UnresolvedRelation sub = as(join.right(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2)}
+     */
+    public void testMultiColumnInTsSubqueryInEval() {
+        checkMultiColumnInSubquery();
+        LogicalPlan plan = resolve("FROM main | EVAL z = (f1, f2) IN (TS sub | KEEP f1, f2)");
+        Eval eval = as(plan, Eval.class);
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals("f1", join.config().leftFields().get(0).name());
+        assertEquals("f2", join.config().leftFields().get(1).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        Keep keep = as(join.right(), Keep.class);
+        UnresolvedRelation sub = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub", sub.indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = x IN (ROW a = 1)}
+     */
+    public void testInRowSubqueryInEval() {
+        LogicalPlan plan = resolve("FROM main | EVAL z = x IN (ROW a = 1)");
+        Eval eval = as(plan, Eval.class);
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals("x", join.config().leftFields().get(0).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        as(join.right(), Row.class);
+    }
+
+    /**
+     * {@code FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2)}
+     */
+    public void testMultiColumnInRowSubqueryInEval() {
+        checkMultiColumnInSubquery();
+        LogicalPlan plan = resolve("FROM main | EVAL z = (f1, f2) IN (ROW f1 = 1, f2 = 2)");
+        Eval eval = as(plan, Eval.class);
+        Attribute mark = as(eval.fields().get(0).child(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals("f1", join.config().leftFields().get(0).name());
+        assertEquals("f2", join.config().leftFields().get(1).name());
+        assertEquals(mark.id(), join.markAttribute().id());
+        as(join.right(), Row.class);
+    }
+
+    /**
+     * {@code FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false)}
+     */
+    public void testMultiColumnInSubqueryNestedInCaseInEval() {
+        checkMultiColumnInSubquery();
+        LogicalPlan plan = resolve("FROM main | EVAL z = CASE((f1, f2) IN (FROM sub | KEEP f1, f2), true, false)");
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction caseExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseExpr.name());
+        Attribute mark = as(caseExpr.children().get(0), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false)}
+     */
+    public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
+        checkMultiColumnInSubquery();
+        LogicalPlan plan = resolve("FROM main | EVAL z = COALESCE((f1, f2) IN (FROM sub | KEEP f1, f2), false)");
+        Eval eval = as(plan, Eval.class);
+        UnresolvedFunction coalesceExpr = as(eval.fields().get(0).child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesceExpr.name());
+        Attribute mark = as(coalesceExpr.children().get(0), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL}
+     */
+    public void testMultiColumnInSubqueryNestedInIsNullInEval() {
+        checkMultiColumnInSubquery();
+        LogicalPlan plan = resolve("FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NULL");
+        Eval eval = as(plan, Eval.class);
+        IsNull isNull = as(eval.fields().get(0).child(), IsNull.class);
+        Attribute mark = as(isNull.field(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    /**
+     * {@code FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NOT NULL}
+     */
+    public void testMultiColumnInSubqueryNestedInIsNotNullInEval() {
+        checkMultiColumnInSubquery();
+        LogicalPlan plan = resolve("FROM main | EVAL z = ((f1, f2) IN (FROM sub | KEEP f1, f2)) IS NOT NULL");
+        Eval eval = as(plan, Eval.class);
+        IsNotNull isNotNull = as(eval.fields().get(0).child(), IsNotNull.class);
+        Attribute mark = as(isNotNull.field(), Attribute.class);
+        MarkJoin join = as(eval.child(), MarkJoin.class);
+        assertEquals(2, join.config().leftFields().size());
+        assertEquals(mark.id(), join.markAttribute().id());
+        assertEquals("sub", as(as(join.right(), Keep.class).child(), UnresolvedRelation.class).indexPattern().indexPattern());
+    }
+
+    // ---- negative: IN subquery in EVAL (rejected shapes) ----
+
+    /**
+     * {@code EVAL z = abs(x) IN (FROM sub)}: complex LHS — "Complicated IN subquery" error.
+     */
+    public void testRejectsComplexLHSInSubqueryInEval() {
+        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | EVAL z = abs(x) IN (FROM sub)"));
+        assertThat(e.getMessage(), containsString("Complicated IN subquery is not yet supported in Eval [EVAL z = abs(x) IN (FROM sub)]"));
+    }
+
+    /**
+     * {@code EVAL z = TO_STRING(x IN (FROM sub))}: non-allowlisted wrapper — "not supported within expression" error.
+     */
+    public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
+        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | EVAL z = TO_STRING(x IN (FROM sub))"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported within expression [TO_STRING(x IN (FROM sub))]"));
+    }
+
     // ---- positive: IN subquery in STATS WHERE filter ----
 
     public void testStatsWhereInSubquery() {
@@ -2075,6 +2863,20 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     public void testStatsWhereInSubqueryWithGrouping() {
         LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) BY g");
+        Aggregate agg = as(plan, Aggregate.class);
+        assertEquals(1, agg.groupings().size());
+        FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
+        Attribute mark = as(filtered.filter(), Attribute.class);
+        MarkJoin mj = as(agg.child(), MarkJoin.class);
+        assertEquals("x", mj.config().leftFields().get(0).name());
+        assertEquals(mark.id(), mj.markAttribute().id());
+    }
+
+    /**
+     * A renamed grouping only blocks the rewrite when it shadows the IN subquery's LHS; an unrelated alias must not trip the guard.
+     */
+    public void testStatsWhereInSubqueryWithUnrelatedGroupingAlias() {
+        LogicalPlan plan = resolve("FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) BY g = y");
         Aggregate agg = as(plan, Aggregate.class);
         assertEquals(1, agg.groupings().size());
         FilteredExpression filtered = as(as(agg.aggregates().get(0), Alias.class).child(), FilteredExpression.class);
@@ -2271,21 +3073,8 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertEquals("sub", as(mj.left(), UnresolvedRelation.class).indexPattern().indexPattern());
     }
 
-    // ---- negative: unsupported IN subquery shapes in STATS WHERE filter ----
+    // ---- negative: unsupported IN subquery shapes in STATS ----
 
-    /**
-     * A non-attribute, non-foldable LHS in an aggregate filter is not supported.
-     */
-    public void testRejectsComplexLHSInStatsWhere() {
-        assertResolveError(
-            "FROM main | STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)",
-            "line 1:38: Complicated IN subquery is not yet supported in Aggregate " + "[STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)]"
-        );
-    }
-
-    /**
-     * IN subquery inside the aggregate function arguments (not the filter) stays rejected.
-     */
     public void testRejectsInSubqueryInAggArgs() {
         assertResolveError(
             "FROM main | STATS c = SUM(CASE(x IN (FROM sub), 1, 0)) WHERE y > 0",
@@ -2293,7 +3082,47 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
+    public void testRejectsInSubqueryInStatsBy() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) BY x IN (FROM sub)",
+            "line 1:35: IN subquery is not supported in [STATS c = COUNT(*) BY x IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsMultiColumnInSubqueryInStatsBy() {
+        checkMultiColumnInSubquery();
+        var e = expectThrows(VerificationException.class, () -> resolve("FROM main | STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY (f1, f2) IN (FROM sub)]"));
+    }
+
+    public void testRejectsComplexLHSInStatsWhere() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)",
+            "line 1:38: Complicated IN subquery is not yet supported in Aggregate [STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsStatsWhereInSubqueryShadowedByGroupingAlias() {
+        assertResolveError(
+            "FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub) BY x = y",
+            "line 1:38: IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [x]"
+        );
+    }
+
+    public void testRejectsMultiColumnStatsWhereInSubqueryShadowedByGroupingAlias() {
+        checkMultiColumnInSubquery();
+        var e = expectThrows(
+            VerificationException.class,
+            () -> resolve("FROM main | STATS c = COUNT(*) WHERE (f1, f2) IN (FROM sub) BY f2 = y")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [f2]")
+        );
+    }
+
     // ---- negative: IN subquery in INLINESTATS WHERE filter ----
+    // TODO remove this restriction in a follow up PR to support IN subqueries in INLINE STATS
 
     public void testRejectsInSubqueryInInlineStatsWhereFilter() {
         assertResolveError(
@@ -2302,10 +3131,6 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
-    /**
-     * The INLINESTATS rejection must survive a rewrite happening below it: the WHERE's IN subquery is resolved (rebuilding the
-     * InlineStats-owned Aggregate on the way up), but the aggregate filter of the INLINESTATS itself must be left alone and rejected.
-     */
     public void testRejectsInlineStatsWhereInSubqueryWithRewrittenFilterBelow() {
         var e = expectThrows(
             VerificationException.class,
@@ -2323,6 +3148,15 @@ public class InSubqueryResolverTests extends ESTestCase {
     private static void assertResolveError(String query, String expectedError) {
         var e = expectThrows(VerificationException.class, () -> resolve(query));
         assertEquals("Found 1 problem\n" + expectedError, e.getMessage());
+    }
+
+    private static Attribute assertMarkJoin(MarkJoin join, String leftField, String rightIndex) {
+        assertEquals(JoinTypes.MARK, join.config().type());
+        assertEquals(1, join.config().leftFields().size());
+        assertEquals(leftField, join.config().leftFields().get(0).name());
+        assertTrue(join.config().rightFields().isEmpty());
+        assertEquals(rightIndex, as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern());
+        return join.markAttribute();
     }
 
     private static void assertMarkJoinReplacedInSubquery(Filter filter, Expression replacement, String leftField, String subqueryIndex) {

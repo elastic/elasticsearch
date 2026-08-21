@@ -158,9 +158,10 @@ public class ReplicationGroupGlobalCheckpointRaceTests extends ESIndexLevelRepli
 
                     @Override
                     public PendingReplicationActions getPendingReplicationActions() {
-                        // The primary's real PendingReplicationActions has been notified of the
-                        // kick and no longer tracks the replica.
+                        // The primary's real PendingReplicationActions has been notified of the kick and no longer tracks the replica.
                         // Return the pre-seeded fresh instance so replica's action is not immediately canceled.
+                        // This effectively eliminates the protection mechanism from production code that ensures that
+                        // global checkpoints > local checkpoints never reach replicas.
                         final PendingReplicationActions freshPendingReplicationActions = new PendingReplicationActions(
                             primaryShard.shardId(),
                             threadPool

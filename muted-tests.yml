@@ -734,27 +734,3 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/157326
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/157326
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testFromDatasetDeniedWithoutReadOnName
-  issue: https://github.com/elastic/elasticsearch/issues/157335
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testPutDatasetAllowedWithCreateDatasetPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/157336
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/157337
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testFromDatasetDeniedWithoutReadOnName
-  issue: https://github.com/elastic/elasticsearch/issues/157338
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testFromDatasetAllowedWithDatasetReadOnly
-  issue: https://github.com/elastic/elasticsearch/issues/157339
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/157340

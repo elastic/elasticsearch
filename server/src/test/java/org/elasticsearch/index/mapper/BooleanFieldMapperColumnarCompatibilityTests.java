@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -190,6 +192,96 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .build();
+    }
+
+    // ---- stored field support ------------------------------------------------------------------
+
+    private static final BytesRef ST_TSID = new BytesRef(new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 });
+    private static final int ST_ROUTING_HASH = 42;
+    private static final String ST_ROUTING = TimeSeriesRoutingHashFieldMapper.encode(ST_ROUTING_HASH);
+    // epoch millis: 2024-01-15T12:00:00.000Z
+    private static final long ST_TS_A = 1705320000000L;
+
+    private static Settings tsdbSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
+            .build();
+    }
+
+    public void testStoredTrueValue() throws IOException {
+        final String id = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "boolean").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("boolean stored true", 1L, doc(id, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":true}"))
+        );
+    }
+
+    public void testStoredFalseValue() throws IOException {
+        final String id = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "boolean").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch("boolean stored false", 1L, doc(id, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":false}"))
+        );
+    }
+
+    public void testStoredAbsentDoc() throws IOException {
+        final String id = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "boolean").field("store", true).endObject();
+        }), tsdbSettings(), batch("boolean stored absent", 1L, doc(id, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + "}")));
+    }
+
+    public void testStoredAndIndexed() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + 1000L);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "boolean").field("index", true).field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "boolean indexed+stored",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":true}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + (ST_TS_A + 1000L) + ",\"f\":false}")
+            )
+        );
+    }
+
+    public void testStoredMixedValues() throws IOException {
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        final String idB = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + 1000L);
+        final String idC = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A + 2000L);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "boolean").field("store", true).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "boolean stored mixed",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":true}"),
+                doc(idB, ST_ROUTING, ST_TSID, 2L, "{\"@timestamp\":" + (ST_TS_A + 1000L) + "}"),
+                doc(idC, ST_ROUTING, ST_TSID, 3L, "{\"@timestamp\":" + (ST_TS_A + 2000L) + ",\"f\":false}")
+            )
+        );
     }
 
     /**

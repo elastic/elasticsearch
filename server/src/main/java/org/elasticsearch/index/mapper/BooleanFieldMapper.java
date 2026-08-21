@@ -92,6 +92,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private static final IndexableFieldType SORTED_NUMERIC_DV_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
     private static final IndexableFieldType SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE = SortedNumericDocValuesField.indexedField("_sentinel", 0L)
         .fieldType();
+    private static final IndexableFieldType BOOL_STORED_FIELD_TYPE = new StoredField("_sentinel", "").fieldType();
 
     private static BooleanFieldMapper toType(FieldMapper in) {
         return (BooleanFieldMapper) in;
@@ -769,7 +770,6 @@ public class BooleanFieldMapper extends FieldMapper {
         // but are not rejected here — they fall back per document at parse time.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -795,11 +795,17 @@ public class BooleanFieldMapper extends FieldMapper {
             ctx.addColumn(
                 LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, LongColumn.NumericKind.INT)
             );
-        } else if (indexed) {
-            ctx.addColumn(LuceneBinaryColumn.of(booleansToTerms(outData), fieldType().name(), StringField.TYPE_NOT_STORED));
-            ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
         } else {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_FIELD_TYPE, LongColumn.NumericKind.INT));
+        }
+        if (indexed || stored) {
+            EscfColumnData termsData = booleansToTerms(outData);
+            if (indexed) {
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), StringField.TYPE_NOT_STORED));
+            }
+            if (stored) {
+                ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), BOOL_STORED_FIELD_TYPE));
+            }
         }
     }
 

@@ -270,6 +270,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         static final float FOUR_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[3];
         static final float SEVEN_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[6];
 
+        static final VectorSpecies<Integer> INT_SPECIES = IntVector.SPECIES_PREFERRED;
         static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
         static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
 
@@ -279,6 +280,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
         static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
 
+        static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
         static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
         static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
@@ -422,7 +424,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return Float.NEGATIVE_INFINITY;
         }
 
-        protected final float applyCorrections128Bulk(
+        protected final float applyCorrectionsBulk(
             float queryLowerInterval,
             float queryUpperInterval,
             int queryComponentSum,
@@ -438,7 +440,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                 in,
                 16L * bulkSize,
                 scratch::get,
-                seg -> applyCorrections128BulkImpl(
+                seg -> applyCorrectionsBulkImpl(
                     seg,
                     queryAdditionalCorrection,
                     similarityFunction,
@@ -454,44 +456,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             );
         }
 
-        protected final float applyCorrections256Bulk(
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryAdditionalCorrection,
-            VectorSimilarityFunction similarityFunction,
-            float centroidDp,
-            float[] scores,
-            int bulkSize,
-            float queryBitScale,
-            float indexBitScale
-        ) throws IOException {
-            return IndexInputUtils.withSlice(
-                in,
-                16L * bulkSize,
-                scratch::get,
-                seg -> applyCorrections256BulkImpl(
-                    seg,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    scores,
-                    bulkSize,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryBitScale,
-                    indexBitScale
-                )
-            );
-        }
-
-        /*
-         * NOTE: the 128 and 256 bit implementations ARE identical, but they're separated out
-         * to ensure the vector species is a static constant, so the JIT definitely does the right thing
-         */
-
-        private float applyCorrections128BulkImpl(
+        private float applyCorrectionsBulkImpl(
             MemorySegment memorySegment,
             float queryAdditionalCorrection,
             VectorSimilarityFunction similarityFunction,
@@ -504,33 +469,33 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             float queryBitScale,
             float indexBitScale
         ) {
-            int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
+            int limit = FLOAT_SPECIES.loopBound(bulkSize);
             int i = 0;
             float ay = queryLowerInterval;
             float ly = (queryUpperInterval - ay) * queryBitScale;
             float y1 = queryComponentSum;
             float maxScore = Float.NEGATIVE_INFINITY;
-            for (; i < limit; i += FLOAT_SPECIES_128.length()) {
-                var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            for (; i < limit; i += FLOAT_SPECIES.length()) {
+                var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
                 var lx = FloatVector.fromMemorySegment(
-                    FLOAT_SPECIES_128,
+                    FLOAT_SPECIES,
                     memorySegment,
                     4L * bulkSize + (long) i * Float.BYTES,
                     ByteOrder.LITTLE_ENDIAN
                 ).sub(ax).mul(indexBitScale);
                 var targetComponentSums = IntVector.fromMemorySegment(
-                    INT_SPECIES_128,
+                    INT_SPECIES,
                     memorySegment,
                     8L * bulkSize + (long) i * Integer.BYTES,
                     ByteOrder.LITTLE_ENDIAN
                 ).convert(VectorOperators.I2F, 0);
                 var additionalCorrections = FloatVector.fromMemorySegment(
-                    FLOAT_SPECIES_128,
+                    FLOAT_SPECIES,
                     memorySegment,
                     12L * bulkSize + (long) i * Float.BYTES,
                     ByteOrder.LITTLE_ENDIAN
                 );
-                var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
+                var qcDist = FloatVector.fromArray(FLOAT_SPECIES, scores, i);
                 // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
                 var res1 = ax.mul(ay).mul(dimensions);
                 var res2 = lx.mul(ay).mul(targetComponentSums);
@@ -542,7 +507,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                     // assumed to be the squared l2norm of the centroid centered vectors.
                     case EUCLIDEAN:
                         res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
-                        res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
+                        res = FloatVector.broadcast(FLOAT_SPECIES, 1).div(res).max(0);
                         maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                         break;
                     // For others, we need to apply the additional correction, which is
@@ -551,99 +516,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
                         res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                         // see VectorUtil.scaleMaxInnerProductScore
                         var negMask = res.lt(0);
-                        var neg = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res.mul(-1).add(1));
-                        res = res.add(1).blend(neg, negMask);
-                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                        break;
-                    case COSINE:
-                    case DOT_PRODUCT:
-                        res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
-                        res = res.add(1f).mul(0.5f).max(0);
-                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                        break;
-                }
-                res.intoArray(scores, i);
-            }
-            if (limit < bulkSize) {
-                maxScore = applyCorrectionsIndividually(
-                    memorySegment,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    indexBitScale,
-                    scores,
-                    bulkSize,
-                    limit,
-                    ay,
-                    ly,
-                    y1,
-                    maxScore
-                );
-            }
-            return maxScore;
-        }
-
-        private float applyCorrections256BulkImpl(
-            MemorySegment memorySegment,
-            float queryAdditionalCorrection,
-            VectorSimilarityFunction similarityFunction,
-            float centroidDp,
-            float[] scores,
-            int bulkSize,
-            float queryLowerInterval,
-            float queryUpperInterval,
-            int queryComponentSum,
-            float queryBitScale,
-            float indexBitScale
-        ) {
-            int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
-            int i = 0;
-            float ay = queryLowerInterval;
-            float ly = (queryUpperInterval - ay) * queryBitScale;
-            float y1 = queryComponentSum;
-            float maxScore = Float.NEGATIVE_INFINITY;
-            for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-                var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-                var lx = FloatVector.fromMemorySegment(
-                    FLOAT_SPECIES_256,
-                    memorySegment,
-                    4L * bulkSize + (long) i * Float.BYTES,
-                    ByteOrder.LITTLE_ENDIAN
-                ).sub(ax).mul(indexBitScale);
-                var targetComponentSums = IntVector.fromMemorySegment(
-                    INT_SPECIES_256,
-                    memorySegment,
-                    8L * bulkSize + (long) i * Integer.BYTES,
-                    ByteOrder.LITTLE_ENDIAN
-                ).convert(VectorOperators.I2F, 0);
-                var additionalCorrections = FloatVector.fromMemorySegment(
-                    FLOAT_SPECIES_256,
-                    memorySegment,
-                    12L * bulkSize + (long) i * Float.BYTES,
-                    ByteOrder.LITTLE_ENDIAN
-                );
-                var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
-                // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
-                var res1 = ax.mul(ay).mul(dimensions);
-                var res2 = lx.mul(ay).mul(targetComponentSums);
-                var res3 = ax.mul(ly).mul(y1);
-                var res4 = lx.mul(ly).mul(qcDist);
-                var res = res1.add(res2).add(res3).add(res4);
-                switch (similarityFunction) {
-                    // For euclidean, we need to invert the score and apply the additional correction, which is
-                    // assumed to be the squared l2norm of the centroid centered vectors.
-                    case EUCLIDEAN:
-                        res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
-                        res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
-                        maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
-                        break;
-                    // For others, we need to apply the additional correction, which is
-                    // assumed to be the non-centered dot-product between the vector and the centroid
-                    case MAXIMUM_INNER_PRODUCT:
-                        res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
-                        // see VectorUtil.scaleMaxInnerProductScore
-                        var negMask = res.lt(0);
-                        var neg = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res.mul(-1).add(1));
+                        var neg = FloatVector.broadcast(FLOAT_SPECIES, 1).div(res.mul(-1).add(1));
                         res = res.add(1).blend(neg, negMask);
                         maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                         break;

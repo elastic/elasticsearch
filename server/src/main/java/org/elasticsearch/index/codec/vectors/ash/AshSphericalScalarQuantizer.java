@@ -212,19 +212,19 @@ final class AshSphericalScalarQuantizer {
     static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
         // Base level: all dims at 0.5 -> dot = sum(0.5 * |z_j|), normSq = 0.25 * d
         // use doubles here, as small differences between steps can be significant
-        float[] absZ = new float[d];
+        int[] absZF = new int[d];
         double baseDot = 0;
         for (int j = 0; j < d; j++) {
             float a = Math.abs(z[zOffset + j]);
-            absZ[j] = a;
+            absZF[j] = Float.floatToIntBits(a);
             baseDot = Math.fma(0.5, a, baseDot);
         }
 
-        // Sorted ascending; every run walks it backwards, so zero magnitudes
-        // sit at the end of each run (the start of this array)
-        Arrays.sort(absZ);
+        // Sorted ascending; the iteration is then done backwards
+        // sort as ints - see use in 2bit method
+        SORTER.get().sort(31, absZF, d);
         int firstNonZero = 0;
-        while (firstNonZero < d && absZ[firstNonZero] == 0) {
+        while (firstNonZero < d && absZF[firstNonZero] == 0) {
             firstNonZero++;
         }
 
@@ -241,7 +241,7 @@ final class AshSphericalScalarQuantizer {
             // so the runs in step order already satisfy the heap invariant.
             double dot = baseDot;
             double normSq = bestNormSq;
-            RunHeap heap = new RunHeap(nSteps, d, absZ[d - 1]);
+            RunHeap heap = new RunHeap(nSteps, d, Float.intBitsToFloat(absZF[d - 1]));
             int events = nSteps * (d - firstNonZero);
 
             for (int e = 0; e < events; e++) {
@@ -255,7 +255,7 @@ final class AshSphericalScalarQuantizer {
                 int head = --heap.heads[run];
                 // An exhausted run carries magnitude 0, i.e. an infinite critical time,
                 // so it sinks to the bottom of the heap and is never selected again
-                heap.headMags[run] = head < firstNonZero ? 0 : absZ[head];
+                heap.headMags[run] = head < firstNonZero ? 0 : Float.intBitsToFloat(absZF[head]);
                 heap.siftDown();
 
                 // Handle ties: skip evaluation if the next event is at the same critical time

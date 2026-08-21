@@ -22,6 +22,18 @@ Read `README.md` for the architecture first, then this. It covers what is expens
    tables use `DirectMonotonic` (temp file on write, mapped slice on read); presence uses
    `IndexedDISI`. Only bounded metadata and one decode block stay in memory.
 
+## Chunks
+
+`ChunkedBytesWriter`/`ChunkedBytesReader` sit below the encoders: they store a column's byte stream as
+byte-bounded chunks, each compressed whole by a `ChunkCodec` on a frozen `byte` id. A caller appends
+values and calls `boundary()` wherever a chunk may end, which is what keeps a block — or any other unit
+the caller addresses — from straddling two chunks.
+
+Two rules to keep: the compression unit is sized in **bytes**, never in values, so the ratio does not
+move with value width; and nothing the writer holds grows with the column — one chunk is buffered and
+the chunk index is staged in a temporary file, because `MonotonicWriter` needs its entry count up front
+and the chunk count is only known at the end.
+
 ## Encoders
 
 A block is encoded by a `NumericPipeline`: adaptive `BlockTransform`s (delta, offset, GCD — reversible
@@ -37,15 +49,18 @@ handed an explicit pipeline to skip it.
 3. Add it to a pipeline — the default or a per-field one.
 
 A column records its stage ids in metadata, so old data lists only old ids and a newer reader rebuilds
-the exact pipeline and decodes it unchanged. Never reuse or renumber a shipped id.
+the exact pipeline and decodes it unchanged. Never reuse or renumber a shipped id. An unknown id
+already fails loudly at first field access; a format bump is not required for id additions alone.
 
 ## Versioning
 
-Each segment stamps `ColumnarFormat.VERSION_CURRENT`; readers accept `[VERSION_START, VERSION_CURRENT]`
-and reject anything newer. Most evolution needs no bump — new encoders, field types and block-bytes
-codecs ride frozen ids recorded per column. Only a change to the metadata *layout* needs a version
-bump; then branch on the header version (returned by `ColumnarCodecUtil.checkHeader`) in the affected
-`readFrom`.
+Each segment stamps a `FormatVersion` in both headers; `ColumnarCodecUtil.checkHeader` returns it
+and threads it through `readFrom`. Three tiers: format version (header `int`), frozen column ids
+(`byte`, per-column), encoding bitmask (`vint`, per-block). Bump `FormatVersion.CURRENT` on layout
+changes — new fields in `readFrom`, different block framing, a different offset-table encoding. Those
+parse silently and return wrong values on old readers; a header bump turns that into
+`IndexFormatTooNewException` at segment open. Id additions do not require a bump. See `FormatVersion`
+Javadoc for full policy.
 
 ## Benchmarks & tests
 

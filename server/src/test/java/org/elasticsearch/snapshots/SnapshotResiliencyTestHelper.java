@@ -659,7 +659,7 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool)
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -720,7 +720,7 @@ public class SnapshotResiliencyTestHelper {
                     snapshotFilesProvider
                 );
 
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActionFilters actionFilters = ActionFilters.EMPTY;
                 final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
                 new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();

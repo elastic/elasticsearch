@@ -39,11 +39,10 @@ FOR) runs all detection, while a field with a known shape can be handed an expli
 it. A column records its stage ids in metadata, and the per-block layout is self-describing —
 `fireBitmask`, terminal payload, then each fired transform's params in reverse order.
 
-**Additive & backward-compatible.** Every stage has a frozen `byte` id. To add an encoder: implement
-`BlockTransform` or `BlockTerminal` with a new id, register it in `NumericPipeline.Registry`, and add
-it to a pipeline. New data uses it; because a column records the ids it was written with, older data
-lists only old ids and a newer reader rebuilds the exact pipeline and decodes it unchanged. Never
-reuse or renumber an id.
+**Frozen ids.** Every stage has a frozen `byte` id recorded in column metadata. Adding an encoder
+requires a `FormatVersion` bump; without one, old readers fail mid-decode on the unknown id instead
+of at header open. Once shipped, ids must never be reused or renumbered. Because a column records
+the ids it was written with, older data lists only old ids and a newer reader rebuilds unchanged.
 
 ## Storage
 
@@ -61,10 +60,30 @@ reuse or renumber an id.
 
 Nothing column-proportional is on the heap — read, write and merge stream one block at a time; offset
 and address tables use `DirectMonotonic` (temp file on write, mapped slice on read). Each segment
-carries a version stamp; the on-disk ids (block encoding, block-bytes codec) are frozen once shipped.
-Block bytes pass through a `BlockBytesCodec` (identity today). Planned block compression adds Zstd as
-the pipeline's last encoder, reusing the native `org.elasticsearch.nativeaccess.Zstd` binding rather
-than a Java LZ4.
+carries a format version stamp in both the `.cnd` and `.cnm` headers. The on-disk component ids
+(field type, block encoding, block-bytes codec, skip-index codec) are frozen once shipped and must
+never be reused or renumbered. A format bump is required for layout changes — new fields in `readFrom`,
+different block framing, changed offset-table encoding — not for id additions: an unknown id already
+fails loudly at first field access. See `AGENTS.md` for full policy.
+
+## Chunks
+
+Compression is a layer below encoding, in `ChunkedBytesWriter`/`ChunkedBytesReader`. A column's byte
+stream is written as **chunks**: byte-bounded units, each compressed whole by a `ChunkCodec` (identity
+or Zstd, on frozen ids). A **block** stays what it was — a fixed count of values, addressed by its
+offset in the *uncompressed* stream — and a chunk only ever closes on a block boundary, so no block
+straddles two chunks and no read spans more than one. Two `DirectMonotonic` tables locate a chunk: its
+start in the uncompressed stream, and where it landed in the file.
+
+Sizing the compression unit in bytes rather than values is what makes the ratio independent of the
+data: a 128-value block of 20-byte values gives a codec 2.5 KB to work with, the same block of
+200-byte values gives it 25 KB. Under the identity codec the uncompressed stream is the file, so the
+chunk layer is a pass-through and values are read straight from the mapped input.
+
+Zstd runs through the native `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
+implementation, and both directions hand it memory it addresses directly — the compressed bytes as a
+`MemorySegment` slice of the mapped file, the decoded chunk as a heap array passed through a critical
+downcall.
 
 See `docs/PLAN.md` for the roadmap, `docs/BENCHMARKS.md` for the benchmarks, and `AGENTS.md` for
 conventions.

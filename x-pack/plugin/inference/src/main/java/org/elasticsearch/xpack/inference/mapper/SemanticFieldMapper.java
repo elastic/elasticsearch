@@ -63,8 +63,10 @@ import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -110,6 +112,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     public static final String CONTENT_TYPE = "semantic";
 
     public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
+
+    public static final String CHUNKS_FORMAT = "chunks";
+    public static final String EMBEDDINGS_FORMAT = "embeddings";
 
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
@@ -890,7 +895,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 ) {
                     DocumentParserContext subContext = nestedContext.switchParser(subParser);
                     subParser.nextToken();
-                    embeddingsField.parse(subContext);
+                    var embeddingsParseResult = embeddingsField.parse(subContext);
+                    assert embeddingsParseResult instanceof FieldMapper.ParseResult.Indexed;
                 }
 
                 parseChunkValueReference(nestedContext, mapper.fieldType(), entry.getKey(), chunk);
@@ -925,7 +931,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ) {
                 DocumentParserContext subContext = context.switchParser(subParser);
                 subParser.nextToken();
-                offsetsField.parse(subContext);
+                var offsetsParseResult = offsetsField.parse(subContext);
+                assert offsetsParseResult instanceof FieldMapper.ParseResult.Indexed;
             }
         }
     }
@@ -1064,16 +1071,54 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format != null && "chunks".equals(format) == false) {
-                throw new IllegalArgumentException(
-                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
-                );
-            }
-            if (format != null) {
-                return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
+            if (format == null) {
+                return valueFetcher(context);
             }
 
-            return valueFetcher(context);
+            return switch (format) {
+                case CHUNKS_FORMAT -> new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
+                case EMBEDDINGS_FORMAT -> new EmbeddingsSemanticFieldValueFetcher(
+                    this,
+                    getChunksField().bitsetProducer(),
+                    context.searcher()
+                );
+                default -> throw new IllegalArgumentException(
+                    "Unknown format ["
+                        + format
+                        + "] for field ["
+                        + name()
+                        + "], only ["
+                        + CHUNKS_FORMAT
+                        + "] and ["
+                        + EMBEDDINGS_FORMAT
+                        + "] are supported."
+                );
+            };
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
+            // the field has no indexed values and has never seen inference results from the endpoint; the fetcher will short-circuit at
+            // fetch time and return empty.
+            if (vectorType != null && modelSettings != null) {
+                VectorType producedVectorType = VectorType.fromTaskType(modelSettings.taskType());
+                if (producedVectorType == null) {
+                    throw new IllegalStateException(
+                        "Field ["
+                            + name()
+                            + "] is configured to use an inference endpoint with an unsupported task type ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                }
+
+                if (vectorType != producedVectorType) {
+                    return null;
+                }
+            }
+
+            return new FieldAndFormat(name(), EMBEDDINGS_FORMAT);
         }
 
         @Override

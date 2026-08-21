@@ -399,6 +399,69 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testDoMaybeRefreshCloudTokenClearsWhenNewIdNull() throws InterruptedException {
+        var prior = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId("k1").build();
+        var next = new TransformConfig.Builder(prior).setCredentialId(null).build();
+        try (var threadPool = createThreadPool()) {
+            var client = new PitMockClient(threadPool, false);
+            var configManager = mock(IndexBasedTransformConfigManager.class);
+            var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+            var services = new TransformServices(
+                configManager,
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class),
+                cloudCredentialManager
+            );
+
+            var context = mock(TransformContext.class);
+            var displaced = randomPersistedCloudCredential("k1");
+            when(context.replacePersistedCredential(eq(null))).thenReturn(displaced);
+
+            var indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mockTransformExtensionWithNoopCloudCreds(),
+                services,
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+                mock(TransformIndexerStats.class),
+                prior,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                context,
+                false
+            );
+
+            this.<Void>assertAsync(listener -> indexer.doMaybeRefreshCloudToken(prior, next, listener), v -> {
+                verify(context).replacePersistedCredential(eq(null));
+                verify(cloudCredentialManager).revokeCloseAndDelete(eq(prior.getId()), eq(displaced));
+                verify(configManager, never()).getTransformCloudCredentialByTokenId(any(), anyBoolean(), any());
+            });
+        }
+    }
+
     public void testDoMaybeRefreshCloudTokenLoadFailurePropagates() throws InterruptedException {
         var prior = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId("k1").build();
         var next = new TransformConfig.Builder(prior).setCredentialId("k2").build();
@@ -576,7 +639,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
-    public void testPitRemainsEnabledWhenCrossProjectEnabledButNoLinkedProjects() throws InterruptedException {
+    public void testDisablePitWhenCrossProjectEnabledEvenWithoutLinkedProjects() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
 
@@ -600,10 +664,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 config
             );
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> assertNotNull(response.pointInTimeId())
-            );
+            assertPitIsNeverUsed(indexer);
         }
     }
 

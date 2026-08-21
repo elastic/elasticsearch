@@ -14,9 +14,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Ordinals are internal and per-segment.** A string column decides plain vs. ordinal per segment
   from that segment's cardinality; ordinals never surface (the read API stays binary), and a segment
   carries a dictionary only if it chose ordinals. The upper layer sees bytes, never ordinal shapes.
-- **Reuse native Zstd for block compression.** Zstd is planned as the last encoder in the block
-  pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
-  LZ4/Zstd (the native codec is faster).
+- **Compression is byte-bounded, encoding is value-bounded.** A block is a fixed count of values (the
+  addressing unit); a chunk is a byte-bounded unit of compression holding whole blocks. Tying the
+  compression unit to a value count makes the ratio swing with value width, which is why the chunk
+  target is in bytes.
+- **Reuse native Zstd for chunk compression.** Backed by the existing
+  `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java LZ4/Zstd (the native codec is
+  faster), with both directions passing memory the binding can address directly.
 - **Order preserved; nothing column-sized on the heap.** See `AGENTS.md`.
 
 ## Done
@@ -40,13 +44,18 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - Per-field pipeline selection: `NumericPipelineSelector` (`@FunctionalInterface`
   `select(fieldName, type) -> NumericPipelineTemplate`) injected into `ColumNARDocValuesFormat`
   at construction time alongside an explicit `blockSize`. The selector answers "which pipeline
-  type?" without knowing the block size; the format applies its `blockSize` to the returned
-  template. Four named factories on `NumericPipeline` satisfy `NumericPipelineTemplate` as method
-  references (`defaultPipeline`, `monotonicLongPipeline`, `doubleGaugePipeline`,
-  `doubleCounterPipeline`). Server-side wiring into `PerFieldFormatSupplier` is a follow-up (see
-  Next).
+  type?" without knowing the block size; the format applies it via
+  `NumericPipelineTemplate.build(int)`. The four named factories (`defaultPipeline`,
+  `monotonicLongPipeline`, `doubleGaugePipeline`, `doubleCounterPipeline`) are usable as method
+  references: `(f, t) -> NumericPipeline::defaultPipeline`. Server-side wiring into
+  `PerFieldFormatSupplier` is a follow-up (see Next).
 
 ## Next
+
+- **Required before the first format bump**: readers must validate recorded ids against the segment
+  header version while loading metadata; add v0 fixture reads and a BWC fixture test class.
+  While ColumNAR is behind a feature flag and has no stable on-disk compatibility commitment,
+  a format-version bump is required only for layout changes, not for id additions.
 
 - **Server-side selector wiring**: implement a concrete `NumericPipelineSelector` in server that
   inspects `FieldType`, `IndexMode`, and `MetricType` to route each field to the correct pipeline

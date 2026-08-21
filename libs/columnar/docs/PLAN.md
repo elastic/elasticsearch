@@ -14,9 +14,13 @@ The direction, the decisions that constrain it, and the build order. Update as d
 - **Ordinals are internal and per-segment.** A string column decides plain vs. ordinal per segment
   from that segment's cardinality; ordinals never surface (the read API stays binary), and a segment
   carries a dictionary only if it chose ordinals. The upper layer sees bytes, never ordinal shapes.
-- **Reuse native Zstd for block compression.** Zstd is planned as the last encoder in the block
-  pipeline, backed by the existing `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
-  LZ4/Zstd (the native codec is faster).
+- **Compression is byte-bounded, encoding is value-bounded.** A block is a fixed count of values (the
+  addressing unit); a chunk is a byte-bounded unit of compression holding whole blocks. Tying the
+  compression unit to a value count makes the ratio swing with value width, which is why the chunk
+  target is in bytes.
+- **Reuse native Zstd for chunk compression.** Backed by the existing
+  `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java LZ4/Zstd (the native codec is
+  faster), with both directions passing memory the binding can address directly.
 - **Order preserved; nothing column-sized on the heap.** See `AGENTS.md`.
 
 ## Done

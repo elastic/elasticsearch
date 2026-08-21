@@ -1451,6 +1451,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             map.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+            map.put(Engine.NUMBER_OF_SHARDS_KEY, Integer.toString(indexSettings.getNumberOfShards()));
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
@@ -1487,6 +1488,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+            map.put(Engine.NUMBER_OF_SHARDS_KEY, Integer.toString(indexSettings.getNumberOfShards()));
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();

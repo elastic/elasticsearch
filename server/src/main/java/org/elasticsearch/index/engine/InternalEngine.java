@@ -3724,7 +3724,7 @@ public class InternalEngine extends Engine {
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
                 final Map<String, String> extraCommitUserData = getCommitExtraUserData(localCheckpoint);
-                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(9 + extraCommitUserData.size());
                 commitData.putAll(extraCommitUserData);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
@@ -3735,6 +3735,7 @@ public class InternalEngine extends Engine {
                 if (currentForceMergeUUID != null) {
                     commitData.put(FORCE_MERGE_UUID_KEY, currentForceMergeUUID);
                 }
+                commitData.put(NUMBER_OF_SHARDS_KEY, Integer.toString(engineConfig.getIndexSettings().getNumberOfShards()));
                 commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
                 commitData.put(ES_VERSION, IndexVersion.current().toString());
                 logger.trace("committing writer with commit data [{}]", commitData);

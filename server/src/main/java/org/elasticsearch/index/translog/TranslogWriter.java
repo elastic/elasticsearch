@@ -247,8 +247,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public Translog.Location addBatch(final Translog.Serialized operation, final Translog.IndexBatch batch) throws IOException {
         final List<Translog.IndexBatch.Op> ops = batch.ops();
-        // TODO: the batch builder already iterated the ops when assembling the record; ideally IndexBatch would carry a ready-made
-        // long[] of seqNos that could be pushed down here instead of re-extracting it per record.
+        // TODO: Pass startSeqNo and operationCount as args. That will fully remove the need for the long[] 
+        // since single operations and batches are always continuous ranges.
         final long[] seqNos = new long[ops.size()];
         for (int i = 0; i < ops.size(); i++) {
             seqNos[i] = ops.get(i).seqNo();

@@ -67,10 +67,16 @@ public class EqlRequestsTests extends ESTestCase {
     }
 
     public void testCommaSeparatedIndicesAreSplit() {
-        // The parser rejects blank or space-containing components before an EqlRelation is built, so the split
-        // matches RestEqlSearchAction / IndexResolver exactly (no trimming needed).
         EqlSearchRequest request = build("process where true", "logs-a,logs-b,logs-c", NO_SCHEMA, Map.of());
         assertThat(request.indices(), arrayContaining("logs-a", "logs-b", "logs-c"));
+    }
+
+    public void testIndexSplitIsRawToMatchResolution() {
+        // The split is raw (Strings.splitStringByCommaToArray), matching ES|QL's own field-caps split. A spaced
+        // component is passed through verbatim rather than trimmed, so the delegated search and schema resolution
+        // see the identical index set (the parser rejects blank components, but not embedded spaces).
+        EqlSearchRequest request = build("process where true", "logs-a, logs-b", NO_SCHEMA, Map.of());
+        assertThat(request.indices(), arrayContaining("logs-a", " logs-b"));
     }
 
     public void testFetchFieldsFromSchema() {

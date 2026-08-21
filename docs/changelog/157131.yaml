@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157131
+summary: Track zstd native memory and wire circuit breaker
+type: enhancement

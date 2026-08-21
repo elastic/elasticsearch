@@ -202,7 +202,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return;
         }
         logger.trace("enqueued recovery: {}", recoveryState);
-        schedulingListener.onRecoveryQueued(recoveryState.getRecoverySource().getType(), RecoveryRole.TARGET);
+        schedulingListener.onRecoveryQueued(
+            recoveryState.getRecoverySource().getType(),
+            RecoveryRole.TARGET,
+            pendingRecovery.priorityGroup()
+        );
         fillSlots();
     }
 
@@ -240,7 +244,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             logger.trace("cancelling recovery in queue: {}", state);
             RecoveryListener.wrapPreservingContext(pendingRecovery.listener, pendingRecovery.context)
                 .onRecoveryFailure(new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()), false);
-            schedulingListener.onQueuedRecoveryCancelled(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryCancelled(
+                state.getRecoverySource().getType(),
+                RecoveryRole.TARGET,
+                pendingRecovery.priorityGroup()
+            );
             cancelledInQueue.add(pendingRecovery.allocationId());
         }
         return cancelledInQueue;
@@ -292,7 +300,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                         new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
                         false
                     );
-                schedulingListener.onQueuedRecoveryDiscarded(state.getRecoverySource().getType(), RecoveryRole.TARGET);
+                schedulingListener.onQueuedRecoveryDiscarded(
+                    state.getRecoverySource().getType(),
+                    RecoveryRole.TARGET,
+                    stale.priorityGroup()
+                );
             });
         }
     }
@@ -324,7 +336,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         for (PendingRecovery pending : recoveriesToAbort) {
             logger.trace("service closing, aborting recovery: {}", pending.recoveryState());
             RecoveryListener.wrapPreservingContext(pending.listener, pending.context).onRecoveryAborted();
-            schedulingListener.onQueuedRecoveryDiscarded(pending.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onQueuedRecoveryDiscarded(
+                pending.recoveryState().getRecoverySource().getType(),
+                RecoveryRole.TARGET,
+                pending.priorityGroup()
+            );
         }
         clusterService.removeListener(this);
     }
@@ -390,7 +406,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 executor.execute(new RecoveryRunnable(recovery, wrapped));
             }
             logger.trace("dispatched recovery: {}", recovery.recoveryState());
-            schedulingListener.onRecoveryDequeuedAndStarted(recovery.recoveryState().getRecoverySource().getType(), RecoveryRole.TARGET);
+            schedulingListener.onRecoveryDequeuedAndStarted(
+                recovery.recoveryState().getRecoverySource().getType(),
+                RecoveryRole.TARGET,
+                recovery.priorityGroup()
+            );
         }
     }
 
@@ -455,7 +475,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             recovery.stats().targetRecoveryCompleted(source.getType());
         }
         logger.trace("recovery slot released: {}", recovery.recoveryState());
-        schedulingListener.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET);
+        schedulingListener.onRecoveryCompleted(source.getType(), RecoveryRole.TARGET, recovery.priorityGroup());
         fillSlots();
     }
 
@@ -509,6 +529,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     yield false; // fall back to false, as we treat this as the lowest priority, so it is ordered more like a relocation
                 }
             };
+        }
+
+        RecoverySchedulingListener.PriorityGroup priorityGroup() {
+            return isUnassigned()
+                ? RecoverySchedulingListener.PriorityGroup.UNASSIGNED
+                : RecoverySchedulingListener.PriorityGroup.RELOCATION;
         }
     }
 

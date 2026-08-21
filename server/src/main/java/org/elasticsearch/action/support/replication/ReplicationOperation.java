@@ -186,11 +186,9 @@ public class ReplicationOperation<
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
             markUnavailableShardsAsStale(replicaRequest, replicationGroup, pendingActionsListener);
-            // in case the replication group still contains replicas with local checkpoint < global checkpoint by this point,
-            // because the replication group has been sampled before the global checkpoint and replicas have been removed in-between
-            // (which is not true at the time of this writing), the replication requests are automatically canceled for missing replicas
-            // by the pending replication actions below, because the pending replication actions below is updated with the latest
-            // replication group before exposing the global checkpoint computed on the said replication group
+            // pending replication actions immediately cancels requests for any allocation id that's been removed from the replication group
+            // pending replication actions is also notified of any replication group changes, BEFORE the global checkpoint is updated
+            // this means that replicas can't possibly receive replication requests with a global checkpoint > local checkpoint
             final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             performOnReplicas(
                 replicaRequest,

@@ -170,6 +170,127 @@ cnt:long
 
 // -------------------------------------------------------------------------------
 
+Count buckets ungrouped (standard mode)
+required_capability: fn_count_histogram_bucket
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.15)),
+         b2 = COUNT(responseTime, TO_RANGE(0.15, 0.25)),
+         b3 = COUNT(responseTime, TO_RANGE(0.25, 0.35)),
+         b4 = COUNT(responseTime, TO_RANGE(0.35, 0.45)),
+         b5 = COUNT(responseTime, TO_RANGE(0.45, 0.6)),
+         total = COUNT(responseTime)
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+;
+
+b1:long | b2:long | b3:long | b4:long | b5:long | total:long | matches:boolean
+3..5    | 9..11   | 15..17  | 13..15  | 6..8    | 51         | true
+;
+
+Count buckets grouped (standard mode)
+required_capability: fn_count_histogram_bucket
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.15)),
+         b2 = COUNT(responseTime, TO_RANGE(0.15, 0.25)),
+         b3 = COUNT(responseTime, TO_RANGE(0.25, 0.35)),
+         b4 = COUNT(responseTime, TO_RANGE(0.35, 0.45)),
+         b5 = COUNT(responseTime, TO_RANGE(0.45, 0.6)),
+         total = COUNT(responseTime)
+   BY instance
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+ | SORT instance
+;
+
+b1:long | b2:long | b3:long | b4:long | b5:long | total:long | instance:keyword  | matches:boolean
+3..5    | 9..11   | 15..17  | 13..15  | 6..8    | 51         | hand-rolled       | true
+0       | 0       | 0       | 0       | 0       | 0          | hand-rolled-empty | true
+;
+
+Count buckets ungrouped (timeseries mode)
+required_capability: fn_count_histogram_bucket
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.15)),
+         b2 = COUNT(responseTime, TO_RANGE(0.15, 0.25)),
+         b3 = COUNT(responseTime, TO_RANGE(0.25, 0.35)),
+         b4 = COUNT(responseTime, TO_RANGE(0.35, 0.45)),
+         b5 = COUNT(responseTime, TO_RANGE(0.45, 0.6)),
+         total = COUNT(responseTime)
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+;
+
+b1:long | b2:long | b3:long | b4:long | b5:long | total:long | matches:boolean
+3..5    | 9..11   | 15..17  | 13..15  | 6..8    | 51         | true
+;
+
+Count buckets grouped (timeseries mode)
+required_capability: fn_count_histogram_bucket
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | STATS b1 = COUNT(responseTime, TO_RANGE(0.0, 0.15)),
+         b2 = COUNT(responseTime, TO_RANGE(0.15, 0.25)),
+         b3 = COUNT(responseTime, TO_RANGE(0.25, 0.35)),
+         b4 = COUNT(responseTime, TO_RANGE(0.35, 0.45)),
+         b5 = COUNT(responseTime, TO_RANGE(0.45, 0.6)),
+         total = COUNT(responseTime)
+   BY instance
+ | EVAL matches = total == b1 + b2 + b3 + b4 + b5
+ | SORT instance
+;
+
+b1:long | b2:long | b3:long | b4:long | b5:long | total:long | instance:keyword  | matches:boolean
+3..5    | 9..11   | 15..17  | 13..15  | 6..8    | 51         | hand-rolled       | true
+0       | 0       | 0       | 0       | 0       | 0          | hand-rolled-empty | true
+;
+
+// -------------------------------------------------------------------------------
+
+Count bucket with empty t-digest
+required_capability: fn_count_histogram_bucket
+
+FROM tdigest_standard_index
+ | WHERE instance == "hand-rolled-empty"
+ | STATS cnt = COUNT(responseTime, TO_RANGE(0.0, 1.0))
+;
+
+cnt:long
+0
+;
+
+Count bucket with null t-digest
+required_capability: fn_count_histogram_bucket
+
+FROM tdigest_standard_index
+ | WHERE instance == "hand-rolled"
+ | EVAL histogram = CASE(instance == "does-not-exist", responseTime)
+ | STATS cnt = COUNT(histogram, TO_RANGE(0.0, 1.0))
+;
+
+cnt:long
+0
+;
+
+Count t-digest with null bucket
+required_capability: fn_count_histogram_bucket
+
+FROM tdigest_standard_index
+ | WHERE instance == "hand-rolled"
+ | STATS cnt = COUNT(responseTime, TO_RANGE(null, 1.0))
+;
+
+cnt:long
+null
+;
+
+// -------------------------------------------------------------------------------
+
 Count grouped (standard mode)
 required_capability: count_of_histogram_types
 

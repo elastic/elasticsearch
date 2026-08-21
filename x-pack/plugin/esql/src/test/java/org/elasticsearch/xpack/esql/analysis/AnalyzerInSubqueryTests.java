@@ -113,24 +113,21 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     // -- negative: IN subquery in EVAL --
 
-    /**
-     * Verifies that an IN subquery inside EVAL is rejected.
-     */
-    public void testRejectsInSubqueryInEval() {
-        errorInSubquery("""
-            FROM employees
-            | EVAL x = emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [EVAL x = emp_no IN (FROM employees | KEEP emp_no)]"));
+    public void testRejectsComplexLHSInSubqueryInEval() {
+        errorInSubquery(
+            """
+                FROM employees
+                | EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)
+                """,
+            containsString("Complicated IN subquery is not yet supported in Eval [EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)]")
+        );
     }
 
-    /**
-     * Verifies that a NOT IN subquery inside EVAL is rejected.
-     */
-    public void testRejectsNotInSubqueryInEval() {
+    public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
         errorInSubquery("""
             FROM employees
-            | EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)]"));
+            | EVAL x = TO_STRING(emp_no IN (FROM employees | KEEP emp_no))
+            """, containsString("IN subquery is not supported within expression [TO_STRING(emp_no IN (FROM employees | KEEP emp_no))]"));
     }
 
     // -- approximation incompatibility tests --
@@ -522,34 +519,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | SORT emp_no
             | LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)
             """, containsString("IN subquery is not supported in [LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)]"));
-    }
-
-    /**
-     * Verifies that an IN subquery inside EVAL with multiple fields (one being the IN subquery) is rejected.
-     */
-    public void testRejectsInSubqueryInEvalAmongMultipleFields() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary
-                """,
-            containsString("IN subquery is not supported in [EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary]")
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery as a function argument inside EVAL is rejected.
-     * The InSubquery inside COALESCE is unresolved, and the verifier reports
-     * that IN/NOT IN subquery is not supported in Eval.
-     */
-    public void testRejectsInSubqueryAsFunctionArgInEval() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
-                """,
-            containsString("IN subquery is not supported in [EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)]")
-        );
     }
 
     @Override

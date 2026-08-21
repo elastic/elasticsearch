@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
+import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -308,6 +310,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             }
         } finally {
             DatasetRegistry.clearCaches();
+            declaredSchemaSupported = null;
         }
     }
 
@@ -330,6 +333,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * see a consistent form. Both forms are equivalent; randomising per test exercises both.
      */
     private boolean useAzureHadoopForm;
+
+    /**
+     * Per-test memos for the two questions that would otherwise re-parse every directive's {@code WITH} JSON on
+     * each ask. {@code ensureDataset} deliberately keys its cache off the RAW text so a registration parses only
+     * on a cache miss; the declared-schema guards and the trim_spaces injector would have undone that by parsing
+     * per call. Both answers are fixed for a test instance -- the directives do not change mid-test.
+     */
+    private Boolean declaresMappingsMemo;
+    private final Map<DatasetSource, String> withJsonMemo = new IdentityHashMap<>();
 
     protected AbstractExternalSourceSpecTestCase(
         String fileName,
@@ -383,6 +395,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         assumeFalse(
             "multi-source FROM <dataset> has no single-EXTERNAL equivalent; skipped on EXTERNAL-rebuild backends",
             testCase.datasetSources.size() > 1
+        );
+
+        // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
+        // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
+        // declaring anything, so such a case is skipped rather than rebuilt.
+        //
+        // Live, not dormant: ParquetRsFormatSpecIT globs external-*.csv-spec AND forces the EXTERNAL rebuild, and
+        // external-declared-schema.csv-spec is now such a file in which every case declares a schema. This skip is
+        // what keeps those cases off that suite -- a declaration has no EXTERNAL-query equivalent to rebuild into.
+        assumeFalse(
+            "a declared schema cannot be expressed as an EXTERNAL ... WITH query; skipped on EXTERNAL-rebuild backends",
+            declaresMappings()
         );
 
         // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
@@ -465,6 +489,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
+        }
+        if (declaresMappings()) {
+            assumeTrue(
+                "a declared schema requires the [" + EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA + "] capability",
+                clusterSupportsDeclaredSchema()
+            );
         }
         String dataSourceName = ensureDataSourceForBackend();
         for (DatasetSource source : testCase.datasetSources) {
@@ -552,6 +582,46 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return false;
     }
 
+    /** Whether any of this spec's {@code dataset:} directives declares a schema. Memoized: asked at two guard sites. */
+    private boolean declaresMappings() {
+        if (declaresMappingsMemo == null) {
+            declaresMappingsMemo = testCase.datasetSources.stream().anyMatch(source -> DatasetRegistry.declaresMappings(source.withJson()));
+        }
+        return declaresMappingsMemo;
+    }
+
+    /**
+     * Memoized support for a declared schema on {@code PUT /_query/dataset/<name>}.
+     * <p>
+     * The declared-schema capability is advertised on the dataset PUT/GET routes, NOT on {@code POST /_query}, so a
+     * spec file cannot gate on it: a {@code required_capability:} line resolves against the query endpoint and would
+     * skip such a case on every cluster, forever. The harness therefore asks the dataset route directly.
+     * <p>
+     * Cached because the sibling {@code dataset_in_from_command} check resolves through {@code hasCapabilities},
+     * which caches, and an uncached {@code GET _capabilities} per declaring test would add a round trip to each of
+     * them. Reset in the same {@code @AfterClass} that clears the registry's caches, so a later suite in the JVM
+     * fork cannot inherit a verdict about a cluster it is not talking to.
+     */
+    private static volatile Boolean declaredSchemaSupported;
+
+    private static boolean clusterSupportsDeclaredSchema() throws IOException {
+        // Racy single-check: read the volatile field ONCE into a local. Reading it twice would let the
+        // @AfterClass reset land between the assignment and the return and unbox null. A duplicate probe is
+        // harmless -- the capability is immutable for a cluster's lifetime.
+        Boolean supported = declaredSchemaSupported;
+        if (supported == null) {
+            supported = clusterHasCapability(
+                client(),
+                "PUT",
+                "/_query/dataset/{name}",
+                List.of(),
+                List.of(EsqlDataSourcesCapabilities.DATASET_DECLARED_SCHEMA)
+            ).orElse(false);
+            declaredSchemaSupported = supported;
+        }
+        return supported;
+    }
+
     /**
      * Rebuilds a single-source {@code FROM <dataset>} spec into the equivalent {@code EXTERNAL "<resource>"
      * WITH {...}} query so a {@link #forceExternalRebuild() holdout} suite can run it via the EXTERNAL command.
@@ -593,6 +663,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * ({@link #runDatasetMode()}) and when rebuilding an {@code EXTERNAL} query
      * ({@link #rebuildExternalFromDatasets}).
      * <p>
+     * Passed through as one blob: the reserved {@code mappings} key (a declared schema) is split out of it by
+     * {@code DatasetRegistry}, not here. The injection below therefore has to land at the TOP level of the object even
+     * when a nested {@code mappings} object is its last entry.
+     * <p>
      * The CSV/TSV test fixtures (employees.csv, books.csv, ...) are column-aligned with padding spaces for
      * readability, so their expected spec values assume trimming. The reader default is now no-trim (RFC
      * 4180 — spaces are part of a field), so read these aligned fixtures with {@code trim_spaces: true} to
@@ -601,21 +675,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * exercise the no-trim default end to end).
      */
     private String withJsonForSource(DatasetSource source) {
-        // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
-        // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
-        // column-aligned fixtures with trimming; the shared injector adds the key.
-        boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
-        return csvOrTsv ? injectTrimSpaces(source.withJson()) : source.withJson();
+        // Memoized per source: injectTrimSpaces parses the JSON to decide whether the directive already sets
+        // trim_spaces, and this is asked once per registration and again when the query is built.
+        return withJsonMemo.computeIfAbsent(source, s -> {
+            // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
+            // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
+            // column-aligned fixtures with trimming; the shared injector adds the key.
+            boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+            return csvOrTsv ? injectTrimSpaces(s.withJson()) : s.withJson();
+        });
     }
 
     /**
-     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless it already sets
-     * {@code trim_spaces} (matched as a key — the quoted name followed by a colon, so a value that merely
-     * equals {@code "trim_spaces"} still gets the injection). {@code withJson} is parser-guaranteed to be a
-     * brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the structural closer.
+     * Adds {@code "trim_spaces": true} to a dataset directive's {@code WITH} JSON, unless the directive already sets
+     * that SETTING. Whether it does is decided by parsing rather than by matching the raw text: a directive may now
+     * carry a nested declared schema, and a same-named key inside {@code mappings} would otherwise suppress the
+     * injection and read the column-aligned fixtures untrimmed. Placement stays textual — {@code withJson} is
+     * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
+     * structural closer, outside any nested object.
      */
     static String injectTrimSpaces(String withJson) {
-        if (withJson != null && withJson.replaceAll("\\s", "").contains("\"trim_spaces\":")) {
+        if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;
         }
         if (withJson == null) {

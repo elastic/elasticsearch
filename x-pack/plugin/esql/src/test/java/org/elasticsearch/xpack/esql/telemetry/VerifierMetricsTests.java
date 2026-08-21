@@ -340,6 +340,41 @@ public class VerifierMetricsTests extends ESTestCase {
         assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
+    public void testInSubqueryInEval() {
+        Counters c = esql("from employees | eval m = emp_no IN (from employees | keep languages)");
+        assertMetrics(c, Map.of(EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L, KEEP, 1L), Map.of());
+    }
+
+    public void testNotInSubqueryInEval() {
+        Counters c = esql("from employees | eval m = emp_no NOT IN (from employees | stats max(emp_no))");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInEvalBeforeWhere() {
+        Counters c = esql("from employees | eval m = emp_no IN (from employees | stats max(emp_no)) | where salary > 50000");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInCaseInEval() {
+        Counters c = esql("from employees | eval m = case(emp_no IN (from employees | stats max(emp_no)), \"yes\", \"no\")");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "case", 1L));
+    }
+
+    public void testInSubqueryInCoalesceInEval() {
+        Counters c = esql("from employees | eval m = coalesce(emp_no IN (from employees | stats max(emp_no)), false)");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L, "coalesce", 1L));
+    }
+
+    public void testInSubqueryInIsNullInEval() {
+        Counters c = esql("from employees | eval m = (emp_no IN (from employees | stats max(emp_no))) IS NULL");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
+    public void testInSubqueryInIsNotNullInEval() {
+        Counters c = esql("from employees | eval m = (emp_no IN (from employees | stats max(emp_no))) IS NOT NULL");
+        assertMetrics(c, Map.of(STATS, 1L, EVAL, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
+    }
+
     public void testInSubqueryInInlineStatsWhere() {
         Counters c = esql("""
                 from employees
@@ -407,9 +442,9 @@ public class VerifierMetricsTests extends ESTestCase {
         // Mirror EsqlSession.execute: increment IN_SUBQUERY on the pre-resolution plan (once),
         // then resolve InSubquery into SemiJoin/AntiJoin/MarkJoin, then analyze.
         // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
-        // SemiJoin/AntiJoin/MarkJoin in the post-resolution plan.
+        // SemiJoin/AntiJoin in the post-resolution plan.
         var parsed = TEST_PARSER.parseQuery(esql);
-        if (metrics != null && InSubqueryResolver.hasInSubqueryInFilter(parsed)) {
+        if (metrics != null && InSubqueryResolver.hasInSubquery(parsed)) {
             metrics.inc(IN_SUBQUERY);
         }
         analyzer().addIndex("metrics", "mapping-basic.json", IndexMode.TIME_SERIES)

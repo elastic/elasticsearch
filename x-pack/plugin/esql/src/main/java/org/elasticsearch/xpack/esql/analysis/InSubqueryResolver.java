@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Mul
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -40,17 +41,18 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
- * Resolves {@link InSubquery} expressions in {@link Filter} conditions by rewriting them into
- * {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes depending on where the
- * {@link InSubquery} sits inside the boolean expression:
+ * Resolves {@link InSubquery} expressions in {@link Filter} conditions and {@link Eval} field definitions
+ * by rewriting them into {@link SemiJoin}, {@link AntiJoin}, or {@link MarkJoin} nodes:
  * <ul>
  *   <li>An {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an AND-conjunct
  *       becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
@@ -63,15 +65,30 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  *       argument of a {@code CASE} or {@code COALESCE} call, is replaced with a synthetic boolean
  *       attribute and a {@link MarkJoin} is stacked below the rewritten {@link Filter} —
  *       identical to the {@link Or} case above.</li>
+ *   <li>An {@code InSubquery} wrapped in any other expression (a comparison operator, an
+ *       arithmetic operator, a lambda, etc.) is left in place; the post-resolution
+ *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
+ *   <li>In a {@link Filter}: an {@code InSubquery} (optionally wrapped in {@link Not}) at the top of an
+ *       AND-conjunct becomes a row-filtering {@link SemiJoin} / {@link AntiJoin} stacked on top of the
+ *       remaining filter — the most efficient shape, used for the common conjunctive case. An
+ *       {@code InSubquery} reachable through {@link Or}, {@link IsNull}/{@link IsNotNull}, or a
+ *       {@code CASE}/{@code COALESCE} call is replaced with a synthetic boolean mark attribute and a
+ *       {@link MarkJoin} stacked below the rewritten {@link Filter}.</li>
+ *   <li>In an {@link Eval}: only {@link MarkJoin} is ever created — EVAL preserves every row and
+ *       produces a value, so the row-filtering {@link SemiJoin}/{@link AntiJoin} shape is never
+ *       applicable. The rewrite allowlist is the same as for {@link Filter}: bare {@code InSubquery},
+ *       {@link And}/{@link Or}/{@link Not}, {@link IsNull}/{@link IsNotNull}, and {@code CASE}/
+ *       {@code COALESCE}. {@code InSubquery} wrapped in any other expression is left in place for
+ *       {@link #verify} to reject.</li>
  *   <li>An {@code InSubquery} inside a {@code STATS} or {@code INLINE STATS} per-aggregate
  *       {@code WHERE} filter (a {@link FilteredExpression} on an {@link Aggregate}) is replaced
  *       with a synthetic boolean attribute and a {@link MarkJoin} is stacked below the aggregate's
  *       child — MarkJoin-only, because the filter belongs to a single aggregate and must not drop
  *       rows (or whole groups) feeding the other aggregates. See
  *       {@link #resolveInSubqueryInAggregate}.</li>
- *   <li>An {@code InSubquery} wrapped in any other expression (a comparison operator, an
- *       arithmetic operator, a lambda, etc.) is left in place; the post-resolution
- *       {@link #verify} step rejects the query with a {@link VerificationException}.</li>
+ *   <li>An {@code InSubquery} wrapped in any other expression, or inside SORT / STATS BY / etc., is
+ *       left in place; the post-resolution {@link #verify} step rejects the query with a
+ *       {@link VerificationException}.</li>
  * </ul>
  * <p>
  * This runs before {@link PreAnalyzer} so the subquery plans, originally embedded inside
@@ -86,23 +103,21 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class InSubqueryResolver {
 
     /**
-     * Resolves all {@link InSubquery} expressions in {@link Filter} conditions and {@code STATS}
-     * per-aggregate {@code WHERE} filters and validates the result. Throws a
-     * {@link VerificationException} when an {@link InSubquery} survived rewriting
-     * (e.g. inside an EVAL, SORT, STATS BY clause, or wrapped in a non-boolean expression).
+     * Resolves all {@link InSubquery} expressions in {@link Filter} conditions and {@link Eval} field
+     * definitions and {@code STATS} or {@code InlineStats} per-aggregate {@code WHERE} filters, and
+     * validates the result. Throws a {@link VerificationException} when an {@link InSubquery} survived
+     * rewriting (e.g. inside a SORT, LIMIT BY clause, or wrapped in a non-supported expression).
      * <p>
      * Synchronous — does no I/O. Async callers should invoke this inside an
      * {@link org.elasticsearch.action.ActionListener#delegateFailureAndWrap delegateFailureAndWrap}
      * lambda so the thrown {@link VerificationException} is routed to {@code onFailure}.
      * <p>
      * Telemetry for {@code IN_SUBQUERY} is collected separately by the session — see
-     * {@code EsqlSession#gatherInSubqueryMetrics}, which uses {@link #hasInSubqueryInFilter} on
+     * {@code EsqlSession#gatherInSubqueryMetrics}, which uses {@link #hasInSubquery} on
      * the pre-resolution plan because by the time this method returns the originating
      * {@link InSubquery} expressions have been replaced with
      * {@link SemiJoin}/{@link AntiJoin}/{@link MarkJoin} and are no longer visible to plan
-     * traversals. The {@code WHERE} counter still picks up SemiJoin/AntiJoin/MarkJoin in the
-     * post-resolution plan walk (see {@code FeatureMetric#WHERE}), so the {@code WHERE} bit does
-     * not need to be set up-front here.
+     * traversals.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
         LogicalPlan resolved = resolveInSubqueries(plan);
@@ -110,46 +125,34 @@ public class InSubqueryResolver {
         return resolved;
     }
 
+    /**
+     * Apply {@link #resolveInSubqueryInFilter} to every {@link Filter}, {@link #resolveInSubqueryInEval} to every {@link Eval},
+     * and {@link #resolveInSubqueryInAggregate} to every {@link Aggregate} except the one owned by an {@link InlineStats}
+     * (INLINE STATS will be supported in a follow-up PR).
+     */
     private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
         // Note: rewriting an Aggregate must always yield an Aggregate (resolveInSubqueryInAggregate uses Aggregate#with) — an
         // InlineStats parent rebuilds itself with a hard cast of its child to Aggregate.
         return plan.transformUp(p -> switch (p) {
             case Filter filter -> resolveInSubqueryInFilter(filter);
+            case Eval eval -> resolveInSubqueryInEval(eval);
             case Aggregate aggregate -> resolveInSubqueryInAggregate(aggregate);
             default -> p;
         });
     }
 
     /**
-     * Returns {@code true} if the pre-resolution plan contains any {@link InSubquery} expression
-     * inside a {@link Filter} (i.e. as part of a {@code WHERE} condition) or inside the
-     * {@link FilteredExpression} filter of a {@code STATS} aggregate (i.e. a per-aggregate
-     * {@code WHERE} filter). Used by the session to decide whether to increment the
-     * {@code IN_SUBQUERY} telemetry counter — once per query, in the same spirit as
-     * {@code EsqlSession#gatherViewMetrics} — and by
-     * {@link org.elasticsearch.xpack.esql.view.ViewResolver} to short-circuit resolution when
-     * there is nothing to rewrite.
+     * Returns {@code true} if the pre-resolution plan contains any InSubquery expression anywhere in its expression trees. Used by
+     * the session and {@link org.elasticsearch.xpack.esql.view.ViewResolver ViewResolver} to decide whether to run the resolution pass
+     * and whether to increment the {@code IN_SUBQUERY} telemetry counter.
      * <p>
-     * Restricted to these two positions because {@link InSubquery} occurrences elsewhere
-     * (EVAL, SORT, STATS BY, etc.) are rejected by {@link #verify} today.
+     * Conservatively checks all expressions in all plan nodes; unsupported positions (SORT, STATS BY) produce no rewrite in the resolver
+     * but are then rejected by {@link #verify}.
      */
-    public static boolean hasInSubqueryInFilter(LogicalPlan plan) {
+    public static boolean hasInSubquery(LogicalPlan plan) {
         return plan.anyMatch(
-            p -> (p instanceof Filter filter
-                && filter.condition().anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery))
-                || (p instanceof Aggregate aggregate && hasInSubqueryInAggregateFilter(aggregate))
+            p -> p.expressions().stream().anyMatch(e -> e.anyMatch(x -> x instanceof InSubquery || x instanceof MultiColumnInSubquery))
         );
-    }
-
-    private static boolean hasInSubqueryInAggregateFilter(Aggregate aggregate) {
-        for (NamedExpression ne : aggregate.aggregates()) {
-            if (ne instanceof Alias alias
-                && alias.child() instanceof FilteredExpression filteredExpression
-                && filteredExpression.filter().anyMatch(e -> e instanceof InSubquery || e instanceof MultiColumnInSubquery)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -159,9 +162,10 @@ public class InSubqueryResolver {
     private record SemiOrAntiJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, boolean anti) {}
 
     /**
-     * Spec for a {@link MarkJoin} stacked below the remaining filter for an {@link InSubquery}
-     * that appears under {@code OR}/{@code NOT}/{@code AND} but not as a top-level AND conjunct.
-     * The mark attribute is referenced from the rewritten boolean expression.
+     * Spec for a {@link MarkJoin} stacked below the remaining filter (or rewritten EVAL) for an
+     * {@link InSubquery} that appears under {@code OR}/{@code NOT}/{@code AND} but not as a top-level
+     * AND conjunct, or anywhere inside an {@link Eval} field definition. The mark attribute is
+     * referenced from the rewritten boolean expression.
      */
     private record MarkJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, Attribute markAttribute) {}
 
@@ -211,7 +215,7 @@ public class InSubqueryResolver {
         // Stack MarkJoins first — they are applied before the remaining filter so the mark
         // attributes are available to the rewritten boolean expression.
         for (MarkJoinSpec mj : markJoins) {
-            current = new MarkJoin(mj.source, current, mj.subquery, mj.config, mj.markAttribute);
+            current = new MarkJoin(mj.source(), current, mj.subquery(), mj.config(), mj.markAttribute());
         }
 
         // Apply remaining filter conditions on top of MarkJoins (so mark attributes are in scope).
@@ -221,9 +225,9 @@ public class InSubqueryResolver {
 
         // Stack SemiJoins / AntiJoins on top — they filter rows but don't modify columns.
         for (SemiOrAntiJoinSpec sj : semiOrAntiJoins) {
-            current = sj.anti
-                ? new AntiJoin(sj.source, current, sj.subquery, sj.config)
-                : new SemiJoin(sj.source, current, sj.subquery, sj.config);
+            current = sj.anti()
+                ? new AntiJoin(sj.source(), current, sj.subquery(), sj.config())
+                : new SemiJoin(sj.source(), current, sj.subquery(), sj.config());
         }
 
         // The mark attributes from MarkJoins (and any synthetic constant Eval columns introduced
@@ -233,8 +237,85 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Rewrites {@link InSubquery} occurrences in the per-aggregate {@code WHERE} filters of a {@code STATS} or {@code INLINE STATS}
-     * {@link Aggregate} into
+     * Resolves {@link InSubquery} expressions inside {@link Eval} field definitions by replacing them with synthetic mark attributes
+     * and stacking {@link MarkJoin} nodes below the rewritten {@link Eval}. Returns the identical {@code eval} instance when no
+     * {@link InSubquery} is found.
+     * <p>
+     * Unlike {@link #resolveInSubqueryInFilter}, only {@link MarkJoin} is ever created here — EVAL must preserve every row and produce a
+     * value, so the row-filtering {@link SemiJoin}/{@link AntiJoin} shape is never applicable.
+     * <p>
+     * When an IN subquery's left-hand side is a field produced by an earlier alias in the same EVAL
+     * (e.g. {@code EVAL a = emp_no + 1, b = a IN (sub)}), this method splits the {@link Eval}: the preceding aliases are flushed into a
+     * lower {@link Eval} so the LHS field is in scope for the {@link MarkJoin}. When no such dependency exists, a single {@link MarkJoin}
+     * is stacked below the whole {@link Eval} regardless of how many aliases it defines.
+     * <p>
+     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     */
+    public static LogicalPlan resolveInSubqueryInEval(Eval eval) {
+        // LinkedHashMap preserves insertion order (needed when flushing into an Eval) and exposes
+        // its keySet() as the name-lookup set — a single structure instead of a parallel List+Set pair.
+        LinkedHashMap<String, Alias> pending = new LinkedHashMap<>();
+        LogicalPlan current = eval.child();
+        boolean changed = false;
+
+        // Shared accumulators grow monotonically across all fields so that the ordinal passed to
+        // syntheticMarkName / syntheticConstName (joins.size() / syntheticEvals.size() at call time)
+        // is globally unique. Per-field slices are taken after each rewriteInSubqueries call.
+        List<MarkJoinSpec> allMarks = new ArrayList<>();
+        List<Alias> allConsts = new ArrayList<>();
+
+        for (Alias field : eval.fields()) {
+            int marksBefore = allMarks.size();
+            int constsBefore = allConsts.size();
+            Expression rewritten = rewriteInSubqueries(field.child(), true, allMarks, allConsts);
+            List<MarkJoinSpec> fieldMarks = new ArrayList<>(allMarks.subList(marksBefore, allMarks.size()));
+            List<Alias> fieldConsts = new ArrayList<>(allConsts.subList(constsBefore, allConsts.size()));
+
+            if (fieldMarks.isEmpty()) {
+                // No InSubquery in this field — accumulate as-is.
+                pending.put(field.name(), field);
+                continue;
+            }
+
+            changed = true;
+
+            // Flush accumulated fields below the MarkJoin(s) when either:
+            // (a) a mark's left field references an alias produced by a preceding field (e.g. EVAL a = x+1, b = a IN (sub)), or
+            // (b) this field's name collides with an existing pending entry (e.g. EVAL a = 1, z = a+1, a = y IN (sub)) —
+            // without the flush, pending.put() would silently overwrite the prior alias, losing its NameId from the plan
+            // while other pending fields still reference it, producing dangling references.
+            if (pending.isEmpty() == false && (referencesPendingName(fieldMarks, pending.keySet()) || pending.containsKey(field.name()))) {
+                current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
+                pending = new LinkedHashMap<>();
+            }
+
+            // Materialize any foldable LHS constants (e.g. EVAL b = 10001 IN (sub)).
+            if (fieldConsts.isEmpty() == false) {
+                current = new Eval(eval.source(), current, fieldConsts);
+            }
+
+            // Stack MarkJoins so the mark attributes are available to the rewritten EVAL field.
+            for (MarkJoinSpec mj : fieldMarks) {
+                current = new MarkJoin(mj.source(), current, mj.subquery(), mj.config(), mj.markAttribute());
+            }
+
+            // Re-create the alias with the rewritten expression, preserving the original NameId so
+            // downstream references (e.g. a later WHERE m) resolve to the right column.
+            pending.put(field.name(), new Alias(field.source(), field.name(), rewritten, field.id(), field.synthetic()));
+        }
+
+        if (changed == false) {
+            return eval; // nothing changed — return the identical instance for reference-equality checks
+        }
+
+        if (pending.isEmpty() == false) {
+            current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
+        }
+        return current;
+    }
+
+    /**
+     * Rewrites {@link InSubquery} occurrences in the per-aggregate {@code WHERE} filters of a {@code STATS} {@link Aggregate} into
      * {@link MarkJoin}s stacked below the aggregate's child; the synthetic boolean mark attributes replace the {@link InSubquery}
      * occurrences inside the {@link FilteredExpression} filters. MarkJoin-only: a {@link SemiJoin}/{@link AntiJoin} would filter rows
      * feeding ALL aggregates (and, under {@code BY}, drop whole groups instead of producing empty-input aggregate values), while the
@@ -248,15 +329,23 @@ public class InSubqueryResolver {
     public static LogicalPlan resolveInSubqueryInAggregate(Aggregate aggregate) {
         List<MarkJoinSpec> markJoins = new ArrayList<>();
         List<Alias> syntheticEvals = new ArrayList<>();
-        List<NamedExpression> newAggregates = new ArrayList<>(aggregate.aggregates().size());
-        for (NamedExpression ne : aggregate.aggregates()) {
+        List<? extends NamedExpression> origAggregates = aggregate.aggregates();
+        List<NamedExpression> newAggregates = null;
+        for (int i = 0; i < origAggregates.size(); i++) {
+            NamedExpression ne = origAggregates.get(i);
             if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression filteredExpression) {
                 Expression newFilter = rewriteInSubqueries(filteredExpression.filter(), true, markJoins, syntheticEvals);
                 if (newFilter != filteredExpression.filter()) {
                     ne = alias.replaceChild(new FilteredExpression(filteredExpression.source(), filteredExpression.delegate(), newFilter));
+                    if (newAggregates == null) {
+                        newAggregates = new ArrayList<>(origAggregates.size());
+                        newAggregates.addAll(origAggregates.subList(0, i));
+                    }
                 }
             }
-            newAggregates.add(ne);
+            if (newAggregates != null) {
+                newAggregates.add(ne);
+            }
         }
 
         if (markJoins.isEmpty()) {
@@ -271,8 +360,30 @@ public class InSubqueryResolver {
         for (MarkJoinSpec mj : markJoins) {
             child = new MarkJoin(mj.source, child, mj.subquery, mj.config, mj.markAttribute);
         }
-        // with(...) is overridden by Aggregate subclasses (e.g. TimeSeriesAggregate), preserving the node type.
+        // Invariant: markJoins is non-empty iff at least one FilteredExpression filter was rewritten,
+        // which is the only code path that initializes newAggregates.
+        assert newAggregates != null;
         return aggregate.with(child, aggregate.groupings(), newAggregates);
+    }
+
+    /**
+     * Returns {@code true} if any mark join's left field shares a name with one of the {@code pendingNames} — indicating that the join's
+     * LHS depends on an alias produced by a pending (preceding) EVAL field that must be flushed below the join first.
+     * <p>
+     * Only {@code leftFields()} are checked, not {@code fieldConsts} alias names. {@code fieldConsts} aliases are generated by
+     * {@link #syntheticConstName}, which always produces names of the form {@code $$in_subquery_const$...}. These are structurally
+     * disjoint from any user-defined EVAL alias name (which cannot start with {@code $$}), so they can never appear in
+     * {@code pendingNames} and checking them would always yield {@code false}.
+     */
+    private static boolean referencesPendingName(List<MarkJoinSpec> fieldMarks, Set<String> pendingNames) {
+        for (MarkJoinSpec mj : fieldMarks) {
+            for (Attribute leftField : mj.config().leftFields()) {
+                if (pendingNames.contains(leftField.name())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -311,7 +422,10 @@ public class InSubqueryResolver {
             // Non-attribute, non-foldable LHS — leave it for the verifier to surface a clear error.
             return false;
         }
-        LogicalPlan subquery = resolveNestedInSubqueries(subqueryPlan);
+        // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
+        // outer transformUp (they live inside InSubquery expressions, not as plan children), so
+        // they need their own traversal — but the traversal strategy is identical to the outer one.
+        LogicalPlan subquery = resolveInSubqueries(subqueryPlan);
         JoinConfig config = new JoinConfig(negated ? JoinTypes.ANTI : JoinTypes.SEMI, leftFields, emptyList(), null);
         semiOrAntiJoins.add(new SemiOrAntiJoinSpec(source, subquery, config, negated));
         return true;
@@ -418,7 +532,10 @@ public class InSubqueryResolver {
         if (leftFields == null) {
             return inSubquery;
         }
-        LogicalPlan subquery = resolveNestedInSubqueries(inSubquery.subquery());
+        // resolveInSubqueries is reused here: nested subquery plans are not reachable by the
+        // outer transformUp (they live inside InSubquery expressions, not as plan children), so
+        // they need their own traversal — but the traversal strategy is identical to the outer one.
+        LogicalPlan subquery = resolveInSubqueries(inSubquery.subquery());
         Attribute markAttribute = new ReferenceAttribute(
             inSubquery.source(),
             null,
@@ -444,7 +561,8 @@ public class InSubqueryResolver {
         if (leftFields == null) {
             return mcs;
         }
-        LogicalPlan subquery = resolveNestedInSubqueries(mcs.subquery());
+        // resolveInSubqueries is reused here: see the single-column overload for the rationale.
+        LogicalPlan subquery = resolveInSubqueries(mcs.subquery());
         Attribute markAttribute = new ReferenceAttribute(
             mcs.source(),
             null,
@@ -457,15 +575,6 @@ public class InSubqueryResolver {
         JoinConfig config = new JoinConfig(JoinTypes.MARK, leftFields, emptyList(), null);
         joins.add(new MarkJoinSpec(mcs.source(), subquery, config, markAttribute));
         return markAttribute;
-    }
-
-    /**
-     * Recursively transforms a subquery plan, converting any nested IN/NOT IN subquery expressions
-     * into SemiJoin/AntiJoin/MarkJoin nodes. This is needed because nested subquery plans are
-     * embedded inside InSubquery expressions and not reachable by the top-level traversal.
-     */
-    private static LogicalPlan resolveNestedInSubqueries(LogicalPlan subqueryPlan) {
-        return resolveInSubqueries(subqueryPlan);
     }
 
     /**
@@ -519,6 +628,8 @@ public class InSubqueryResolver {
      * aliases of one {@link Filter} rewrite are materialized in a single {@link Eval}, whose output merging silently drops earlier
      * same-named fields — which would orphan the join key referencing the dropped alias — so {@code ordinal} (the alias's position in
      * the per-rewrite {@code syntheticEvals} list) is appended to keep the names unique.
+     * TODO: consider a deduplication optimization as a future enhancement, so that {@code (1, 1) IN (subquery) OR (1, 1) IN (subquery)}
+     *  produces only one join and one synthetic alias.
      */
     private static String syntheticConstName(Expression value, LogicalPlan subquery, int ordinal) {
         return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
@@ -560,19 +671,24 @@ public class InSubqueryResolver {
 
     private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
-            if (p instanceof Filter filter) {
-                checkInSubqueryExpression(filter, filter.condition(), true, false, null, failures);
-            } else if (p instanceof Aggregate aggregate) {
-                checkInAggregate(aggregate, failures);
-            } else {
-                p.forEachExpression(
-                    InSubquery.class,
-                    inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()))
-                );
-                p.forEachExpression(
-                    MultiColumnInSubquery.class,
-                    mcs -> failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()))
-                );
+            switch (p) {
+                case Filter filter -> checkInSubqueryExpression(filter, filter.condition(), true, false, null, failures);
+                case Aggregate aggregate -> checkInAggregate(aggregate, failures);
+                case Eval eval -> {
+                    for (Alias field : eval.fields()) {
+                        checkInSubqueryExpression(eval, field.child(), true, false, null, failures);
+                    }
+                }
+                default -> {
+                    p.forEachExpression(
+                        InSubquery.class,
+                        inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()))
+                    );
+                    p.forEachExpression(
+                        MultiColumnInSubquery.class,
+                        mcs -> failures.add(fail(mcs, "IN subquery is not supported in [{}]", p.sourceText()))
+                    );
+                }
             }
         });
     }
@@ -604,17 +720,15 @@ public class InSubqueryResolver {
     }
 
     /**
-     * Walks a {@code STATS} per-aggregate {@code WHERE} filter to validate IN subquery usage that
-     * {@link #resolveInSubqueryInAggregate} could not rewrite into a {@link MarkJoin}.
+     * Walks the field expression tree to validate IN subquery usage that the {@code InSubqueryResolver} could not rewrite into a
+     * {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}.
      * <p>
-     * If the IN subquery sits at the top of the boolean condition (i.e. only {@link And} /
-     * {@link Or} / {@link Not} / {@link IsNull} / {@link IsNotNull} / {@code CASE} /
-     * {@code COALESCE} above it) the resolver normally rewrites it; if one survives here it means
-     * the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression
-     * like {@code abs(x)}). In that case we report the entire per-aggregate filter source.
+     * If the IN subquery is directly below an eligible boolean-composing expression, the resolver normally rewrites it; if one survives
+     * here it means the LHS of the subquery is not yet supported (e.g. a non-attribute, non-foldable expression like {@code abs(x)}). In
+     * that case we report the whole filter source (the entire {@code WHERE} clause).
      * <p>
-     * Otherwise (the IN subquery is nested inside an expression that is not in the supported
-     * allowlist), we report the immediately enclosing expression.
+     * Otherwise (the IN subquery is nested inside an expression that is not in the supported allowlist), we report the immediately
+     * enclosing expression.
      */
     private static void checkInSubqueryExpression(
         LogicalPlan plan,
@@ -630,6 +744,7 @@ public class InSubqueryResolver {
             } else {
                 failures.add(fail(expr, "IN subquery is not supported within expression [{}]", outerExpr.sourceText()));
             }
+            return;
         }
 
         boolean newInsideRewriteBoundary = insideRewriteBoundary || isInSubqueryRewriteBoundary(expr);

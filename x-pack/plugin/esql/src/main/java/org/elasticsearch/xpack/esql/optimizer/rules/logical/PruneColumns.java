@@ -57,12 +57,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
         // while going top-to-bottom (upstream)
         return plan.transformDownSkipBranch((p, skipBranch) -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
-            // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
-            // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
-            // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
-            // same index fields will have different name ids in the left and right hand sides - as in the extreme example
-            // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS and MARK JOIN. It is
+            // perfectly fine that transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and
+            // then descends into the right side - even though the `used` set will contain stuff only used in the left hand side. That's
+            // because any attribute that is used in the left hand side must have been created in the left side as well. Even field
+            // attributes belonging to the same index fields will have different name ids in the left and right hand sides - as in the
+            // extreme example `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
@@ -78,7 +78,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
                     case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
-                    case MarkJoin mj -> pruneUnusedMarkJoin(mj, used, recheck);
+                    case MarkJoin markJoin -> pruneUnusedMarkJoin(markJoin, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);

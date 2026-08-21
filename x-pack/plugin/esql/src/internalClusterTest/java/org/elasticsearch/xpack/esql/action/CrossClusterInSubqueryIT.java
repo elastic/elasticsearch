@@ -879,7 +879,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * id IN (remote-b red ids {1,3,5}) → 3 matching rows. STATS: cluster-a 3, local 2.
      */
     public void testFromUnionInMainPlanWithWhereInSubquery() {
-        assumeTrue("Requires FROM-subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         try (EsqlQueryResponse resp = runQuery("""
             FROM (FROM events | WHERE id < 3 | KEEP id, tag),
                  (FROM cluster-a:events
@@ -1162,7 +1161,6 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * Two occurrences of the same ENRICH command - same policy name, same mode - sharing the exact same {@code Source}
      */
     public void testEnrichWithViewReferencedTwiceSharesSource() {
-        assumeTrue("Requires FROM-subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         setupEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich", 10);
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         setSkipUnavailable(REMOTE_CLUSTER_2, false);
@@ -1295,6 +1293,266 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_b");
             deleteEnrichPolicy(client(LOCAL_CLUSTER), "values_enrich_c");
             clearSkipUnavailable(3);
+        }
+    }
+
+    // ---- EVAL command: IN / NOT IN with combinations of FROM, TS, and ROW sources ----
+
+    /**
+     * EVAL IN with FROM as both the outer and subquery source (cross-cluster).
+     * Outer FROM targets the local cluster; subquery runs on cluster-a, returning red ids {1,3,5}.
+     * EVAL marks each row: id=1 (red→true), id=2 (blue→false), id=3 (red→true).
+     */
+    public void testEvalInSubqueryFromOuterFromSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM events
+            | EVAL is_match = id IN (FROM cluster-a:events | WHERE color == "red" | KEEP id)
+            | WHERE id <= 3
+            | SORT id
+            | KEEP id, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            assertEquals(List.of(1, true), values.get(0));
+            assertEquals(List.of(2, false), values.get(1));
+            assertEquals(List.of(3, true), values.get(2));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL NOT IN with FROM as both the outer and subquery source (cross-cluster).
+     * Outer FROM targets both remote clusters; subquery runs on the local cluster, returning red ids {1,3,5}.
+     * Blue ids {2,4,6} are NOT IN the subquery result so is_match=true; WHERE is_match yields 3 rows per remote.
+     */
+    public void testEvalNotInSubqueryFromOuterFromSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | EVAL is_match = id NOT IN (FROM events | WHERE color == "red" | KEEP id)
+            | WHERE is_match
+            | STATS c = COUNT(*) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertEquals(List.of(3L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(3L, REMOTE_CLUSTER_2), values.get(1));
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * EVAL IN with FROM as the outer source and TS as the subquery source.
+     * Outer FROM spans both remote {@code events} indices; the TS subquery aggregates
+     * {@code cluster-a:ts_metrics} and returns {@code cluster="cluster-a"}.
+     * For id=1: cluster-a events get is_match=true (tag matches), remote-b events get is_match=false.
+     */
+    public void testEvalInSubqueryFromOuterTsSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events
+            | EVAL is_match = tag IN (TS cluster-a:ts_metrics | STATS top = max(max_bytes) BY cluster | KEEP cluster)
+            | WHERE id == 1
+            | SORT tag
+            | KEEP tag, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(2));
+            assertEquals(List.of(REMOTE_CLUSTER_1, true), values.get(0));
+            assertEquals(List.of(REMOTE_CLUSTER_2, false), values.get(1));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1));
+        }
+    }
+
+    /**
+     * EVAL IN with FROM as the outer source and ROW as the subquery source.
+     * Outer FROM spans all three clusters ({@code *:events, events}); the ROW subquery produces
+     * a single literal row {@code id=1}. Only rows where {@code id==1} (one per cluster) get
+     * {@code is_match=true}; the WHERE filter on the EVAL result yields one row per cluster.
+     */
+    public void testEvalInSubqueryFromOuterRowSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM *:events, events
+            | EVAL is_match = id IN (ROW id = 1 | KEEP id)
+            | WHERE is_match
+            | STATS c = COUNT(*) BY tag
+            | SORT tag
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(3));
+            assertEquals(List.of(1L, REMOTE_CLUSTER_1), values.get(0));
+            assertEquals(List.of(1L, "local"), values.get(1));
+            assertEquals(List.of(1L, REMOTE_CLUSTER_2), values.get(2));
+            assertCCSExecutionInfoDetailsWithShards(
+                resp.getExecutionInfo(),
+                Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1, REMOTE_CLUSTER_2, 1)
+            );
+        }
+    }
+
+    /**
+     * EVAL IN with ROW as the outer source and FROM as the subquery source (cross-cluster).
+     * The ROW literal {@code id=1} is checked against the red ids {1,3,5} from cluster-a,
+     * yielding {@code is_match=true}.
+     */
+    public void testEvalInSubqueryRowOuterFromSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            ROW id = 1
+            | EVAL is_match = id IN (FROM cluster-a:events | WHERE color == "red" | KEEP id)
+            | KEEP id, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(1, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL NOT IN with ROW as the outer source and FROM as the subquery source (cross-cluster).
+     * The ROW literal {@code id=2} (blue) is checked against the red ids {1,3,5} from cluster-a;
+     * {@code 2 NOT IN {1,3,5}} yields {@code is_match=true}.
+     */
+    public void testEvalNotInSubqueryRowOuterFromSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            ROW id = 2
+            | EVAL is_match = id NOT IN (FROM cluster-a:events | WHERE color == "red" | KEEP id)
+            | KEEP id, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(2, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL IN with ROW as the outer source and TS as the subquery source.
+     * The ROW literal {@code cluster_name="cluster-a"} is checked against the cluster dimension
+     * values returned by the TS aggregate on {@code cluster-a:ts_metrics}; the result is true.
+     */
+    public void testEvalInSubqueryRowOuterTsSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            ROW cluster_name = "cluster-a"
+            | EVAL is_match = cluster_name IN (
+                TS cluster-a:ts_metrics
+                | STATS top = max(max_bytes) BY cluster
+                | KEEP cluster
+              )
+            | KEEP cluster_name, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(REMOTE_CLUSTER_1, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL IN with ROW as both the outer and subquery source.
+     * Both sides are constant: ROW outer produces {@code id=1} and the ROW subquery also
+     * produces {@code id=1}, so {@code is_match=true}. No cluster I/O occurs.
+     */
+    public void testEvalInSubqueryRowOuterRowSubquery() {
+        try (EsqlQueryResponse resp = runQuery("""
+            ROW id = 1
+            | EVAL is_match = id IN (ROW id = 1 | KEEP id)
+            | KEEP id, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(1, true), values.get(0));
+        }
+    }
+
+    /**
+     * EVAL IN with TS as the outer source and FROM as the subquery source (cross-cluster).
+     * The TS aggregate on {@code cluster-a:ts_metrics} yields {@code cluster="cluster-a"}.
+     * The FROM subquery queries {@code cluster-a:events} whose {@code tag} field also equals
+     * {@code "cluster-a"}, so the EVAL marks the single result row as {@code is_match=true}.
+     */
+    public void testEvalInSubqueryTsOuterFromSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            TS cluster-a:ts_metrics
+            | STATS max_bytes = max(max_bytes) BY cluster
+            | EVAL is_match = cluster IN (FROM cluster-a:events | KEEP tag)
+            | KEEP cluster, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(REMOTE_CLUSTER_1, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL NOT IN with TS as the outer source and FROM as the subquery source (cross-cluster).
+     * The TS aggregate on {@code cluster-a:ts_metrics} yields {@code cluster="cluster-a"}.
+     * The FROM subquery queries the local {@code events} index whose {@code tag} is {@code "local"};
+     * {@code "cluster-a" NOT IN {"local",...}} yields {@code is_match=true}.
+     */
+    public void testEvalNotInSubqueryTsOuterFromSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            TS cluster-a:ts_metrics
+            | STATS max_bytes = max(max_bytes) BY cluster
+            | EVAL is_match = cluster NOT IN (FROM events | KEEP tag)
+            | KEEP cluster, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(REMOTE_CLUSTER_1, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(LOCAL_CLUSTER, 1, REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL IN with TS as both the outer and subquery source.
+     * Both TS plans run on {@code cluster-a:ts_metrics}. The outer aggregate yields
+     * {@code cluster="cluster-a"}; the subquery aggregate also returns {@code "cluster-a"},
+     * so {@code is_match=true}.
+     */
+    public void testEvalInSubqueryTsOuterTsSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            TS cluster-a:ts_metrics
+            | STATS max_bytes = max(max_bytes) BY cluster
+            | EVAL is_match = cluster IN (
+                TS cluster-a:ts_metrics
+                | STATS max2 = max(max_bytes) BY cluster
+                | KEEP cluster
+              )
+            | KEEP cluster, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(REMOTE_CLUSTER_1, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
+        }
+    }
+
+    /**
+     * EVAL IN with TS as the outer source and ROW as the subquery source.
+     * The TS aggregate on {@code cluster-a:ts_metrics} yields {@code cluster="cluster-a"}.
+     * The ROW subquery produces a single literal {@code "cluster-a"}, so {@code is_match=true}.
+     */
+    public void testEvalInSubqueryTsOuterRowSubquery() {
+        setupTsMetricsIndex(REMOTE_CLUSTER_1, "cluster-a");
+        try (EsqlQueryResponse resp = runQuery("""
+            TS cluster-a:ts_metrics
+            | STATS max_bytes = max(max_bytes) BY cluster
+            | EVAL is_match = cluster IN (ROW c = "cluster-a" | KEEP c)
+            | KEEP cluster, is_match
+            """, randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(1));
+            assertEquals(List.of(REMOTE_CLUSTER_1, true), values.get(0));
+            assertCCSExecutionInfoDetailsWithShards(resp.getExecutionInfo(), Map.of(REMOTE_CLUSTER_1, 1));
         }
     }
 

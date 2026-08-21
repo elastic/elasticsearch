@@ -2607,4 +2607,231 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
             as(inner, In.class);
         }
     }
+
+    /*
+     * {@code FROM main | EVAL is_match = (f1, f2) IN (FROM sub | KEEP f1, f2)}
+     *
+     * Eval[is_match = (NOT) MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[sub_index]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubquery() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = (f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        assertEquals(1, eval.fields().size());
+        Alias alias = eval.fields().get(0);
+        assertEquals("is_match", alias.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(alias.child(), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(alias.child(), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+        assertEquals("f1", as(mcs.values().get(0), Attribute.class).name());
+        assertEquals("f2", as(mcs.values().get(1), Attribute.class).name());
+
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation subqueryRelation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+
+        UnresolvedRelation mainRelation = as(eval.child(), UnresolvedRelation.class);
+        assertEquals("main_index", mainRelation.indexPattern().indexPattern());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = CASE((f1, f2) IN (FROM sub), true, false)}
+     *
+     * Eval[is_match = CASE((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]], true, false)]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInCase() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = CASE((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2), true, false)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction caseFunc = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("CASE", caseFunc.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(caseFunc.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(caseFunc.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = COALESCE((f1, f2) IN (FROM sub), false)}
+     *
+     * Eval[is_match = COALESCE((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]], false)]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInCoalesce() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = COALESCE((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2), false)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction coalesce = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("COALESCE", coalesce.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(coalesce.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(coalesce.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = ISNULL((f1, f2) IN (FROM sub))}
+     *
+     * Eval[is_match = ISNULL((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]])]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInIsNull() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = ISNULL((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2))";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction isnull = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("ISNULL", isnull.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(isnull.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(isnull.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = ISNOTNULL((f1, f2) IN (FROM sub))}
+     *
+     * Eval[is_match = ISNOTNULL((NOT) MultiColumnInSubquery[[?f1, ?f2], UnresolvedRelation[sub_index]])]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInSubqueryNestedInIsNotNull() {
+        checkMultiColumnInSubquery();
+        boolean negated = randomBoolean();
+        String notClause = negated ? "NOT " : "";
+        String query = "FROM main_index | EVAL is_match = ISNOTNULL((f1, f2) " + notClause + "IN (FROM sub_index | KEEP f1, f2))";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        UnresolvedFunction isnotnull = as(alias.child(), UnresolvedFunction.class);
+        assertEquals("ISNOTNULL", isnotnull.name());
+
+        MultiColumnInSubquery mcs;
+        if (negated) {
+            Not not = as(isnotnull.children().get(0), Not.class);
+            mcs = as(not.field(), MultiColumnInSubquery.class);
+        } else {
+            mcs = as(isnotnull.children().get(0), MultiColumnInSubquery.class);
+        }
+        assertThat(mcs.values().size(), equalTo(2));
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = x IN (TS sub)}
+     *
+     * Eval[is_match = InSubquery[?x, UnresolvedRelation[TS sub_index]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithInTsSubquery() {
+        String query = "FROM main_index | EVAL is_match = x IN (TS sub_index)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        InSubquery inSubquery = as(alias.child(), InSubquery.class);
+        UnresolvedRelation subqueryRelation = as(inSubquery.subquery(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        assertEquals("TS", subqueryRelation.telemetryLabel());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = (f1, f2) IN (TS sub | KEEP f1, f2)}
+     *
+     * Eval[is_match = MultiColumnInSubquery[[?f1, ?f2], Keep[UnresolvedRelation[TS sub_index]]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInTsSubquery() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main_index | EVAL is_match = (f1, f2) IN (TS sub_index | KEEP f1, f2)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        MultiColumnInSubquery mcs = as(alias.child(), MultiColumnInSubquery.class);
+        assertThat(mcs.values().size(), equalTo(2));
+        Keep keep = as(mcs.subquery(), Keep.class);
+        UnresolvedRelation subqueryRelation = as(keep.child(), UnresolvedRelation.class);
+        assertEquals("sub_index", subqueryRelation.indexPattern().indexPattern());
+        assertEquals("TS", subqueryRelation.telemetryLabel());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = x IN (ROW a = 1)}
+     *
+     * Eval[is_match = InSubquery[?x, Row[a = 1]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithInRowSubquery() {
+        String query = "FROM main_index | EVAL is_match = x IN (ROW a = 1)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        InSubquery inSubquery = as(alias.child(), InSubquery.class);
+        Row row = as(inSubquery.subquery(), Row.class);
+        assertEquals(1, row.fields().size());
+        assertEquals("a", row.fields().get(0).name());
+    }
+
+    /*
+     * {@code FROM main | EVAL is_match = (f1, f2) IN (ROW f1 = 1, f2 = 2)}
+     *
+     * Eval[is_match = MultiColumnInSubquery[[?f1, ?f2], Row[f1 = 1, f2 = 2]]]
+     * \_UnresolvedRelation[main_index]
+     */
+    public void testEvalWithMultiColumnInRowSubquery() {
+        checkMultiColumnInSubquery();
+        String query = "FROM main_index | EVAL is_match = (f1, f2) IN (ROW f1 = 1, f2 = 2)";
+
+        LogicalPlan plan = query(query);
+        Eval eval = as(plan, Eval.class);
+        Alias alias = eval.fields().get(0);
+        MultiColumnInSubquery mcs = as(alias.child(), MultiColumnInSubquery.class);
+        assertThat(mcs.values().size(), equalTo(2));
+        Row row = as(mcs.subquery(), Row.class);
+        assertEquals(2, row.fields().size());
+        assertEquals("f1", row.fields().get(0).name());
+        assertEquals("f2", row.fields().get(1).name());
+    }
 }

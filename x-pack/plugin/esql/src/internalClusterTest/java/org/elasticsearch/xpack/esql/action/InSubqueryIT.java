@@ -40,10 +40,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-    private static void checkQueryPragmas() {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-    }
-
     /**
      * Request-level filter (same JSON {@code filter} object as REST ES|QL {@code POST ... /_query})
      * intersects with IN-subquery execution.
@@ -80,6 +76,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     // ---- IN subquery with ROW as the source command ----
 
     public void testWhereInSubqueryWithRowAsSourceWithProcessingCommand() {
+        assumeTrue("Requires ROW subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
         try (var resp = run("FROM test | WHERE id IN (ROW x = 1, y = 2 | WHERE x > 0 | DROP y) | SORT id | KEEP id, color")) {
             assertColumnNames(resp.columns(), List.of("id", "color"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
@@ -120,7 +117,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Verifies the hash-join LEFT-join + IS NOT NULL filter produces the same set of matches.
      */
     public void testInSubqueryHashJoinForced() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | WHERE id IN (FROM test | SORT id | LIMIT 3 | KEEP id)
@@ -135,7 +132,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Same as above, but for NOT IN — the sentinel filter flips to IS NULL.
      */
     public void testNotInSubqueryHashJoinForced() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | WHERE id NOT IN (FROM test | SORT id | LIMIT 3 | KEEP id)
@@ -152,7 +149,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * would appear three times. This pins that BlockHash dedup collapses the right side correctly.
      */
     public void testInSubqueryHashJoinDuplicatesOnRightSide() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | WHERE color IN (FROM test | KEEP color)
@@ -174,7 +171,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * left lookups).
      */
     public void testInSubqueryHashJoinNullOnBothSide() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         // Add a row with id=7 and no color so the subquery can emit a null in its output.
         client().prepareBulk()
             .add(new IndexRequest("test").id("7").source("id", 7))
@@ -199,7 +196,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * building the LEFT join.
      */
     public void testNotInSubqueryHashJoinNullOnBothSides() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         client().prepareBulk()
             .add(new IndexRequest("test").id("7").source("id", 7))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -219,7 +216,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * fast path inside {@code inlineData} (before BlockHash). SEMI -> Filter(FALSE) -> 0 rows.
      */
     public void testInSubqueryHashJoinEmptyResult() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | WHERE id IN (FROM test | WHERE id > 100 | KEEP id)
@@ -235,7 +232,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * all left rows (Filter(TRUE)).
      */
     public void testNotInSubqueryHashJoinEmptyResult() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | WHERE id NOT IN (FROM test | WHERE id > 100 | KEEP id)
@@ -252,7 +249,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * before dedup), and verify the result matches.
      */
     public void testInSubqueryHashJoinMultiShardCorrectness() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         assertAcked(
             client().admin()
                 .indices()
@@ -284,7 +281,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * (each manages its own dedup page and circuit-breaker accounting).
      */
     public void testNestedInSubqueryHashJoin() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | WHERE id IN (
@@ -307,7 +304,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * regression protection — any divergence between paths shows up as a test failure.
      */
     public void testInSubqueryHashJoinAndFilterPathsAgree() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         String query = """
             FROM test
             | WHERE id IN (FROM test | WHERE color == "red" | KEEP id)
@@ -331,7 +328,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * ANTI-with-null-right short-circuit.
      */
     public void testInSubqueryHashJoinAndFilterPathsAgreeWithNulls() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         client().prepareBulk()
             .add(new IndexRequest("test").id("7").source("id", 7))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -433,7 +430,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * even when the filter path would drop it.
      */
     public void testDisjunctiveInSubqueryMultiValueLeftKeyParity() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         indexMultiValuedColorRow();
         String[] queries = new String[] {
             // OR's other side is FALSE for the MV row → filter path drops it (mark=NULL OR FALSE).
@@ -485,7 +482,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * {@link #testDisjunctiveInSubqueryMultiValueLeftKeyParity} but for SEMI/ANTI shapes.
      */
     public void testTopLevelInSubqueryMultiValueLeftKeyParity() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         indexMultiValuedColorRow();
         String[] queries = new String[] {
             // SEMI: filter path drops the MV row (In(MV, ["red"]) = NULL → FALSE under WHERE).
@@ -630,7 +627,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * {@code rightHadNulls} derivation in {@code SemiJoin#inlineData} drifted apart.
      */
     public void testInSubqueryRightSideMvFilterAndHashJoinPathsAgree() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         indexMultiValuedColorRow();
         String[] queries = new String[] {
             // Mix of SV ("red") and MV ([red,green]) on the right. Both paths must keep only
@@ -688,7 +685,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * the filter and hash-join paths must agree.
      */
     public void testDisjunctiveInSubqueryRightSideMvFilterAndHashJoinPathsAgree() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         indexMultiValuedColorRow();
         String[] queries = new String[] {
             // Subquery has only the MV row → dedup is {NULL} after canonicalization → mark is
@@ -733,6 +730,154 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    // ---- EVAL IN subquery: filter path vs hash-join path ----
+
+    /**
+     * Parity check for a bare EVAL IN subquery mark. {@code EVAL m = id IN (subquery)} exposes
+     * a boolean mark column; both the filter path (default) and the hash-join path (threshold=0)
+     * must produce identical mark values for every row.
+     */
+    public void testEvalInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | EVAL m = id IN (FROM test | WHERE color == "red" | KEEP id)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for EVAL IN subquery when the subquery's right side contains NULLs. A
+     * non-matching left row against a right side with NULLs receives a NULL mark (three-valued
+     * logic), not FALSE. Both execution paths must agree on the null-mark rows.
+     */
+    public void testEvalInSubqueryWithNullMarksFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. Red rows get mark=TRUE; blue rows get mark=NULL.
+        String query = """
+            FROM test
+            | EVAL m = color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for CASE wrapping an EVAL IN subquery mark. {@code CASE(id IN (subquery),
+     * "red", "other")} maps TRUE to "red" and FALSE to "other". Both execution paths must
+     * produce the same label for every row.
+     */
+    public void testEvalCaseWithInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | EVAL label = CASE(id IN (FROM test | WHERE color == "red" | KEEP id), "red", "other")
+            | SORT id
+            | KEEP id, label
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for COALESCE wrapping an EVAL IN subquery mark when the right side contains
+     * NULLs. Non-matching left rows receive a NULL mark; {@code COALESCE(null, false)} must
+     * yield {@code false} on both execution paths.
+     */
+    public void testEvalCoalesceWithInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. COALESCE(null mark, false) = false on both paths.
+        String query = """
+            FROM test
+            | EVAL m = COALESCE(color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color), false)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for IS NULL applied to an EVAL IN subquery mark when the right side contains
+     * NULLs. A NULL mark (non-matching row against a right side that has NULLs) gives IS NULL
+     * = TRUE; a TRUE or FALSE mark gives IS NULL = FALSE. Both paths must agree on every row.
+     */
+    public void testEvalIsNullOfInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. Red rows: IS NULL=FALSE; blue rows: IS NULL=TRUE.
+        String query = """
+            FROM test
+            | EVAL m = (color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)) IS NULL
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for IS NOT NULL applied to an EVAL IN subquery mark when the right side
+     * contains NULLs. Complement of {@link #testEvalIsNullOfInSubqueryFilterAndHashJoinPathsAgree}:
+     * a non-null mark (TRUE or FALSE) yields IS NOT NULL = TRUE; a NULL mark yields FALSE.
+     * Both paths must agree on every row.
+     */
+    public void testEvalIsNotNullOfInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String query = """
+            FROM test
+            | EVAL m = (color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)) IS NOT NULL
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
     /**
      * INLINE STATS aggregate filter with the mark forced down the hash-join path: the hash-join's
      * dedup LocalRelation sits in the InlineJoin's left branch and becomes reachable from both the
@@ -740,7 +885,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * CopyingLocalSupplier double-release protection.
      */
     public void testInlineStatsWhereInSubqueryHashJoinForced() {
-        checkQueryPragmas();
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
         try (var resp = run(syncEsqlQueryRequest("""
             FROM test
             | INLINE STATS c = COUNT(*) WHERE id IN (FROM test | SORT id | LIMIT 3 | KEEP id)
@@ -758,6 +903,8 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     public void testInSubqueryReferencingSimpleView() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+
         try {
             installView("red_ids", "FROM test | WHERE color == \"red\" | KEEP id");
 
@@ -781,6 +928,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      */
     public void testTwoViewsUnionedInInSubqueryRetryDoesNotDrainViewUnionAll() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         try {
             installView("red_ids", "FROM test | WHERE color == \"red\" | KEEP id");
             installView("blue_ids", "FROM test | WHERE color == \"blue\" | KEEP id");
@@ -799,6 +947,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     public void testViewReferencedFromInSubquery() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         try {
             installView("in_layer_1", "FROM test | WHERE id IN (FROM test | WHERE color == \"red\" | KEEP id) | KEEP id");
             installView("in_layer_2", "FROM test | WHERE id IN (FROM in_layer_1 | KEEP id) | KEEP id");

@@ -1467,6 +1467,181 @@ c:long
 90
 ;
 
+rowMainMultiColumnInSubqueryFromInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+ROW emp_no = 10001, salary = 57305
+| EVAL m = (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
+| KEEP emp_no, salary, m
+;
+
+emp_no:integer | salary:integer | m:boolean
+10001          | 57305          | true
+;
+
+rowMainMultiColumnInSubqueryRowInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: eval_in_subquery
+
+ROW a = 1, b = 2
+| EVAL m = (a, b) IN (ROW x = 1, y = 2)
+| KEEP a, b, m
+;
+
+a:integer | b:integer | m:boolean
+1         | 2         | true
+;
+
+multiColumnInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = (emp_no, salary) IN (FROM employees
+                                | SORT emp_no ASC
+                                | LIMIT 3
+                                | KEEP emp_no, salary)
+| WHERE m
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+multiColumnInSubqueryNestedInCaseInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = CASE((emp_no, salary) IN (FROM employees | SORT emp_no ASC | LIMIT 1 | KEEP emp_no, salary), "yes", "no")
+| WHERE emp_no <= 10003
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:keyword
+10001          | yes
+10002          | no
+10003          | no
+;
+
+multiColumnInSubqueryNestedInCoalesceInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+| WHERE emp_no == 10001
+| KEEP m
+;
+
+m:boolean
+true
+;
+
+multiColumnInSubqueryNestedInIsNullInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+| STATS c = COUNT(*) BY m
+| SORT m
+;
+
+c:long | m:boolean
+90     | false
+10     | true
+;
+
+multiColumnInTsSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL cluster = "qa", pod = "three"
+| EVAL is_match = (cluster, pod) IN (TS k8s
+                                     | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod
+                                     | WHERE m > 10
+                                     | KEEP cluster, pod)
+| STATS c = COUNT(*) BY is_match
+| SORT is_match
+;
+
+c:long | is_match:boolean
+100    | false
+;
+
+mainTsMultiColumnInTsSubqueryInEval
+skip_flattened_rewrite: complicated_in_subquery_in_eval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+TS k8s
+| EVAL is_match = (cluster, pod) IN (TS k8s
+                                     | STATS m = max(rate(network.total_bytes_in)) BY cluster, pod
+                                     | WHERE m > 10
+                                     | KEEP cluster, pod)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod, is_match
+| SORT cluster, pod
+;
+
+max_bytes:long | cluster:keyword | pod:keyword | is_match:boolean
+947            | prod            | one         | false
+9969           | prod            | three       | false
+10277          | prod            | two         | false
+7286           | qa              | one         | true
+10797          | qa              | three       | false
+8568           | qa              | two         | true
+6637           | staging         | one         | false
+7403           | staging         | three       | false
+5187           | staging         | two         | false
+;
+
+mainTsMultiColumnInRowSubqueryInEval
+skip_flattened_rewrite: complicated_in_subquery_in_eval
+required_capability: where_in_subquery_without_view
+required_capability: where_in_multi_column_subquery
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+TS k8s
+| EVAL is_match = (cluster, pod) IN (ROW cluster = "qa", pod = "three")
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, pod, is_match
+| SORT cluster, pod
+;
+
+max_bytes:long | cluster:keyword | pod:keyword | is_match:boolean
+947            | prod            | one         | false
+9969           | prod            | three       | false
+10277          | prod            | two         | false
+7286           | qa              | one         | false
+10797          | qa              | three       | true
+8568           | qa              | two         | false
+6637           | staging         | one         | false
+7403           | staging         | three       | false
+5187           | staging         | two         | false
+;
+
 // ======== multi-column IN subqueries in INLINE STATS WHERE filters ========
 
 inlineStatsWhereMultiColumnInSubqueryWithRow

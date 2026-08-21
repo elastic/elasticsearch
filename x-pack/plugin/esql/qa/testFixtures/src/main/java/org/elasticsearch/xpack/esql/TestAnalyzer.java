@@ -45,7 +45,9 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -625,7 +627,7 @@ public class TestAnalyzer {
      * {@code ViewResolver#replaceViews} followed by {@code InSubqueryResolver#verify} in {@code EsqlSession#execute}.
      * <p>
      * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
-     * such as EVAL or SORT).
+     * such as SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
@@ -652,6 +654,16 @@ public class TestAnalyzer {
                 // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
                 // plans (and any IN subqueries those views in turn contain) get resolved too.
                 return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Eval eval) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInEval(eval);
+                // EVAL IN subqueries become MarkJoins; recurse so views in their now-exposed subquery plans are resolved too.
+                return resolved == eval ? eval : resolveViews(resolved, viewDefinitions);
+            }
+            if (p instanceof Aggregate aggregate) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInAggregate(aggregate);
+                // Recurse into rewritten joins so views referenced by the newly exposed subquery plans are expanded too.
+                return resolved == aggregate ? aggregate : resolveViews(resolved, viewDefinitions);
             }
             if (p instanceof UnresolvedRelation ur) {
                 LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);

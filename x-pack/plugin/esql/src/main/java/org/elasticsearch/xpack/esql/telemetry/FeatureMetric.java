@@ -153,7 +153,7 @@ public enum FeatureMetric {
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
         InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
-        MarkJoin.class
+        MarkJoin.class // MarkJoin's enclosing command(filter, eval) already records the telemetry.
     );
 
     private Predicate<LogicalPlan> planCheck;

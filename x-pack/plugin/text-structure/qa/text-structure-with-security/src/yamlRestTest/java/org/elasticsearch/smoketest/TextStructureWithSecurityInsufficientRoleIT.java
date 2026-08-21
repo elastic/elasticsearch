@@ -8,15 +8,20 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class TextStructureWithSecurityInsufficientRoleIT extends TextStructureWithSecurityIT {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.create();
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -48,6 +53,11 @@ public class TextStructureWithSecurityInsufficientRoleIT extends TextStructureWi
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [no_text_structure]"));
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override

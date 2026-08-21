@@ -1535,6 +1535,11 @@ public class EsqlCapabilities {
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support non-correlated IN subqueries in the {@code EVAL} command.
+         */
+        EVAL_IN_SUBQUERY,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

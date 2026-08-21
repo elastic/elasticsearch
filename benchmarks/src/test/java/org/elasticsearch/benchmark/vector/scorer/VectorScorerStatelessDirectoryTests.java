@@ -10,7 +10,6 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -18,7 +17,6 @@ import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.core.DirectAccessInput;
-import org.elasticsearch.index.store.StoreMetricsIndexInput;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.BeforeClass;
 
@@ -28,7 +26,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -53,9 +50,10 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     }
 
     /**
-     * A file written to the directory and not yet uploaded is read back through a {@code ReopeningIndexInput}, wrapped in
-     * the same {@link StoreMetricsIndexInput} a real shard sees. Both zero-copy routes resolve through that chain down to
-     * the memory-mapped delegate, so {@code IndexInputUtils} never reaches its heap-copy fallback.
+     * A file written to the directory and not yet uploaded is read back through a {@code ReopeningIndexInput}, the same
+     * input a real shard sees: it accounts the bytes it reads itself, so the store hands it out rather than wrapping it.
+     * Both zero-copy routes resolve down to the memory-mapped delegate, so {@code IndexInputUtils} never reaches its
+     * heap-copy fallback.
      */
     public void testLocalFileIsReadWithDirectAccess() throws IOException {
         try (Directory dir = DirectoryType.STATELESS_INDEX_LOCAL.newDirectory(createTempDir())) {
@@ -63,8 +61,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
                 out.writeBytes(new byte[2 * SINGLE_READ_LENGTH], 2 * SINGLE_READ_LENGTH);
             }
             try (IndexInput in = dir.openInput("vector.data", IOContext.DEFAULT)) {
-                assertThat(in, instanceOf(StoreMetricsIndexInput.class));
-                assertThat(asInstanceOf(FilterIndexInput.class, in).getDelegate().toString(), startsWith("ReopeningIndexInput"));
+                assertThat(in.toString(), startsWith("ReopeningIndexInput"));
 
                 var directAccess = asInstanceOf(DirectAccessInput.class, in);
                 var invoked = new AtomicBoolean();
@@ -82,14 +79,20 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
     }
 
     public void testBulkScoresMatchMemoryMapped() throws IOException {
-        var data = new VectorScorerInt4BulkBenchmark.VectorData(DIMS, NUM_VECTORS, NUM_VECTORS_TO_SCORE, random());
+        var data = new VectorScorerInt4BulkBenchmark.VectorData(
+            DIMS,
+            NUM_VECTORS,
+            NUM_VECTORS_TO_SCORE,
+            random(),
+            DataAccessPattern.RANDOM
+        );
 
-        var memoryMapped = createBenchmark(data, DirectoryType.MMAP);
+        var memoryMapped = createBenchmark(data, DirectoryType.MMAP, DataAccessPattern.RANDOM);
         try {
-            float[] expected = memoryMapped.scoreMultipleRandomBulk();
-            var stateless = createBenchmark(data, DirectoryType.STATELESS_INDEX_LOCAL);
+            float[] expected = memoryMapped.scoreMultipleBulk();
+            var stateless = createBenchmark(data, DirectoryType.STATELESS_INDEX_LOCAL, DataAccessPattern.RANDOM);
             try {
-                assertArrayEquals(expected, stateless.scoreMultipleRandomBulk(), DELTA);
+                assertArrayEquals(expected, stateless.scoreMultipleBulk(), DELTA);
             } finally {
                 stateless.teardown();
             }
@@ -98,8 +101,11 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
         }
     }
 
-    private static VectorScorerInt4BulkBenchmark createBenchmark(VectorScorerInt4BulkBenchmark.VectorData data, DirectoryType directoryType)
-        throws IOException {
+    private static VectorScorerInt4BulkBenchmark createBenchmark(
+        VectorScorerInt4BulkBenchmark.VectorData data,
+        DirectoryType directoryType,
+        DataAccessPattern accessMode
+    ) throws IOException {
         var bench = new VectorScorerInt4BulkBenchmark();
         bench.function = VectorSimilarityType.DOT_PRODUCT;
         // only the native scorers route through IndexInputUtils; the others never reach it
@@ -109,6 +115,7 @@ public class VectorScorerStatelessDirectoryTests extends BenchmarkTest {
         bench.numVectors = NUM_VECTORS;
         bench.numVectorsToScore = NUM_VECTORS_TO_SCORE;
         bench.bulkSize = NUM_VECTORS_TO_SCORE;
+        bench.accessMode = accessMode;
         bench.setup(data);
         return bench;
     }

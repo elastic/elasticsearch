@@ -261,6 +261,14 @@ $$$event-create-apikey$$$
     ::::
 
 
+$$$event-create-apikeys$$$
+
+`create_apikeys`
+:   Logged when the bulk grant API key API is invoked to create multiple API keys on behalf of another user.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+
 $$$event-change-apikey$$$
 
 `change_apikey`
@@ -628,7 +636,7 @@ The following list shows attributes that are common to all audit event types:
 `event.action`
 :   The type of event that occurred: `anonymous_access_denied`, `authentication_failed`, `authentication_success`, `realm_authentication_failed`, `access_denied`, `access_granted`, `connection_denied`, `connection_granted`, `tampered_request`, `run_as_denied`, or `run_as_granted`.
 
-    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+    In addition, if `event.type` equals [`security_config_change`](#security-config-change), the `event.action` attribute takes one of the following values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_apikeys`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
 
 
 `request.id`
@@ -695,7 +703,7 @@ The events with `event.type` equal to `ip_filter` have one of the following `eve
 
 ### Audit event attributes of the `security_config_change` event type [security-config-change]
 
-The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
+The events with the `event.type` attribute equal to `security_config_change` have one of the following `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_apikeys`, `delete_user`, `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, or `change_apikeys`.
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
@@ -709,7 +717,7 @@ These events also have **one** of the following extra attributes (in addition to
 :   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.
 
 `create`
-:   The object representation of the new security config that is being created. This is currently only used for API keys auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object.
+:   The object representation of the new security config that is being created. This is currently only used for API keys auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object. If multiple keys are created using the bulk grant API key API, it contains an `apikeys` array and a `grant` config object.
 
 `invalidate`
 :   The object representation of the security configuration that is being invalidated. The only config that currently supports invalidation is `apikeys`, through the [invalidate API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-invalidate-api-key).

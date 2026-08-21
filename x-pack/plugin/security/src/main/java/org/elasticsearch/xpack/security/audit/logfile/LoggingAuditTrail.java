@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyR
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkGrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkGrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
@@ -754,6 +756,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof GrantApiKeyRequest) {
                     assert GrantApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
+                } else if (msg instanceof BulkGrantApiKeyRequest bulkGrantApiKeyRequest) {
+                    assert BulkGrantApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(bulkGrantApiKeyRequest).build();
                 } else if (msg instanceof CloneApiKeyRequest cloneApiKeyRequest) {
                     assert CloneApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(cloneApiKeyRequest).build();
@@ -1296,6 +1301,35 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
             Grant grant = grantApiKeyRequest.getGrant();
             withGrant(builder, grant);
+            builder.endObject();
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(BulkGrantApiKeyRequest bulkGrantApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikeys");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            builder.startArray("apikeys");
+            for (CreateApiKeyRequest apiKeyRequest : bulkGrantApiKeyRequest.getApiKeyRequests()) {
+                builder.startObject();
+                TimeValue expiration = apiKeyRequest.getExpiration();
+                builder.field("id", apiKeyRequest.getId())
+                    .field("name", apiKeyRequest.getName())
+                    .field("type", apiKeyRequest.getType().value())
+                    .field("expiration", expiration != null ? expiration.toString() : null)
+                    .startArray("role_descriptors");
+                for (RoleDescriptor roleDescriptor : apiKeyRequest.getRoleDescriptors()) {
+                    withRoleDescriptor(builder, roleDescriptor);
+                }
+                builder.endArray();
+                if (apiKeyRequest.getMetadata() != null && apiKeyRequest.getMetadata().isEmpty() == false) {
+                    builder.field("metadata", apiKeyRequest.getMetadata());
+                }
+                builder.endObject();
+            }
+            builder.endArray();
+            withGrant(builder, bulkGrantApiKeyRequest.getGrant());
             builder.endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;

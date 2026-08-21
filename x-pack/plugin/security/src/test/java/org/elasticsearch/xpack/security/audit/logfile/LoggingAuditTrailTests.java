@@ -53,6 +53,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkGrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkGrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
@@ -2237,6 +2239,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             new Tuple<>(TransportChangePasswordAction.TYPE.name(), new ChangePasswordRequest()),
             new Tuple<>(CreateApiKeyAction.NAME, new CreateApiKeyRequest()),
             new Tuple<>(GrantApiKeyAction.NAME, new GrantApiKeyRequest()),
+            new Tuple<>(BulkGrantApiKeyAction.NAME, new BulkGrantApiKeyRequest()),
             new Tuple<>(PutPrivilegesAction.NAME, new PutPrivilegesRequest()),
             new Tuple<>(DeleteUserAction.NAME, new DeleteUserRequest()),
             new Tuple<>(DeleteRoleAction.NAME, new DeleteRoleRequest()),

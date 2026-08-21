@@ -90,9 +90,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkGrantApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CertificateIdentity;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
@@ -133,8 +135,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
@@ -439,49 +444,50 @@ public class ApiKeyService implements Closeable {
         final List<RoleDescriptor> roleDescriptors,
         final TransportVersion transportVersion
     ) {
-        if (transportVersion.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false && hasRemoteIndices(roleDescriptors)) {
-            // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
-                        + "] or higher to support remote indices privileges for API keys"
-                )
-            );
-            return false;
-        }
-        if (transportVersion.supports(ROLE_REMOTE_CLUSTER_PRIVS) == false && hasRemoteCluster(roleDescriptors)) {
-            // API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
-                        + "] or higher to support remote cluster privileges for API keys"
-                )
-            );
-            return false;
-        }
-        if (transportVersion.supports(MANAGE_ROLES_PRIVILEGE) == false && hasGlobalManageRolesPrivilege(roleDescriptors)) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
-                        + "] or higher to support the manage roles privilege for API keys"
-                )
-            );
-            return false;
-        }
-        if (transportVersion.supports(ESQL_DATASOURCE_PRIVILEGE) == false && hasGlobalDatasourcePrivilege(roleDescriptors)) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
-                        + "] or higher to support the datasource privilege for API keys"
-                )
-            );
+        Exception exception = checkRoleDescriptorsForMixedCluster(roleDescriptors, transportVersion);
+        if (exception != null) {
+            listener.onFailure(exception);
             return false;
         }
         return true;
+    }
+
+    @Nullable
+    private Exception checkRoleDescriptorsForMixedCluster(
+        final List<RoleDescriptor> roleDescriptors,
+        final TransportVersion transportVersion
+    ) {
+        if (transportVersion.supports(Authentication.VERSION_CROSS_CLUSTER_ACCESS) == false && hasRemoteIndices(roleDescriptors)) {
+            // API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+            return new IllegalArgumentException(
+                "all nodes must have version ["
+                    + Authentication.VERSION_CROSS_CLUSTER_ACCESS.toReleaseVersion()
+                    + "] or higher to support remote indices privileges for API keys"
+            );
+        }
+        if (transportVersion.supports(ROLE_REMOTE_CLUSTER_PRIVS) == false && hasRemoteCluster(roleDescriptors)) {
+            // API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
+            return new IllegalArgumentException(
+                "all nodes must have version ["
+                    + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
+                    + "] or higher to support remote cluster privileges for API keys"
+            );
+        }
+        if (transportVersion.supports(MANAGE_ROLES_PRIVILEGE) == false && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+            return new IllegalArgumentException(
+                "all nodes must have version ["
+                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                    + "] or higher to support the manage roles privilege for API keys"
+            );
+        }
+        if (transportVersion.supports(ESQL_DATASOURCE_PRIVILEGE) == false && hasGlobalDatasourcePrivilege(roleDescriptors)) {
+            return new IllegalArgumentException(
+                "all nodes must have version ["
+                    + ESQL_DATASOURCE_PRIVILEGE.toReleaseVersion()
+                    + "] or higher to support the datasource privilege for API keys"
+            );
+        }
+        return null;
     }
 
     /**
@@ -650,6 +656,196 @@ public class ApiKeyService implements Closeable {
             }
         }));
     }
+
+    /**
+     * Creates multiple REST API keys for the same owning authentication in a single bulk index request.
+     * Per-key failures (validation or indexing) are returned in {@link BulkGrantApiKeyResponse} rather
+     * than failing the whole request. Grant credentials and limited-by roles are resolved by the caller.
+     */
+    public void bulkCreateApiKeys(
+        Authentication authentication,
+        List<CreateApiKeyRequest> requests,
+        Set<RoleDescriptor> userRoleDescriptors,
+        ActionListener<BulkGrantApiKeyResponse> listener
+    ) {
+        ensureEnabled();
+        if (authentication == null) {
+            listener.onFailure(new IllegalArgumentException("authentication must be provided"));
+            return;
+        }
+        if (requests == null || requests.isEmpty()) {
+            listener.onFailure(new IllegalArgumentException("[api_keys] must not be empty"));
+            return;
+        }
+
+        final TransportVersion transportVersion = getMinTransportVersion();
+        final Set<RoleDescriptor> filteredRoleDescriptors = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
+        final Map<String, Exception> errorDetails = new ConcurrentHashMap<>();
+        final List<CreateApiKeyRequest> toCreate = new ArrayList<>(requests.size());
+        for (CreateApiKeyRequest request : requests) {
+            assert request.getType() == ApiKey.Type.REST : "bulk grant only supports REST API keys";
+            Exception mixedClusterException = checkRoleDescriptorsForMixedCluster(request.getRoleDescriptors(), transportVersion);
+            if (mixedClusterException != null) {
+                errorDetails.put(request.getId(), mixedClusterException);
+                continue;
+            }
+            final IllegalArgumentException workflowsValidationException = validateWorkflowsRestrictionConstraints(
+                transportVersion,
+                request.getRoleDescriptors(),
+                userRoleDescriptors
+            );
+            if (workflowsValidationException != null) {
+                errorDetails.put(request.getId(), workflowsValidationException);
+                continue;
+            }
+            toCreate.add(request);
+        }
+        hashAndIndexApiKeys(authentication, requests, toCreate, filteredRoleDescriptors, errorDetails, listener);
+    }
+
+    private void hashAndIndexApiKeys(
+        Authentication authentication,
+        List<CreateApiKeyRequest> originalOrder,
+        List<CreateApiKeyRequest> toCreate,
+        Set<RoleDescriptor> userRoleDescriptors,
+        Map<String, Exception> errorDetails,
+        ActionListener<BulkGrantApiKeyResponse> listener
+    ) {
+        if (toCreate.isEmpty()) {
+            listener.onResponse(new BulkGrantApiKeyResponse(List.of(), Map.copyOf(errorDetails)));
+            return;
+        }
+        final List<PendingApiKey> pending = new CopyOnWriteArrayList<>();
+        final AtomicInteger remaining = new AtomicInteger(toCreate.size());
+        for (CreateApiKeyRequest request : toCreate) {
+            final Instant created = clock.instant();
+            final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
+            final SecureString apiKey = getBase64SecureRandomString(API_KEY_SECRET_NUM_BYTES);
+            computeHashForApiKey(apiKey, ActionListener.wrap(apiKeyHashChars -> {
+                pending.add(new PendingApiKey(request, apiKey, apiKeyHashChars, created, expiration));
+                if (remaining.decrementAndGet() == 0) {
+                    indexPendingApiKeys(authentication, originalOrder, userRoleDescriptors, pending, errorDetails, listener);
+                }
+            }, ex -> {
+                errorDetails.put(request.getId(), ex);
+                if (remaining.decrementAndGet() == 0) {
+                    indexPendingApiKeys(authentication, originalOrder, userRoleDescriptors, pending, errorDetails, listener);
+                }
+            }));
+        }
+    }
+
+    private void indexPendingApiKeys(
+        Authentication authentication,
+        List<CreateApiKeyRequest> originalOrder,
+        Set<RoleDescriptor> userRoleDescriptors,
+        List<PendingApiKey> pending,
+        Map<String, Exception> errorDetails,
+        ActionListener<BulkGrantApiKeyResponse> listener
+    ) {
+        if (pending.isEmpty()) {
+            listener.onResponse(new BulkGrantApiKeyResponse(List.of(), Map.copyOf(errorDetails)));
+            return;
+        }
+        final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        final Map<String, PendingApiKey> pendingById = new HashMap<>(pending.size());
+        for (PendingApiKey pendingApiKey : pending) {
+            pendingById.put(pendingApiKey.request().getId(), pendingApiKey);
+            try (
+                XContentBuilder builder = newDocument(
+                    pendingApiKey.apiKeyHashChars(),
+                    pendingApiKey.request().getName(),
+                    authentication,
+                    userRoleDescriptors,
+                    pendingApiKey.created(),
+                    pendingApiKey.expiration(),
+                    pendingApiKey.request().getRoleDescriptors(),
+                    pendingApiKey.request().getType(),
+                    ApiKey.CURRENT_API_KEY_VERSION,
+                    pendingApiKey.request().getMetadata(),
+                    getCertificateIdentityFromCreateRequest(pendingApiKey.request())
+                )
+            ) {
+                bulkRequestBuilder.add(
+                    client.prepareIndex(SECURITY_MAIN_ALIAS)
+                        .setSource(builder)
+                        .setId(pendingApiKey.request().getId())
+                        .setOpType(DocWriteRequest.OpType.CREATE)
+                        .request()
+                );
+            } catch (Exception e) {
+                errorDetails.put(pendingApiKey.request().getId(), e);
+            } finally {
+                Arrays.fill(pendingApiKey.apiKeyHashChars(), (char) 0);
+            }
+        }
+        if (bulkRequestBuilder.numberOfActions() == 0) {
+            listener.onResponse(new BulkGrantApiKeyResponse(List.of(), Map.copyOf(errorDetails)));
+            return;
+        }
+        bulkRequestBuilder.setRefreshPolicy(pending.get(0).request().getRefreshPolicy());
+        final BulkRequest bulkRequest = bulkRequestBuilder.request();
+        securityIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportBulkAction.TYPE,
+                    bulkRequest,
+                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                        final Map<String, CreateApiKeyResponse> createdById = new HashMap<>();
+                        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                            final String apiKeyId = bulkItemResponse.getId();
+                            if (bulkItemResponse.isFailed()) {
+                                errorDetails.put(
+                                    apiKeyId,
+                                    new ElasticsearchException(
+                                        "bulk request execution failure",
+                                        bulkItemResponse.getFailure().getCause()
+                                    )
+                                );
+                            } else {
+                                assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.CREATED
+                                    : "Index response was [" + bulkItemResponse.getResponse().getResult() + "]";
+                                final PendingApiKey pendingApiKey = pendingById.get(apiKeyId);
+                                assert pendingApiKey != null : "missing pending API key for id [" + apiKeyId + "]";
+                                if (apiKeyAuthCache != null) {
+                                    final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                    listenableFuture.onResponse(new CachedApiKeyHashResult(true, pendingApiKey.apiKey()));
+                                    apiKeyAuthCache.put(apiKeyId, listenableFuture);
+                                }
+                                createdById.put(
+                                    apiKeyId,
+                                    new CreateApiKeyResponse(
+                                        pendingApiKey.request().getName(),
+                                        apiKeyId,
+                                        pendingApiKey.apiKey(),
+                                        pendingApiKey.expiration()
+                                    )
+                                );
+                            }
+                        }
+                        final List<CreateApiKeyResponse> created = new ArrayList<>(createdById.size());
+                        for (CreateApiKeyRequest request : originalOrder) {
+                            final CreateApiKeyResponse createdKey = createdById.get(request.getId());
+                            if (createdKey != null) {
+                                created.add(createdKey);
+                            }
+                        }
+                        listener.onResponse(new BulkGrantApiKeyResponse(created, Map.copyOf(errorDetails)));
+                    }, listener::onFailure)
+                )
+            );
+    }
+
+    private record PendingApiKey(
+        CreateApiKeyRequest request,
+        SecureString apiKey,
+        char[] apiKeyHashChars,
+        Instant created,
+        Instant expiration
+    ) {}
 
     /**
      * Clones an API key: validates the source credential, then creates a new key with the source's role descriptors

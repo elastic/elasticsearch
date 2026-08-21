@@ -1,0 +1,149 @@
+---
+setup:
+  - skip:
+      features: [headers, transform_and_set]
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "api_key_granter_role"
+        body:  >
+            {
+              "cluster": ["grant_api_key"]
+            }
+  - do:
+      security.put_role:
+        name: "api_key_grant_target_role"
+        body: >
+          {
+            "cluster": ["manage_token"],
+            "indices": [
+              {
+                "names": "index",
+                "privileges": ["all"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_granter"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "api_key_granter_role" ],
+            "full_name" : "API key granter"
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_grant_target_user"
+        body: >
+          {
+            "password" : "x-pack-test-password-2",
+            "roles" : [ "api_key_grant_target_role" ],
+            "full_name" : "API key grant target user"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "api_key_granter_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "api_key_grant_target_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_granter"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_grant_target_user"
+        ignore: 404
+
+---
+"Test bulk grant api keys with password":
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
+      security.bulk_grant_api_key:
+        body:  >
+          {
+            "grant_type": "password",
+            "username": "api_key_grant_target_user",
+            "password": "x-pack-test-password-2",
+            "api_keys": [
+              {
+                "name": "bulk-key-1",
+                "expiration": "1d",
+                "metadata": { "managed": true }
+              },
+              {
+                "name": "bulk-key-2"
+              }
+            ]
+          }
+  - length: { created: 2 }
+  - match: { created.0.name: "bulk-key-1" }
+  - is_true: created.0.id
+  - is_true: created.0.api_key
+  - is_true: created.0.expiration
+  - match: { created.1.name: "bulk-key-2" }
+  - is_true: created.1.id
+  - is_true: created.1.api_key
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(created.0.id,created.0.api_key)" }
+  - match: { created.0.encoded: $login_creds }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.authenticate: {}
+
+  - match: { username: "api_key_grant_target_user" }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { api_key.name: "bulk-key-1" }
+
+---
+"Test bulk grant api key forbidden":
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudF90YXJnZXRfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZC0y" # api_key_grant_target_user
+      catch: forbidden
+      security.bulk_grant_api_key:
+        body:  >
+          {
+            "grant_type": "password",
+            "username": "api_key_granter",
+            "password": "x-pack-test-password",
+            "api_keys": [
+              { "name": "bulk-key-forbidden" }
+            ]
+          }
+  - match: { "error.type": "security_exception" }
+  - match:
+      "error.reason": "action [cluster:admin/xpack/security/api_key/grant/bulk] is unauthorized for user [api_key_grant_target_user] with effective roles [api_key_grant_target_role], this action is granted by the cluster privileges [grant_api_key,manage_api_key,manage_security,all]"
+
+---
+"Test bulk grant api keys requires api_keys":
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9ncmFudGVyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_granter
+      catch: bad_request
+      security.bulk_grant_api_key:
+        body:  >
+          {
+            "grant_type": "password",
+            "username": "api_key_grant_target_user",
+            "password": "x-pack-test-password-2"
+          }
+  - match: { "error.type": "action_request_validation_exception" }
+  - match: { "error.reason": "Validation Failed: 1: [api_keys] must not be empty;" }

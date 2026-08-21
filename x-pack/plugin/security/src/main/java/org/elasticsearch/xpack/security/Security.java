@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkGrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
@@ -237,6 +238,7 @@ import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportBulkGrantApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCloneApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
@@ -362,6 +364,7 @@ import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestBulkGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCloneApiKeyAction;
@@ -633,6 +636,7 @@ public class Security extends Plugin
     private final SetOnce<UpdateApiKeyRequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<RestBulkGrantApiKeyAction.RequestTranslator> bulkGrantApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
 
@@ -976,6 +980,9 @@ public class Security extends Plugin
         }
         if (grantApiKeyRequestTranslator.get() == null) {
             grantApiKeyRequestTranslator.set(new RestGrantApiKeyAction.RequestTranslator.Default());
+        }
+        if (bulkGrantApiKeyRequestTranslator.get() == null) {
+            bulkGrantApiKeyRequestTranslator.set(new RestBulkGrantApiKeyAction.RequestTranslator.Default());
         }
         if (hasPrivilegesRequestBuilderFactory.get() == null) {
             hasPrivilegesRequestBuilderFactory.trySet(new HasPrivilegesRequestBuilderFactory.Default());
@@ -1821,6 +1828,7 @@ public class Security extends Plugin
             new ActionHandler(CreateApiKeyAction.INSTANCE, TransportCreateApiKeyAction.class),
             new ActionHandler(CreateCrossClusterApiKeyAction.INSTANCE, TransportCreateCrossClusterApiKeyAction.class),
             new ActionHandler(GrantApiKeyAction.INSTANCE, TransportGrantApiKeyAction.class),
+            new ActionHandler(BulkGrantApiKeyAction.INSTANCE, TransportBulkGrantApiKeyAction.class),
             new ActionHandler(CloneApiKeyAction.INSTANCE, TransportCloneApiKeyAction.class),
             new ActionHandler(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
@@ -1921,6 +1929,7 @@ public class Security extends Plugin
             new RestBulkUpdateApiKeyAction(settings, getLicenseState(), bulkUpdateApiKeyRequestTranslator.get()),
             new RestUpdateCrossClusterApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState(), grantApiKeyRequestTranslator.get()),
+            new RestBulkGrantApiKeyAction(settings, getLicenseState(), bulkGrantApiKeyRequestTranslator.get()),
             new RestCloneApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
@@ -2596,6 +2605,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
         loadSingletonExtensionAndSetOnce(loader, reservedRoleNameCheckerFactory, ReservedRoleNameChecker.Factory.class);
         loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, bulkGrantApiKeyRequestTranslator, RestBulkGrantApiKeyAction.RequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);

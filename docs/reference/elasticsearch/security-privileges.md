@@ -61,7 +61,7 @@ When creating roles, refer to this page for a complete list of available privile
 
 
 `grant_api_key` {applies_to}`serverless: unavailable`
-:   Privileges to create {{es}} API keys on behalf of other users.
+:   Privileges to create {{es}} API keys on behalf of other users, including bulk grant.
 
 
 `clone_api_key` {applies_to}`stack: ga 9.4+` {applies_to}`serverless: unavailable`

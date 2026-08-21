@@ -106,7 +106,8 @@ public class PreAnalyzer {
         // The EQL source command resolves its schema through the same field-caps path as FROM: its pattern
         // joins the same indexes map, so preAnalyzeMainIndices resolves it once into the shared IndexResolution.
         // EQL is always STANDARD mode; reject a collision with a same-pattern non-STANDARD relation, matching the
-        // UnresolvedRelation conflict above (unreachable today — EQL cannot yet co-occur in a subquery with TS).
+        // UnresolvedRelation conflict above. Reachable via a mixed subquery (e.g. FROM (TS idx), (EQL idx "…")),
+        // where it throws exactly as the FROM/TS twin does.
         Set<IndexPattern> eqlPatterns = new LinkedHashSet<>();
         plan.forEachUp(UnresolvedEqlRelation.class, p -> {
             eqlPatterns.add(p.indexPattern());

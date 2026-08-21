@@ -207,25 +207,40 @@ public class EqlRequestsTests extends ESTestCase {
         // A numeric value above Integer.MAX_VALUE would wrap on intValue() (e.g. size 4294967296 -> 0), presenting an
         // empty result as complete. It must fail at parse time, not truncate silently.
         ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", 4294967296L)));
-        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("must be an integer between")));
     }
 
     public void testRejectsNegativeNumericOptionThatWrapsToNonNegativeInt() {
         // A negative long whose low 32 bits are non-negative also wraps on intValue() (e.g. -4294967296 -> 0),
         // slipping past a one-sided upper-bound check and presenting an empty result as complete.
         ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", -4294967296L)));
-        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("must be an integer between")));
     }
 
     public void testRejectsNegativeNumericOption() {
         ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", -1)));
-        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("must be an integer between")));
     }
 
     public void testRejectsFractionalNumericOption() {
         // A fractional value passes the Number check but would silently truncate on intValue() (3.9 -> 3).
         ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("size", 3.9)));
-        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("non-negative integer")));
+        assertThat(e.getMessage(), allOf(containsString("[size]"), containsString("must be an integer between")));
+    }
+
+    public void testRejectsBelowMinimumFetchSize() {
+        // fetch_size below the delegate's minimum (2) must fail at parse, not mid-execution.
+        ParsingException e = expectThrows(ParsingException.class, () -> EqlRequests.validateOptions(EMPTY, Map.of("fetch_size", 1)));
+        assertThat(e.getMessage(), allOf(containsString("[fetch_size]"), containsString("between 2 and")));
+    }
+
+    public void testRejectsBelowMinimumMaxSamplesPerKey() {
+        // max_samples_per_key below the delegate's minimum (1) must fail at parse.
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> EqlRequests.validateOptions(EMPTY, Map.of("max_samples_per_key", 0))
+        );
+        assertThat(e.getMessage(), allOf(containsString("[max_samples_per_key]"), containsString("between 1 and")));
     }
 
     public void testUnknownOptionMessageListsSupportedKeys() {

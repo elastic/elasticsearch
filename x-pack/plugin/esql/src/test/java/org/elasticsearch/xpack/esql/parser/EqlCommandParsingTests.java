@@ -198,6 +198,19 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         assertThat(options.get("size"), equalTo(100));
     }
 
+    public void testWithOversizedUnsignedLongSizeRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        // 2^63 folds to an unsigned_long literal stored biased (raw long 0); it must be rejected as out-of-range at
+        // parse — not silently wrapped to size 0, which would present an empty result as complete.
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> query("EQL logs-* \"process where true\" WITH { \"size\": 9223372036854775808 }")
+        );
+        assertThat(e.getMessage(), containsString("[size]"));
+        assertThat(e.getMessage(), containsString("9223372036854775808"));
+    }
+
     /**
      * Regression guard mirroring {@code IcebergParsingTests#testExternalCommandUnavailableOnRealReleaseBuild}:
      * only meaningfully executes on a genuine release build (e.g. {@code -Dbuild.snapshot=false}), where it

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.eql.EqlRequests;
@@ -1107,6 +1108,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
                 if (literalValue instanceof BytesRef bytesRef) {
                     folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
+                } else if (literal.dataType() == DataType.UNSIGNED_LONG && literalValue instanceof Long biased) {
+                    // An unsigned_long literal is stored biased (value - 2^63), so it would otherwise reach option
+                    // validation as a small wrapped Long (2^63 -> 0). Restore the true magnitude so range validation
+                    // sees the real, out-of-int-range value.
+                    folded.put(entry.getKey(), NumericUtils.unsignedLongAsBigInteger(biased));
                 } else {
                     folded.put(entry.getKey(), literalValue);
                 }

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
@@ -103,6 +104,9 @@ public class EqlSourceOperator extends SourceOperator {
         requested = true;
         blocked = new SubscribableListener<>();
         driverContext.addAsyncAction();
+        // client.execute delivers every outcome — including a synchronous registration failure such as a
+        // TaskCancelledException when the parent task is already banned — through the listener, never by throwing
+        // (NodeClient.doExecute forwards those to onFailure), so the async action is always released below.
         client.execute(EqlSearchAction.INSTANCE, request, ActionListener.wrap(response -> {
             try {
                 // Convert synchronously inside the callback and copy the bytes we need out of the (ref-counted)
@@ -175,8 +179,9 @@ public class EqlSourceOperator extends SourceOperator {
                 .registerWarning(
                     "EQL query returned the maximum number of results ["
                         + request.size()
-                        + "]; results may be incomplete. Raise the size option or the "
-                        + "[esql.query.result_truncation_max_size] setting"
+                        + "]; results may be incomplete. Raise the size option or the ["
+                        + AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey()
+                        + "] setting"
                 );
         }
     }

@@ -18,11 +18,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  * default. Mirrors {@link PushLimitToKnn}: the value is folded into the leaf but the {@link Limit} node is kept
  * (the operator still trims, and keeping it is harmless if the response over-returns).
  *
- * <p>Only EVENT mode is eligible — for sequence/sample queries the ES|QL rows are unnested per event, so a row
- * limit does not map to the number of matches (the request would under-fetch). A limit that does not sit
- * directly above the relation (e.g. {@code | WHERE … | LIMIT n}) is not pushed: the source must over-scan so the
- * downstream filter still sees enough rows. When no limit is pushed the request falls back to the ES|QL
- * result-truncation cap (see {@code LocalExecutionPlanner#planEqlSource}).
+ * <p>Only EVENT mode is eligible for now. Extending to sequence/sample is sound — the request {@code size} bounds
+ * the number of matches, each match unnests to at least one row, and the {@link Limit} node is retained, so pushing
+ * {@code size = n} yields at least n rows and the kept Limit still trims (it cannot under-fetch) — but it is deferred
+ * pending validation against the sequence/sample corpora. A limit that does not sit directly above the relation
+ * (e.g. {@code | WHERE … | LIMIT n}) is not pushed: the source must over-scan so the downstream filter still sees
+ * enough rows. When no limit is pushed the request falls back to the ES|QL result-truncation cap (see
+ * {@code LocalExecutionPlanner#planEqlSource}).
  */
 public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 

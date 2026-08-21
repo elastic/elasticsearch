@@ -59,15 +59,16 @@ public final class EqlRequests {
      * messages, and how the value applies to the request. {@link #OPTIONS} is the single source of truth for the
      * command's option surface, so validation and application never drift and adding an option is one entry.
      */
-    private record Option(Class<?> type, String typeName, BiConsumer<EqlSearchRequest, Object> apply) {}
+    private record Option(Class<?> type, String typeName, int min, BiConsumer<EqlSearchRequest, Object> apply) {}
 
     private static final Map<String, Option> OPTIONS = options();
 
     private static Map<String, Option> options() {
         Map<String, Option> options = new LinkedHashMap<>();
-        intOption(options, "size", EqlSearchRequest::size);
-        intOption(options, "fetch_size", EqlSearchRequest::fetchSize);
-        intOption(options, "max_samples_per_key", EqlSearchRequest::maxSamplesPerKey);
+        // Minimums mirror EqlSearchRequest.validate() so a below-range value fails at parse, not mid-execution.
+        intOption(options, "size", 0, EqlSearchRequest::size);
+        intOption(options, "fetch_size", 2, EqlSearchRequest::fetchSize);
+        intOption(options, "max_samples_per_key", 1, EqlSearchRequest::maxSamplesPerKey);
         stringOption(options, "timestamp_field", EqlSearchRequest::timestampField);
         stringOption(options, "tiebreaker_field", EqlSearchRequest::tiebreakerField);
         stringOption(options, "event_category_field", EqlSearchRequest::eventCategoryField);
@@ -76,18 +77,18 @@ public final class EqlRequests {
         // returned. Defaulted false in build() (fail-safe) and opted into here.
         options.put(
             "allow_partial_sequence_results",
-            new Option(Boolean.class, "boolean", (request, value) -> request.allowPartialSequenceResults((Boolean) value))
+            new Option(Boolean.class, "boolean", 0, (request, value) -> request.allowPartialSequenceResults((Boolean) value))
         );
         return options;
     }
 
-    // Numeric options arrive as folded Number literals; the request takes an int.
-    private static void intOption(Map<String, Option> options, String name, ObjIntConsumer<EqlSearchRequest> apply) {
-        options.put(name, new Option(Number.class, "numeric", (request, value) -> apply.accept(request, ((Number) value).intValue())));
+    // Numeric options arrive as folded Number literals; the request takes an int. min is the inclusive lower bound.
+    private static void intOption(Map<String, Option> options, String name, int min, ObjIntConsumer<EqlSearchRequest> apply) {
+        options.put(name, new Option(Number.class, "numeric", min, (request, value) -> apply.accept(request, ((Number) value).intValue())));
     }
 
     private static void stringOption(Map<String, Option> options, String name, BiConsumer<EqlSearchRequest, String> apply) {
-        options.put(name, new Option(String.class, "string", (request, value) -> apply.accept(request, (String) value)));
+        options.put(name, new Option(String.class, "string", 0, (request, value) -> apply.accept(request, (String) value)));
     }
 
     /**
@@ -111,19 +112,22 @@ public final class EqlRequests {
                     "EQL command option [" + entry.getKey() + "] requires a " + option.typeName() + " value"
                 );
             }
-            // Every numeric option applies as a non-negative int. Reject a value that is fractional, negative, or
-            // outside int range rather than letting intValue() silently truncate or wrap it: size 4294967296 and
-            // -4294967296 both collapse to 0 (an empty result presented as complete), and size 3.9 would become 3.
+            // Every numeric option applies as an int within [min, Integer.MAX_VALUE]. Reject a value that is
+            // fractional, below its minimum, or outside int range rather than letting intValue() silently truncate
+            // or wrap it: size 4294967296 and -4294967296 both collapse to 0 (an empty result presented as
+            // complete), size 3.9 would become 3, and fetch_size 1 would be rejected only later by the delegate.
             if (entry.getValue() instanceof Number number) {
                 long asLong = number.longValue();
-                if (number.doubleValue() != asLong || asLong < 0 || asLong > Integer.MAX_VALUE) {
+                if (number.doubleValue() != asLong || asLong < option.min() || asLong > Integer.MAX_VALUE) {
                     throw new ParsingException(
                         source,
                         "EQL command option ["
                             + entry.getKey()
                             + "] value ["
                             + entry.getValue()
-                            + "] must be a non-negative integer at most "
+                            + "] must be an integer between "
+                            + option.min()
+                            + " and "
                             + Integer.MAX_VALUE
                     );
                 }

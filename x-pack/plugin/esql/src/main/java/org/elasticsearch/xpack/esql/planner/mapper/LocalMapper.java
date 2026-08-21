@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -93,6 +94,13 @@ public class LocalMapper {
 
         if (leaf instanceof ExternalRelation external) {
             return external.toPhysicalExec();
+        }
+
+        if (leaf instanceof EqlRelation) {
+            // EqlRelation is coordinator-local: it is never wrapped in a FragmentExec, so it must never reach the
+            // local (data-node) mapper. If it does, the never-fragmented invariant has broken; fail loud rather than
+            // silently planning a coordinator-only source on a data node.
+            throw new EsqlIllegalArgumentException("EQL source command cannot be planned on a data node");
         }
 
         return MapperUtils.mapLeaf(leaf);

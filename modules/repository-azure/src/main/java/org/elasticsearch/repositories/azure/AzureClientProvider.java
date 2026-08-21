@@ -232,7 +232,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     ConnectionProvider buildConnectionProvider(int maxConnections) {
-        logger.info("Created ConnectionProvider with {} maxConnections", maxConnections);
         return ConnectionProvider.builder("azure-sdk-connection-pool")
             .maxConnections(maxConnections)
             .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
@@ -258,6 +257,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             return connectionProviderRef;
         }
 
+        // left this logging outside the `synchronized` block intentionally and hence the "potentially" in the log message
+        logger.info(
+            "About to (potentially) create ConnectionProvider with {} maxConnections for projectId {} and clientName {}",
+            settings.getMaxConnections(),
+            projectId,
+            clientName
+        );
         synchronized (this) {
             if (closed) {
                 throw new AlreadyClosedException("AzureClientProvider is already closed");

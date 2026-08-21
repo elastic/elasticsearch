@@ -14,6 +14,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationSettingsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
@@ -28,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.ELEMENT_TYPE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -125,46 +127,106 @@ public class ElasticsearchInternalTextEmbeddingServiceSettingsTests extends Abst
         );
     }
 
-    public void testFromMap_Request_IgnoresDimensions() {
-        var modelId = "model-foo";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var numAllocations = 1;
-        var numThreads = 1;
+    public void testFromMap_Request_RejectsDimensions() {
+        var map = new HashMap<String, Object>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                "model-foo",
+                NUM_ALLOCATIONS,
+                1,
+                NUM_THREADS,
+                1,
+                ServiceFields.SIMILARITY,
+                SimilarityMeasure.DOT_PRODUCT.toString(),
+                ELEMENT_TYPE,
+                DenseVectorFieldMapper.ElementType.FLOAT.toString(),
+                ServiceFields.DIMENSIONS,
+                1
+            )
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(e.getMessage(), containsString("unknown field [dimensions]"));
+    }
+
+    public void testFromMap_Request_InvalidElementType_ThrowsException() {
+        var map = new HashMap<String, Object>(
+            Map.of(ServiceFields.MODEL_ID, "model-foo", NUM_ALLOCATIONS, 1, NUM_THREADS, 1, ELEMENT_TYPE, "bit")
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(e.getCause().getMessage(), containsString("Invalid value [bit]; expected one of [byte, float]"));
+    }
+
+    public void testFromMap_Request_InvalidSimilarity_ThrowsException() {
+        var map = new HashMap<String, Object>(
+            Map.of(ServiceFields.MODEL_ID, "model-foo", NUM_ALLOCATIONS, 1, NUM_THREADS, 1, ServiceFields.SIMILARITY, "not_similar")
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(e.getCause().getMessage(), containsString("Invalid value [not_similar]; expected one of"));
+    }
+
+    public void testFromMap_Request_UnknownField_ThrowsException() {
+        var map = new HashMap<String, Object>(
+            Map.of(ServiceFields.MODEL_ID, "model-foo", NUM_ALLOCATIONS, 1, NUM_THREADS, 1, "unknown_field", "value")
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(e.getMessage(), containsString("unknown field [unknown_field]"));
+    }
+
+    public void testFromMap_Persistent_IgnoresUnknownFields() {
         var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    NUM_ALLOCATIONS,
-                    numAllocations,
-                    NUM_THREADS,
-                    numThreads,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ELEMENT_TYPE,
-                    DenseVectorFieldMapper.ElementType.FLOAT.toString(),
-                    ServiceFields.DIMENSIONS,
-                    1
-                )
+                Map.of(ServiceFields.MODEL_ID, "model-foo", NUM_ALLOCATIONS, 1, NUM_THREADS, 1, "unknown_field_from_the_future", "value")
             ),
-            ConfigurationParseContext.REQUEST
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(
             serviceSettings,
             is(
                 new ElasticsearchInternalTextEmbeddingServiceSettings(
-                    numAllocations,
-                    numThreads,
-                    modelId,
+                    1,
+                    1,
+                    "model-foo",
                     null,
                     null,
                     null,
-                    SimilarityMeasure.DOT_PRODUCT,
+                    SimilarityMeasure.COSINE,
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             )
         );
+    }
+
+    public void testFromMapWithBuilder_LeavesUnparsedFieldsInMap() {
+        var builder = new ElasticsearchInternalServiceSettings.Builder().setNumAllocations(1).setNumThreads(1).setModelId("model-foo");
+        var map = new HashMap<String, Object>(
+            Map.of(ServiceFields.SIMILARITY, SimilarityMeasure.DOT_PRODUCT.toString(), NUM_ALLOCATIONS, 2)
+        );
+
+        var serviceSettings = ElasticsearchInternalTextEmbeddingServiceSettings.fromMap(map, builder);
+
+        assertThat(serviceSettings.similarity(), is(SimilarityMeasure.DOT_PRODUCT));
+        assertThat(map, is(Map.of(NUM_ALLOCATIONS, 2)));
     }
 
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {

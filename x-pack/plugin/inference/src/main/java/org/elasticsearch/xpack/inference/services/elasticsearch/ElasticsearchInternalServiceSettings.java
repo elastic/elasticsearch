@@ -7,27 +7,36 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSettingErrorMsg;
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 
 public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
@@ -40,14 +49,76 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     public static final String DEPLOYMENT_ID = "deployment_id";
     public static final String ADAPTIVE_ALLOCATIONS = "adaptive_allocations";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false, Builder::new);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true, Builder::new);
+
     private Integer numAllocations;
     private final int numThreads;
     private final String modelId;
     private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
     private final String deploymentId;
 
+    /**
+     * Creates a parser declaring the settings common to all elasticsearch internal services. Subclasses with additional fields
+     * create their parsers through this method with their own builder supplier and declare the extra fields on the result.
+     *
+     * @param ignoreUnknownFields whether unknown fields are tolerated; {@code false} for user requests, {@code true} for persisted config
+     * @param builderSupplier constructs the builder instances the parser populates
+     */
+    static <B extends Builder> ObjectParser<B, ConfigurationParseContext> createParser(
+        boolean ignoreUnknownFields,
+        Supplier<B> builderSupplier
+    ) {
+        ObjectParser<B, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            builderSupplier
+        );
+        declareBaseFields(parser);
+        return parser;
+    }
+
+    private static <B extends Builder> void declareBaseFields(ObjectParser<B, ConfigurationParseContext> parser) {
+        parser.declareField(Builder::setNumAllocations, p -> {
+            int value = p.intValue();
+            validatePositiveInteger(value, NUM_ALLOCATIONS);
+            return value;
+        }, new ParseField(NUM_ALLOCATIONS), ObjectParser.ValueType.INT);
+        parser.declareField(Builder::setNumThreads, p -> {
+            int value = p.intValue();
+            validatePositiveInteger(value, NUM_THREADS);
+            return value;
+        }, new ParseField(NUM_THREADS), ObjectParser.ValueType.INT);
+        parser.declareField(Builder::setModelId, p -> {
+            String value = p.text();
+            validateStringIsNotNullOrEmpty(value, MODEL_ID);
+            return value;
+        }, new ParseField(MODEL_ID), ObjectParser.ValueType.STRING);
+        parser.declareField(Builder::setDeploymentId, p -> {
+            String value = p.text();
+            validateStringIsNotNullOrEmpty(value, DEPLOYMENT_ID);
+            return value;
+        }, new ParseField(DEPLOYMENT_ID), ObjectParser.ValueType.STRING);
+        parser.declareObject(
+            Builder::setAdaptiveAllocationsSettings,
+            (p, c) -> parseAdaptiveAllocationsSettings(p),
+            new ParseField(ADAPTIVE_ALLOCATIONS)
+        );
+    }
+
+    private static AdaptiveAllocationsSettings parseAdaptiveAllocationsSettings(XContentParser parser) throws IOException {
+        var settings = AdaptiveAllocationsSettings.PARSER.apply(parser, null).build();
+        var validationException = settings.validate();
+        if (validationException != null) {
+            throw validationException;
+        }
+        return settings;
+    }
+
     public static ElasticsearchInternalServiceSettings fromPersistedMap(Map<String, Object> map) {
-        return fromRequestMap(map).build();
+        var builder = parseFromMap(map, PERSISTENT_PARSER, ConfigurationParseContext.PERSISTENT);
+        validateRequiredFields(builder);
+        return builder.build();
     }
 
     /**
@@ -61,30 +132,46 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
      * @return A builder to allow the settings to be modified.
      */
     public static Builder fromRequestMap(Map<String, Object> map) {
-        var validationException = new ValidationException();
-        var builder = fromMap(map, validationException);
-        validationException.throwIfValidationErrorsExist();
+        var builder = parseFromMap(map, REQUEST_PARSER, ConfigurationParseContext.REQUEST);
+        validateRequiredFields(builder);
         return builder;
     }
 
-    protected static Builder fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer numAllocations = extractOptionalPositiveInteger(
-            map,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        Integer numThreads = extractRequiredPositiveInteger(map, NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
-            map,
-            ADAPTIVE_ALLOCATIONS,
-            validationException
-        );
+    private static Builder parseFromMap(
+        Map<String, Object> map,
+        ObjectParser<Builder, ConfigurationParseContext> parser,
+        ConfigurationParseContext context
+    ) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            var builder = parser.apply(xParser, context);
+            // TODO: remove once all elasticsearch internal service settings are parser-based and ElasticsearchInternalService no
+            // longer checks for unconsumed map entries. The object parser reads the map through an XContent view without consuming
+            // its entries, so the parsed fields must be removed explicitly to satisfy the caller's check that no unknown settings
+            // remain in the map.
+            map.remove(NUM_ALLOCATIONS);
+            map.remove(NUM_THREADS);
+            map.remove(MODEL_ID);
+            map.remove(DEPLOYMENT_ID);
+            map.remove(ADAPTIVE_ALLOCATIONS);
+            return builder;
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
+    }
 
-        // model id is optional as the ELSER service will default it. TODO make this a required field once the elser service is removed
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    /**
+     * Validates the presence rules that span multiple fields: {@code num_threads} is required and exactly one allocations style
+     * (fixed or adaptive) must be given. These checks run after parsing so that services can rely on them regardless of which
+     * parser variant populated the builder.
+     */
+    static void validateRequiredFields(Builder builder) {
+        var validationException = new ValidationException();
 
-        if (numAllocations == null && adaptiveAllocationsSettings == null) {
+        if (builder.getNumThreadsOrNull() == null) {
+            validationException.addValidationError(missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
+        }
+
+        if (builder.getNumAllocations() == null && builder.getAdaptiveAllocationsSettings() == null) {
             validationException.addValidationError(
                 ServiceUtils.missingOneOfSettingsErrorMsg(
                     List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
@@ -93,15 +180,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
             );
         }
 
-        String deploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        // if an error occurred while parsing, we'll set these to an invalid value, so we don't accidentally get a
-        // null pointer when doing unboxing
-        return new Builder().setNumAllocations(numAllocations)
-            .setNumThreads(Objects.requireNonNullElse(numThreads, FAILED_INT_PARSE_VALUE))
-            .setModelId(modelId)
-            .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings)
-            .setDeploymentId(deploymentId);
+        validationException.throwIfValidationErrorsExist();
     }
 
     public ElasticsearchInternalServiceSettings(
@@ -224,42 +303,76 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         return TransportVersion.minimumCompatible();
     }
 
+    /**
+     * Parses an update request. Only the allocations settings are mutable: {@code num_threads} is declared solely to reject it
+     * with a descriptive error, and any other field is rejected by the strict parser.
+     */
+    private static class Update {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        private StatefulValue<Integer> numAllocations = StatefulValue.undefined();
+        private StatefulValue<AdaptiveAllocationsSettings> adaptiveAllocationsSettings = StatefulValue.undefined();
+
+        static {
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.numAllocations = value, p -> {
+                int value = p.intValue();
+                validatePositiveInteger(value, NUM_ALLOCATIONS);
+                return value;
+            }, new ParseField(NUM_ALLOCATIONS), ObjectParser.ValueType.INT_OR_NULL);
+            StatefulValue.declareNullable(
+                PARSER,
+                (update, value) -> update.adaptiveAllocationsSettings = value,
+                ElasticsearchInternalServiceSettings::parseAdaptiveAllocationsSettings,
+                new ParseField(ADAPTIVE_ALLOCATIONS),
+                ObjectParser.ValueType.OBJECT_OR_NULL
+            );
+            PARSER.declareField(
+                (update, value) -> {},
+                p -> { throw new ElasticsearchParseException("[{}] cannot be updated", NUM_THREADS); },
+                new ParseField(NUM_THREADS),
+                ObjectParser.ValueType.VALUE
+            );
+        }
+
+        Builder mergeInto(ElasticsearchInternalServiceSettings existing) {
+            var validationException = new ValidationException();
+
+            if (numAllocations.isPresent() == false && adaptiveAllocationsSettings.isPresent() == false) {
+                validationException.addValidationError(
+                    ServiceUtils.missingOneOfSettingsErrorMsg(
+                        List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
+                        ModelConfigurations.SERVICE_SETTINGS
+                    )
+                );
+            }
+            if (numAllocations.isPresent() && adaptiveAllocationsSettings.isPresent()) {
+                validationException.addValidationError(
+                    Strings.format("[%s] cannot be set if [%s] is set", NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS)
+                );
+            }
+            validationException.throwIfValidationErrorsExist();
+
+            return existing.toBuilder()
+                .setNumAllocations(numAllocations.orElse(null))
+                .setAdaptiveAllocationsSettings(adaptiveAllocationsSettings.orElse(null));
+        }
+    }
+
     @Override
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        if (serviceSettings.containsKey(NUM_THREADS)) {
-            validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            var update = Update.PARSER.apply(xParser, null);
+            // TODO: remove once all elasticsearch internal service settings are parser-based and usesParserForServiceSettings can
+            // be enabled on ElasticsearchInternalService. The object parser reads the map through an XContent view without
+            // consuming its entries, so the parsed fields must be removed explicitly to satisfy the caller's check that no unknown
+            // settings remain in the map.
+            serviceSettings.remove(NUM_ALLOCATIONS);
+            serviceSettings.remove(ADAPTIVE_ALLOCATIONS);
+            return update.mergeInto(this).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Elasticsearch internal service settings update", e);
         }
-
-        var numAllocations = extractOptionalPositiveInteger(
-            serviceSettings,
-            NUM_ALLOCATIONS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
-            serviceSettings,
-            ADAPTIVE_ALLOCATIONS,
-            validationException
-        );
-
-        if (numAllocations == null && adaptiveAllocationsSettings == null) {
-            validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
-            );
-        }
-        if (numAllocations != null && adaptiveAllocationsSettings != null) {
-            validationException.addValidationError(
-                Strings.format("[%s] cannot be set if [%s] is set", NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS)
-            );
-        }
-        validationException.throwIfValidationErrorsExist();
-
-        return toBuilder().setNumAllocations(numAllocations).setAdaptiveAllocationsSettings(adaptiveAllocationsSettings).build();
     }
 
     public Builder toBuilder() {
@@ -272,13 +385,21 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
     public static class Builder {
         private Integer numAllocations;
-        private int numThreads;
+        private Integer numThreads;
         private String modelId;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
         private String deploymentId;
 
         public ElasticsearchInternalServiceSettings build() {
-            return new ElasticsearchInternalServiceSettings(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, deploymentId);
+            // the failed-parse sentinel avoids a null pointer when a builder is built without num_threads; the parser-based
+            // paths validate the field is present before building
+            return new ElasticsearchInternalServiceSettings(
+                numAllocations,
+                Objects.requireNonNullElse(numThreads, FAILED_INT_PARSE_VALUE),
+                modelId,
+                adaptiveAllocationsSettings,
+                deploymentId
+            );
         }
 
         public Builder setNumAllocations(Integer numAllocations) {
@@ -315,6 +436,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         }
 
         public int getNumThreads() {
+            return numThreads;
+        }
+
+        Integer getNumThreadsOrNull() {
             return numThreads;
         }
 

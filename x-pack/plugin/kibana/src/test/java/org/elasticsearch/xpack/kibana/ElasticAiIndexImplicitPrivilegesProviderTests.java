@@ -87,8 +87,12 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(query, not(containsString("\"exists\"")));
     }
 
-    /** User holds grants on multiple spaces → one nested should-clause per space, each carrying that space's actions. */
-    public void testMultipleSpacesProduceOneClauseEach() {
+    /**
+     * Spaces sharing an identical effective action set are grouped into a single clause listing all
+     * of them, rather than one clause per space: {@code (space=foo OR space=*) AND terms_set(A)} or-ed
+     * with the same for {@code bar} is exactly {@code (space IN [foo,bar] OR space=*) AND terms_set(A)}.
+     */
+    public void testSpacesSharingActionSetShareOneClause() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
             new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_read", Set.of("ai_index:visualization/read"), Map.of())
         );
@@ -99,9 +103,41 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(clauses, hasSize(1));
+        assertThat(spacesOfClause(clauses.get(0)), containsInAnyOrder("foo", "bar", ALL_SPACES));
+        assertThat(termsOfClause(clauses.get(0)), contains("ai_index:visualization/read"));
+    }
+
+    /**
+     * A space whose effective action set equals the global set emits no clause of its own: the
+     * space-less global clause applies the same {@code terms_set} with one restriction fewer, so it
+     * already matches everything the space's clause would. Spaces adding actions keep their clause.
+     */
+    public void testSpaceClauseRedundantWithGlobalClauseIsDropped() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "global_read", Set.of("ai_index:dashboard/read"), Map.of()),
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "extra_read", Set.of("ai_index:workflow/read"), Map.of())
+        );
+        RoleDescriptor roleDescriptor = roleWithGrants(
+            grant("global_read", "*"),
+            grant("global_read", "space:marketing"),
+            grant("extra_read", "space:finance")
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(roleDescriptor, storedPrivileges)
+        );
+        assertThat(result, hasSize(1));
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
         assertThat(clauses, hasSize(2));
-        assertThat(termsOfClauseForSpace(clauses, "foo"), contains("ai_index:visualization/read"));
-        assertThat(termsOfClauseForSpace(clauses, "bar"), contains("ai_index:visualization/read"));
+        assertThat(termsOfClauseForSpace(clauses, "finance"), containsInAnyOrder("ai_index:dashboard/read", "ai_index:workflow/read"));
+        assertThat(termsOfSpacelessClause(clauses), contains("ai_index:dashboard/read"));
+        assertThat(
+            "marketing adds nothing over the global grant, so no clause should name it",
+            clauses.stream().anyMatch(clause -> spacesOfClause(clause).contains("marketing")),
+            is(false)
+        );
     }
 
     /**
@@ -126,7 +162,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
         List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(privilege.getQuery()));
         assertThat(clauses, hasSize(1));
-        assertThat("wildcard clause must carry no .space term", spaceOfClause(clauses.get(0)), is(nullValue()));
+        assertThat("wildcard clause must carry no .space filter", spacesOfClause(clauses.get(0)), is(empty()));
         assertThat(termsOfClause(clauses.get(0)), contains("ai_index:visualization/read"));
     }
 
@@ -356,7 +392,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
         "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
-        {"bool":{"should":[{"term":{"permissions.kibana.privileges.space":{"value":"marketing"}}},\
+        {"bool":{"should":[{"terms":{"permissions.kibana.privileges.space":["marketing"],"boost":1.0}},\
         {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:dashboard/read"],\
         "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
@@ -368,7 +404,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         {"bool":{"must_not":[{"nested":{"query":{"match_all":{"boost":1.0}},\
         "path":"permissions.kibana.privileges","ignore_unmapped":false,"score_mode":"none","boost":1.0}}],"boost":1.0}},\
         {"nested":{"query":{"bool":{"should":[{"bool":{"filter":[\
-        {"bool":{"should":[{"term":{"permissions.kibana.privileges.space":{"value":"a"}}},\
+        {"bool":{"should":[{"terms":{"permissions.kibana.privileges.space":["a"],"boost":1.0}},\
         {"term":{"permissions.kibana.privileges.space":{"value":"*"}}}],"minimum_should_match":"1","boost":1.0}},\
         {"terms_set":{"permissions.kibana.privileges.name":{"terms":["ai_index:x/read"],\
         "minimum_should_match_field":"permissions.kibana.privileges.count","boost":1.0}}}\
@@ -456,25 +492,27 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     /**
      * Every space value a clause matches on, or an empty list for the space-less (global-grant)
-     * clause. A space clause matches its own space plus the all-spaces marker {@code "*"}.
+     * clause. A space clause matches its grouped spaces (a {@code terms} query) plus the all-spaces
+     * marker {@code "*"} (a {@code term} query).
      */
     @SuppressWarnings("unchecked")
     private static List<String> spacesOfClause(Map<String, Object> clause) {
         for (Map<String, Object> filter : filtersOfClause(clause)) {
             if (filter.containsKey("bool")) {
                 List<Map<String, Object>> shoulds = (List<Map<String, Object>>) ((Map<String, Object>) filter.get("bool")).get("should");
-                return shoulds.stream().map(should -> {
-                    Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("term")).get(SPACE_FIELD);
-                    return (String) field.get("value");
-                }).toList();
+                List<String> spaces = new ArrayList<>();
+                for (Map<String, Object> should : shoulds) {
+                    if (should.containsKey("terms")) {
+                        spaces.addAll((List<String>) ((Map<String, Object>) should.get("terms")).get(SPACE_FIELD));
+                    } else {
+                        Map<String, Object> field = (Map<String, Object>) ((Map<String, Object>) should.get("term")).get(SPACE_FIELD);
+                        spaces.add((String) field.get("value"));
+                    }
+                }
+                return spaces;
             }
         }
         return List.of();
-    }
-
-    /** The space a clause is scoped to, or {@code null} for the space-less (global-grant) clause. */
-    private static String spaceOfClause(Map<String, Object> clause) {
-        return spacesOfClause(clause).stream().filter(space -> ALL_SPACES.equals(space) == false).findFirst().orElse(null);
     }
 
     @SuppressWarnings("unchecked")
@@ -490,7 +528,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     private static List<String> termsOfClauseForSpace(List<Map<String, Object>> clauses, String spaceId) {
         return clauses.stream()
-            .filter(c -> spaceId.equals(spaceOfClause(c)))
+            .filter(c -> spacesOfClause(c).contains(spaceId))
             .findFirst()
             .map(ElasticAiIndexImplicitPrivilegesProviderTests::termsOfClause)
             .orElseThrow(() -> new AssertionError("no clause for space [" + spaceId + "] in " + clauses));
@@ -498,7 +536,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
 
     private static List<String> termsOfSpacelessClause(List<Map<String, Object>> clauses) {
         return clauses.stream()
-            .filter(c -> spaceOfClause(c) == null)
+            .filter(c -> spacesOfClause(c).isEmpty())
             .findFirst()
             .map(ElasticAiIndexImplicitPrivilegesProviderTests::termsOfClause)
             .orElseThrow(() -> new AssertionError("no space-less clause in " + clauses));

@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesP
 import org.elasticsearch.xpack.core.security.authz.privilege.ResolvedApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,43 +35,16 @@ import java.util.stream.Collectors;
  * users whose roles include a Kibana application privilege grant carrying at least one
  * {@code ai_index:} action.
  * <p>
- * <b>Document contract.</b> {@code permissions.kibana.privileges} is a {@code nested} field holding one
- * element per space the document is visible in. Each element lists the {@code ai_index:} actions that
- * space requires, plus a {@code count} of them. An element whose space is {@code "*"} means the
- * document lives in every space:
- * <pre>{@code
- * "permissions": { "kibana": { "privileges": [
- *   { "space": "marketing", "name": ["ai_index:dashboard/read", "ai_index:lens/read"], "count": 2 },
- *   { "space": "finance",   "name": ["ai_index:dashboard/read"],                       "count": 1 }
- * ]}}
- * }</pre>
- * A document with no elements at all is a public document, visible to every user this provider grants
- * an implicit privilege to. This shape is owned by the Kibana agent_builder_sml plugin's storage schema; the
- * {@code ai-index-*} index template deliberately does not declare it, so this Javadoc and
- * {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto contract.
+ * {@code permissions.kibana.privileges} is a {@code nested} field holding one element per space the
+ * document is visible in, each listing the {@code ai_index:} actions that space requires plus a
+ * {@code count} of them; an element whose space is {@code "*"} means the document lives in every
+ * space, and a document with no elements at all is public. This shape is currently owned by the Kibana
+ * agent_builder_sml plugin's storage schema; the {@code ai-index-*} index template deliberately does
+ * not declare it, so this Javadoc and {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto
+ * contract.
  * <p>
- * <b>Why nested.</b> The required semantics are <em>OR across spaces, AND across actions within a
- * space</em>. A flat counted keyword field cannot express that: {@code terms_set} counts matching terms
- * with no awareness of which space each came from, so a user holding one required action in each of two
- * spaces would clear a threshold of two and see a document they are authorised for in neither. Nested
- * matching is existential — a root document matches when at least one <em>child</em> satisfies a clause,
- * and each child is evaluated alone — so matches structurally cannot accumulate across spaces.
- * <p>
- * <b>Clause construction.</b> {@link #buildDlsQuery} emits, inside a single {@code nested} query:
- * <ul>
- *   <li>one clause per space the user holds {@code ai_index:} actions in, pairing a match on
- *       {@code .space} with a {@code terms_set} on {@code .name} gated by
- *       {@code minimum_should_match_field: .count}. The terms are that space's actions <em>unioned
- *       with</em> the actions from any {@code *} grant — a user holding {@code A} globally and {@code B}
- *       in marketing genuinely holds both in marketing, and without the union neither clause alone
- *       would satisfy a document requiring both. The space match accepts the space id <em>or</em>
- *       {@code "*"}, so documents a producer scoped to every space stay visible to space-scoped
- *       users;</li>
- *   <li>if the user holds a {@code *} grant, one further clause with no {@code .space} filter, so
- *       documents in spaces the user has no explicit grant in are still reachable.</li>
- * </ul>
- * The wildcard resource is therefore never a bypass: it widens which elements are eligible, but the
- * action check still applies.
+ * The DLS query makes a document visible only when the user holds <em>all</em> the actions it
+ * requires <em>within a single space</em>. See {@link #buildDlsQuery} for how the clauses are constructed.
  */
 public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivilegesProvider {
 
@@ -140,33 +115,18 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
     }
 
     /**
-     * Builds the DLS query gating Elastic AI Index document visibility.
+     * Builds the DLS query making a document visible only when the user holds all the actions it
+     * requires within a single space. Inside a single {@code nested} query it emits one clause per
+     * distinct effective action set (a space's own actions unioned with any {@code *} grant's),
+     * matching any of that set's spaces via {@link #spaceMatches} and gating the actions with
+     * {@code terms_set} on the per-element {@code count}; a {@code *} grant adds one further
+     * space-less clause.
      * <p>
-     * {@code permissions.kibana.privileges} is a {@code nested} field carrying one element per space,
-     * each listing the actions that space requires plus a {@code count} of them. A {@code nested} query
-     * matches a root document when <em>at least one</em> child matches, which gives OR-across-spaces for
-     * free. Within a child, {@code terms_set} with {@code minimum_should_match_field: count} gives
-     * AND-across-actions. Because each child is evaluated independently against a single clause, matches
-     * can never accumulate across spaces — the cross-space leak a flat counted keyword field allows.
-     * <p>
-     * Clause construction:
-     * <ul>
-     *   <li>One clause per space the user holds actions in, carrying that space's actions
-     *       <em>unioned with</em> the actions from any {@code *} grant. The union matters: a user with
-     *       {@code A} globally and {@code B} in marketing holds both in marketing, and without the union
-     *       neither clause alone would satisfy a document requiring both. The space match is
-     *       {@link #spaceMatches}, which also accepts all-spaces ({@code "*"}) elements.</li>
-     *   <li>If the user holds a {@code *} grant, one further clause with no space filter, so documents
-     *       in spaces the user has no explicit grant in are still reachable.</li>
-     * </ul>
-     * A document with no {@code permissions.kibana.privileges} elements at all is public. Note this must
-     * be expressed as {@code must_not nested(match_all)} — a root-level {@code must_not exists} on a
-     * nested subfield matches <em>every</em> document (the values live on child docs), which would turn
-     * the whole DLS query into a no-op.
-     * <p>
-     * {@code ignore_unmapped} is deliberately left at its default {@code false}. If the granted index
-     * does not declare the nested mapping the search then fails loudly, rather than matching
-     * the public-document branch for every document, which would be a silent fail-open.
+     * Documents with no permission elements are public. This must be expressed as
+     * {@code must_not nested(match_all)}, never {@code must_not exists} — a root-level {@code exists}
+     * on a nested subfield matches every document, which would void the whole query. Likewise,
+     * {@code ignore_unmapped} stays {@code false} so a missing nested mapping fails loudly instead of
+     * silently failing open through the public-document branch.
      *
      * @return the serialised query, or {@code null} if the user holds no space-scoped or global grant,
      *         in which case no implicit privilege is granted at all.
@@ -174,31 +134,34 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
     static String buildDlsQuery(Map<String, Set<String>> resourcesToActions) {
         Set<String> globalActions = resourcesToActions.getOrDefault(ALL_RESOURCES, Set.of());
 
-        BoolQueryBuilder spaceClauses = QueryBuilders.boolQuery();
-        boolean hasClause = false;
-
-        // Iterated in sorted order so the emitted clause order is deterministic: the source map is a
-        // HashMap, and this query is asserted on as an exact string in tests and surfaced via the
-        // get-role API.
+        // Group spaces by their effective action set so spaces sharing one share a clause. Spaces are
+        // iterated in sorted order (the source map is a HashMap) so the grouping, the clause order and
+        // the space lists are all deterministic.
+        Map<Set<String>, List<String>> spacesByActions = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> entry : new TreeMap<>(resourcesToActions).entrySet()) {
             String resource = entry.getKey();
             if (resource.startsWith(RESOURCE_PREFIX) == false) {
                 // "*" is handled below; anything else is not a space resource and is ignored.
                 continue;
             }
-            String spaceId = resource.substring(RESOURCE_PREFIX.length());
             Set<String> actions = new HashSet<>(entry.getValue());
             actions.addAll(globalActions);
-            spaceClauses.should(QueryBuilders.boolQuery().filter(spaceMatches(spaceId)).filter(termsSetOn(actions)));
-            hasClause = true;
+            if (actions.equals(globalActions)) {
+                // Subsumed by the space-less global clause below: same terms_set, one restriction fewer.
+                continue;
+            }
+            spacesByActions.computeIfAbsent(actions, k -> new ArrayList<>()).add(resource.substring(RESOURCE_PREFIX.length()));
         }
 
+        BoolQueryBuilder spaceClauses = QueryBuilders.boolQuery();
+        spacesByActions.forEach(
+            (actions, spaces) -> spaceClauses.should(QueryBuilders.boolQuery().filter(spaceMatches(spaces)).filter(termsSetOn(actions)))
+        );
         if (globalActions.isEmpty() == false) {
             spaceClauses.should(QueryBuilders.boolQuery().filter(termsSetOn(globalActions)));
-            hasClause = true;
         }
 
-        if (hasClause == false) {
+        if (spaceClauses.should().isEmpty()) {
             return null;
         }
 
@@ -213,8 +176,8 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
     }
 
     /**
-     * Matches elements that apply in {@code spaceId}: the space's own elements, plus any the producer
-     * scoped to every space by writing {@code "*"} as the element's space.
+     * Matches elements that apply in any of {@code spaceIds}: those spaces' own elements, plus any the
+     * producer scoped to every space by writing {@code "*"} as the element's space.
      * <p>
      * The {@code "*"} arm is not symmetric with the wildcard <em>grant</em> handled in
      * {@link #buildDlsQuery}. There, {@code "*"} is a property of the user's role — "this user holds
@@ -222,9 +185,9 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
      * every space". A user scoped to a single space is still in the space such a document lives in, so
      * omitting this arm would hide every all-spaces document from every space-scoped user.
      */
-    private static BoolQueryBuilder spaceMatches(String spaceId) {
+    private static BoolQueryBuilder spaceMatches(List<String> spaceIds) {
         return QueryBuilders.boolQuery()
-            .should(QueryBuilders.termQuery(SPACE_FIELD, spaceId))
+            .should(QueryBuilders.termsQuery(SPACE_FIELD, spaceIds))
             .should(QueryBuilders.termQuery(SPACE_FIELD, ALL_RESOURCES))
             .minimumShouldMatch(1);
     }

@@ -34,8 +34,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.telemetry.InstrumentType.LONG_ASYNC_GAUGE;
 import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
+import static org.elasticsearch.telemetry.InstrumentType.LONG_GAUGE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -168,7 +168,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     private List<Measurement> gauge(String suffix) {
-        return meterProvider.meter().getRecorder().getMeasurements(LONG_ASYNC_GAUGE, "es.apm.metrics.disk_buffer." + suffix);
+        return meterProvider.meter().getRecorder().getMeasurements(LONG_GAUGE, "es.apm.metrics.disk_buffer." + suffix);
     }
 
     private int countBufferFiles() throws Exception {

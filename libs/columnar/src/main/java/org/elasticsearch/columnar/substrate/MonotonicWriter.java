@@ -22,19 +22,18 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses) into a temporary
- * file, so the table never sits on the heap while it is being written. On
- * {@link #finish} the temporary data is copied into the column's data output and its small metadata is
- * returned; {@link #close} removes the temporary file.
- *
- * <p>Type-agnostic: every column type addresses its blocks through one of these tables, so this lives in
- * the substrate rather than beside any one column implementation. {@link MonotonicReader} is the read-side
- * counterpart, reopening a finished table over the data input.
+ * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses, chunk starts) into a
+ * temporary file, so the table never sits on the heap while it is being written. On {@link #finish}
+ * the temporary data is copied into the column's data output and its small metadata is returned;
+ * {@link #close} removes the temporary file.
  */
 public final class MonotonicWriter implements Closeable {
 
-    /** Monotonic block shift for every ColumNAR offset table. Not persisted, so the reader must use the same value. */
-    static final int BLOCK_SHIFT = 16;
+    /**
+     * Block shift of every table this class writes. It is frozen: {@link MonotonicReader} decodes with the
+     * same value, and a table written with a different one would decode to wrong offsets.
+     */
+    public static final int BLOCK_SHIFT = 16;
 
     /** Location of a finished table in the data file, plus its {@code DirectMonotonic} metadata. */
     public record Table(long dataOffset, long dataLength, byte[] meta) {

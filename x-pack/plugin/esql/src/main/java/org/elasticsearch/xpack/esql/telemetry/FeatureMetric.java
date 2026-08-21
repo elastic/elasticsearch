@@ -15,9 +15,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -103,7 +106,8 @@ public enum FeatureMetric {
     ROW(Row.class::isInstance),
     FROM(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb() == false),
     TS(x -> x instanceof EsRelation relation && relation.indexMode().isTsdb()),
-    EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
+    EXTERNAL(ExternalRelation.class::isInstance),
+    EQL(EqlRelation.class::isInstance),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),
@@ -143,6 +147,7 @@ public enum FeatureMetric {
     private static final List<Class<? extends LogicalPlan>> excluded = List.of(
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
+        UnresolvedEqlRelation.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,

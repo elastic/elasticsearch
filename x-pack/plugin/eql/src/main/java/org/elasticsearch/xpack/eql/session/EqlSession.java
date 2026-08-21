@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -135,6 +137,22 @@ public class EqlSession {
         String indexWildcard = configuration.indexAsWildcard();
         if (configuration.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+        // If the caller (e.g. the ES|QL EQL source command) already resolved the target pattern's merged field-caps on
+        // the coordinator, reuse it instead of issuing a second _field_caps request. Runtime mappings change the mapping
+        // the engine must plan against, so a request that defines them always self-resolves — the engine defends itself
+        // here rather than relying on the caller to withhold the response.
+        FieldCapabilitiesResponse preResolvedFieldCaps = configuration.preResolvedFieldCaps();
+        Map<String, Object> runtimeMappings = configuration.runtimeMappings();
+        if (preResolvedFieldCaps != null && (runtimeMappings == null || runtimeMappings.isEmpty())) {
+            // Build the mapping directly from the coordinator-supplied response via the existing merge handler — no
+            // second _field_caps. The instance overload uses this resolver's own type registry, so the reuse path
+            // plans against the identical type system as the self-resolution path below.
+            ActionListener.completeWith(
+                map(listener, r -> preAnalyzer.preAnalyze(parsed, r)),
+                () -> indexResolver.mergedMappings(indexWildcard, preResolvedFieldCaps)
+            );
             return;
         }
         Set<String> fieldNames = fieldNames(parsed);

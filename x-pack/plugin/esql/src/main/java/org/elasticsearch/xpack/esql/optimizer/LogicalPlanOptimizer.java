@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePla
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitIntoEqlRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectAndOrderBy;
@@ -242,6 +243,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new PushDownAndCombineLimitBy(),
             new PushLimitToKnn(),
+            new PushLimitIntoEqlRelation(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
             new PushDownAndCombineSample(),

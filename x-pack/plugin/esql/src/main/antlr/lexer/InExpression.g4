@@ -37,6 +37,17 @@ AFTER_IN_WS
 // `mode(DEFAULT_MODE)` replaces (rather than pushes) so the stack depth matches
 // the EXPRESSION_MODE → DEFAULT_MODE pairing the existing FROM_RP / PROJECT_RP /
 // etc. (each `popMode, popMode`) expect when closing the subquery.
+// EQL as a subquery source inside `WHERE x IN (EQL ...)`. Snapshot-gated like the top-level DEV_EQL token
+// so that, on a release build, `eql` stays a plain identifier and `IN (eql)` remains a value-list. Listed
+// before IN_SUBQUERY_LP so the predicated `( eql` match is considered first.
+IN_SUBQUERY_EQL_LP
+    : {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}?
+      '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
+      'eql'
+      { this.rewindToTokenStart(1); }
+      -> type(LP), mode(DEFAULT_MODE)
+    ;
+
 IN_SUBQUERY_LP
     : '(' (WS | LINE_COMMENT | MULTILINE_COMMENT)*
       ('from' | 'row' | 'show' | 'ts' | 'promql')

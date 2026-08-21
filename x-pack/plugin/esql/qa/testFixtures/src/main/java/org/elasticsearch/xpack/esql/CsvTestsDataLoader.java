@@ -327,6 +327,20 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW),
         new TestDataset("tdigest_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW),
         new TestDataset("histogram_standard_index").withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
+        new TestDataset("eql_test").withRequiredCapabilities(EsqlCapabilities.Cap.EQL_COMMAND),
+        // EQL engine golden corpora, ported for differential validation of the EQL source command's typed pipeline.
+        new TestDataset("endgame-140", "mapping-endgame-140.json", "endgame-140.csv", "endgame-140-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
+        new TestDataset("sample1", "mapping-sample1.json", "sample1.csv", "sample-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
+        new TestDataset("sample2", "mapping-sample2.json", "sample2.csv", "sample-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
+        new TestDataset("sample3", "mapping-sample3.json", "sample3.csv", "sample-settings.json").withRequiredCapabilities(
+            EsqlCapabilities.Cap.EQL_COMMAND
+        ),
         new TestDataset(
             "tdigest_timeseries_index",
             "tdigest_timeseries_index-mappings.json",

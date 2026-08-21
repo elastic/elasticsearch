@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.planner.mapper;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -47,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
@@ -90,6 +96,19 @@ public class MapperUtils {
         // Commands
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+        }
+
+        if (p instanceof EqlRelation eql) {
+            return new EqlSourceExec(
+                eql.source(),
+                eqlQueryString(eql.query()),
+                eql.indexPattern().indexPattern(),
+                eql.options(),
+                eql.mode(),
+                eql.output(),
+                eql.pushedLimit(),
+                eql.preResolvedFieldCaps()
+            );
         }
 
         return unsupported(p);
@@ -332,6 +351,18 @@ public class MapperUtils {
 
     static PhysicalPlan unsupported(LogicalPlan p) {
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
+    }
+
+    /**
+     * Extracts the literal EQL query string from an {@link EqlRelation}'s query expression. The analyzer
+     * ({@code ResolveEqlRelation}) only produces an {@link EqlRelation} once the query has folded to a
+     * string {@link Literal}, so a non-literal here is a planner invariant violation.
+     */
+    private static String eqlQueryString(Expression query) {
+        if (query instanceof Literal literal && literal.value() instanceof BytesRef bytesRef) {
+            return BytesRefs.toString(bytesRef);
+        }
+        throw new EsqlIllegalArgumentException("EQL query must be a string literal, got [" + query + "]");
     }
 
     public static boolean hasScoreAttribute(List<? extends Attribute> attributes) {

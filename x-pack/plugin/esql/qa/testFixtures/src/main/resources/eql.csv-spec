@@ -1,0 +1,484 @@
+// Tests for the EQL source command, which delegates execution to the EQL engine and exposes the results as
+// typed columns (the target index's field-caps mapping, one column per field). Assertions pipe the EQL output
+// through downstream ES|QL (WHERE / STATS / KEEP / SORT) to show that EQL composes as a regular typed source.
+// The command is snapshot-only.
+
+eventQueryCountsMatchingEvents
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+eventQueryAppliesTheEqlPredicate
+required_capability: eql_command
+
+EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*)
+;
+
+count:long
+1
+;
+
+eventQueryHonorsCustomTimestampAndTiebreakerFields
+required_capability: eql_command
+
+// Uses a non-default timestamp field (ingested) and a tiebreaker field (pid) to exercise those options
+// end to end against the EQL engine; the query still resolves the two process events correctly.
+EQL eql_test "process where true" WITH {"event_category_field": "category", "timestamp_field": "ingested", "tiebreaker_field": "pid"}
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+eventQueryExposesTypedColumns
+required_capability: eql_command
+
+// The EQL output is a typed table: WHERE filters and KEEP projects real columns, not an opaque _source.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| WHERE pid == 100
+| KEEP name, pid
+;
+
+name:keyword | pid:long
+cmd.exe      | 100
+;
+
+eventQueryExposesDateColumn
+required_capability: eql_command
+
+// Pins the date column end to end: the fields API renders @timestamp as epoch millis, the converter reads it
+// back into a datetime column.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP @timestamp, name
+| SORT name
+;
+
+@timestamp:datetime      | name:keyword
+2026-07-22T10:00:00.000Z | cmd.exe
+2026-07-22T10:00:02.000Z | powershell.exe
+;
+
+eventQueryGroupsByTypedColumn
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS count = COUNT(*) BY name
+| SORT name
+;
+
+count:long | name:keyword
+1          | cmd.exe
+1          | powershell.exe
+;
+
+eventQueryHonorsLimit
+required_capability: eql_command
+
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name
+| SORT name
+| LIMIT 1
+;
+
+name:keyword
+cmd.exe
+;
+
+sequenceQueryUnnestsToOneRowPerEvent
+required_capability: eql_command
+
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
+| KEEP join_keys, _sequence_stage
+| SORT join_keys, _sequence_stage
+;
+
+join_keys:keyword | _sequence_stage:integer
+100               | 0
+100               | 1
+200               | 0
+200               | 1
+;
+
+sequenceQueryCountsEventsAndSequences
+required_capability: eql_command
+
+EQL eql_test "sequence by pid [process where true] [network where true]" WITH {"event_category_field": "category"}
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence)
+;
+
+events:long | sequences:long
+4           | 2
+;
+
+eventQueryMetadataIndexColumn
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+// METADATA is declared before WITH (grammar: pattern, query, METADATA, then the WITH tuning).
+EQL eql_test "process where true" METADATA _index WITH {"event_category_field": "category"}
+| KEEP name, _index
+| SORT name
+;
+
+name:keyword   | _index:keyword
+cmd.exe        | eql_test
+powershell.exe | eql_test
+;
+
+eventQueryMetadataAggregates
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "process where true" METADATA _index, _id WITH {"event_category_field": "category"}
+| STATS n = COUNT(*), idx = COUNT_DISTINCT(_index), ids = COUNT_DISTINCT(_id)
+;
+
+n:long | idx:long | ids:long
+2      | 1        | 2
+;
+
+eventQueryMetadataSourceIsNeverNull
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "process where true" METADATA _source WITH {"event_category_field": "category"}
+| WHERE _source IS NOT NULL
+| STATS n = COUNT(*)
+;
+
+n:long
+2
+;
+
+sequenceQueryMetadataComposesWithSynthetics
+required_capability: eql_command
+required_capability: eql_command_metadata
+
+EQL eql_test "sequence by pid [process where true] [network where true]" METADATA _index WITH {"event_category_field": "category"}
+| STATS events = COUNT(*), sequences = COUNT_DISTINCT(_sequence) BY _index
+;
+
+events:long | sequences:long | _index:keyword
+4           | 2              | eql_test
+;
+
+nullifyUnmappedColumnDownstream
+required_capability: eql_command
+required_capability: eql_command_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| KEEP name, unmapped_host
+| SORT name
+;
+
+name:keyword   | unmapped_host:null
+cmd.exe        | null
+powershell.exe | null
+;
+
+nullifyUnmappedStatsCountsZero
+required_capability: eql_command
+required_capability: eql_command_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| STATS n = COUNT(*), present = COUNT(unmapped_host)
+;
+
+n:long | present:long
+2      | 0
+;
+
+// -----------------------------------------------------------------------------------------------------
+// EQL as a first-class source command in composition contexts: subquery, WHERE IN (subquery), FORK
+// upstream, and a view whose body is an EQL command. All snapshot-only. Mixed/multi-cluster specs skip
+// on the eql_in_subquery / views capabilities.
+// -----------------------------------------------------------------------------------------------------
+
+subquerySourceIsEqlCommand
+required_capability: eql_command
+required_capability: subquery_in_from_command
+required_capability: eql_in_subquery
+
+// A lone EQL subquery collapses to the EQL relation; downstream ES|QL composes over its typed columns.
+FROM (EQL eql_test "process where true" WITH {"event_category_field": "category"} | KEEP name, pid)
+| SORT name
+;
+
+name:keyword   | pid:long
+cmd.exe        | 100
+powershell.exe | 200
+;
+
+subquerySourceMixesEqlAndFromSiblings
+required_capability: eql_command
+required_capability: subquery_in_from_command
+required_capability: eql_in_subquery
+
+// One subquery branch is an EQL source, the sibling is a FROM source; the union merges typed rows.
+FROM (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP name, pid),
+     (FROM eql_test | WHERE category == "process" AND pid == 200 | KEEP name, pid)
+| STATS count = COUNT(*) BY name
+| SORT name
+;
+
+count:long | name:keyword
+1          | cmd.exe
+1          | powershell.exe
+;
+
+whereInSubquerySourceIsEqlCommand
+required_capability: eql_command
+required_capability: where_in_subquery_without_view
+required_capability: eql_in_subquery
+
+// The same subquery grammar rule feeds WHERE x IN (...); the EQL branch supplies the pid set {100}.
+FROM eql_test
+| WHERE pid IN (EQL eql_test "process where pid == 100" WITH {"event_category_field": "category"} | KEEP pid)
+| STATS count = COUNT(*)
+;
+
+count:long
+2
+;
+
+forkUpstreamIsEqlCommand
+required_capability: eql_command
+required_capability: fork_v9
+
+// EQL as the upstream source of FORK: the EQL leaf is replicated into each branch; the merge is typed.
+EQL eql_test "process where true" WITH {"event_category_field": "category"}
+| FORK ( WHERE pid == 100 ) ( WHERE pid == 200 )
+| KEEP name, pid, _fork
+| SORT pid
+;
+
+name:keyword   | pid:long | _fork:keyword
+cmd.exe        | 100      | fork1
+powershell.exe | 200      | fork2
+;
+
+// A view whose stored body is an EQL command — FROM <view> and FROM (FROM <view>) — is proven end to end by
+// EqlCompositionIT (internalClusterTest). It is intentionally NOT a csv-spec case here: the single-node QA
+// csv-spec cluster does not provision views (the PUT /_query/view endpoint is unavailable there, so no view
+// loads), which would fail such a case rather than skip it.
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// EQL engine golden corpora, ported from the EQL project's own test_queries.toml / test_sample.toml for
+// differential validation of the EQL source command's typed pipeline. endgame-140 carries serial_event_id
+// as a typed long column (also indexed as _id) and aliases event.category -> event_type so bare
+// "process where ..." resolves under the EQL defaults. Order-independent cases SORT by serial_event_id;
+// order-sensitive ones (head/tail/sequence/sample) pass WITH {"tiebreaker_field": "serial_event_id"} and
+// assert the EQL engine's expected order verbatim. Snapshot-only (required_capability: eql_command); these
+// run in the live QA REST csv-spec suites, not the in-JVM CsvIT.
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+eventQueryEqual
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id == 1" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+1
+;
+
+eventQueryLessThan
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id < 4" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+;
+
+eventQueryFalse
+required_capability: eql_command
+EQL endgame-140 "process where false" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+;
+
+eventQueryRange
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 8 and serial_event_id > 7" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+8
+;
+
+eventQueryProcessNameOrRange
+required_capability: eql_command
+EQL endgame-140 "process where process_name : \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+4
+;
+
+eventQueryExitCodeGteZero
+required_capability: eql_command
+EQL endgame-140 "process where exit_code >= 0" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+58
+64
+69
+74
+80
+85
+90
+93
+94
+75303
+;
+
+// LIMIT directly above the source is pushed as the EQL request size, lifting the default of 10.
+eventQueryLimitPushedAsSize
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+;
+
+// Order-sensitive ports below: WITH supplies the tiebreaker so EQL ordering is deterministic and asserted verbatim.
+
+// EQL test_queries.toml: simpleQueryHeadSix -> [1, 2, 3, 4, 5, 6]
+eventQueryHeadSix
+required_capability: eql_command
+EQL endgame-140 "process where true | head 6" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+;
+
+// EQL test_queries.toml: nullEqualityWithGtAndHead -> [1, 2, 3, 4, 5, 6, 7]
+eventQueryNullEqualityHeadSeven
+required_capability: eql_command
+EQL endgame-140 "process where null == (exit_code > -1) | head 7" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+;
+
+// EQL test_queries.toml: simpleTail -> [92, 95, 96]
+eventQueryTailThree
+required_capability: eql_command
+EQL endgame-140 "file where true | tail 3" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
+
+serial_event_id:long
+92
+95
+96
+;
+
+// EQL test_queries.toml: doubleSameSequence -> [1,2, 2,3, 3,4] (three 2-event sequences).
+sequenceDoubleSameProcess
+required_capability: eql_command
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0        |1
+0        |2
+1        |2
+1        |3
+2        |3
+2        |4
+;
+
+// EQL test_queries.toml: sequencesOnDifferentEventTypes1 -> [75273, 75304] (sequence by unique_pid, process + network).
+sequenceByUniquePidProcessNetwork
+required_capability: eql_command
+EQL endgame-140 "sequence by unique_pid [process where opcode == 1 and process_name : \"MSBuild.exe\"] [network where true]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0        |75273
+0        |75304
+;
+
+// Sample ports below (sample1,sample2,sample3). Each returns a single sample, so _sequence is 0 and events follow
+// stage order.
+
+// EQL test_sample.toml: complexFilters -> [17, 26, 16], join_keys ["doom", "redhat"].
+sampleComplexFilters
+required_capability: eql_command
+EQL sample1,sample2,sample3 "sample by host [any where uptime > 0 and host == \"doom\" and (uptime > 15 or bool == true)] by os [any where port > 100 and ip == \"10.0.0.5\" or op_sys : \"REDHAT\"] by op_sys [any where bool == true] by os" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
+
+_sequence:long |id:long
+0        |17
+0        |26
+0        |16
+;
+
+// EQL test_sample.toml: simpleIpAsKey -> [28, 31], join_keys ["10.0.0.1"] (sample2.ip joined to sample3.host_ip).
+sampleSimpleIpAsKey
+required_capability: eql_command
+EQL sample1,sample2,sample3 "sample [success where true] by ip [alert where startsWith~(os,\"win\")] by host_ip" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
+
+_sequence:long |id:long
+0        |28
+0        |31
+;
+
+// EQL test_sample.toml: keywordAsKey -> [18, 37], join_keys ["test", "doom"] (global key missing_keyword + per-stage host).
+sampleKeywordAsKey
+required_capability: eql_command
+EQL sample1,sample2,sample3 "sample by missing_keyword [success where true] by host [failure where host == \"doom\"] by host" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
+
+_sequence:long |id:long
+0        |18
+0        |37
+;
+
+// Boundary cases: LIMIT bounds rows and the pushed size cannot drop rows the kept LIMIT still needs.
+// result_position: head + the tiebreaker pin row identity deterministically. The full query has 3 matches
+// (event pairs 1-2, 2-3, 3-4) = 6 rows; a smaller LIMIT trims the prefix.
+sequenceLimitTrimsRowsAcrossMatches
+required_capability: eql_command
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id", "result_position": "head"} | LIMIT 4 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0              |1
+0              |2
+1              |2
+1              |3
+;
+
+sequenceLimitTrimsWithinFirstMatch
+required_capability: eql_command
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id", "result_position": "head"} | LIMIT 2 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0              |1
+0              |2
+;

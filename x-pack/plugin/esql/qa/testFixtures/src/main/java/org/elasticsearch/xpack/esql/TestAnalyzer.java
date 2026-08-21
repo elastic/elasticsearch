@@ -968,7 +968,8 @@ public class TestAnalyzer {
             minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds,
-            TEST_IP_LOCATION_RESOLUTION
+            TEST_IP_LOCATION_RESOLUTION,
+            Map.of()
         );
     }
 

@@ -2831,6 +2831,44 @@ public class EsqlCapabilities {
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for the EQL source command. Delegates execution to the EQL engine (via
+         * {@code EqlSearchAction}) and exposes results under a fixed schema resolved at plan time.
+         * Snapshot-only: the grammar predicates in {@code EsqlBaseParser.g4}/{@code From.g4} read this
+         * capability directly to gate the EQL grammar surface.
+         */
+        EQL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code METADATA} clause on the EQL source command ({@code EQL idx "..." METADATA _index,
+         * _id, _source}). Adds the requested provenance columns, pulled from the EQL response envelope. Snapshot-only,
+         * gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_METADATA(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command honours {@code SET unmapped_fields} (NULLIFY / LOAD) for fields referenced by
+         * downstream ES|QL but absent from the mapping, the same as {@code FROM}. It also loads partially-mapped
+         * keyword fields from {@code _source} on multi-index patterns (field-caps produces a
+         * {@code PotentiallyUnmappedKeywordEsField} regardless of the setting), matching {@code FROM}. Snapshot-only,
+         * gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_UNMAPPED_FIELDS(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command is legal as a subquery source: {@code FROM (EQL idx "..." | ...)} and
+         * {@code WHERE x IN (EQL idx "..." | KEEP col)}. Both add {@code eqlCommand} to
+         * {@code subquerySourceCommand} in {@code EsqlBaseParser.g4} (predicated on {@link #EQL_COMMAND}); the IN
+         * form additionally needs a snapshot-gated {@code eql} mode-switch rule in {@code InExpression.g4}
+         * ({@code IN_SUBQUERY_EQL_LP}) so the lexer treats {@code IN (eql ...)} as a subquery rather than a
+         * value list. This is a separate spec-gate marker so that csv-spec/REST tests exercising the composition
+         * surface skip on mixed-version and multi-cluster nodes that lack it, independently of the top-level EQL
+         * command. Snapshot-only, gated together with {@link #EQL_COMMAND}. EQL as the upstream of {@code FORK}
+         * ({@code EQL ... | FORK (...) (...)}) and as a view body ({@code FROM <view-with-eql-body>}) need no
+         * grammar change and are covered by {@link #EQL_COMMAND} alone.
+         */
+        EQL_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,

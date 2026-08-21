@@ -213,6 +213,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.usageService = usageService;
 
         this.services = new TransportActionServices(
+            client,
             transportService,
             searchService,
             exchangeService,

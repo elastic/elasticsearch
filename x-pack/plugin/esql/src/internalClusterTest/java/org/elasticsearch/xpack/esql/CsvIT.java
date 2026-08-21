@@ -367,6 +367,12 @@ public class CsvIT extends ESTestCase {
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
         assumeFalseLogging(
+            "CSV tests cannot handle EQL sources (delegates to _search over real indices; requires QA integration tests)",
+            // Key on the capability, not the query text: a SET-prefixed EQL query (e.g. unmapped-fields tests) does
+            // not start with "EQL", but every EQL-command spec declares this capability.
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName())
+        );
+        assumeFalseLogging(
             "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
             testCase.datasetSources.isEmpty() == false
         );

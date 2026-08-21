@@ -106,6 +106,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     private static TransportActionServices createTransportActionServices() {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
+            mock(Client.class),
             createMockTransportService(),
             mock(SearchService.class),
             null,

@@ -30,7 +30,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption', 'x-pack-eql']
 }
 
 base {
@@ -43,7 +43,19 @@ dependencies {
   compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
+  // esql-core no longer re-exports mapper-version (it extends it instead), so declare it directly. Runtime
+  // access comes via the extendedPlugins chain (esql -> x-pack-esql-core -> mapper-version).
+  compileOnly project(path: xpackModule('mapper-version'))
   implementation project(xpackModule('kql'))
+  // The EQL source command delegates execution to the EQL engine: it parses the EQL query at plan
+  // time (result mode) and issues EqlSearchAction at execution time. Declared compileOnly (not
+  // bundled) because x-pack-eql is an extendedPlugin — esql shares eql's classloader at runtime, so
+  // action/request/response classes keep a single class identity across the transport boundary.
+  compileOnly project(xpackModule('eql'))
+  // eql's action/response classes reference ql types (e.g. QlStatusResponse) in their hierarchy, so ql must
+  // be on the compile classpath. At runtime it is reached transitively via the extendedPlugins chain
+  // (esql -> eql -> ql); hence compileOnly rather than a bundled implementation dependency.
+  compileOnly project(xpackModule('ql'))
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
@@ -66,6 +78,12 @@ dependencies {
   testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
+  // Unit tests reference the mapper-version Version type directly; provide it on the (flat) test classpath.
+  testImplementation project(path: xpackModule('mapper-version'))
+  // Unit tests run on a flat classpath (no plugin classloader chain), so the EQL command's compileOnly
+  // eql dependency — and eql's own compileOnly ql dependency — must be added explicitly for tests.
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('ql'))
 
   testImplementation project(path: xpackModule('esql-datasource-csv'))
   testImplementation project(path: xpackModule('esql-datasource-ndjson'))
@@ -96,6 +114,9 @@ dependencies {
       transitive = false
   }
   internalClusterTestImplementation project(":modules:user-agent")
+  // The EQL source command test loads the EQL plugin into the test cluster and drives EqlSearchAction.
+  internalClusterTestImplementation project(xpackModule('eql'))
+  internalClusterTestImplementation project(xpackModule('ql'))
   internalClusterTestImplementation project(":modules:ip-location")
   internalClusterTestImplementation(testArtifact(project(":modules:ip-location")))
   internalClusterTestImplementation(testArtifact(project(":modules:ip-location"), "internalClusterTest"))

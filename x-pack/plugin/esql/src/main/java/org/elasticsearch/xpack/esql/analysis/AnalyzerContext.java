@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
@@ -36,6 +37,9 @@ public class AnalyzerContext {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final AnalysisRegistry analysisRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
+    // Merged field-caps retained for EQL source patterns (empty otherwise), so ResolveEqlRelation can hand them to the
+    // EQL delegate for reuse instead of a second _field_caps round trip.
+    private final Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<LinkedIndexPattern, IndexResolution> linkedResolution; // CPS-specific resolution for remote indexes matching local
                                                                              // views
@@ -64,7 +68,8 @@ public class AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds,
-        IpLocationResolution ipLocationResolution
+        IpLocationResolution ipLocationResolution,
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -72,6 +77,7 @@ public class AnalyzerContext {
         this.analysisRegistry = analysisRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
+        this.eqlFieldCaps = eqlFieldCaps;
         this.lookupResolution = lookupResolution;
         this.linkedResolution = linkedResolution;
         this.enrichResolution = enrichResolution;
@@ -115,7 +121,8 @@ public class AnalyzerContext {
             minimumVersion,
             unmappedResolution,
             null,
-            IpLocationResolution.SERVICE_UNAVAILABLE
+            IpLocationResolution.SERVICE_UNAVAILABLE,
+            Map.of()
         );
     }
 
@@ -140,6 +147,11 @@ public class AnalyzerContext {
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
         return indexResolution;
+    }
+
+    /** Merged field-caps retained for EQL source patterns (empty for non-EQL queries). */
+    Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps() {
+        return eqlFieldCaps;
     }
 
     public Map<String, IndexResolution> lookupResolution() {
@@ -247,7 +259,8 @@ public class AnalyzerContext {
             result.minimumTransportVersion(),
             unmappedResolution,
             timestampBounds,
-            ipLocationResolution
+            ipLocationResolution,
+            result.eqlFieldCaps()
         );
     }
 }

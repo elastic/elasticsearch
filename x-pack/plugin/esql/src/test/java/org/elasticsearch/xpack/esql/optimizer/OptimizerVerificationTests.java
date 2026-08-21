@@ -19,7 +19,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * ended up as unresolved in the logical plan optimizations
      */
     public void testOrCidrMatchNotPruned() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         optimize(analyze("""
             FROM hosts
@@ -32,7 +32,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * disappeared from the plan in the logical optimizations
      */
     public void testOrCidrMatchNotPruned2() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         optimize(analyze("""
             FROM hosts
@@ -43,7 +43,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testOrCidrMatchWithInNotPruned() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         optimize(analyze("""
             FROM hosts
@@ -52,7 +52,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testOrCidrMatchWithInNotPruned2() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         optimize(analyze("""
             FROM hosts
@@ -63,7 +63,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testOrCidrMatchWithMixedTypeInNotPruned() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
         optimize(analyze("""
             FROM hosts
             | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1"::ip, "192.168.1.1"), TO_STRING(ip0), null)
@@ -71,7 +71,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testIpInWithoutCidrMatchNotPruned() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
         optimize(analyze("""
             FROM hosts
             | EVAL ip = CASE(ip0 IN ("127.0.0.1"::ip, "192.168.1.1"::ip), TO_STRING(ip0), null),
@@ -81,7 +81,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testIpEqualityAndInCombinedWithCidrMatchNotPruned() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
         optimize(analyze("""
             FROM hosts
             | EVAL ip = CASE(

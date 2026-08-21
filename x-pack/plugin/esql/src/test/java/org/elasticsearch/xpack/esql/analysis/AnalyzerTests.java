@@ -2365,7 +2365,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEvalResolvesForwardReferenceWithImplicitCasting() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         analyze("""
             FROM hosts
@@ -2376,7 +2376,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEvalResolvesForwardReferenceWithImplicitCasting2() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         analyze("""
             FROM hosts
@@ -2387,7 +2387,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEvalResolvesForwardReferenceWithImplicitCasting3() {
-        Analyzer analyzer = analyzer(loadMapping("hosts", "mapping-hosts.json"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-hosts.json", "hosts"));
 
         analyze("""
             FROM hosts

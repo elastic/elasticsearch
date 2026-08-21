@@ -56,6 +56,9 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -67,9 +70,12 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -182,7 +188,9 @@ public class DefaultRestChannelTests extends ESTestCase {
         final String customHeader = "custom-header";
         final String customHeaderValue = "xyz";
         resp.addHeader(customHeader, customHeaderValue);
+        final long beforeSendEpochSecond = Instant.now().getEpochSecond();
         channel.sendResponse(resp);
+        final long afterSendEpochSecond = Instant.now().getEpochSecond();
 
         // inspect what was written
         ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
@@ -194,6 +202,11 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals("abc", headers.get(Task.X_OPAQUE_ID_HTTP_HEADER).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
+        final List<String> dateHeaders = headers.get(DefaultRestChannel.DATE);
+        assertThat(dateHeaders, hasSize(1));
+        final long responseEpochSecond = ZonedDateTime.parse(dateHeaders.get(0), DateTimeFormatter.RFC_1123_DATE_TIME).toEpochSecond();
+        assertThat(responseEpochSecond, greaterThanOrEqualTo(beforeSendEpochSecond));
+        assertThat(responseEpochSecond, lessThanOrEqualTo(afterSendEpochSecond));
     }
 
     public void testNormallyNoConnectionClose() {

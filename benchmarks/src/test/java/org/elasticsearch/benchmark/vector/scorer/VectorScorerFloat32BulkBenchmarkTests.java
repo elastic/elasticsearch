@@ -27,23 +27,30 @@ public class VectorScorerFloat32BulkBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSequential() throws Exception {
-        testSequential(this::createData, this::createBenchmark, delta);
+        test(this::createData, this::createBenchmark, DataAccessPattern.SEQUENTIAL, delta);
     }
 
     public void testRandom() throws Exception {
-        testRandom(this::createData, this::createBenchmark, delta);
+        test(this::createData, this::createBenchmark, DataAccessPattern.RANDOM, delta);
+    }
+
+    public void testQuerySequential() throws Exception {
+        testQuery(this::createData, this::createBenchmark, DataAccessPattern.SEQUENTIAL, delta);
     }
 
     public void testQueryRandom() throws Exception {
-        testQueryRandom(this::createData, this::createBenchmark, delta);
+        testQuery(this::createData, this::createBenchmark, DataAccessPattern.RANDOM, delta);
     }
 
-    private VectorScorerFloat32BulkBenchmark.VectorData createData() {
-        return new VectorScorerFloat32BulkBenchmark.VectorData(dims, 1000, 200, random());
+    private VectorScorerFloat32BulkBenchmark.VectorData createData(DataAccessPattern accessMode) {
+        return new VectorScorerFloat32BulkBenchmark.VectorData(dims, 1000, 200, random(), accessMode);
     }
 
-    private VectorScorerFloat32BulkBenchmark createBenchmark(VectorScorerFloat32BulkBenchmark.VectorData d, VectorImplementation impl)
-        throws java.io.IOException {
+    private VectorScorerFloat32BulkBenchmark createBenchmark(
+        VectorScorerFloat32BulkBenchmark.VectorData d,
+        VectorImplementation impl,
+        DataAccessPattern accessMode
+    ) throws java.io.IOException {
         var bench = new VectorScorerFloat32BulkBenchmark();
         bench.function = function;
         bench.implementation = impl;
@@ -52,6 +59,7 @@ public class VectorScorerFloat32BulkBenchmarkTests extends BenchmarkTest {
         bench.numVectors = 1000;
         bench.numVectorsToScore = 200;
         bench.bulkSize = 200;
+        bench.accessMode = accessMode;
         bench.setup(d);
         return bench;
     }

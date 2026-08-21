@@ -15,16 +15,31 @@ import java.lang.classfile.ClassFile;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.instruction.BranchInstruction;
 import java.lang.classfile.instruction.InvokeInstruction;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
- * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files.
+ * Tests that {@link ImplClassWriter} generates correct {@code $Impl} class files. This is the suite for
+ * positive codegen: both structural assertions on the emitted class/method shape and behavioral tests
+ * that actually load the generated implementation (through the {@code LibraryProvider} SPI, via
+ * {@link #loadLibrary}) and invoke its methods end to end. Compile-error diagnostics for invalid inputs
+ * live in the per-feature suites such as {@link BoundsCheckTests} and {@link LibraryProcessorTests}.
+ *
+ * <p>The behavioral tests need no native library build dependency: the {@code @Upcall} codegen is
+ * exercised both cross-platform (the generated stub is driven through a custom {@code MethodHandleResolver},
+ * no external symbol required) and end to end against POSIX {@code qsort} where it is reachable through
+ * the default linker lookup.
  */
 @SuppressForbidden(reason = "tests verify private fields of processor-generated classes; getDeclaredField is the only way to access them")
 public class ImplClassWriterTests extends ProcessorTestCase {
@@ -1669,5 +1684,169 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         assertTrue("$assertionsDisabled must be static", java.lang.reflect.Modifier.isStatic(field.getModifiers()));
         assertTrue("$assertionsDisabled must be private", java.lang.reflect.Modifier.isPrivate(field.getModifiers()));
         assertTrue("$assertionsDisabled must be final", java.lang.reflect.Modifier.isFinal(field.getModifiers()));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Behavioral tests: load the generated $Impl through the LibraryProvider SPI and invoke it for
+    // real, proving the emitted upcall bytecode actually works end to end.
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Drives a real {@code Arena}-scoped {@code @Upcall} stub through libc's {@code qsort}, proving native
+     * code calling back into the JVM through the generated stub actually sorts the array.
+     *
+     * <p>qsort's comparator symbol is resolved via the CRT on Windows rather than the default linker
+     * lookup, so this test is skipped there.
+     */
+    public void testQsortUpcallSortsArray() throws Throwable {
+        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
+            return;
+        }
+
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("test.IntCompare", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            public interface IntCompare {
+                int compare(MemorySegment a, MemorySegment b);
+            }
+            """);
+        sources.put("test.AscendingIntCompare", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.ValueLayout;
+            public final class AscendingIntCompare implements IntCompare {
+                public int compare(MemorySegment a, MemorySegment b) {
+                    // qsort passes raw element pointers as zero-length MemorySegments; widen before reading.
+                    int x = a.reinterpret(ValueLayout.JAVA_INT.byteSize()).get(ValueLayout.JAVA_INT, 0);
+                    int y = b.reinterpret(ValueLayout.JAVA_INT.byteSize()).get(ValueLayout.JAVA_INT, 0);
+                    return Integer.compare(x, y);
+                }
+            }
+            """);
+        sources.put("test.QsortLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            @LibrarySpecification
+            public interface QsortLib {
+                @Function("qsort")
+                void qsort(MemorySegment base, long nmemb, long size, IntCompare compar);
+            }
+            """);
+
+        LoadedLibrary lib = loadLibrary(sources, "test.QsortLib");
+        Object comparator = lib.newInstance("test.AscendingIntCompare");
+
+        int[] unsorted = { 5, 3, 4, 1, 2 };
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment base = arena.allocate((long) unsorted.length * Integer.BYTES, Integer.BYTES);
+            for (int i = 0; i < unsorted.length; i++) {
+                base.setAtIndex(ValueLayout.JAVA_INT, i, unsorted[i]);
+            }
+
+            lib.call("qsort", base, (long) unsorted.length, (long) Integer.BYTES, comparator);
+
+            int[] sorted = new int[unsorted.length];
+            for (int i = 0; i < sorted.length; i++) {
+                sorted[i] = base.getAtIndex(ValueLayout.JAVA_INT, i);
+            }
+            assertEquals("qsort must sort ascending via the upcall comparator", "[1, 2, 3, 4, 5]", Arrays.toString(sorted));
+        }
+    }
+
+    /**
+     * Cross-platform behavioral proof that the generated {@code @Upcall} marshaling works, without
+     * depending on any specific native symbol (so unlike {@link #testQsortUpcallSortsArray} it also runs
+     * on Windows). The generated {@code apply(IntCallback)} builds an FFM upcall stub from the Java
+     * callback and passes its address to the downcall; a custom {@link org.elasticsearch.foreign.MethodHandleResolver}
+     * stands in for the native function, receiving that stub, building a downcall onto it, and invoking
+     * it with a fixed argument. If the emitted stub-creation code is correct the Java callback runs and
+     * its result flows back out, so asserting on the returned value alone exercises the whole path with
+     * no reflection into {@code $Impl}.
+     */
+    public void testUpcallStubInvokesJavaCallback() throws Throwable {
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("test.CallbackLib", """
+            package test;
+            import java.lang.foreign.FunctionDescriptor;
+            import java.lang.foreign.Linker;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import java.lang.foreign.ValueLayout;
+            import java.lang.invoke.MethodHandle;
+            import java.lang.invoke.MethodHandles;
+            import java.lang.invoke.MethodType;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.LinkerHelper;
+            import org.elasticsearch.foreign.MethodHandleResolver;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.Upcall;
+            @Upcall
+            @FunctionalInterface
+            interface IntCallback {
+                int call(int x);
+            }
+            @LibrarySpecification(
+                symbolResolver = CallbackLib.FakeSymbolResolver.class,
+                methodHandleResolver = CallbackLib.StubInvokingResolver.class
+            )
+            public interface CallbackLib {
+                @Function("apply")
+                int apply(IntCallback cb);
+
+                // Stands in for the native function. The generated apply() creates an upcall stub from the
+                // Java callback and passes its address here; build a downcall onto that stub and call it
+                // with a fixed argument, returning whatever the callback computed. Linking goes through
+                // LinkerHelper so the restricted Linker call runs in the native-access-enabled module.
+                static int invokeStub(MemorySegment stub) throws Throwable {
+                    MethodHandle mh = LinkerHelper.downcallHandle(
+                        stub,
+                        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+                    );
+                    return (int) mh.invokeExact(21);
+                }
+
+                class FakeSymbolResolver implements SymbolResolver {
+                    public FakeSymbolResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+
+                class StubInvokingResolver implements MethodHandleResolver {
+                    public StubInvokingResolver() {}
+                    public MethodHandle resolve(ResolvedSymbol symbol, FunctionDescriptor descriptor,
+                                                Linker linker, Linker.Option... options) {
+                        try {
+                            return MethodHandles.lookup()
+                                .findStatic(CallbackLib.class, "invokeStub",
+                                    MethodType.methodType(int.class, MemorySegment.class));
+                        } catch (ReflectiveOperationException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                }
+            }
+            """);
+        sources.put("test.Doubler", """
+            package test;
+            public final class Doubler implements IntCallback {
+                public Doubler() {}
+                public int call(int x) {
+                    return x * 2;
+                }
+            }
+            """);
+
+        LoadedLibrary lib = loadLibrary(sources, "test.CallbackLib");
+        Object callback = lib.newInstance("test.Doubler");
+        assertEquals("the upcall stub must invoke the Java callback (21 doubled)", 42, (int) lib.call("apply", callback));
     }
 }

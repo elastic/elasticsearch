@@ -73,6 +73,9 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      */
     public static MultiValuedSortedBinaryDocValues fromMultiValued(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
         throws IOException {
+        if (values instanceof DecodedBinaryDocValues decodedBinaryDocValues) {
+            return new DecodedBinary(decodedBinaryDocValues);
+        }
         String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
         NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         if (counts == null) {
@@ -235,6 +238,46 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
         @Override
         public ValueMode getValueMode() {
             return ValueMode.SINGLE_VALUED;
+        }
+    }
+
+    /**
+     * Already decoded binary doc values. Useful for things like a security wrapper that drops the values the user is not allowed to access.
+     * Without this, such a producer has to re-encode the values it decoded back into a binary blob, that ultimately needs to get re-decoded
+     * further down the line.
+     */
+    public abstract static class DecodedBinaryDocValues extends BinaryDocValues {
+        /** Valid only after {@link #advanceExact(int)} has returned {@code true} for the current document. */
+        public abstract int docValueCount();
+
+        public abstract BytesRef nextValue() throws IOException;
+    }
+
+    /**
+     * Reads from a producer that has already split the document into individual values, skipping the encode/decode round trip.
+     */
+    private static class DecodedBinary extends MultiValuedSortedBinaryDocValues {
+        private final DecodedBinaryDocValues decodedBinaryDocValues;
+
+        DecodedBinary(DecodedBinaryDocValues decodedBinaryDocValues) {
+            super(decodedBinaryDocValues);
+            this.decodedBinaryDocValues = decodedBinaryDocValues;
+        }
+
+        @Override
+        public boolean advanceExact(int doc) throws IOException {
+            if (values.advanceExact(doc)) {
+                count = decodedBinaryDocValues.docValueCount();
+                return true;
+            } else {
+                count = 0;
+                return false;
+            }
+        }
+
+        @Override
+        public BytesRef nextValue() throws IOException {
+            return decodedBinaryDocValues.nextValue();
         }
     }
 }

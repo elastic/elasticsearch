@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.columnar.numeric;
+package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -22,16 +22,22 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses) into a
+ * Builds a {@code DirectMonotonic} table (block offsets, per-document value addresses, chunk starts) into a
  * temporary file, so the table never sits on the heap while it is being written. On {@link #finish}
  * the temporary data is copied into the column's data output and its small metadata is returned;
  * {@link #close} removes the temporary file.
  */
-final class MonotonicWriter implements Closeable {
+public final class MonotonicWriter implements Closeable {
+
+    /**
+     * Block shift of every table this class writes. It is frozen: {@link MonotonicReader} decodes with the
+     * same value, and a table written with a different one would decode to wrong offsets.
+     */
+    public static final int BLOCK_SHIFT = 16;
 
     /** Location of a finished table in the data file, plus its {@code DirectMonotonic} metadata. */
-    record Table(long dataOffset, long dataLength, byte[] meta) {
-        static final Table NONE = new Table(0, 0, new byte[0]);
+    public record Table(long dataOffset, long dataLength, byte[] meta) {
+        public static final Table NONE = new Table(0, 0, new byte[0]);
     }
 
     private final Directory directory;
@@ -43,21 +49,21 @@ final class MonotonicWriter implements Closeable {
     private final DirectMonotonicWriter writer;
     private boolean dataClosed = false;
 
-    MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues, int blockShift) throws IOException {
+    public MonotonicWriter(Directory directory, IOContext context, String prefix, long numValues) throws IOException {
         this.directory = directory;
         this.context = context;
         this.metaOut = new ByteBuffersIndexOutput(metaBuffer, "monotonic-meta", "monotonic-meta");
         this.dataTemp = directory.createTempOutput(prefix, "columnar-monotonic", context);
         this.tempName = dataTemp.getName();
-        this.writer = DirectMonotonicWriter.getInstance(metaOut, dataTemp, numValues, blockShift);
+        this.writer = DirectMonotonicWriter.getInstance(metaOut, dataTemp, numValues, BLOCK_SHIFT);
     }
 
-    void add(long value) throws IOException {
+    public void add(long value) throws IOException {
         writer.add(value);
     }
 
     /** Flushes the table, copies its data into {@code data}, and returns where it landed. */
-    Table finish(IndexOutput data) throws IOException {
+    public Table finish(IndexOutput data) throws IOException {
         writer.finish();
         metaOut.close();
         dataTemp.close();

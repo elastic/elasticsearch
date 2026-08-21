@@ -78,6 +78,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -304,10 +305,10 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
 
         // check that failing unrelated allocation does not remove shard
-        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), false, primaryTerm, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting.reinitializeReplicaShard(), FAIL_SILENT, primaryTerm, new Exception("dummy"));
         assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
 
-        indicesCSSvc.handleRecoveryFailure(shardRouting, false, primaryTerm, new Exception("dummy"));
+        indicesCSSvc.handleRecoveryFailure(shardRouting, FAIL_SILENT, primaryTerm, new Exception("dummy"));
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 

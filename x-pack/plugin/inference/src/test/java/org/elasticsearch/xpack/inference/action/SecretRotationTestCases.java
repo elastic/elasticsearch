@@ -172,7 +172,9 @@ public class SecretRotationTestCases {
                         AmazonBedrockConstants.MODEL_FIELD,
                         "amazon.titan-embed-text-v2:0",
                         AmazonBedrockConstants.PROVIDER_FIELD,
-                        "amazontitan"
+                        "amazontitan",
+                        ServiceFields.DIMENSIONS_SET_BY_USER,
+                        false
                     )
                 ),
                 new HashMap<>(),

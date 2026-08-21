@@ -800,10 +800,7 @@ public class ApiKeyService implements Closeable {
                             if (bulkItemResponse.isFailed()) {
                                 errorDetails.put(
                                     apiKeyId,
-                                    new ElasticsearchException(
-                                        "bulk request execution failure",
-                                        bulkItemResponse.getFailure().getCause()
-                                    )
+                                    new ElasticsearchException("bulk request execution failure", bulkItemResponse.getFailure().getCause())
                                 );
                             } else {
                                 assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.CREATED

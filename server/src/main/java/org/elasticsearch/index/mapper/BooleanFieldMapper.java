@@ -336,14 +336,10 @@ public class BooleanFieldMapper extends FieldMapper {
                         return (Boolean) value;
                     } else {
                         String textValue = value.toString();
-                        return parseBoolean(textValue);
+                        return Booleans.parseBoolean(textValue, false);
                     }
                 }
             };
-        }
-
-        private static boolean parseBoolean(String text) {
-            return Booleans.parseBoolean(text, false);
         }
 
         @Override
@@ -426,7 +422,7 @@ public class BooleanFieldMapper extends FieldMapper {
                         } else {
                             String stringValue = value.toString();
                             // Matches logic in parser invoked by `parseCreateField`
-                            accumulator.add(parseBoolean(stringValue));
+                            accumulator.add(Booleans.parseBoolean(stringValue, false));
                         }
                     } catch (Exception e) {
                         // Malformed value, skip it
@@ -640,18 +636,6 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain boolean mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_malformed is allowed — parseCreateField handles it via addIgnoredField, which
-        // BatchDocumentParserContext records. Dimensions, copy_to, multi-fields, and scripts pull
-        // in behavior that the batch path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && fieldType().isDimension() == false;
-    }
-
-    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (indexed == false && stored == false && docValuesParameters.enabled() == false) {
             return;
@@ -841,7 +825,7 @@ public class BooleanFieldMapper extends FieldMapper {
                         builder.setLong(doc, nullValue ? 1L : 0L);
                     }
                 } else {
-                    builder.setLong(doc, Booleans.parseBoolean(value.utf8ToString(), false) ? 1L : 0L);
+                    builder.setLong(doc, Booleans.parseBoolean(value.bytes, value.offset, value.length, false) ? 1L : 0L);
                 }
             }
         }

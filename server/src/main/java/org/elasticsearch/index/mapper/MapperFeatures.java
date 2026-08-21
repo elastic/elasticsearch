@@ -168,6 +168,7 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
     public static final NodeFeature COLUMNAR_SUPPORTS_SHAPE_FIELDS = new NodeFeature("mapper.columnar.supports_shape_fields");
     public static final NodeFeature TSDB_METRIC_TEMPORALITY_SUPPORT = new NodeFeature("mapper.tsdb.metric_temporality_support");
+    static final NodeFeature DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING = new NodeFeature("mapper.dynamic_template.warn_on_duplicate_names");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -264,7 +265,8 @@ public class MapperFeatures implements FeatureSpecification {
                 DOC_VALUES_MULTI_VALUE_INDEX_SETTING,
                 DOC_VALUES_MULTI_VALUE_FALSE_ALIAS,
                 DOC_VALUES_EXTENDED_FORM_ONLY_IN_COLUMNAR,
-                DOC_VALUES_NULLABILITY
+                DOC_VALUES_NULLABILITY,
+                DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING
             )
         );
         if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {

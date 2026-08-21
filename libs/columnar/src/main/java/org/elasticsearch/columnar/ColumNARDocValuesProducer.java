@@ -27,6 +27,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
@@ -47,7 +50,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private boolean closed = false;
 
     /** A read-side column: its declared type and the metadata needed to open it. */
-    private record Column(ColumnarFieldType type, NumericColumnMetadata numeric) {}
+    private record Column(ColumnarFieldType type, ColumnMetadata metadata) {}
 
     ColumNARDocValuesProducer(SegmentReadState state) throws IOException {
         this.maxDoc = state.segmentInfo.maxDoc();
@@ -109,7 +112,7 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
     private Column readColumn(ColumnarFieldType type, ChecksumIndexInput meta, final FormatVersion formatVersion) throws IOException {
         return switch (type) {
             case LONG, DOUBLE -> new Column(type, NumericColumnMetadata.readFrom(meta, maxDoc, formatVersion));
-            case STRING -> throw new UnsupportedOperationException("ColumNAR [" + type + "] column is not implemented yet");
+            case STRING -> new Column(type, StringColumnMetadata.readFrom(meta, maxDoc, formatVersion));
         };
     }
 
@@ -119,19 +122,23 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
         if (column == null) {
             throw new IllegalStateException("field [" + field.name + "] is not a ColumNAR column");
         }
-        return switch (column.type()) {
-            case LONG, DOUBLE -> numericBinary(column.numeric());
-            case STRING -> throw new UnsupportedOperationException("ColumNAR [" + column.type() + "] column is not implemented yet");
+        // The metadata a column carries follows from its type, so the two always agree; the sealed
+        // interface is what lets a second column type arrive without another shape here.
+        return switch (column.metadata()) {
+            case NumericColumnMetadata numeric -> numericBinary(numeric);
+            case StringColumnMetadata string -> stringBinary(string);
         };
+    }
+
+    private BinaryDocValues stringBinary(StringColumnMetadata metadata) throws IOException {
+        StringColumnReader reader = new StringColumnReader(metadata, data);
+        return new ColumnarStringBinaryDocValues(reader, reader.iterator());
     }
 
     private BinaryDocValues numericBinary(NumericColumnMetadata metadata) throws IOException {
         NumericColumnReader reader = new NumericColumnReader(metadata, data);
         ColumnIterator iterator = reader.iterator();
-        // Dense single-valued columns map a document id onto its value ordinal, which unlocks the
-        // vectorized range and bulk-read fast paths; every other shape falls back to per-doc reads.
-        boolean vectorizable = iterator.isDense() && metadata.multiValued() == false;
-        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, vectorizable, metadata.skipper(), data);
+        return new ColumnarNumericBinaryDocValues(reader, iterator, maxDoc, metadata.skipper(), data);
     }
 
     @Override

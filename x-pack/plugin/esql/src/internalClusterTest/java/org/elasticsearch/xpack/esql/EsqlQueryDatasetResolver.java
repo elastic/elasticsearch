@@ -36,8 +36,6 @@ import java.util.regex.Pattern;
  *       over-approximation.</li>
  *   <li>{@code TS &lt;patterns&gt; [METADATA ...]} &mdash; same shape as {@code FROM}, for
  *       time-series queries.</li>
- *   <li>{@code PROMQL index=&lt;name&gt; ...} &mdash; the {@code index=} argument of a
- *       {@code PROMQL} source command; the single index name is extracted.</li>
  *   <li>{@code LOOKUP JOIN &lt;index&gt; ON ...} &mdash; the right-hand index is included so its
  *       keyword paths are also in scope.</li>
  * </ul>
@@ -59,45 +57,17 @@ public final class EsqlQueryDatasetResolver {
 
     /**
      * Captures the index list after a {@code FROM} or {@code TS} source command at the start of
-     * the query, right after a top-level pipe, right after a semicolon (for multi-statement
-     * csv-spec queries like {@code SET x=y\; FROM employees}), or right after an opening
-     * parenthesis (the latter being how csv-spec subqueries appear:
-     * {@code FROM a, (FROM b | LIMIT 5)}). The body extends up to (but excluding) an optional
-     * {@code METADATA} clause, the next pipe, the next paren of either kind, or end-of-input
-     * &mdash; so a subquery's index list is captured without spilling into the inner pipeline
-     * that follows the first {@code |}.
+     * the query, right after a top-level pipe, or right after an opening parenthesis (the latter
+     * being how csv-spec subqueries appear: {@code FROM a, (FROM b | LIMIT 5)}). The body extends
+     * up to (but excluding) an optional {@code METADATA} clause, the next pipe, the next paren of
+     * either kind, or end-of-input &mdash; so a subquery's index list is captured without
+     * spilling into the inner pipeline that follows the first {@code |}.
      * <p>
      * Capture group 1 holds the raw, possibly whitespace-padded index list; the caller splits it
      * on commas.
      */
     private static final Pattern SOURCE_COMMAND = Pattern.compile(
-        "(?:^|;|\\||\\()\\s*(?:FROM|TS)\\s+([^|()]+?)(?=\\s+METADATA\\b|\\s*[|()]|\\s*$)",
-        Pattern.CASE_INSENSITIVE
-    );
-
-    /**
-     * Captures a double-quoted index name immediately following a {@code FROM} or {@code TS}
-     * source command. This pattern is applied to the <em>original</em> (unmasked) query so that
-     * quoted names are not invisible; {@link #SOURCE_COMMAND} cannot capture them because
-     * {@link #maskStringsAndComments} replaces the quoted content with spaces before matching.
-     * <p>
-     * Capture group 1 holds the index name <em>without</em> the surrounding quotes.
-     */
-    private static final Pattern SOURCE_COMMAND_QUOTED = Pattern.compile(
-        "(?:^|;|\\||\\()\\s*(?:FROM|TS)\\s+\"([^\"]+)\"",
-        Pattern.CASE_INSENSITIVE
-    );
-
-    /**
-     * Captures the {@code index=&lt;name&gt;} argument of a {@code PROMQL} source command. The
-     * pattern matches anywhere after the {@code PROMQL} keyword on the same logical line (i.e.
-     * before the next pipe, closing parenthesis, or end-of-input), so the argument can appear in
-     * any position among the key=value pairs.
-     * <p>
-     * Capture group 1 holds the bare index name (no wildcards expected for PROMQL).
-     */
-    private static final Pattern PROMQL_INDEX_COMMAND = Pattern.compile(
-        "(?:^|;|\\||\\()\\s*PROMQL\\b[^|();]*?\\bindex=([\\w.*\\-]+)",
+        "(?:^|\\||\\()\\s*(?:FROM|TS)\\s+([^|()]+?)(?=\\s+METADATA\\b|\\s*[|()]|\\s*$)",
         Pattern.CASE_INSENSITIVE
     );
 
@@ -184,36 +154,16 @@ public final class EsqlQueryDatasetResolver {
         while (source.find()) {
             String indexList = query.substring(source.start(1), source.end(1));
             for (String part : indexList.split(",")) {
-                String raw = part.trim();
-                String trimmed = stripQuotes(raw);
+                String trimmed = part.trim();
                 if (trimmed.isEmpty() == false) {
                     patterns.add(trimmed);
                 }
             }
         }
 
-        // SOURCE_COMMAND cannot capture double-quoted index names because maskStringsAndComments
-        // replaces them with spaces before matching. Apply a second pass on the original query to
-        // pick up forms like FROM "k8s" or TS "k8s-downsampled".
-        Matcher quotedSource = SOURCE_COMMAND_QUOTED.matcher(query);
-        while (quotedSource.find()) {
-            String index = quotedSource.group(1).trim();
-            if (index.isEmpty() == false) {
-                patterns.add(index);
-            }
-        }
-
-        Matcher promql = PROMQL_INDEX_COMMAND.matcher(masked);
-        while (promql.find()) {
-            String index = stripQuotes(query.substring(promql.start(1), promql.end(1)).trim());
-            if (index.isEmpty() == false) {
-                patterns.add(index);
-            }
-        }
-
         Matcher join = LOOKUP_JOIN_INDEX.matcher(masked);
         while (join.find()) {
-            String index = stripQuotes(query.substring(join.start(1), join.end(1)).trim());
+            String index = query.substring(join.start(1), join.end(1)).trim();
             if (index.isEmpty() == false) {
                 patterns.add(index);
             }
@@ -335,22 +285,6 @@ public final class EsqlQueryDatasetResolver {
             names.add(token);
         }
         return names;
-    }
-
-    /**
-     * Strips a single layer of surrounding double-quotes from {@code raw} if and only if it
-     * starts and ends with {@code "} and contains at least one character inside the quotes.
-     * Returns {@code raw} unchanged otherwise.
-     * <p>
-     * This handles quoted index names in ES|QL source commands — e.g. {@code TS "k8s"} or
-     * {@code FROM "employees"} — where the query text has been extracted from the original
-     * (unmasked) string after positional matching against the masked copy.
-     */
-    static String stripQuotes(String raw) {
-        if (raw.length() >= 2 && raw.charAt(0) == '"' && raw.charAt(raw.length() - 1) == '"') {
-            return raw.substring(1, raw.length() - 1);
-        }
-        return raw;
     }
 
     /**

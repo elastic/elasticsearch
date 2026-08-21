@@ -1523,9 +1523,21 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
 
         /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command,
+         * even if the {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions are nested inside another expression, where an
+         * IN subquery is not directly supported there.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * Support non-correlated IN subqueries in the {@code EVAL} command.
+         */
+        EVAL_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).

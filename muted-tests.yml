@@ -797,3 +797,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
   method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
   issue: https://github.com/elastic/elasticsearch/issues/157337
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testFromDatasetDeniedWithoutReadOnName
+  issue: https://github.com/elastic/elasticsearch/issues/157338

@@ -7,12 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.fixtures
+package org.elasticsearch.columnar.substrate;
 
-import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
+import org.apache.lucene.store.IndexOutput;
 
-class RestrictedBuildServiceAwareGradleRunner {
-    RestrictedBuildServiceAwareGradleRunner(InternalAwareGradleRunner delegate) {
+import java.io.IOException;
 
-    }
+/** Writes chunks for one {@link ChunkedBytesWriter}; holds that writer's buffers and is not shared. */
+public interface ChunkCompressor {
+
+    /** Writes {@code src[0, length)} as one chunk and returns how many bytes it occupies in {@code out}. */
+    int write(byte[] src, int length, IndexOutput out) throws IOException;
 }

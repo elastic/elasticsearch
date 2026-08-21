@@ -271,3 +271,191 @@ powershell.exe | 200      | fork2
 // EqlCompositionIT (internalClusterTest). It is intentionally NOT a csv-spec case here: the single-node QA
 // csv-spec cluster does not provision views (the PUT /_query/view endpoint is unavailable there, so no view
 // loads), which would fail such a case rather than skip it.
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// EQL engine golden corpora, ported from the EQL project's own test_queries.toml / test_sample.toml for
+// differential validation of the EQL source command's typed pipeline. endgame-140 carries serial_event_id
+// as a typed long column (also indexed as _id) and aliases event.category -> event_type so bare
+// "process where ..." resolves under the EQL defaults. Order-independent cases SORT by serial_event_id;
+// order-sensitive ones (head/tail/sequence/sample) pass WITH {"tiebreaker_field": "serial_event_id"} and
+// assert the EQL engine's expected order verbatim. Snapshot-only (required_capability: eql_command); these
+// run in the live QA REST csv-spec suites, not the in-JVM CsvIT.
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+eventQueryEqual
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id == 1" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+1
+;
+
+eventQueryLessThan
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id < 4" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+;
+
+eventQueryFalse
+required_capability: eql_command
+EQL endgame-140 "process where false" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+;
+
+eventQueryRange
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 8 and serial_event_id > 7" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+8
+;
+
+eventQueryProcessNameOrRange
+required_capability: eql_command
+EQL endgame-140 "process where process_name : \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+4
+;
+
+eventQueryExitCodeGteZero
+required_capability: eql_command
+EQL endgame-140 "process where exit_code >= 0" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+58
+64
+69
+74
+80
+85
+90
+93
+94
+75303
+;
+
+// LIMIT directly above the source is pushed as the EQL request size, lifting the default of 10.
+eventQueryLimitPushedAsSize
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+;
+
+// Order-sensitive ports below: WITH supplies the tiebreaker so EQL ordering is deterministic and asserted verbatim.
+
+// EQL test_queries.toml: simpleQueryHeadSix -> [1, 2, 3, 4, 5, 6]
+eventQueryHeadSix
+required_capability: eql_command
+EQL endgame-140 "process where true | head 6" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+;
+
+// EQL test_queries.toml: nullEqualityWithGtAndHead -> [1, 2, 3, 4, 5, 6, 7]
+eventQueryNullEqualityHeadSeven
+required_capability: eql_command
+EQL endgame-140 "process where null == (exit_code > -1) | head 7" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+6
+7
+;
+
+// EQL test_queries.toml: simpleTail -> [92, 95, 96]
+eventQueryTailThree
+required_capability: eql_command
+EQL endgame-140 "file where true | tail 3" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP serial_event_id;
+
+serial_event_id:long
+92
+95
+96
+;
+
+// EQL test_queries.toml: doubleSameSequence -> [1,2, 2,3, 3,4] (three 2-event sequences).
+sequenceDoubleSameProcess
+required_capability: eql_command
+EQL endgame-140 "sequence [process where serial_event_id < 5] [process where serial_event_id < 5]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0        |1
+0        |2
+1        |2
+1        |3
+2        |3
+2        |4
+;
+
+// EQL test_queries.toml: sequencesOnDifferentEventTypes1 -> [75273, 75304] (sequence by unique_pid, process + network).
+sequenceByUniquePidProcessNetwork
+required_capability: eql_command
+EQL endgame-140 "sequence by unique_pid [process where opcode == 1 and process_name : \"MSBuild.exe\"] [network where true]" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 100 | KEEP _sequence, serial_event_id;
+
+_sequence:long |serial_event_id:long
+0        |75273
+0        |75304
+;
+
+// Sample ports below (sample1,sample2,sample3). Each returns a single sample, so _sequence is 0 and events follow
+// stage order.
+
+// EQL test_sample.toml: complexFilters -> [17, 26, 16], join_keys ["doom", "redhat"].
+sampleComplexFilters
+required_capability: eql_command
+EQL sample1,sample2,sample3 "sample by host [any where uptime > 0 and host == \"doom\" and (uptime > 15 or bool == true)] by os [any where port > 100 and ip == \"10.0.0.5\" or op_sys : \"REDHAT\"] by op_sys [any where bool == true] by os" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
+
+_sequence:long |id:long
+0        |17
+0        |26
+0        |16
+;
+
+// EQL test_sample.toml: simpleIpAsKey -> [28, 31], join_keys ["10.0.0.1"] (sample2.ip joined to sample3.host_ip).
+sampleSimpleIpAsKey
+required_capability: eql_command
+EQL sample1,sample2,sample3 "sample [success where true] by ip [alert where startsWith~(os,\"win\")] by host_ip" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
+
+_sequence:long |id:long
+0        |28
+0        |31
+;
+
+// EQL test_sample.toml: keywordAsKey -> [18, 37], join_keys ["test", "doom"] (global key missing_keyword + per-stage host).
+sampleKeywordAsKey
+required_capability: eql_command
+EQL sample1,sample2,sample3 "sample by missing_keyword [success where true] by host [failure where host == \"doom\"] by host" METADATA _id | LIMIT 100 | EVAL id = TO_LONG(_id) | KEEP _sequence, id;
+
+_sequence:long |id:long
+0        |18
+0        |37
+;

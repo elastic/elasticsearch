@@ -4172,104 +4172,486 @@ emp_no:integer
 10045
 ;
 
-multiColumnInSubqueryInStatsWhereRowSource
+inSubqueryInStatsWhere
 required_capability: where_in_subquery_without_view
-required_capability: where_in_multi_column_subquery
-required_capability: subquery_with_row
 required_capability: stats_where_in_subquery
 
 FROM employees
-| STATS c = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 10001, b = 10002 | KEEP a, b)
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+;
+
+c:long
+3
+;
+
+notInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+;
+
+c:long
+97
+;
+
+multipleInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS in_top3 = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+        not_in_top3 = COUNT(*) WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+in_top3:long | not_in_top3:long | total:long
+3            | 97               | 100
+;
+
+inSubqueryInStatsWhereWithGroupBy
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| WHERE emp_no <= 10006
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) BY gender
+| SORT gender
+;
+
+c:long | gender:keyword
+1      | F
+2      | M
+;
+
+inSubqueryInStatsWhereWithMinMax
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS mn = MIN(emp_no) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+        mx = MAX(emp_no) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+;
+
+mn:integer | mx:integer
+10001      | 10003
+;
+
+constantInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE 10001 IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+;
+
+c:long
+100
+;
+
+emptyInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS mx = MAX(emp_no) WHERE emp_no IN (FROM employees | WHERE emp_no > 99999 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+mx:integer | total:long
+null       | 100
+;
+
+inSubqueryAndGreaterThanOrEqualInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no) AND emp_no >= 10003
+;
+
+c:long
+3
+;
+
+inSubqueryOrEqualInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) OR emp_no == 10010
+;
+
+c:long
+4
+;
+
+caseWithInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), true, false)
+;
+
+c:long
+3
+;
+
+coalesceWithInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE COALESCE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), false)
+;
+
+c:long
+3
+;
+
+statsWhereIsNullInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NULL
 ;
 
 c:long
 0
 ;
 
-multiColumnInSubqueryInStatsWhereRowSourceMatch
+isNotNullWithInSubqueryInStatsWhere
 required_capability: where_in_subquery_without_view
-required_capability: where_in_multi_column_subquery
-required_capability: subquery_with_row
 required_capability: stats_where_in_subquery
 
 FROM employees
-| STATS c = COUNT(*) WHERE (emp_no, salary) IN (ROW a = 10001, b = 57305 | KEEP a, b)
+| STATS c = COUNT(*) WHERE (emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)) IS NOT NULL
+;
+
+c:long
+100
+;
+
+nestedInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees
+                                      | STATS mx = MAX(emp_no) WHERE emp_no IN (FROM employees
+                                                                                | SORT emp_no ASC
+                                                                                | LIMIT 3
+                                                                                | KEEP emp_no)
+  )
 ;
 
 c:long
 1
 ;
 
-multiColumnInSubqueryInStatsWhereTsSource
+inSubqueryInStatsWhereAfterFromSubquery
 required_capability: where_in_subquery_without_view
-required_capability: where_in_multi_column_subquery
-required_capability: where_in_subquery_with_ts
-required_capability: ts_command_v0
+required_capability: subquery_in_from_command
+required_capability: stats_where_in_subquery
+
+FROM
+  (FROM employees | WHERE emp_no <= 10003),
+  (FROM employees | WHERE emp_no >= 10099)
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+3      | 5
+;
+
+fromSubqueryInsideInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
 required_capability: stats_where_in_subquery
 
 FROM employees
-| EVAL cluster = CASE(gender == "M", "prod", "qa")
-| STATS c = COUNT(*) WHERE (cluster, emp_no) IN (TS k8s
-                                                 | STATS m = max(rate(network.total_bytes_in)) BY cluster
-                                                 | EVAL emp = 10001
-                                                 | KEEP cluster, emp)
+| STATS c = COUNT(*) WHERE emp_no IN (FROM 
+                                        (FROM employees | WHERE emp_no <= 10002),
+                                        (FROM employees | WHERE emp_no >= 10100)
+                                      | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+3      | 100
+;
+
+inSubqueryWithStatsWhereAfterWhereInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no)
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+3      | 10
+;
+
+inSubqueryInStatsWhereBeforeWhereInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS mx = MAX(emp_no) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) BY gender
+| WHERE mx IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| SORT mx
+;
+
+mx:integer | gender:keyword
+10002      | F
+10003      | M
+;
+
+inSubqueryInStatsWhereAfterWhereNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| WHERE emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+7      | 97
+;
+
+inSubqueryInStatsWhereNestedInsideWhereInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| WHERE gender IN (
+    FROM employees
+    | STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) BY gender
+    | WHERE c >= 2
+    | KEEP gender)
+| STATS total = COUNT(*)
+;
+
+total:long
+57
+;
+
+disjunctiveInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+                        OR emp_no IN (FROM employees | SORT emp_no DESC | LIMIT 2 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+5      | 100
+;
+
+disjunctiveInAndNotInSubqueryInStatsWhere
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+                        OR emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 10 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+93     | 100
+;
+
+inSubqueryInStatsWhereAfterWhereInSubqueryOrGreaterThanOrEqual
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no) OR emp_no >= 10099
+| STATS c = COUNT(*) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+        total = COUNT(*)
+;
+
+c:long | total:long
+3      | 7
+;
+
+inSubqueryInStatsWhereBeforeWhereInSubqueryOrEqual
+required_capability: where_in_subquery_without_view
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS mx = MAX(emp_no) WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) BY gender
+| WHERE mx IN (FROM employees | SORT emp_no ASC | LIMIT 2 | KEEP emp_no) OR mx == 10003
+| SORT mx
+;
+
+mx:integer | gender:keyword
+10002      | F
+10003      | M
+;
+
+fromSubqueriesBeforeStatsWhereWithForkInsideInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+required_capability: stats_where_in_subquery
+
+FROM
+  (FROM employees | WHERE emp_no <= 10005),
+  (FROM employees | WHERE emp_no >= 10099)
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | FORK
+        (WHERE emp_no <= 10002 | KEEP emp_no)
+        (WHERE emp_no >= 10100 | KEEP emp_no)
+    | KEEP emp_no
+  ),
+  total = COUNT(*)
+;
+
+c:long | total:long
+3      | 7
+;
+
+forkBeforeStatsWhereWithFromSubqueriesInsideNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+required_capability: stats_where_in_subquery
+
+FROM employees
+| FORK
+    (WHERE emp_no <= 10005)
+    (WHERE emp_no >= 10099)
+| STATS c = COUNT(*) WHERE emp_no NOT IN (
+    FROM
+      (FROM employees | WHERE emp_no <= 10002 | KEEP emp_no),
+      (FROM employees | WHERE emp_no >= 10100 | KEEP emp_no)
+    | KEEP emp_no
+  ),
+  total = COUNT(*)
+;
+
+c:long | total:long
+4      | 7
+;
+
+forkBeforeStatsWhereWithFromSubqueriesInsideConjunctiveInSubqueries
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: fork_v9
+required_capability: where_in_subquery_fork_unknown_column_fix
+required_capability: stats_where_in_subquery
+
+FROM employees
+| FORK
+    (WHERE emp_no <= 10005)
+    (WHERE emp_no >= 10099)
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM
+      (FROM employees | WHERE emp_no <= 10003 | KEEP emp_no),
+      (FROM employees | WHERE emp_no >= 10099 | KEEP emp_no)
+    | KEEP emp_no
+  ) AND emp_no NOT IN (
+    FROM
+      (FROM employees | WHERE emp_no == 10002 | KEEP emp_no),
+      (FROM employees | WHERE emp_no == 10100 | KEEP emp_no)
+    | KEEP emp_no
+  ),
+  total = COUNT(*)
+;
+
+c:long | total:long
+3      | 7
+;
+
+forkAfterStatsWhereInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: fork_v9
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (
+    FROM employees
+    | WHERE emp_no <= 10003
+    | KEEP emp_no
+  ),
+  total = COUNT(*)
+| FORK
+    (WHERE c == 3)
+    (WHERE total == 100)
+| SORT _fork
+| KEEP c, total, _fork
+;
+
+c:long | total:long | _fork:keyword
+3      | 100        | fork1
+3      | 100        | fork2
+;
+
+statsWhereInSubqueryWithRowAsSource
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (ROW x = 10001 | KEEP x)
 ;
 
 c:long
 1
 ;
 
-multiColumnInSubqueryInStatsWhereNested
-required_capability: where_in_subquery_without_view
-required_capability: where_in_multi_column_subquery
+rowOuterWithRowInSubqueryInStatsWhere
 required_capability: subquery_with_row
 required_capability: stats_where_in_subquery
 
-FROM employees
-| STATS c1 = COUNT(*) WHERE COALESCE((emp_no, salary) IN (ROW a = 10001, b = 57305 | KEEP a, b), false),
-        c2 = COUNT(*) WHERE CASE((emp_no, salary) IN (ROW a = 99999, b = 0 | KEEP a, b), true, false),
-        c3 = COUNT(*) WHERE ((emp_no, salary) IN (ROW a = 10001, b = 57305 | KEEP a, b)) IS NOT NULL
-;
-
-c1:long | c2:long | c3:long
-1       | 0       | 100
-;
-
-multiColumnInSubqueryTsMainRowSubquery
-required_capability: where_in_subquery_without_view
-required_capability: where_in_multi_column_subquery
-required_capability: subquery_with_row
-required_capability: stats_where_in_subquery
-required_capability: ts_command_v0
-
-TS k8s
-| STATS m = MAX(network.total_bytes_in) WHERE (cluster, pod) IN (ROW c = "staging", p = "two" | KEEP c, p) BY cluster
-| SORT cluster
-| KEEP m, cluster
-;
-
-m:long | cluster:keyword
-null   | prod
-null   | qa
-5187   | staging
-;
-
-multiColumnInSubqueryRowMainTsSubquery
-skip_flattened_rewrite: keyword_from_row_command
-required_capability: where_in_subquery_without_view
-required_capability: where_in_multi_column_subquery
-required_capability: subquery_with_row
-required_capability: stats_where_in_subquery
-required_capability: where_in_subquery_with_ts
-required_capability: ts_command_v0
-
-ROW cluster = "prod", emp_no = 10001
-| STATS c = COUNT(*) WHERE (cluster, emp_no) IN (TS k8s
-                                                 | STATS m = max(rate(network.total_bytes_in)) BY cluster
-                                                 | EVAL emp = 10001
-                                                 | KEEP cluster, emp)
+ROW x = 1
+| STATS c = COUNT(*) WHERE x IN (ROW y = 1 | KEEP y)
 ;
 
 c:long
 1
+;
+
+statsWhereInSubqueryWithRowAsSourceNestedInFunctions
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+FROM employees
+| STATS c1 = COUNT(*) WHERE CASE(emp_no IN (ROW x = 10001 | KEEP x), true, false),
+        c2 = COUNT(*) WHERE COALESCE(emp_no IN (ROW x = 10002 | KEEP x), false),
+        c3 = COUNT(*) WHERE (emp_no IN (ROW x = 10003 | KEEP x)) IS NOT NULL,
+        c4 = COUNT(*) WHERE (emp_no IN (ROW x = 99999 | KEEP x)) IS NULL,
+        c5 = COUNT(*) WHERE (emp_no IN (ROW x = 10004 | KEEP x)) IS NULL
+;
+
+c1:long | c2:long | c3:long | c4:long | c5:long
+1       | 1       | 100     | 0       | 0
+;
+
+statsWhereInSubqueryWithRowAsSourceAndNull
+required_capability: subquery_with_row
+required_capability: stats_where_in_subquery
+
+ROW x = TO_INTEGER(null)
+| STATS c1 = COUNT(*) WHERE (x IN (ROW y = 1 | KEEP y)) IS NULL,
+        c2 = COUNT(*) WHERE (x IN (ROW y = 1 | KEEP y)) IS NOT NULL
+;
+
+c1:long | c2:long
+1       | 0
 ;

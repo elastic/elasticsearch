@@ -29,12 +29,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
@@ -50,9 +46,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
     static final String KEEP_ALIVE = "keep-alive";
     static final String CONTENT_TYPE = "content-type";
     static final String CONTENT_LENGTH = "content-length";
-    static final String DATE = "date";
     static final String SET_COOKIE = "set-cookie";
-
 
     private final HttpRequest httpRequest;
     private final Recycler<BytesRef> recycler;
@@ -61,7 +55,6 @@ public class DefaultRestChannel extends AbstractRestChannel {
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
     private final HttpServerInstrumentation instrumentation;
-    private final DateTimeFormatter dateFormat;
 
     @Nullable
     private final HttpTracer httpLogger;
@@ -86,7 +79,6 @@ public class DefaultRestChannel extends AbstractRestChannel {
         this.corsHandler = corsHandler;
         this.httpLogger = httpLogger;
         this.instrumentation = instrumentation;
-        this.dateFormat = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     }
 
     @Override
@@ -166,7 +158,7 @@ public class DefaultRestChannel extends AbstractRestChannel {
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
 
-            setHeaderField(httpResponse, DATE, dateFormat.format(ZonedDateTime.now(ZoneOffset.UTC)), false);
+            HttpUtils.addDateHeader(httpResponse);
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.util.LSBRadixSorter;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 import java.util.function.IntUnaryOperator;

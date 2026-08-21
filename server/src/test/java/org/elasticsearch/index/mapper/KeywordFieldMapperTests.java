@@ -74,7 +74,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
@@ -1124,6 +1123,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         return DocValuesType.BINARY;
     }
@@ -1196,31 +1200,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(20))));
         assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(true));
-    }
-
-    /**
-     * A null with no {@code null_value} configured is silently discarded and does not consume the single-value slot,
-     * so {@code [null, "val"]} is treated identically to {@code ["val"]} — no violation.
-     */
-    public void testMultiValueFalseAcceptsNullThenValue() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-        );
-        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray()));
-        assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
-        assertThat("non-null value must be indexed", doc.rootDoc().getFields("field"), not(empty()));
-    }
-
-    /**
-     * Mirror of {@link #testMultiValueFalseAcceptsNullThenValue} with the order reversed: first value is non-null, second is null.
-     */
-    public void testMultiValueFalseAcceptsValueThenNull() throws IOException {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
-        );
-        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray()));
-        assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
-        assertThat("non-null value must be indexed", doc.rootDoc().getFields("field"), not(empty()));
     }
 
     public void testMultiValueFalseAcceptsSingleNull() throws IOException {

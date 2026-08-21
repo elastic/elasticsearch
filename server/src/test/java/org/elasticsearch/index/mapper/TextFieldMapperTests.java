@@ -2737,6 +2737,11 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsOnFailureParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         // text defaults to HIGH cardinality, which uses binary doc values — that path is unchanged by the write-side fix
         return DocValuesType.BINARY;

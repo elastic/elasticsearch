@@ -224,7 +224,7 @@ GET my-on-failure-index/_doc/1
 
 The response returns `_source.kw: ["val1","val2","val3"]` and `_ignored: ["kw"]`. A `term` query on `val2` or `val3` returns zero hits.
 
-The index-level setting `index.mapping.doc_values.on_failure` controls the default for all fields in the index. It defaults to `fail`. A field-level value overrides the index setting. Neither can be changed after index creation. Refer to [Doc values settings](/reference/elasticsearch/index-settings/doc-values.md) for a full description of the `index.mapping.doc_values.*` index settings.
+The index-level setting `index.mapping.doc_values.on_failure` controls the default for all fields in the index. It defaults to `fail`. A field-level value overrides the index setting. Neither can be changed after index creation.
 
 ## Multi-valued doc values ordering
 

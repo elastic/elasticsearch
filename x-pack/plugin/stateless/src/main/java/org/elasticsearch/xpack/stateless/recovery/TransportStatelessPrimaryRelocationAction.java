@@ -359,7 +359,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
 
         indexShard.recoveryStats().sourceRecoveryStarted();
-        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+        recoverySchedulingListeners.onRecoveryStarted(RecoverySource.Type.PEER, RecoveryRole.SOURCE, null);
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while
         // operations are blocked. NB the flush has force=false so may do nothing.
@@ -386,7 +386,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(ActionListener.runAfter(listener, () -> {
             indexShard.recoveryStats().sourceRecoveryCompleted();
-            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE);
+            recoverySchedulingListeners.onRecoveryCompleted(RecoverySource.Type.PEER, RecoveryRole.SOURCE, null);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();

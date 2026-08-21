@@ -2,7 +2,7 @@ ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#2, $$F
 \_ProjectExec[[_tsid{m}#0, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#5, $$FIRSTOVERTIME_$1$values{r}#6, $$_$packed_dims$values{r}#7]]
   \_PackDimsExec[[pod{f}#8],$$_$packed_dims$values{r}#7]
     \_ReadDimsExec[pod{f}#8]<tsid=_tsid{m}#0>
-      \_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[FIRSTOVERTIME(events_received{f}#9,true[BOOLEAN],PT10M[TIME_DURATION],@timestamp{f}#10) AS FIRSTOVERTIME_$1#11, step{r}#1, FIRSTDOCID(_doc{f}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#13],INITIAL,[_tsid{m}#0, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#5, $$FIRSTOVERTIME_$1$values{r}#6, _doc{r}#14],86,BUCKET(@timestamp{f}#10,PT10M[TIME_DURATION]),BUCKET(@timestamp{f}#10,PT10M[TIME_DURATION])]
+      \_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[FIRSTOVERTIME(events_received{f}#9,true[BOOLEAN],PT10M[TIME_DURATION],@timestamp{f}#10) AS FIRSTOVERTIME_$1#11, step{r}#1, FIRSTDOCID(_doc{f}#12,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#13],INITIAL,[_tsid{m}#0, step{r}#1, $$FIRSTOVERTIME_$0$timestamps{r}#5, $$FIRSTOVERTIME_$1$values{r}#6, _doc{r}#14],86,BUCKET(@timestamp{f}#10,PT10M[TIME_DURATION])]
         \_FieldExtractExec[[_tsid{m}#0, events_received{f}#9]<[],[],[]>,_doc{f}#12]
           \_EvalExec[[BUCKET(@timestamp{f}#10,PT10M[TIME_DURATION]) AS step#1]]
             \_FieldExtractExec[[@timestamp{f}#10]<[],[],[]>,_doc{f}#12]

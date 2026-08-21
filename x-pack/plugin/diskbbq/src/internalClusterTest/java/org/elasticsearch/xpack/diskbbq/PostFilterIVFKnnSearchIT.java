@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -175,9 +176,13 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
 
         // 80% "pass", spread uniformly, so round 0's pool always yields enough survivors to avoid the
         // fallback (which would rescore anyway and make the assertion vacuous).
+        Random vectorSource = new Random(42);
         float[][] vectors = new float[EXACT_SCORE_DOCS][];
         for (int i = 0; i < EXACT_SCORE_DOCS; i++) {
-            vectors[i] = exactScoreVector(i);
+            vectors[i] = new float[EXACT_SCORE_DIMS];
+            for (int d = 0; d < EXACT_SCORE_DIMS; d++) {
+                vectors[i][d] = vectorSource.nextFloat() * 2f - 1f;
+            }
             prepareIndex(indexName).setId(Integer.toString(i))
                 .setSource(VECTOR_FIELD, vectors[i], TAG_FIELD, i % 5 == 0 ? "fail" : "pass")
                 .get();
@@ -185,7 +190,9 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         refresh(indexName);
 
         int k = 5;
-        float[] queryVector = exactScoreVector(EXACT_SCORE_DOCS / 2);
+        // One of the indexed vectors, so there is a guaranteed exact match to rank around. It fails the filter
+        // itself (100 is a multiple of 5), so the hits are the nearest passing docs.
+        float[] queryVector = vectors[EXACT_SCORE_DOCS / 2];
         var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 100, null, null, null).addFilterQuery(
             QueryBuilders.termQuery(TAG_FIELD, "pass")
         );
@@ -209,26 +216,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
                 );
             }
         });
-    }
-
-    /**
-     * back by popular demand (and with accompanying inline comments), because why _just_ use Random()
-     */
-    private static float[] exactScoreVector(int seed) {
-        float[] vector = new float[EXACT_SCORE_DIMS];
-        // Golden-ratio multiplier, floor(2^64 / phi), scatters consecutive doc ids across the state space
-        // instead of leaving them adjacent; the addend keeps seed 0 from starting out at zero.
-        long h = seed * 0x9E3779B97F4A7C15L + 0x165667B19E3779F9L;
-        for (int d = 0; d < EXACT_SCORE_DIMS; d++) {
-            // MurmurHash3 fmix64-style avalanche: xor-shift, odd multiply, xor-shift. h is advanced in place,
-            // so each dimension draws from a freshly mixed state rather than re-hashing the same one.
-            h ^= h >>> 33;
-            h *= 0xFF51AFD7ED558CCDL;
-            h ^= h >>> 29;
-            // Top 24 bits -> 0..1999 -> [-1, 1) in steps of 0.001.
-            vector[d] = ((h >>> 40) % 2000) / 1000f - 1f;
-        }
-        return vector;
     }
 
     public void testPostFilterReportsVectorOpsInProfile() throws IOException {

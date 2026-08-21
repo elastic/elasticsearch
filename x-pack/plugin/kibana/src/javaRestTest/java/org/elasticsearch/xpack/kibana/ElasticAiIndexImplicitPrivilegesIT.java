@@ -325,12 +325,13 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
               "type": "dashboard"
             }
             """);
+
+        assertOK(client().performRequest(new Request("POST", "/" + ELASTIC_AI_INDEX_ALIAS + "/_refresh")));
     }
 
     /** Writes through the alias, as the SML storage adapter does (its bulk sets require_alias). */
     private void indexDoc(String id, String body) throws Exception {
         final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX_ALIAS + "/_doc/" + id);
-        request.addParameter("refresh", "true");
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));
     }

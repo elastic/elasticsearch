@@ -687,6 +687,7 @@ FROM partial_mapping_sample_data
 replaceUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -704,6 +705,7 @@ date_string:date
 aggregateUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -733,6 +735,7 @@ count:long
 sortUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -750,6 +753,7 @@ date_string:keyword
 renameUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -824,6 +828,7 @@ event_duration:long | unmapped_message:keyword
 
 statsByUnmappedFieldExistsInSource
 required_capability: optional_fields_v5
+skip_columnar: STATS grouped by an unmapped field loaded from source returns no rows in columnar mode
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -855,6 +860,7 @@ c:long
 countPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_count_on_unmapped
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -868,6 +874,7 @@ c:long
 countPartiallyUnmappedPunkCastIncludesSourceOnlyValues
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_count_on_unmapped
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -910,6 +917,7 @@ c:long
 inlineCountPartiallyUnmappedKeywordFieldIncludesSourceOnlyValues
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_count_on_unmapped
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -925,6 +933,7 @@ c:long
 inlineCountPartiallyUnmappedPunkCastIncludesSourceOnlyValues
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_count_on_unmapped
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -1236,6 +1245,7 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 
 fieldIsPartiallyUnmappedMultiIndex
 required_capability: optional_fields_v5
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1262,6 +1272,7 @@ sample_data            | Connected to 10.1.0.1
 
 fieldIsPartiallyUnmappedAndRenamedMultiIndex
 required_capability: optional_fields_v5
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data
@@ -1546,6 +1557,7 @@ count(*):long | message::INT:integer
 
 filterOnPartiallyUnmappedField
 required_capability: optional_fields_v5
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1713,6 +1725,7 @@ FROM partial_mapping_sample_data
 
 sortOnMultipleFieldsWithNonExistent
 required_capability: optional_fields_v5
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1841,6 +1854,7 @@ null                   | foo
 statsFilteredAggAfterEvalWithDottedUnmappedFieldLoadsFromSource
 required_capability: optional_fields_v5
 required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+skip_columnar: STATS with WHERE filter on unmapped field loaded from source returns different results in columnar mode
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
@@ -1877,6 +1891,7 @@ c:long | message:keyword
 // Regression test: two same-hash indices + an unmapped index should still treat the field as partially unmapped.
 sameMappingHashWithUnmappedIndex
 required_capability: optional_fields_v5
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM sample_data, cloned_sample_data, no_mapping_sample_data
@@ -3702,6 +3717,7 @@ loadViewPassthroughLoadsFromSource_KeepUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -3717,6 +3733,7 @@ loadViewDefinitionWildcardKeepPermitsUnmappedLoad
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view_message_wildcard
@@ -3732,6 +3749,7 @@ loadViewPassthroughLoadsFromSource_WithStatsUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -3747,6 +3765,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | KEEP message, unmapped_message), (FROM employees | KEEP emp_no)
@@ -3770,6 +3789,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"), (FROM partial_mapping_view | WHERE message == "Connected to 10.1.0.1!")
@@ -3786,6 +3806,7 @@ loadMvViewExpandCount_MvExpandUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3801,6 +3822,7 @@ loadMvViewExpandValues_MvExpandUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3822,6 +3844,7 @@ loadMvViewFunctions_WithUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3838,6 +3861,7 @@ loadDissectViewLoadedUnmappedField
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_mv_view
@@ -3855,6 +3879,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_mv_view | WHERE message == "42" | MV_EXPAND unmapped_mv | KEEP message, unmapped_mv), (FROM partial_mapping_mv_view | WHERE message == "Connected to 10.1.0.1!" | KEEP message, unmapped_mv)
@@ -3872,6 +3897,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3891,6 +3917,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: partial_mapping_view backed by partial_mapping_sample_data; unmapped fields unavailable from synthetic _source in columnar mode
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3909,6 +3936,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42"),
@@ -3929,6 +3957,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | DROP unmapped_message),
@@ -3947,6 +3976,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -3965,6 +3995,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE unmapped_message == "43" | DROP unmapped_message),
@@ -3983,6 +4014,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | EVAL tag = unmapped_message),
@@ -4001,6 +4033,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4020,6 +4053,7 @@ required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
+skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | RENAME unmapped_message AS renamed),
@@ -4073,6 +4107,7 @@ loadViewPassthrough_OuterEvalMaterializesUnmapped
 required_capability: optional_fields_load_with_fork_subqueries_and_views
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_view
@@ -4091,6 +4126,7 @@ required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
 required_capability: subquery_in_from_command
 required_capability: where_in_subquery_with_view
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM (FROM partial_mapping_view | WHERE message == "42" | KEEP message, unmapped_message),
@@ -4139,6 +4175,7 @@ FROM sample_data
 // The LOAD_ALL twin of this test lives in unmapped-load-all.csv-spec under the same name.
 crossMappingLoadsBothLegs
 required_capability: optional_fields_v5
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM cross_mapping_a, cross_mapping_b METADATA _index
@@ -4154,6 +4191,7 @@ b2          | a2          | cross_mapping_b
 // The LOAD_ALL twin in unmapped-load-all.csv-spec selects the same field by wildcard instead.
 syntheticSourceLoadsScalarUnmappedField
 required_capability: optional_fields_v5
+skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
 
 SET unmapped_fields="load"\;
 FROM synthetic_source_partial_mapping

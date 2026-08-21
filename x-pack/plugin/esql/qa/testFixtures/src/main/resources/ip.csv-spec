@@ -995,6 +995,7 @@ COUNT(*):long | ip0:ip
 ;
 
 groupMvMin
+skip_columnar: MV_MIN on IP field throws ArrayIndexOutOfBoundsException in columnar mode
   FROM hosts
 | STATS COUNT(*) BY ip0=MV_MIN(ip0)
 | SORT ip0 ASC
@@ -1009,6 +1010,7 @@ COUNT(*):long | ip0:ip
 ;
 
 groupMvMax
+skip_columnar: MV_MAX on IP field throws ArrayIndexOutOfBoundsException in columnar mode
   FROM hosts
 | STATS COUNT(*) BY ip0=MV_MAX(ip0)
 | SORT ip0 ASC

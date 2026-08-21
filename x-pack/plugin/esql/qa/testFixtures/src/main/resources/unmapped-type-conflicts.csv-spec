@@ -200,6 +200,7 @@ required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 required_capability: fn_match_phrase_unmapped_fields_pushdown_fix
 required_capability: match_phrase_function
+skip_columnar: LOAD of unmapped fields from source returns null in columnar mode (synthetic _source lacks unmapped fields)
 
 // match_phrase on a keyword expression requires the exact value; the value only exists in the unmapped index, so a
 // pushed-down Lucene query (which cannot see unmapped fields) would wrongly return no rows at all
@@ -600,6 +601,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 noTypeConflictKeywordKeepTriggersLoad
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -620,6 +622,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
 
 noTypeConflictKeywordKeepTriggersLoadStats
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -638,6 +641,7 @@ count(*):long | first_name:keyword
 
 noTypeConflictKeywordKeepTriggersLoadStatsWithNulls
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names
@@ -657,6 +661,7 @@ c:long | first_name:keyword
 
 noTypeConflictKeywordKeepTriggersLoadInlineStats
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -677,6 +682,7 @@ emp_no:integer | last_name:keyword | _index:keyword     | c:long | first_name:ke
 
 noTypeConflictKeywordKeepTriggersLoadInlineStatsWithNulls
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -713,6 +719,7 @@ emp_no:integer | first_name:keyword | _index:keyword     | c:long | last_name:ke
 
 noTypeConflictKeepTriggersLoadInlineStatsWithFilter
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names
@@ -871,6 +878,7 @@ emp_no:integer | gender_text:text | _index:keyword
 typeConflictPartiallyUnmappedNonKeywordFieldsNotLoadedWithoutExplicitMention
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -941,6 +949,7 @@ null                     | null         | null                | Connected to 10.
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithoutExplicitMention
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -970,6 +979,7 @@ Connected to 10.1.0.1  | sample_data
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnOtherField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -991,6 +1001,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword     | s
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnOtherField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1012,6 +1023,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | pay:integer | _index:k
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithRenameOnSameField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1035,6 +1047,7 @@ emp_no:integer | first_name:keyword | surname:keyword | salary:integer | _index:
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithEvalOnSameField
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM employees, employees_no_names METADATA _index
@@ -1057,6 +1070,7 @@ emp_no:integer | first_name:keyword | _index:keyword     | last_name:keyword
 noTypeConflictPartiallyUnmappedKeywordFieldLoadedWithWildcardDropOnOtherFields
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -1105,6 +1119,7 @@ no_mapping_sample_data
 typeConflictPartiallyUnmappedKeywordFieldKept
 required_capability: optional_fields_v5
 required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -2553,6 +2568,7 @@ sample_data    | 8268153
 
 typeConflictLongDateUnmappedWhereWithCastToDate
 required_capability: optional_fields_v5
+skip_columnar: LOAD of unmapped @timestamp from no_mapping_sample_data returns null in columnar mode; WHERE filter discards all rows
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
@@ -3380,6 +3396,7 @@ c:long | _index:keyword
 // All fields are keyword, so they are loaded via PotentiallyUnmappedKeywordEsField.
 deeplyNestedSubfieldPartiallyUnmappedKeyword
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index
@@ -3399,6 +3416,7 @@ addresses_no_continent  | Tokyo             | Japan                        | Asi
 // Cast city.country.continent.planet.name (keyword, 5-level deep, partially unmapped) to keyword.
 deeplyNestedSubfieldPartiallyUnmappedCastToKeyword
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index
@@ -3420,6 +3438,7 @@ addresses_no_continent  | Tokyo             | Earth
 // from addresses_no_continent. It is loaded via PotentiallyUnmappedKeywordEsField from both indices.
 deeplyNestedSubfieldUnderPartiallyUnmappedParent
 required_capability: optional_fields_v5
+skip_columnar: LOAD of partially unmapped fields returns null in columnar mode (synthetic _source cannot reconstruct unmapped fields from doc values)
 
 SET unmapped_fields="load"\;
 FROM addresses, addresses_no_continent METADATA _index

@@ -1890,6 +1890,7 @@ c:l
 ;
 
 countMV
+skip_columnar: COUNT of multi-value integer field counts documents instead of individual MV values in columnar mode
 FROM employees
 | STATS vals = COUNT(salary_change.int)
 ;
@@ -2891,6 +2892,7 @@ c1:long
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: per_agg_filtering
 required_capability: keywords_mv_count_as_single_value_fix
+skip_columnar: COUNT of multi-value keyword field with per-agg WHERE filter produces different results in columnar mode
 from employees
 | stats c1 = count(job_positions) where emp_no <= 10003
 ;

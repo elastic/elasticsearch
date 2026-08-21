@@ -30,6 +30,7 @@ completion after a search
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: routing_function_update
+skip_columnar: completion field type cannot be reconstructed from doc values in columnar mode (Lucene completion suggester stores opaque binary data incompatible with synthetic _source)
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -48,6 +49,7 @@ completion using a function as a prompt
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: routing_function_update
+skip_columnar: completion field type cannot be reconstructed from doc values in columnar mode (Lucene completion suggester stores opaque binary data incompatible with synthetic _source)
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"

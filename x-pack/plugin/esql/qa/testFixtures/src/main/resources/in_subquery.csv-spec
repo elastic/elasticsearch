@@ -4688,3 +4688,65 @@ ROW a = 10001
 a:integer | m:boolean
 10001     | true
 ;
+
+// ---- EVAL IN subquery: name-collision flush correctness ----
+
+evalInSubqueryNameCollisionFlushesInterveningAlias
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// The third field reuses alias `a`. The resolver must flush Eval[a=emp_no+10000, z=a*2] before
+// stacking the MarkJoin, so that `z` can correctly reference the original `a`. The final `a` is
+// the IN result; `z` uses the intermediate value emp_no+10000 (not the overwritten mark).
+FROM employees
+| EVAL a = emp_no + 10000, z = a * 2, a = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, z, a
+;
+
+emp_no:integer | z:integer | a:boolean
+10001          | 40002     | true
+10002          | 40004     | true
+10003          | 40006     | true
+;
+
+evalInSubqueryNameCollisionNoInterveningField
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// Simple name collision: the second definition of `a` overwrites the first with an IN result.
+// The original `a = emp_no + 10000` must still be flushed (not lost), though nothing depends on it.
+FROM employees
+| EVAL a = emp_no + 10000, a = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, a
+;
+
+emp_no:integer | a:boolean
+10001          | true
+10002          | true
+10003          | true
+;
+
+evalInSubqueryNameCollisionBothInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// Both `a` definitions use InSubquery. The second must flush the first before stacking its MarkJoin.
+// The final `a` is the result of the second IN (emp_no in the bottom-3 by emp_no: 10098, 10099, 10100),
+// so rows 10001-10003 produce false.
+FROM employees
+| EVAL a = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+       a = emp_no IN (FROM employees | SORT emp_no DESC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, a
+;
+
+emp_no:integer | a:boolean
+10001          | false
+10002          | false
+10003          | false
+;

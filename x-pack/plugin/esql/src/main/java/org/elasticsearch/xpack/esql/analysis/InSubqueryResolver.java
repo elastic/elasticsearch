@@ -258,10 +258,12 @@ public class InSubqueryResolver {
 
             changed = true;
 
-            // Flush accumulated fields below the MarkJoin(s) only when a mark's left field references an alias produced by a preceding
-            // field. This makes the LHS attribute available below the join, e.g. for: EVAL a = emp_no + 1, b = a IN (sub), without the
-            // flush, `a` would not exist below the MarkJoin.
-            if (pending.isEmpty() == false && referencesPendingName(fieldMarks, pending.keySet())) {
+            // Flush accumulated fields below the MarkJoin(s) when either:
+            // (a) a mark's left field references an alias produced by a preceding field (e.g. EVAL a = x+1, b = a IN (sub)), or
+            // (b) this field's name collides with an existing pending entry (e.g. EVAL a = 1, z = a+1, a = y IN (sub)) —
+            // without the flush, pending.put() would silently overwrite the prior alias, losing its NameId from the plan
+            // while other pending fields still reference it, producing dangling references.
+            if (pending.isEmpty() == false && (referencesPendingName(fieldMarks, pending.keySet()) || pending.containsKey(field.name()))) {
                 current = new Eval(eval.source(), current, new ArrayList<>(pending.values()));
                 pending = new LinkedHashMap<>();
             }

@@ -944,4 +944,30 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                )
             """, STAGES);
     }
+
+    // -- EVAL IN subquery: name-collision flush --
+
+    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+        assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 10000, z = a * 2, a = salary IN (FROM employees | KEEP salary)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalNameCollisionNoInterveningField() {
+        assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 10000, a = salary IN (FROM employees | KEEP salary)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalNameCollisionBothInSubquery() {
+        assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no IN (FROM employees | KEEP emp_no), a = salary IN (FROM employees | KEEP salary)
+            """, STAGES);
+    }
 }

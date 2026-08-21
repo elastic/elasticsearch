@@ -14,8 +14,10 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.sourcebatch.MappedColumns;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -233,14 +236,41 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return context.indexSettings().getIndexVersionCreated();
     }
 
+    private static final IndexableFieldType TSID_DV_INDEXED_FIELD_TYPE = SortedDocValuesField.indexedField("", new BytesRef()).fieldType();
+    private static final IndexableFieldType TSID_DV_FIELD_TYPE = new SortedDocValuesField("", new BytesRef()).fieldType();
+
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // TODO(columnar-tsdb): implement preColumnarParse for _tsid. Modern indices (on/after
-        // TIME_SERIES_ID_HASHING) have _tsid already computed on the coordinating node and
-        // available via IndexRequest#tsid(), so no per-document dimension-field parsing is needed.
-        // Also note: postParse copies _tsid into nested documents (addSyntheticIdFieldsToNestedDocs)
-        // which requires columnar nested-doc support before it can be ported.
-        return false;
+        // Support only the modern coordinator-tsid world:
+        // - TIME_SERIES_ROUTING_HASH_IN_ID: routing hash is in _id, so routingBuilder is null in
+        // createField and routing() on SourceToParse carries the pre-computed hash. This also
+        // implies TIME_SERIES_ID_HASHING (8_504 >= 8_502) which excludes the legacy buildLegacyTsid branch.
+        // - ForIndexDimensions: the coordinator computes _tsid and stashes it via IndexRequest#tsid().
+        // The ForRoutingPath / RoutingPathFields path needs per-document dimension extraction and
+        // cannot be driven from the coordinated tsid alone — it stays on the row path.
+        // Nested document propagation (addSyntheticIdFieldsToNestedDocs) is not yet supported columnar;
+        // ShardBatchMapper.resolveMappers refuses nested mappings, so this branch is unreachable today.
+        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+            && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions;
+    }
+
+    @Override
+    public void postColumnarParse(BatchMappingContext context) throws IOException {
+        super.postColumnarParse(context);
+        final BytesRef[] tsids = context.tsids();
+        assert tsids != null : "_tsid array must be non-null for columnar batch indexing on time_series indices";
+
+        // Emit the _tsid doc-values column, mirroring the SortedDocValuesField added in postParse.
+        final IndexableFieldType tsidFieldType = useDocValuesSkipper ? TSID_DV_INDEXED_FIELD_TYPE : TSID_DV_FIELD_TYPE;
+        context.addColumn(MappedColumns.binaryColumn(tsids, fieldType().name(), tsidFieldType));
+
+        // Derive and emit the _id column. TimeSeriesIdFieldMapper owns this on the row path too
+        // (via postParse → TsidExtractingIdFieldMapper.createField); we mirror that ownership here.
+        TsidExtractingIdFieldMapper.createColumns(context, tsids);
+
+        // TODO(columnar-tsdb): propagate _tsid/_id to nested documents (addSyntheticIdFieldsToNestedDocs).
+        // ShardBatchMapper.resolveMappers currently refuses any mapping with nested objects,
+        // so this is unreachable today.
     }
 
     @Override

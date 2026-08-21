@@ -766,7 +766,7 @@ public class BooleanFieldMapper extends FieldMapper {
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
         // but are not rejected here — they fall back per document at parse time.
-        return indexSettings.getMode().isStrictColumnar()
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
             && stored == false
             && hasScript() == false

@@ -1503,11 +1503,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             batchReady = false;
             counters.addRowsEmitted(batch.size);
-            // Emit only after the batch is confirmed loaded (hasNext() already called
-            // rows.nextBatch): if the stripe read threw, no data was produced and the
-            // absent-column context would be misleading.
+            // Build the page first: if convertToPage() throws (e.g. corrupt data), no data
+            // was produced so the absent-column warning would be misleading. Emit only after
+            // the page is fully built — mirrors ParquetColumnIterator's contract.
+            Page page = convertToPage();
             emitAbsentColumnWarningsOnce();
-            return convertToPage();
+            return page;
         }
 
         private Page convertToPage() {

@@ -231,7 +231,7 @@ public class ReplicationGroupGlobalCheckpointRaceTests extends ESIndexLevelRepli
             assertThat(
                 "global checkpoint forwarded to replica must be the pre-kick value (≤ replica's local checkpoint of 4)",
                 capturedGlobalCheckpointForReplica.get(),
-                lessThanOrEqualTo(replicaShard.getLocalCheckpoint())
+                equalTo(4L)
             );
 
             group.removeReplica(replicaShard);

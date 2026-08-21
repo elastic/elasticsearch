@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.stateless;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -28,18 +31,23 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
+import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTestCase {
@@ -286,5 +294,169 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
             assertNoFailures(searchResponse);
             assertEquals(2000, searchResponse.getHits().getTotalHits().value());
         });
+    }
+
+    /// Reproduces the bug where `registerVirtualBccForUnpromotableRecovery` returns a commit whose generation
+    /// exceeds `maxGenerationToUpload` while the old primary is in RELOCATING state.
+    ///
+    /// The sequence:
+    ///
+    /// 1. Old primary enters RELOCATING (`maxGenerationToUpload = M`).
+    /// 2. A force merge on the old node creates gen `M+1`. Upload is paused (`M+1 > maxGenerationToUpload`).
+    /// 3. A recovering search shard registers with the old primary and receives gen `M+1` pending-upload commit.
+    /// 4. The old node hands off to the new primary and never uploads `stateless_commit_{M+1}`.
+    /// 5. The new primary flushes after the handoff and uploads `stateless_commit_{M+1}` with different segment content.
+    /// 6. The search shard reads LAYOUT_A byte ranges from the new node LAYOUT_B blob -> `CorruptIndexException`.
+    public void testSearchShardBootstrappedWithStalePendingCommitFromRelocatingPrimary() throws Exception {
+        final Settings indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
+            .build();
+
+        final var oldIndexNode = startMasterAndIndexNode(indexNodeSettings);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        indexDocs(indexName, 1_000);
+        flush(indexName);
+        indexDocs(indexName, 1_000);
+        flush(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var sourceShard = findIndexShard(index, 0, oldIndexNode);
+        final var newIndexNode = startIndexNode(indexNodeSettings);
+
+        // Intercept commit registration on the old node. Pause before calling the handler so that a
+        // force merge can run first, then capture the generation the handler returns to the search shard.
+        final var pauseRegistration = new CountDownLatch(1);
+        final var resumeRegistration = new CountDownLatch(1);
+        final var responseCaptured = new CountDownLatch(1);
+        final var resumeResponse = new CountDownLatch(1);
+        final var capturedResponseGen = new AtomicLong(Long.MIN_VALUE);
+        MockTransportService.getInstance(oldIndexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                pauseRegistration.countDown();
+                safeAwait(resumeRegistration);
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        if (response instanceof RegisterCommitResponse rcr && rcr.getCompoundCommit() != null) {
+                            capturedResponseGen.set(rcr.getCompoundCommit().generation());
+                        }
+                        responseCaptured.countDown();
+                        safeAwait(resumeResponse);
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        fail("unexpected exception");
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+                }, task);
+            });
+
+        // Intercept the relocation handoff response on the new node. We pause the response so the old primary stays
+        // in RELOCATING long enough for us to trigger a force merge and a concurrent search-shard registration.
+        final var pauseHandoff = new CountDownLatch(1);
+        final var resumeHandoff = new CountDownLatch(1);
+        MockTransportService.getInstance(newIndexNode)
+            .addRequestHandlingBehavior(
+                PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        pauseHandoff.countDown();
+                        safeAwait(resumeHandoff);
+                        channel.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        pauseHandoff.countDown();
+                        safeAwait(resumeHandoff);
+                        channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+                }, task)
+            );
+
+        logger.info("--> moving index shard from {} to {}", oldIndexNode, newIndexNode);
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, oldIndexNode, newIndexNode));
+        logger.info("--> waiting for relocation handoff to be paused");
+        safeAwait(pauseHandoff);
+
+        // The old primary has now called markRelocating. maxGenerationToUpload equals the generation
+        // that was last flushed before markRelocating ran (the generation at the end of the source flush).
+        final long maxGenerationToUpload = sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        logger.info("--> captured maxGenerationToUpload={}", maxGenerationToUpload);
+
+        // Adding a search replica will trigger the search shard to register with the old primary.
+        // The registration interceptor above will pause it before the handler runs.
+        startSearchNode();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+
+        logger.info("--> waiting for search shard registration to reach the old indexing node");
+        safeAwait(pauseRegistration);
+
+        // Force merge on the old node while the registration is blocked.
+        // This creates a new Lucene generation (M+1) that exceeds maxGenerationToUpload.
+        // Because the shard is in RELOCATING state, the upload of that new VBCC is paused.
+        logger.info("--> triggering force merge on old node to create new commit (above maxGenerationToUpload)");
+        client(oldIndexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+        assertBusy(
+            () -> assertThat(
+                sourceShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(),
+                greaterThan(maxGenerationToUpload)
+            )
+        );
+
+        // Resume the registration. The handler now sees the new VBCC (gen > maxGenerationToUpload) that the old node
+        // will never upload.
+        logger.info("--> resuming search shard registration");
+        resumeRegistration.countDown();
+
+        safeAwait(responseCaptured);
+        logger.info(
+            "--> search shard received gen={} as pending upload (maxGenerationToUpload={}), resuming relocation handoff",
+            capturedResponseGen.get(),
+            maxGenerationToUpload
+        );
+        resumeHandoff.countDown();
+        resumeResponse.countDown();
+        awaitClusterState(clusterState -> {
+            final var routing = clusterState.routingTable(ProjectId.DEFAULT).index(index).shard(0);
+            logger.info("--> all shards " + Arrays.toString(routing.allShards().toArray()));
+            return routing.primaryShard().currentNodeId().equals(getNodeId(newIndexNode))
+                && routing.primaryShard().started()
+                && routing.allShards()
+                    .filter(shard -> shard.primary() == false)
+                    .anyMatch(shard -> shard.unassigned() && shard.unassignedInfo().failedAllocations() > 0);
+        });
+
+        logger.info("--> writing to the new primary");
+        indexDocs(indexName, 20, bulkRequest -> bulkRequest.setWaitForActiveShards(ActiveShardCount.NONE));
+        flushNoForceNoWait(indexName);
+
+        logger.info("--> triggering another search shard recovery");
+        ClusterRerouteUtils.rerouteRetryFailed(client());
+        ensureGreen(indexName);
+
+        fail("upload logs");
     }
 }

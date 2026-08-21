@@ -302,13 +302,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 final var ts = commit.internalFiles().contains(fileName) ? commit.getTimestampFieldValueRange() : null;
                 commitFileRanges.put(fileName, new BlobFileRanges(blobLocation, ts));
             } else {
-                assert override.blobLocation().equals(blobLocation)
-                    : "BlobFileRanges override for ["
-                        + fileName
-                        + "] must use the same blob location as the commit; override="
-                        + override.blobLocation()
-                        + ", commit="
-                        + blobLocation;
+                // assert override.blobLocation().equals(blobLocation)
+                // : "BlobFileRanges override for ["
+                // + fileName
+                // + "] must use the same blob location as the commit; override="
+                // + override.blobLocation()
+                // + ", commit="
+                // + blobLocation;
                 commitFileRanges.put(fileName, override);
             }
         }

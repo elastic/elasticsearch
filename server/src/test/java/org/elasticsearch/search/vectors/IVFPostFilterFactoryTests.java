@@ -56,15 +56,12 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     private static final BitSetProducer PARENTS = context -> null;
     private static final IvfQueryConfigResolver RESOLVER = IvfQueryConfigResolver.from(false, false, 4, 1.0f, null);
 
-    // Derivation for selectivity=0.5, k=10, numCands=20. The rescore oversample plays no part - the delegate's
-    // k is the filter oversample applied to the query's own k, and testDelegateKIgnoresTheRescoreOversample
-    // pins exactly that.
-    // zMargin = 2.5 * sqrt(10 * (1-0.5)/0.5) = 7.905
-    // delegateK = clamp(ceil((10 + 7.905)/0.5)=36, ceil(10*1.2)=12, NUM_CANDS_LIMIT) = 36
-    // scaledNumCands = clamp(ceil(20 * 36/10)=72, 36, NUM_CANDS_LIMIT) = 72
-    private static final float SELECTIVITY = 0.5f;
-    private static final int EXPECTED_SCALED_K = 36;
-    private static final int EXPECTED_SCALED_NUM_CANDS = 72;
+    // 0.7 is the low end of the range post-filtering actually runs in: it only engages once selectivity
+    // reaches the configured threshold, so a more selective filter never gets here.
+    // zMargin = 2.5 * sqrt(10 * (1-0.7)/0.7) = 5.175
+    private static final float SELECTIVITY = 0.7f;
+    private static final int EXPECTED_SCALED_K = 22; // clamp(ceil((10 + 5.175)/0.7)=22, ceil(10*1.2)=12, NUM_CANDS_LIMIT) = 22
+    private static final int EXPECTED_SCALED_NUM_CANDS = 44; // clamp(ceil(20 * 22/10)=44, 22, NUM_CANDS_LIMIT) = 44
 
     private IVFKnnFloatVectorQuery plain() {
         return new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, RESOLVER);
@@ -140,13 +137,13 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         return new TermQuery(new Term("tag", "pass"));
     }
 
-    private static Query delegateOf(AbstractIVFKnnVectorQuery original, float selectivity) {
+    private static Query postFilterDelegateFor(AbstractIVFKnnVectorQuery original, float selectivity) {
         return original.createPostFilterDelegate(selectivity);
     }
 
     public void testCreatePostFilterDelegateIsFilterlessAndScaled() {
         for (IVFKnnFloatVectorQuery original : allFloatSubtypes()) {
-            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, SELECTIVITY);
+            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
 
             assertSame("delegate must be the same concrete type", original.getClass(), delegate.getClass());
             assertNull("post-filter delegate must be filterless", delegate.filter);
@@ -159,7 +156,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     /** The byte subtree must respawn as byte, with the same sizing as float. */
     public void testCreatePostFilterDelegateForByteSubtypes() {
         for (IVFKnnByteVectorQuery original : allByteSubtypes()) {
-            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, SELECTIVITY);
+            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
 
             assertSame("delegate must be the same concrete type", original.getClass(), delegate.getClass());
             assertNull(delegate.filter);
@@ -173,9 +170,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
     /**
      * With no leaf to resolve, {@code postFilterCandidatePoolSize} falls back to what configuration declares - the
-     * query-time override if there is one, otherwise the mapping default. Unreachable in production (a query
-     * with no segments carrying the field never gets this far), but it is the value the whole precedence chain
-     * rests on, so it is pinned here rather than behind an index.
+     * query-time override if there is one, otherwise the mapping default
      */
     public void testCandidatePoolSizeFallsBackToDeclaredOversample() throws IOException {
         assertEquals("oversample 1.0 -> pool is k", K, plain().postFilterCandidatePoolSize(List.of()));
@@ -197,16 +192,6 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         assertEquals("query-time oversample wins", 20, overridden.postFilterCandidatePoolSize(List.of()));
     }
 
-    /**
-     * A calibrated segment persists its own rescore oversample, and {@code postFilterCandidatePoolSize} must report
-     * <em>that</em> rather than the mapping default: the pool it returns becomes the orchestrator's cut, and
-     * the cut is what {@code finalizeTopK} exact-rescores. Sizing it from the declared value makes a filtered
-     * query rescore {@code k * declared} deep while the same query without a filter rescores
-     * {@code k * calibrated} - and calibration deliberately picks the cheapest depth that meets target recall,
-     * so declared is usually the larger of the two.
-     * <p>
-     * declared 3.0, segment 1.5, k=10: the pool is ceil(10*1.5)=15, not ceil(10*3.0)=30.
-     */
     public void testCandidatePoolSizePrefersTheSegmentOversample() throws IOException {
         IvfQueryConfigResolver diverging = new TestIvfQueryConfigResolver(
             CentroidIndexFormat.FLAT,
@@ -230,16 +215,6 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         assertEquals("with nothing to resolve, configuration is all there is", 30, query.postFilterCandidatePoolSize(List.of()));
     }
 
-    /**
-     * The delegate's {@code k} is the filter oversample applied to the query's own {@code k}, and nothing
-     * else: the rescore oversample must not enter into it. The query already expands a {@code k} into per-leaf
-     * collector budgets and a shard merge by itself ({@code IvfSegmentConfig}), and it does that off whatever
-     * {@code k} it is handed - so the post-filter layer neither multiplies by the oversample nor divides it
-     * back out. Two resolvers that differ only in oversample must therefore produce identical delegates.
-     * <p>
-     * k=10, numCands=20, selectivity=0.9: zMargin=2.5*sqrt(10*0.1/0.9)=2.635,
-     * delegateK=clamp(ceil(12.635/0.9)=15, 12, LIMIT)=15, numCands=ceil(20*15/10)=30.
-     */
     public void testDelegateKIgnoresTheRescoreOversample() {
         int[] kPerOversample = new int[2];
         int[] numCandsPerOversample = new int[2];
@@ -255,7 +230,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 VISIT_RATIO,
                 resolver
             );
-            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, 0.9f);
+            AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(original, 0.9f);
             kPerOversample[i] = delegate.k();
             numCandsPerOversample[i] = delegate.numCands();
         }
@@ -267,17 +242,12 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
     public void testCreatePostFilterDelegatePreservesSliceRange() {
         for (IVFKnnFloatSlicedVectorQuery original : Arrays.asList(sliced(), diversifyingSliced())) {
-            IVFKnnFloatSlicedVectorQuery delegate = (IVFKnnFloatSlicedVectorQuery) delegateOf(original, SELECTIVITY);
+            IVFKnnFloatSlicedVectorQuery delegate = (IVFKnnFloatSlicedVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
             assertEquals(SLICE_FIELD, delegate.sliceField);
             assertArrayEquals(new BytesRef[] { SLICE_ID }, delegate.sliceIds);
         }
     }
 
-    /**
-     * A respawn differs from the original only in filter, k, numCands and the delegate flag - every other
-     * field {@code equals} compares (vector, visit ratio, resolver, slice ids, parents filter) must survive.
-     * Comparing whole queries catches a {@code withParams} that silently drops one of them.
-     */
     public void testWithParamsRoundTripsToAnEqualQuery() {
         for (IVFKnnFloatVectorQuery original : allFloatSubtypes()) {
             IVFKnnFloatVectorQuery respawn = original.withParams(original.filter, original.k(), original.numCands(), false);
@@ -299,13 +269,9 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         assertNotEquals(original.hashCode(), asDelegate.hashCode());
     }
 
-    /**
-     * The query vector is carried by reference: nothing mutates it (preconditioning writes into a fresh
-     * array per segment), so cloning on every respawn would be pure copying.
-     */
     public void testRespawnCarriesTheSameVectorInstance() {
         for (IVFKnnFloatVectorQuery original : allFloatSubtypes()) {
-            IVFKnnFloatVectorQuery delegate = (IVFKnnFloatVectorQuery) delegateOf(original, SELECTIVITY);
+            IVFKnnFloatVectorQuery delegate = (IVFKnnFloatVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
             assertArrayEquals(QUERY, delegate.getQuery(), 0f);
             assertSame(original.getQuery(), delegate.getQuery());
         }
@@ -316,11 +282,6 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         assertEquals(0, candidates.length);
     }
 
-    /**
-     * The retry asks for fewer docs, so numCands must shrink with it: for IVF the numCands/k ratio is the
-     * codec's visit-ratio signal, and keeping the full numCands would make a 3-doc retry explore harder
-     * than round 0 did. remainingK=3, k=10, numCands=20 -> ceil(20*3/10) = 6.
-     */
     public void testCreateRetryQueryExcludesDocsAndScalesNumCandsDown() throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
@@ -333,7 +294,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 int remainingK = 3;
                 for (IVFKnnFloatVectorQuery original : allFloatSubtypes()) {
                     // Retries always come off a delegate, never off the user's query - see createRetryQuery.
-                    AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, SELECTIVITY);
+                    AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
                     AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                         reader,
                         excluded,
@@ -359,7 +320,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 IVFKnnFloatVectorQuery original = new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, K, filter(), VISIT_RATIO, RESOLVER);
-                AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(original, SELECTIVITY);
+                AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(original, SELECTIVITY);
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],
@@ -378,7 +339,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                 w.addDocument(new Document());
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) delegateOf(plain(), SELECTIVITY);
+                AbstractIVFKnnVectorQuery delegate = (AbstractIVFKnnVectorQuery) postFilterDelegateFor(plain(), SELECTIVITY);
                 AbstractIVFKnnVectorQuery retry = (AbstractIVFKnnVectorQuery) delegate.createRetryQuery(
                     reader,
                     new int[0],

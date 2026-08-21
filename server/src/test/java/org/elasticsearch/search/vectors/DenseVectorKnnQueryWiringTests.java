@@ -30,15 +30,6 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Pins how {@code DenseVectorFieldType#createKnnQuery} wires {@code k} and {@code numCands} into the query
  * tree, which differs by engine and is easy to get wrong in a way no search-result assertion would catch.
- * <p>
- * HNSW is oversampled <em>by the caller</em>: its query is built with {@code ceil(k * oversample)} and an
- * outer {@link RescoreKnnVectorQuery} reduces that pool to {@code k}. IVF oversamples <em>itself</em>, from
- * the per-segment rescore factor - and does so whether or not {@code auto_calibrate} is on, because
- * {@code IvfQueryConfigResolver#resolve} falls through a non-finite persisted value to the mapping default.
- * So IVF must be built with the user's {@code k}; handing it the oversampled value applies the factor twice -
- * tripling the per-leaf collector and, because IVF derives its visit ratio from {@code numCands/k}, shrinking
- * how much of each segment it scans. Neither effect is visible in a correctness assertion, only in recall and
- * latency, which is why it is pinned here.
  */
 public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
@@ -46,6 +37,11 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
     private static final int K = 10;
     private static final int NUM_CANDS = 100;
     private static final float OVERSAMPLE = 3.0f;
+
+    // The threshold post-filtering is gated on: it engages only once the estimated filter selectivity reaches
+    // this, so 0.7 is the shipped operating point and 1.0 leaves post-filtering off entirely.
+    private static final float POST_FILTER_ENABLED = 0.7f;
+    private static final float POST_FILTER_OFF = 1.0f;
 
     private static DenseVectorFieldType bbqIvfField(boolean autoCalibrate, float postFilterThreshold) {
         return new DenseVectorFieldType(
@@ -94,7 +90,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * {@code k}. {@code numCands} is widened to at least the rescore pool so the pool is reachable.
      */
     public void testBbqIvfKeepsFinalKUnderMappingOversample() throws IOException {
-        Query query = knnQuery(bbqIvfField(false, 1.0f), null, null);
+        Query query = knnQuery(bbqIvfField(false, POST_FILTER_OFF), null, null);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
@@ -113,7 +109,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     /** A query-time oversample overrides the mapping's, and still must not reach IVF's {@code k}. */
     public void testBbqIvfKeepsFinalKUnderQueryOversample() throws IOException {
-        Query query = knnQuery(bbqIvfField(false, 1.0f), null, 5.0f);
+        Query query = knnQuery(bbqIvfField(false, POST_FILTER_OFF), null, 5.0f);
 
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
         IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) rescore.innerQuery();
@@ -128,7 +124,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * that value is what {@code numCands/k} is calibrated against.
      */
     public void testBbqIvfAutoCalibrateHasNoOuterRescore() {
-        Query query = knnQuery(bbqIvfField(true, 1.0f), null, null);
+        Query query = knnQuery(bbqIvfField(true, POST_FILTER_OFF), null, null);
 
         assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
         IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) query;
@@ -143,7 +139,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * most queries down the fallback path.
      */
     public void testPostFilterWrapperTargetsFinalK() {
-        Query query = knnQuery(bbqIvfField(false, 0.5f), new TermQuery(new Term("tag", "a")), null);
+        Query query = knnQuery(bbqIvfField(false, POST_FILTER_ENABLED), new TermQuery(new Term("tag", "a")), null);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
@@ -160,7 +156,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * post-filter wrapper is built for them.
      */
     public void testNestedFieldsAreNotPostFiltered() {
-        Query query = bbqIvfField(false, 0.5f).createKnnQuery(
+        Query query = bbqIvfField(false, POST_FILTER_ENABLED).createKnnQuery(
             VectorData.fromFloats(new float[DIMS]),
             K,
             NUM_CANDS,
@@ -181,7 +177,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     /** A dormant threshold (the default 1.0) must not build a wrapper even with a filter present. */
     public void testDormantThresholdBuildsNoWrapper() {
-        Query query = knnQuery(bbqIvfField(false, 1.0f), new TermQuery(new Term("tag", "a")), null);
+        Query query = knnQuery(bbqIvfField(false, POST_FILTER_OFF), new TermQuery(new Term("tag", "a")), null);
 
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
         assertThat(inner, instanceOf(IVFKnnFloatVectorQuery.class));

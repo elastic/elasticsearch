@@ -209,11 +209,14 @@ public class StringColumnTests extends ColumnarStringTestCase {
         }
         assertColumn(shortValues);
 
-        final BytesRef[] longValues = new BytesRef[between(300, 1500)];
-        for (int d = 0; d < longValues.length; d++) {
-            longValues[d] = new BytesRef(randomAlphaOfLengthBetween(200, 400));
+        // Packed at each of the widths a length can take: one byte below 256, two below 65536, four above.
+        for (int[] range : new int[][] { { 32, 255 }, { 256, 900 }, { 66_000, 66_200 } }) {
+            final BytesRef[] longValues = new BytesRef[range[0] > 1000 ? between(4, 20) : between(300, 1500)];
+            for (int d = 0; d < longValues.length; d++) {
+                longValues[d] = new BytesRef(randomAlphaOfLengthBetween(range[0], range[1]));
+            }
+            assertColumn(longValues);
         }
-        assertColumn(longValues);
 
         final BytesRef[] mixed = new BytesRef[between(300, 1500)];
         for (int d = 0; d < mixed.length; d++) {

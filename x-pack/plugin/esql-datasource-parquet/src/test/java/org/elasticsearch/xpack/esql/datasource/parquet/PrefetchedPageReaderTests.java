@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DataPage;
@@ -39,13 +38,11 @@ public class PrefetchedPageReaderTests extends ESTestCase {
 
     private PlainCompressionCodecFactory codecFactory;
     private BlockFactory blockFactory;
-    private BufferAllocator allocator;
 
     @Before
     public void initCodecAndAllocator() {
         codecFactory = new PlainCompressionCodecFactory();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
     }
 
     @After
@@ -112,8 +109,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.GZIP), // codec must not be invoked
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                 null,
                 8
@@ -157,8 +153,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             try (
                 PrefetchedPageReader reader = new PrefetchedPageReader(
                     codecFactory.getDecompressor(codec),
-                    allocator,
-                    blockFactory.directBufferPool(),
+                    blockFactory.directBuffers(),
                     List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                     null,
                     10
@@ -199,8 +194,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -243,8 +237,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -264,8 +257,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(),
                 compressedDict,
                 0
@@ -293,8 +285,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.SNAPPY),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(),
                 compressedDict,
                 0
@@ -313,8 +304,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(),
                 null,
                 0
@@ -328,8 +318,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(),
                 null,
                 0
@@ -343,8 +332,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(),
                 null,
                 12345L
@@ -372,8 +360,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(new PrefetchedPageReader.CompressedPage(v1, 42L)),
                 null,
                 5
@@ -405,8 +392,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 decompressor,
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -450,8 +436,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 decompressor,
-                allocator,
-                blockFactory.directBufferPool(),
+                blockFactory.directBuffers(),
                 List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                 null,
                 10

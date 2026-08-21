@@ -155,7 +155,7 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
                 page.releaseBlocks();
             }
         }
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("breaker must return to zero after random-order release", 0, breaker.getUsed());
     }
 
@@ -186,7 +186,7 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
             }
         }
         assertEquals(numRows, totalRows);
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("breaker must return to zero — a leaked cached BytesRefArray would show here", 0, breaker.getUsed());
     }
 
@@ -254,7 +254,7 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
             consumer.shutdown();
             assertTrue("consumer did not terminate", consumer.awaitTermination(10, TimeUnit.SECONDS));
         }
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("breaker must return to zero across all cross-driver iterations", 0, breaker.getUsed());
     }
 

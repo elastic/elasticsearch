@@ -17,6 +17,7 @@ import org.apache.parquet.column.statistics.IntStatistics;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.compute.data.arrow.DirectBufferPool;
+import org.elasticsearch.compute.data.arrow.DirectBuffers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -85,8 +86,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
-                allocator,
-                pool,
+                new DirectBuffers(allocator, pool),
                 fixture.pages,
                 null,
                 valueCount(sizes)
@@ -124,8 +124,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
-                allocator,
-                pool,
+                new DirectBuffers(allocator, pool),
                 fixture.pages,
                 null,
                 valueCount(sizes)
@@ -176,8 +175,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 fixture.codecFactory.getDecompressor(fixture.codec),
-                allocator,
-                pool,
+                new DirectBuffers(allocator, pool),
                 fixture.pages,
                 null,
                 (long) PAGE_PAYLOAD_BYTES * PAGES
@@ -251,8 +249,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
     private static void drainReader(DirectPagesFixture fixture, RootAllocator allocator, DirectBufferPool pool) throws IOException {
         PrefetchedPageReader reader = new PrefetchedPageReader(
             fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
-            allocator,
-            pool,
+            new DirectBuffers(allocator, pool),
             fixture.pages,
             null,
             valueCount(new int[] { PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES })

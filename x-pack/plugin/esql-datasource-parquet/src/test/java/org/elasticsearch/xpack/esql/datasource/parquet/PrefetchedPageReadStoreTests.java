@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -39,13 +38,11 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
 
     private PlainCompressionCodecFactory codecFactory;
     private BlockFactory blockFactory;
-    private BufferAllocator allocator;
 
     @Before
     public void initCodecAndAllocator() {
         codecFactory = new PlainCompressionCodecFactory();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
     }
 
     @After
@@ -72,8 +69,7 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(payload), payload.length, 4, Encoding.PLAIN);
         PrefetchedPageReader reader = new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-            allocator,
-            blockFactory.directBufferPool(),
+            blockFactory.directBuffers(),
             List.of(),
             compressedDict,
             0
@@ -115,8 +111,7 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         );
         return new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-            allocator,
-            blockFactory.directBufferPool(),
+            blockFactory.directBuffers(),
             List.of(new PrefetchedPageReader.CompressedPage(page, -1L)),
             null,
             valueCount

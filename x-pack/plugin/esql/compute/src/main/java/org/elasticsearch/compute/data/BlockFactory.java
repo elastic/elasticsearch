@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 import org.elasticsearch.compute.data.arrow.DirectBufferAllocationManager;
 import org.elasticsearch.compute.data.arrow.DirectBufferPool;
+import org.elasticsearch.compute.data.arrow.DirectBuffers;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -53,6 +54,7 @@ public class BlockFactory {
     private final double bytesRefRamOverestimateFactor;
     protected volatile BufferAllocator arrowAllocator;
     protected volatile DirectBufferPool directBufferPool;
+    protected volatile DirectBuffers directBuffers;
     private static final Cleaner cleaner = Cleaner.create();
 
     /**
@@ -114,6 +116,7 @@ public class BlockFactory {
                         });
                         directBufferPool = pool;
                         arrowAllocator = allocator;
+                        directBuffers = new DirectBuffers(allocator, pool);
                     } else {
                         arrowAllocator = childFactoryAllocator();
                     }
@@ -139,7 +142,20 @@ public class BlockFactory {
             return parent.directBufferPool();
         }
         arrowAllocator();
-        return directBufferPool;
+        return this.directBufferPool;
+    }
+
+    /**
+     * Allocator and decompress-buffer pool as one object. Use this wherever both are required;
+     * {@link #arrowAllocator()} stays for allocator-only call sites (prefetch, storage windows).
+     * Child factories pair their own allocator with the shared root pool.
+     */
+    public DirectBuffers directBuffers() {
+        if (parent != null) {
+            return new DirectBuffers(arrowAllocator(), parent.directBufferPool());
+        }
+        arrowAllocator();
+        return this.directBuffers;
     }
 
     // For testing

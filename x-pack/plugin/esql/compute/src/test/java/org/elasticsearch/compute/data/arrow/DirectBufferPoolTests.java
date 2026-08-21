@@ -132,4 +132,19 @@ public class DirectBufferPoolTests extends ESTestCase {
             assertEquals(0L, allocator.getAllocatedMemory());
         }
     }
+
+    public void testDirectBuffersDelegatesBorrowAndRelease() {
+        DirectBufferPool pool = new DirectBufferPool();
+        try (var allocator = DirectBufferAllocationManager.createRootAllocator(AllocationListener.NOOP, Long.MAX_VALUE)) {
+            DirectBuffers buffers = new DirectBuffers(allocator, pool);
+            ArrowBuf first = buffers.borrow(64);
+            buffers.returnBuf(first);
+            ArrowBuf second = buffers.borrow(64);
+            assertThat(second, sameInstance(first));
+            buffers.returnBuf(second);
+            buffers.releaseIdle();
+            assertEquals(0L, allocator.getAllocatedMemory());
+            pool.close();
+        }
+    }
 }

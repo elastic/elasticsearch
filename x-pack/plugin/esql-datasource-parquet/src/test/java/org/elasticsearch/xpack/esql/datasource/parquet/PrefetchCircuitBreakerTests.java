@@ -78,7 +78,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
         }
         assertTrue("Should have read rows", totalRows > 0);
         assertTrue("Breaker should have been used for prefetch", breaker.peakUsed.get() > 0);
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero after iteration", 0, breaker.getUsed());
     }
 
@@ -108,7 +108,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 }
             }
         }
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
     }
 
@@ -131,7 +131,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
         }
         assertTrue("Should have read rows via sync fallback", totalRows > 0);
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero after iteration with failures", 0, breaker.getUsed());
     }
 
@@ -154,7 +154,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
         }
         assertTrue("Should have read rows", totalRows > 0);
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero", 0, breaker.getUsed());
         // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the
         // peak includes the window. Prefetch and decode allocations are still bounded by parquetData.length.
@@ -180,7 +180,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 page.releaseBlocks();
             }
         }
-        blockFactory.directBufferPool().releaseIdle();
+        blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero after early close", 0, breaker.getUsed());
     }
 
@@ -215,7 +215,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
             assertTrue("Should have read rows", totalRows > 0);
         });
-        pipeline.blockFactory.directBufferPool().releaseIdle();
+        pipeline.blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero after concurrent readers finish", 0, pipeline.breaker.getUsed());
         assertEquals(
             "Arrow allocator should return to baseline after concurrent readers finish",
@@ -254,7 +254,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                 throw new AssertionError(e);
             }
         });
-        pipeline.blockFactory.directBufferPool().releaseIdle();
+        pipeline.blockFactory.directBuffers().releaseIdle();
         assertEquals("Breaker should return to zero after concurrent early close", 0, pipeline.breaker.getUsed());
         assertEquals(
             "Arrow allocator should return to baseline after concurrent early close",

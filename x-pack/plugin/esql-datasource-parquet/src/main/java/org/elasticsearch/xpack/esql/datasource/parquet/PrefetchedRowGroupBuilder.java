@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -31,7 +30,7 @@ import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.compute.data.arrow.DirectBufferPool;
+import org.elasticsearch.compute.data.arrow.DirectBuffers;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -95,11 +94,9 @@ final class PrefetchedRowGroupBuilder {
      *            or when an individual column lacks an offset index in the filtered path
      * @param codecFactory shared {@link PlainCompressionCodecFactory} used to build per-column
      *            decompressors
-     * @param allocator Arrow allocator used by {@link PrefetchedPageReader} to back native
-     *            decompression buffers; allocations are breaker-accounted via
+     * @param buffers Arrow allocator plus the node-lifetime decompress pool used by
+     *            {@link PrefetchedPageReader}; allocations are breaker-accounted via
      *            {@code BlockFactory.arrowAllocator()}'s {@code CircuitBreakerAllocationListener}
-     * @param decompBufferPool node-lifetime pool of decompress {@link org.apache.arrow.memory.ArrowBuf}s;
-     *            readers borrow on first page and return on close so the next query does not malloc
      */
     static PrefetchedPageReadStore build(
         BlockMetaData block,
@@ -111,8 +108,7 @@ final class PrefetchedRowGroupBuilder {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks,
         StorageObject storageObject,
         CompressionCodecFactory codecFactory,
-        BufferAllocator allocator,
-        DirectBufferPool decompBufferPool
+        DirectBuffers buffers
     ) {
         Map<String, ColumnDescriptor> descriptorsByPath = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
@@ -159,12 +155,11 @@ final class PrefetchedRowGroupBuilder {
                         source,
                         block.getRowCount(),
                         decompressor,
-                        allocator,
-                        decompBufferPool,
+                        buffers,
                         rowGroupOrdinal
                     );
                 } else {
-                    reader = buildSequential(column, primitiveType, source, decompressor, allocator, decompBufferPool, rowGroupOrdinal);
+                    reader = buildSequential(column, primitiveType, source, decompressor, buffers, rowGroupOrdinal);
                 }
                 readers.put(descriptor, reader);
             }
@@ -204,8 +199,7 @@ final class PrefetchedRowGroupBuilder {
         ColumnPageBytesSource source,
         long rowGroupRowCount,
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
-        DirectBufferPool decompBufferPool,
+        DirectBuffers buffers,
         int rowGroupOrdinal
     ) {
         DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
@@ -235,7 +229,7 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, allocator, decompBufferPool, pages, dictPage, valueCount);
+        return new PrefetchedPageReader(decompressor, buffers, pages, dictPage, valueCount);
     }
 
     /**
@@ -248,8 +242,7 @@ final class PrefetchedRowGroupBuilder {
         PrimitiveType primitiveType,
         ColumnPageBytesSource source,
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
-        DirectBufferPool decompBufferPool,
+        DirectBuffers buffers,
         int rowGroupOrdinal
     ) {
         long startingPos = column.getStartingPos();
@@ -289,7 +282,7 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, allocator, decompBufferPool, pages, dictPage, valueCount);
+            return new PrefetchedPageReader(decompressor, buffers, pages, dictPage, valueCount);
         } catch (IOException e) {
             throw new IllegalArgumentException(
                 "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),

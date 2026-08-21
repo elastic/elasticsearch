@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
@@ -17,7 +16,7 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.io.ParquetDecodingException;
-import org.elasticsearch.compute.data.arrow.DirectBufferPool;
+import org.elasticsearch.compute.data.arrow.DirectBuffers;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -40,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * data portion decompressed). Encryption and CRC verification are not supported.
  *
  * <p>Decompression uses one reusable {@link ArrowBuf} borrowed from the supplied
- * {@link DirectBufferPool}, exposed via {@link ArrowBuf#nioBuffer(long, int)} for the
+ * {@link DirectBuffers}, exposed via {@link ArrowBuf#nioBuffer(long, int)} for the
  * direct-to-direct JNI fast path. {@link #readPage()} overwrites that buffer. It grows only
  * when a later page needs more capacity — breaker residency is the high-water-mark page, not
  * the current page — and is returned to the pool on {@link #close()} so the next query can
@@ -61,13 +60,12 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     record CompressedPage(DataPage page, long firstRowIndex) {}
 
     private final BytesInputDecompressor decompressor;
-    private final BufferAllocator allocator;
-    private final DirectBufferPool decompBufferPool;
+    private final DirectBuffers buffers;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
     private final DictionaryPage compressedDictionaryPage;
     // Reusable decompress-output buffer. Grown when a page needs more capacity; returned to
-    // decompBufferPool on close() so the next query reuses it. Overwritten in place across pages
+    // buffers.pool() on close() so the next query reuses it. Overwritten in place across pages
     // so we do not malloc/free per page — that churn is what retained glibc arenas after the
     // allocator balance had already returned to baseline.
     private ArrowBuf reusableDecompBuf;
@@ -80,15 +78,13 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
-        DirectBufferPool decompBufferPool,
+        DirectBuffers buffers,
         List<CompressedPage> compressedPages,
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
         this.decompressor = decompressor;
-        this.allocator = allocator;
-        this.decompBufferPool = Objects.requireNonNull(decompBufferPool, "decompBufferPool");
+        this.buffers = Objects.requireNonNull(buffers, "buffers");
         this.compressedPages = new ArrayDeque<>(compressedPages);
         this.compressedDictionaryPage = compressedDictionaryPage;
         this.valueCount = valueCount;
@@ -294,7 +290,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         ArrowBuf scratch = null;
         try {
             if (input.isDirect() == false) {
-                scratch = allocator.buffer(input.remaining());
+                scratch = buffers.buffer(input.remaining());
                 ByteBuffer directInput = scratch.nioBuffer(0, input.remaining());
                 directInput.put(input);
                 directInput.flip();
@@ -327,7 +323,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             // idle undersized buffers still useful to other columns.
             current.close();
         }
-        reusableDecompBuf = decompBufferPool.borrow(allocator, size);
+        reusableDecompBuf = buffers.borrow(size);
         return reusableDecompBuf.nioBuffer(0, size);
     }
 
@@ -341,6 +337,6 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         cachedDictionaryPage = null;
         ArrowBuf buf = reusableDecompBuf;
         reusableDecompBuf = null;
-        decompBufferPool.returnBuf(buf);
+        buffers.returnBuf(buf);
     }
 }

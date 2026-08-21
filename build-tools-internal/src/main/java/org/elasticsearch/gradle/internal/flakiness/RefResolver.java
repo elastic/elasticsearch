@@ -29,9 +29,9 @@ import java.util.regex.Pattern;
  * {@code detectors/changed-files.ts} (classify half), {@code detectors/locator.ts}, and
  * {@code detectors/bwc.ts}.
  *
- * <p>Resolution is done entirely against the model's real {@code srcDirs} / {@code outputDir} /
- * {@code compileTaskPath} - it no longer assumes the {@code src/&lt;ss&gt;/java} layout, so a project with a
- * non-standard source layout resolves correctly.
+ * <p>Resolution is done entirely against the model's real {@code srcDirs} / {@code outputDir} - it no longer
+ * assumes the {@code src/&lt;ss&gt;/java} layout, so a project with a non-standard source layout resolves
+ * correctly.
  *
  * <p>Every produced target is also given its <b>disposition</b>: {@link TestTaskSelector} names the enabled
  * {@code Test} tasks that really run the target's source-set output (so a project that disables the bare
@@ -83,6 +83,15 @@ public final class RefResolver {
         JAVA_SOURCE_SET_KIND.put(Kinds.SS_INTERNAL_CLUSTER_TEST, Kinds.INTERNAL_CLUSTER_TEST);
         JAVA_SOURCE_SET_KIND.put(Kinds.SS_JAVA_REST_TEST, Kinds.JAVA_REST_TEST);
         JAVA_SOURCE_SET_KIND.put(Kinds.SS_YAML_REST_TEST, Kinds.YAML_REST_TEST_RUNNER);
+    }
+
+    /**
+     * The wire kind a Java class in the named source set resolves to, or {@code null} for a source set this
+     * resolver does not handle. Exposed so the per-project resolve task can label its
+     * {@link SourceSetDisposition}s with the same mapping the resolver itself uses, rather than duplicating it.
+     */
+    public static String javaKindOf(String sourceSetName) {
+        return JAVA_SOURCE_SET_KIND.get(sourceSetName);
     }
 
     private final Path repoRoot;
@@ -234,8 +243,6 @@ public final class RefResolver {
             fqcn,
             suitePath,
             yamlTest,
-            ss.compileTaskPath(),
-            ss.outputDir() == null ? null : ss.outputDir().toString(),
             selection.taskPaths(),
             selection.candidateCount(),
             selection.skipReason()

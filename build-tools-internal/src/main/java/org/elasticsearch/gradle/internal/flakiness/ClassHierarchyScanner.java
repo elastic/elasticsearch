@@ -40,6 +40,7 @@ public final class ClassHierarchyScanner {
 
     private final Map<String, Boolean> isAbstract = new HashMap<>();
     private final Map<String, Set<String>> children = new HashMap<>();
+    private final Map<String, Path> originDir = new HashMap<>();
 
     /** Scan every {@code .class} under the given compiled-output directories. */
     public static ClassHierarchyScanner scan(List<Path> classDirs) {
@@ -49,7 +50,7 @@ public final class ClassHierarchyScanner {
                 continue;
             }
             try (Stream<Path> walk = Files.walk(dir)) {
-                walk.filter(p -> p.toString().endsWith(".class")).forEach(scanner::readClass);
+                walk.filter(p -> p.toString().endsWith(".class")).forEach(p -> scanner.readClass(p, dir));
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed walking compiled classes under " + dir, e);
             }
@@ -57,18 +58,31 @@ public final class ClassHierarchyScanner {
         return scanner;
     }
 
-    private void readClass(Path classFile) {
+    private void readClass(Path classFile, Path root) {
         try (InputStream in = Files.newInputStream(classFile)) {
             ClassReader reader = new ClassReader(in);
-            reader.accept(new HeaderVisitor(), ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+            reader.accept(new HeaderVisitor(root), ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed reading class file " + classFile, e);
         }
     }
 
+    /**
+     * Which scanned class directory a class was found under, or {@code null} if it was never seen. Now that the
+     * scan spans the whole repo, an expanded subclass may well live in a different project than the abstract
+     * base it was expanded from, and the plan has to say so rather than silently attributing it to the base's
+     * project (whose {@code Test} tasks would not run it).
+     */
+    public Path originDir(String fqcn) {
+        return originDir.get(fqcn);
+    }
+
     private final class HeaderVisitor extends ClassVisitor {
-        HeaderVisitor() {
+        private final Path root;
+
+        HeaderVisitor(Path root) {
             super(Opcodes.ASM9);
+            this.root = root;
         }
 
         @Override
@@ -78,6 +92,8 @@ public final class ClassHierarchyScanner {
             // accidental interface named *Tests does not read as an abstract base.
             boolean abstractClass = (access & Opcodes.ACC_ABSTRACT) != 0 && (access & Opcodes.ACC_INTERFACE) == 0;
             isAbstract.put(fqcn, abstractClass);
+            // First scan root wins; classDirs is deterministically ordered, so this is reproducible.
+            originDir.putIfAbsent(fqcn, root);
             if (superName != null) {
                 children.computeIfAbsent(dotted(superName), k -> new HashSet<>()).add(fqcn);
             }

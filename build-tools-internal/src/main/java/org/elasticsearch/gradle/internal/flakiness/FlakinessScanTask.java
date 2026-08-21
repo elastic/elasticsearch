@@ -30,9 +30,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * The bytecode-enrichment (scan) half of the {@code resolve - compile - scan} Gradle flow. Runs as a
@@ -44,11 +43,33 @@ import java.util.Set;
  * compiled classes of the bytecode-enriched kinds (flattening abstract bases into concrete subclasses), and
  * writes {@code flakiness-plan.json} (contract 2).
  *
- * <p>The task needs no project model - the per-project targets already carry each source set's authoritative
- * {@code outputDir} - so it is configuration-cache-clean: no {@code getProject()}, no live model, only
- * managed properties and plain file inputs.
+ * <p>The task needs no project model - the per-project files already carry each project's authoritative
+ * {@code classDirs} - so it is configuration-cache-clean: no {@code getProject()}, no live model, only managed
+ * properties and plain file inputs.
+ *
+ * <h2>Why it is never up to date</h2>
+ * The compiled bytecode it reads is an <b>undeclared</b> input: the directories are only known at execution
+ * time, from the per-project files. Left as-is, Gradle would compare the declared inputs (the per-project
+ * JSONs, the refs text, the caps) and report {@code UP-TO-DATE} across a recompile, serving a stale
+ * {@code flakiness-plan.json} that names classes the current bytecode no longer contains.
+ *
+ * <p>Declaring the class directories instead would cost more than it saves: Gradle would content-hash every
+ * class file in the repo (~7s for ~59k files) purely so ASM could immediately read them all again (~9s). So
+ * the task opts out of state tracking rather than pretending its declared inputs are complete.
+ *
+ * <p>{@link org.gradle.api.Task#doNotTrackState} is used rather than
+ * {@code getOutputs().upToDateWhen(t -> false)}: {@code DefaultTask.getOutputs()} is declared to return the
+ * <em>internal</em> {@code TaskOutputsInternal}, which the build's own ArchUnit rule forbids production build
+ * logic from touching. {@code doNotTrackState} is plain {@code Task} API, states the reason in Gradle's own
+ * reporting, and additionally skips the pointless output snapshotting.
  */
 public abstract class FlakinessScanTask extends DefaultTask {
+
+    public FlakinessScanTask() {
+        // See "Why it is never up to date" above: the bytecode this task reads is an undeclared input, so a
+        // Gradle up-to-date verdict based on the declared ones would be wrong rather than merely stale.
+        doNotTrackState("ASM-scans compiled bytecode whose directories are only known at execution time");
+    }
 
     /**
      * The per-project {@code <project>.json} files written by {@code flakinessResolveProject}, collected from
@@ -129,11 +150,23 @@ public abstract class FlakinessScanTask extends DefaultTask {
         FlakinessJson.BaseTargetsFile merged = FlakinessTargets.merge(refs, perProject);
         List<BaseTarget> targets = merged.targets();
 
-        // TODO jozala - what to do if abstract class and concrete class are in different projects?
-        // TODO jozala - Maybe compile everything? Another approach can be to find all projects that depend on the project that has abstract
-        // class.
-        ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(scanDirs(targets));
-        FlakinessPlan plan = PlanBuilder.build(targets, merged.unresolved(), scanner, getSubclassCap().get(), getTaskCap().get());
+        // Every project's compiled output, not just the owners' - see FlakinessTargets#classDirs for why an
+        // abstract base and its subclasses are only connected when the scan set spans the whole repo.
+        List<Path> classDirs = FlakinessTargets.classDirs(perProject);
+        ClassHierarchyScanner scanner = ClassHierarchyScanner.scan(classDirs);
+        getLogger().lifecycle("flakiness scan: ASM-scanned {} class directories across {} project files", classDirs.size(), files.size());
+
+        // Lets PlanBuilder re-home a subclass found outside its base target's output onto the source set that
+        // really owns it, instead of running it under tasks that do not contain it.
+        Map<Path, FlakinessTargets.OwnedSourceSet> byDir = FlakinessTargets.dispositionsByClassDir(perProject);
+        FlakinessPlan plan = PlanBuilder.build(
+            targets,
+            merged.unresolved(),
+            scanner,
+            getSubclassCap().get(),
+            getTaskCap().get(),
+            byDir::get
+        );
 
         // Java owns batch-command generation now: attach the ready, target-neutral batch commands to the
         // plan so the TS generate step is a thin consumer (see CommandBuilder / PlanCommand).
@@ -167,20 +200,5 @@ public abstract class FlakinessScanTask extends DefaultTask {
 
     private static String identityOf(BaseTarget t) {
         return t.fqcn() != null ? t.fqcn() : t.suitePath() != null ? t.suitePath() : t.sourceSet();
-    }
-
-    /**
-     * The distinct compiled-output directories to ASM-scan: only the bytecode-enriched, runnable targets. yaml
-     * kinds carry no fqcn and targets with no runnable task are skipped, so neither contributes a scan dir.
-     * Extracted as a pure static method so it is unit-testable without Gradle.
-     */
-    static List<Path> scanDirs(List<BaseTarget> targets) {
-        Set<Path> classDirs = new LinkedHashSet<>();
-        for (BaseTarget t : targets) {
-            if (t.runnable() && Kinds.BYTECODE_ENRICHED.contains(t.kind()) && t.outputDir() != null) {
-                classDirs.add(Path.of(t.outputDir()));
-            }
-        }
-        return new ArrayList<>(classDirs);
     }
 }

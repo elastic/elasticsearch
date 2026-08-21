@@ -27,10 +27,9 @@ import groovy.json.JsonSlurper
  *   <li><b>Inertness.</b> The plugin is applied to every test project in the real build, so it must register
  *       nothing at all unless {@code -Pflakiness.resolve} asked for it.</li>
  *   <li><b>Self-selection.</b> The task is invoked <em>unqualified</em> and each project decides on its own
- *       whether a ref lands in one of its source sets. The project that owns nothing must write an empty
- *       result <em>without realizing its {@code Test} tasks</em> - that cheap exit is what makes running this
- *       in hundreds of projects affordable, so it is asserted directly on the captured model rather than
- *       inferred from timing.</li>
+ *       whether a ref lands in one of its source sets, so the project that owns nothing resolves nothing. It
+ *       must nevertheless report a full model, its class dirs and its source-set dispositions: the scan step
+ *       may have to run a subclass compiled there, which needs that project's own {@code Test} tasks.</li>
  * </ol>
  */
 class FlakinessProjectResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
@@ -87,21 +86,28 @@ class FlakinessProjectResolvePluginFuncTest extends AbstractGradleInternalPlugin
         target.fqcn == "com.owner.OwnedTests"
         target.sourceSet == "test"
         target.kind == "test"
-        target.compileTaskPath == ":owner:compileTestJava"
-        target.outputDir.replace('\\', '/').endsWith("owner/build/classes/java/test")
         target.runnableTasks == [":owner:test"]
         target.skipReason == null
-        compileTasksOf("owner") == [":owner:compileTestJava"]
 
-        and: "the bystander wrote an EMPTY share and took the cheap exit"
+        and: "the owner reported its class dirs, spanning main as well as its test source set"
+        def ownerDirs = classDirsOf("owner").collect { it.replace('\\', '/') }
+        ownerDirs.any { it.endsWith("owner/build/classes/java/test") }
+        ownerDirs.any { it.endsWith("owner/build/classes/java/main") }
+
+        and: "the bystander resolved NOTHING but still reported a full model, class dirs and dispositions"
         projectTargets("bystander").resolved.isEmpty()
-        compileTasksOf("bystander").isEmpty()
         def bystanderModel = projectModel("bystander")
-        bystanderModel.ownsRefs == false
-        // The cheap exit: ownership was decided before any Test task was realized, so the captured model
-        // holds neither the tasks nor the source sets it would otherwise have read.
-        bystanderModel.testTasks.isEmpty()
-        bystanderModel.sourceSets.isEmpty()
+        // Owning no ref does not make a project irrelevant: the scan may have to run a subclass compiled here,
+        // which needs this project's own Test tasks. So the model is captured in full either way.
+        !bystanderModel.sourceSets.isEmpty()
+        bystanderModel.testTasks.find { it.name == "test" }.enabled == true
+        def bystanderDirs = classDirsOf("bystander").collect { it.replace('\\', '/') }
+        bystanderDirs.any { it.endsWith("bystander/build/classes/java/test") }
+        // The disposition is the part the scan joins on, keyed by compiled-output directory.
+        def bystanderDisp = projectTargets("bystander").dispositions
+        bystanderDisp.size() == 1
+        bystanderDisp[0].sourceSet == "test"
+        bystanderDisp[0].runnableTasks == [":bystander:test"]
 
         and: "the configuration cache entry was stored without problems"
         result.output.contains("Configuration cache entry stored")
@@ -115,8 +121,8 @@ class FlakinessProjectResolvePluginFuncTest extends AbstractGradleInternalPlugin
         new JsonSlurper().parse(file("${project}/build/${FlakinessProjectResolvePlugin.MODEL_FILE}"))
     }
 
-    private List<String> compileTasksOf(String project) {
-        file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.compile-tasks.txt").text.readLines().findAll { it.trim() }
+    private List<String> classDirsOf(String project) {
+        projectTargets(project).classDirs.collect { it as String }
     }
 
     private void javaTestClass(String project, String internalName, String body) {

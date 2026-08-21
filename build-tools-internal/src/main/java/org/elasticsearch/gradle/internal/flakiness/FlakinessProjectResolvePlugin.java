@@ -34,22 +34,25 @@ import java.util.List;
  * so Gradle runs it in every project that registered it and each project decides <em>for itself</em> whether
  * it owns any of the refs - there is no caller-side project guessing and no cross-project access.
  *
- * <h2>Self-selection, and the cheap exit</h2>
- * A project owns a ref when the ref's file lies under one of <em>its own</em> source sets' {@code srcDirs}.
- * That is exactly the question {@link RefResolver} already answers, so the ownership probe simply runs the
- * real resolver against this project's source-set model with an <b>empty {@code Test}-task lookup</b>
- * ({@code path -> List.of()}). The resolver only consults {@code Test} tasks <em>after</em> it has decided a
- * ref belongs to one of the project's source sets, so the probe costs a few path comparisons plus (for class
- * refs) one {@code isRegularFile} probe per source dir - and never realizes a single {@code Test} task.
+ * <h2>Self-selection</h2>
+ * A project owns a ref when the ref's file lies under one of <em>its own</em> source sets' {@code srcDirs},
+ * which is exactly the question {@link RefResolver} answers. Self-selection also disambiguates <b>nested</b>
+ * projects correctly, which a directory-prefix heuristic cannot: {@code :x-pack:plugin:logsdb} and
+ * {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} have nested project directories but disjoint
+ * {@code srcDirs}, so exactly one of them claims a given test file.
  *
- * <p>That matters: realizing {@code tasks.withType(Test)} is the expensive part of the capture (636 tasks in
- * {@code :qa:packaging} alone), and the unqualified invocation runs this in hundreds of projects. A project
- * that owns nothing emits an empty model ({@link FlakinessJson.ProjectModel#ownsRefs()} {@code false}) and
- * writes an empty result.
+ * <h2>Why every project captures its full model</h2>
+ * An earlier version short-circuited here: a project that owned no ref skipped realizing its {@code Test}
+ * tasks and emitted an empty model. That shortcut is gone, because <em>owning no ref does not make a project
+ * irrelevant</em>. Expanding an abstract test base is a repo-wide bytecode question, and its answers - the
+ * concrete subclasses - routinely live in projects no ref pointed at. Running one of those subclasses needs
+ * its own source set's {@code Test} tasks, so every project now reports a {@link SourceSetDisposition} per
+ * candidate test source set and the scan step joins them by compiled-output directory.
  *
- * <p>Self-selection also disambiguates <b>nested</b> projects correctly, which a directory-prefix heuristic
- * cannot: {@code :x-pack:plugin:logsdb} and {@code :x-pack:plugin:logsdb:qa:rolling-upgrade} have nested
- * project directories but disjoint {@code srcDirs}, so exactly one of them claims a given test file.
+ * <p>The cost of dropping the shortcut is realizing {@code tasks.withType(Test)} everywhere rather than in the
+ * handful of owning projects - it is what {@link FlakinessProjectModel#testTaskSnapshot} is for, and it was
+ * measured before being adopted (see JAVA_RESOLVER_NOTES.md). Projects with no candidate test source set still
+ * skip it, since they have nothing a flakiness run could execute.
  *
  * <h2>Why this is configuration-cache compatible</h2>
  * The whole model is captured into a single {@code Provider<String>} used as the task's {@code @Input}:
@@ -81,15 +84,13 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
     public static final String TASK_NAME = "flakinessResolveProject";
 
     /**
-     * Directory, relative to the repo (settings) root, where every project drops its share of the answer:
-     * {@code <projectPath>.json} (the resolved targets) plus {@code <projectPath>.compile-tasks.txt} (the
-     * compile task paths of its runnable targets).
+     * Directory, relative to the repo (settings) root, where every project drops its share of the answer as
+     * {@code <projectPath>.json} (its resolved targets, plus its {@code classDirs}).
      *
-     * <p>It is deliberately <em>one shared directory</em> rather than each project's own build directory: the
-     * consumers - {@code flakinessScan} and the orchestration shell - must discover the files without knowing
-     * the project set, and globbing {@code **}{@code /build/flakiness/*.json} across the repo would mean
-     * walking every build output directory in the tree. Each project writes its own uniquely named files, so
-     * the tasks never overlap.
+     * <p>It is deliberately <em>one shared directory</em> rather than each project's own build directory:
+     * {@code flakinessScan} must discover the files without knowing the project set, and globbing
+     * {@code **}{@code /build/flakiness/*.json} across the repo would mean walking every build output
+     * directory in the tree. Each project writes its own uniquely named file, so the tasks never overlap.
      */
     public static final String TARGETS_DIR = "build/flakiness/project-targets";
 
@@ -124,7 +125,6 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
             t.getRepoRoot().set(repoRoot);
             t.getTaskCap().set(taskCap);
             t.getTargetsFile().set(repoRoot.file(base + ".json"));
-            t.getCompileTasksFile().set(repoRoot.file(base + ".compile-tasks.txt"));
             t.getModelFile().set(project.getLayout().getBuildDirectory().file(MODEL_FILE));
         });
     }
@@ -160,25 +160,19 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
     static FlakinessJson.ProjectModel snapshot(Project project, String refsJson) {
         String projectPath = project.getPath();
         Path projectDir = project.getProjectDir().toPath();
-        Path repoRoot = project.getLayout().getSettingsDirectory().getAsFile().toPath();
 
         List<SourceSetInfo> sourceSets = candidateSourceSets(project);
-        if (ownsAnyRef(repoRoot, new ProjectInfo(projectPath, projectDir, sourceSets), refsJson) == false) {
-            // The cheap exit: no Test task is realized, and the serialized model stays a few dozen bytes.
-            project.getLogger().info("flakiness: {} owns no ref; skipping Test-task realization", projectPath);
-            return new FlakinessJson.ProjectModel(projectPath, projectDir, List.of(), List.of(), false, false);
-        }
-
-        project.getLogger().info("flakiness: capturing model for {} (realizing its Test tasks)", projectPath);
-        List<TestTaskInfo> testTasks = FlakinessProjectModel.testTaskSnapshot(project);
-        project.getLogger().info("flakiness: {} realized {} Test tasks", projectPath, testTasks.size());
+        List<Path> classDirs = FlakinessProjectModel.scannedClassDirs(project);
+        List<TestTaskInfo> testTasks = sourceSets.isEmpty() ? List.of() : FlakinessProjectModel.testTaskSnapshot(project);
+        project.getLogger()
+            .info("flakiness: captured {} ({} source sets, {} Test tasks)", projectPath, sourceSets.size(), testTasks.size());
         return new FlakinessJson.ProjectModel(
             projectPath,
             projectDir,
             sourceSets,
             testTasks,
-            project.getPluginManager().hasPlugin(BWC_TEST_PLUGIN),
-            true
+            classDirs,
+            project.getPluginManager().hasPlugin(BWC_TEST_PLUGIN)
         );
     }
 
@@ -189,26 +183,11 @@ public class FlakinessProjectResolvePlugin implements Plugin<Project> {
         if (java != null) {
             for (SourceSet ss : java.getSourceSets()) {
                 if (FlakinessProjectModel.CANDIDATE_SOURCE_SETS.contains(ss.getName())) {
-                    sourceSets.add(FlakinessProjectModel.sourceSetInfo(project, ss));
+                    sourceSets.add(FlakinessProjectModel.sourceSetInfo(ss));
                 }
             }
         }
         return sourceSets;
     }
 
-    /**
-     * Whether any ref resolves into one of this project's source sets, decided by the real
-     * {@link RefResolver} against an empty {@code Test}-task lookup - so the probe answers ownership without
-     * realizing anything. Returning {@code false} here is what makes the unqualified invocation affordable.
-     */
-    static boolean ownsAnyRef(Path repoRoot, ProjectInfo project, String refsJson) {
-        if (project.sourceSets().isEmpty() || refsJson == null || refsJson.isBlank()) {
-            return false;
-        }
-        List<FlakinessRef> refs = FlakinessJson.parseRefs(refsJson).refs();
-        if (refs.isEmpty()) {
-            return false;
-        }
-        return new RefResolver(repoRoot, List.of(project), path -> List.of(), 0).resolve(refs).targets().isEmpty() == false;
-    }
 }

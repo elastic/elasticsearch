@@ -27,12 +27,18 @@ import org.gradle.api.provider.Provider;
  * <p>Three Gradle invocations use these:
  * <ol>
  *   <li>{@code flakinessResolveProject}, <b>unqualified</b> - refs + each project's own model -&gt; one
- *       {@code <project>.json} + {@code <project>.compile-tasks.txt} per project under
- *       {@link FlakinessProjectResolvePlugin#TARGETS_DIR};</li>
- *   <li>a plain compile of the concatenated {@code *.compile-tasks.txt} (no plugin involvement) - its exit
- *       code is the sole {@code build_failed} signal;</li>
- *   <li>{@code flakinessScan} - per-project targets + compiled output -&gt; {@code flakiness-plan.json}.</li>
+ *       {@code <project>.json} per project under {@link FlakinessProjectResolvePlugin#TARGETS_DIR};</li>
+ *   <li>a plain, <b>unqualified</b> compile of the four {@code compile&lt;Ss&gt;Java} lifecycle tasks (no
+ *       plugin involvement, and nothing read back from step 1) - its exit code is the sole
+ *       {@code build_failed} signal;</li>
+ *   <li>{@code flakinessScan} - per-project targets + the whole repo's compiled output -&gt;
+ *       {@code flakiness-plan.json}.</li>
  * </ol>
+ *
+ * <p>Step 2 compiles <em>everything</em> rather than only the resolved targets' source sets. That is what lets
+ * step 3 see an abstract test base and its concrete subclasses when they live in different Gradle projects,
+ * which a subset compile cannot. It is also cheap: measured at ~65s on CI with the remote build cache warm and
+ * ~2m30s with it cold, against ~9s for the ASM scan that follows.
  */
 public class FlakinessResolvePlugin implements Plugin<Project> {
 

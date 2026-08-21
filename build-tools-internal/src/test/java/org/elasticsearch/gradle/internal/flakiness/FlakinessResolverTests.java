@@ -115,9 +115,6 @@ public class FlakinessResolverTests {
         // An ordinary project resolves to its plain, enabled bare task - now derived, not assumed.
         assertThat(unit.runnableTasks(), contains(":server:test"));
         assertThat(unit.skipReason(), is(nullValue()));
-        // Rich, authoritative fields carried from the model (used by the compile + scan steps).
-        assertThat(unit.compileTaskPath(), equalTo(":server:compileTestJava"));
-        assertThat(unit.outputDir().replace('\\', '/'), org.hamcrest.Matchers.endsWith("server/build/classes/java/test"));
 
         BaseTarget integ = findByFqcn(r.targets(), "org.elasticsearch.BarIT");
         assertThat(integ.kind(), equalTo("internalClusterTest"));
@@ -176,7 +173,7 @@ public class FlakinessResolverTests {
     @Test
     public void testMalformedRefSourceIsReportedRatherThanThrown() throws IOException {
         Path repo = tmp.newFolder("malformed-repo").toPath();
-        ProjectInfo server = new ProjectInfo(":server", repo.resolve("server"), List.of(ssi(repo, "server", ":server", "test")));
+        ProjectInfo server = new ProjectInfo(":server", repo.resolve("server"), List.of(ssi(repo, "server", "test")));
 
         FlakinessRef nullSource = new FlakinessRef(null, null, "org.elasticsearch.FooTests", null, null);
         FlakinessRef bogusSource = new FlakinessRef("typo-source", "server/src/test/java/X.java", null, null, null);
@@ -293,17 +290,17 @@ public class FlakinessResolverTests {
             new ProjectInfo(
                 ":server",
                 repo.resolve("server"),
-                List.of(ssi(repo, "server", ":server", "test"), ssi(repo, "server", ":server", "internalClusterTest"))
+                List.of(ssi(repo, "server", "test"), ssi(repo, "server", "internalClusterTest"))
             ),
             new ProjectInfo(
                 ":x-pack:plugin:esql",
                 repo.resolve("x-pack/plugin/esql"),
                 List.of(
-                    ssi(repo, "x-pack/plugin/esql", ":x-pack:plugin:esql", "test"),
-                    ssi(repo, "x-pack/plugin/esql", ":x-pack:plugin:esql", "yamlRestTest")
+                    ssi(repo, "x-pack/plugin/esql", "test"),
+                    ssi(repo, "x-pack/plugin/esql", "yamlRestTest")
                 )
             ),
-            new ProjectInfo(":qa:rolling", repo.resolve("qa/rolling"), List.of(ssi(repo, "qa/rolling", ":qa:rolling", "javaRestTest")))
+            new ProjectInfo(":qa:rolling", repo.resolve("qa/rolling"), List.of(ssi(repo, "qa/rolling", "javaRestTest")))
         );
     }
 
@@ -339,17 +336,12 @@ public class FlakinessResolverTests {
      * Build an authoritative {@link SourceSetInfo} matching the conventional ES layout under the fixture
      * repo. The resolver works off these real dirs (not a {@code src/<ss>/java} assumption).
      */
-    private static SourceSetInfo ssi(Path repo, String projRel, String projectPath, String ssName) {
+    private static SourceSetInfo ssi(Path repo, String projRel, String ssName) {
         Path base = repo.resolve(projRel).resolve("src").resolve(ssName);
         List<Path> javaSrcDirs = List.of(base.resolve("java"));
         List<Path> resourceSrcDirs = List.of(base.resolve("resources"));
         Path outputDir = repo.resolve(projRel).resolve("build/classes/java/" + ssName);
-        String compileTaskPath = projectPath + ":compile" + capitalize(ssName) + "Java";
-        return new SourceSetInfo(ssName, javaSrcDirs, resourceSrcDirs, outputDir, compileTaskPath);
-    }
-
-    private static String capitalize(String s) {
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+        return new SourceSetInfo(ssName, javaSrcDirs, resourceSrcDirs, outputDir);
     }
 
     private static BaseTarget planTarget(
@@ -362,19 +354,7 @@ public class FlakinessResolverTests {
         int candidateTasks,
         String skipReason
     ) {
-        return new BaseTarget(
-            project,
-            sourceSet,
-            kind,
-            fqcn,
-            suitePath,
-            null,
-            project + ":compile" + capitalize(sourceSet) + "Java",
-            "/x" + project,
-            runnableTasks,
-            candidateTasks,
-            skipReason
-        );
+        return new BaseTarget(project, sourceSet, kind, fqcn, suitePath, null, runnableTasks, candidateTasks, skipReason);
     }
 
     private static FlakinessRef changedFile(String path) {

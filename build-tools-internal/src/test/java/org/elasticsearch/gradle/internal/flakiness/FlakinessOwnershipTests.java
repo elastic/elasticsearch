@@ -23,13 +23,17 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Unit tests for the two pure decisions the per-project topology rests on: whether a project claims a ref
- * ({@link FlakinessProjectResolvePlugin#ownsAnyRef}), and the project-path to file-name mapping every project
- * writes its share of the answer under ({@link FlakinessProjectResolvePlugin#fileBaseName}).
+ * Unit tests for the two pure decisions the per-project topology rests on: whether a project resolves a given
+ * ref against its <em>own</em> source sets (self-selection), and the project-path to file-name mapping every
+ * project writes its share of the answer under ({@link FlakinessProjectResolvePlugin#fileBaseName}).
  *
- * <p>Ownership is the load-bearing decision of the design: a project that wrongly answers {@code false}
- * silently resolves nothing (a false negative that reads as "no tests to re-run"), and one that wrongly
- * answers {@code true} pays the {@code Test}-task realization cost the cheap exit exists to avoid.
+ * <p>Self-selection is the load-bearing decision of the design: a project that wrongly resolves nothing is a
+ * false negative that reads as "no tests to re-run", and one that wrongly claims a foreign file attributes a
+ * test to a project whose {@code Test} tasks cannot run it.
+ *
+ * <p>These exercise {@link RefResolver} with an <b>empty {@code Test}-task lookup</b>, which isolates the
+ * source-set membership question from the disposition question: the resolver only consults {@code Test} tasks
+ * after it has decided a ref belongs to one of the project's source sets.
  */
 public class FlakinessOwnershipTests {
 
@@ -43,7 +47,7 @@ public class FlakinessOwnershipTests {
         writeJava(repo, "server/src/test/java/org/foo/BarTests.java");
 
         String refs = changedFileRefs("server/src/test/java/org/foo/BarTests.java");
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, refs), is(true));
+        assertThat(resolvesAnyRef(repo, server, refs), is(true));
     }
 
     @Test
@@ -53,7 +57,7 @@ public class FlakinessOwnershipTests {
         writeJava(repo, "libs/x/src/test/java/org/foo/BarTests.java");
 
         String refs = changedFileRefs("libs/x/src/test/java/org/foo/BarTests.java");
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, refs), is(false));
+        assertThat(resolvesAnyRef(repo, server, refs), is(false));
     }
 
     /**
@@ -74,8 +78,8 @@ public class FlakinessOwnershipTests {
         writeJava(repo, file);
 
         String refs = changedFileRefs(file);
-        assertThat("nested project owns the file", FlakinessProjectResolvePlugin.ownsAnyRef(repo, nested, refs), is(true));
-        assertThat("ancestor project must not claim it", FlakinessProjectResolvePlugin.ownsAnyRef(repo, outer, refs), is(false));
+        assertThat("nested project owns the file", resolvesAnyRef(repo, nested, refs), is(true));
+        assertThat("ancestor project must not claim it", resolvesAnyRef(repo, outer, refs), is(false));
     }
 
     @Test
@@ -84,8 +88,8 @@ public class FlakinessOwnershipTests {
         ProjectInfo server = project(repo, ":server", "server", "test");
         writeJava(repo, "server/src/test/java/org/foo/PresentTests.java");
 
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, unmuteRefs("org.foo.PresentTests")), is(true));
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, unmuteRefs("org.foo.AbsentTests")), is(false));
+        assertThat(resolvesAnyRef(repo, server, unmuteRefs("org.foo.PresentTests")), is(true));
+        assertThat(resolvesAnyRef(repo, server, unmuteRefs("org.foo.AbsentTests")), is(false));
     }
 
     @Test
@@ -94,10 +98,10 @@ public class FlakinessOwnershipTests {
         ProjectInfo noSourceSets = new ProjectInfo(":buildSrc", repo.resolve("buildSrc"), List.of());
         ProjectInfo server = project(repo, ":server", "server", "test");
 
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, noSourceSets, unmuteRefs("org.foo.BarTests")), is(false));
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, "{\"refs\":[]}"), is(false));
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, null), is(false));
-        assertThat(FlakinessProjectResolvePlugin.ownsAnyRef(repo, server, "  "), is(false));
+        assertThat(resolvesAnyRef(repo, noSourceSets, unmuteRefs("org.foo.BarTests")), is(false));
+        assertThat(resolvesAnyRef(repo, server, "{\"refs\":[]}"), is(false));
+        assertThat(resolvesAnyRef(repo, server, null), is(false));
+        assertThat(resolvesAnyRef(repo, server, "  "), is(false));
     }
 
     // ---- fileBaseName ----
@@ -120,6 +124,21 @@ public class FlakinessOwnershipTests {
         assertThat(dottedSegment, is(not(nestedProject)));
     }
 
+    /**
+     * Whether any ref resolves into one of this project's source sets - the self-selection question, asked of
+     * the real resolver with no {@code Test} tasks so only source-set membership is under test.
+     */
+    private static boolean resolvesAnyRef(Path repoRoot, ProjectInfo project, String refsJson) {
+        if (project.sourceSets().isEmpty() || refsJson == null || refsJson.isBlank()) {
+            return false;
+        }
+        List<FlakinessRef> refs = FlakinessJson.parseRefs(refsJson).refs();
+        if (refs.isEmpty()) {
+            return false;
+        }
+        return new RefResolver(repoRoot, List.of(project), path -> List.of(), 0).resolve(refs).targets().isEmpty() == false;
+    }
+
     // ---- helpers ----
 
     /** A project owning a single java source set at the conventional {@code src/<sourceSet>/java} location. */
@@ -129,14 +148,9 @@ public class FlakinessOwnershipTests {
             sourceSet,
             List.of(projectDir.resolve("src/" + sourceSet + "/java")),
             List.of(projectDir.resolve("src/" + sourceSet + "/resources")),
-            projectDir.resolve("build/classes/java/" + sourceSet),
-            ":" + relativeDir.replace('/', ':') + ":compile" + capitalize(sourceSet) + "Java"
+            projectDir.resolve("build/classes/java/" + sourceSet)
         );
         return new ProjectInfo(projectPath, projectDir, List.of(ss));
-    }
-
-    private static String capitalize(String s) {
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     private static void writeJava(Path repo, String relativePath) throws IOException {

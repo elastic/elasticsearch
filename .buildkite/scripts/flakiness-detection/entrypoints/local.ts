@@ -1,35 +1,20 @@
 import { execSync } from "child_process";
-import { readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
+import { readFileSync, rmSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 import { explicitRefs } from "../detectors/explicit-list.ts";
 import { planCommandsToRunnable } from "../commands.ts";
 import { runLocally } from "../runners/local.ts";
-import { type FlakinessPlan, type FlakinessRefsFile } from "../domain.ts";
+import { COMPILE_TASKS, type FlakinessPlan, type FlakinessRefsFile } from "../domain.ts";
 import { analyzeReports } from "../analyzer/analyze.ts";
 import { renderMarkdown } from "../analyzer/render.ts";
 
 const REFS_FILE = "flakiness-refs.json";
 const PLAN_FILE = "flakiness-plan.json";
 // Where each project drops its share of the resolve answer. Keep in sync with
-// FlakinessProjectResolve.TARGETS_DIR on the Java side.
+// FlakinessProjectResolvePlugin.TARGETS_DIR on the Java side.
 const TARGETS_DIR = "build/flakiness/project-targets";
 const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
-
-// The one bit of glue the per-project resolve topology needs: concatenate the newline-terminated compile
-// task lists the owning projects each wrote. Absent/empty = nothing to compile. (The CI orchestration shell
-// does exactly this with `cat .../*.compile-tasks.txt | sort -u`.)
-function readCompileTasks(root: string): string[] {
-  const dir = resolve(root, TARGETS_DIR);
-  let names: string[];
-  try {
-    names = readdirSync(dir).filter((f) => f.endsWith(".compile-tasks.txt"));
-  } catch {
-    return [];
-  }
-  const tasks = names.flatMap((f) => readFileSync(resolve(dir, f), "utf8").split("\n"));
-  return [...new Set(tasks.map((t) => t.trim()).filter((t) => t !== ""))].sort();
-}
 
 export async function run(): Promise<void> {
   const args = process.argv.slice(2);
@@ -63,19 +48,17 @@ export async function run(): Promise<void> {
   console.log(">>> ./gradlew -Pflakiness.resolve flakinessResolveProject");
   execSync("./gradlew -Pflakiness.resolve flakinessResolveProject", { cwd: PROJECT_ROOT, stdio: "inherit" });
 
-  // Phase 3 (compile): plainly compile the tasks the resolver listed. A compile failure is the only
-  // build_failed signal (mirroring the CI compile step); bail early so we do not scan doomed output.
-  const compileTasks = readCompileTasks(PROJECT_ROOT);
-  if (compileTasks.length > 0) {
-    console.log(`>>> ./gradlew ${compileTasks.join(" ")}`);
-    try {
-      execSync(`./gradlew ${compileTasks.join(" ")}`, { cwd: PROJECT_ROOT, stdio: "inherit" });
-    } catch {
-      console.error("buildFailed: the affected source sets did not compile");
-      process.exit(1);
-    }
-  } else {
-    console.log("No compile tasks listed by the resolver; nothing to compile.");
+  // Phase 3 (compile): compile every test source set in the repo, UNQUALIFIED, reading nothing back from
+  // resolve - the scan needs the whole repo's bytecode to resolve cross-project class hierarchies. A compile
+  // failure is the only build_failed signal (mirroring the CI compile step); bail early so we do not scan
+  // doomed output. Locally this is the slow phase on a cold build directory; there is no remote cache here.
+  const compileCmd = `./gradlew ${COMPILE_TASKS.join(" ")}`;
+  console.log(`>>> ${compileCmd}`);
+  try {
+    execSync(compileCmd, { cwd: PROJECT_ROOT, stdio: "inherit" });
+  } catch {
+    console.error("buildFailed: the test source sets did not compile");
+    process.exit(1);
   }
 
   // Phase 4 (scan): ASM-scan the compiled output into the final plan. Java now owns iteration counts and

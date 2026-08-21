@@ -17,12 +17,15 @@ The three Gradle invocations run sequentially inside **one** orchestration step 
 2. orchestration (1 step, 1 gradle agent, key flakiness-orchestration:run) runs, in order:
    a. resolve   (Gradle) `flakinessResolveProject`, UNQUALIFIED: it runs in EVERY project that registered it
                          and each project decides for itself whether it owns a ref
-                         -> build/flakiness/project-targets/<project>.json             (its resolved targets)
-                         -> build/flakiness/project-targets/<project>.compile-tasks.txt (its compile tasks)
-   b. compile   (Gradle) PLAIN `run-gradle.sh $(cat .../*.compile-tasks.txt | sort -u)`.
+                         -> build/flakiness/project-targets/<project>.json  (its resolved targets + classDirs;
+                                                                            EVERY project writes one)
+   b. compile   (Gradle) PLAIN, UNQUALIFIED `run-gradle.sh compileTestJava compileInternalClusterTestJava
+                         compileJavaRestTestJava compileYamlRestTestJava` - every test source set in the repo,
+                         reading NOTHING back from resolve.
                          Its non-zero exit is the SOLE build_failed signal (writes buildFailed plan.json + marker).
    c. scan      (Gradle) read the per-project files DIRECTLY (no merge task), fold them back into ref order,
-                         ASM-scan the LOCAL compiled output, flatten abstract bases, emit ready batch commands
+                         ASM-scan the UNION of every project's classDirs, flatten abstract bases, emit ready
+                         batch commands
                          -> flakiness-plan.json                                          (contract 2)
 3. generate     (TS, separate step, default node agent, key flakiness-orchestration:generate)
                          download+read flakiness-plan.json -> map plan.commands to BK steps -> upload batches + analyze.
@@ -31,9 +34,57 @@ The three Gradle invocations run sequentially inside **one** orchestration step 
 
 Boundary held: **Java owns build-model/bytecode facts AND batch-command generation; TS owns Buildkite orchestration + JUnit analysis.**
 The two contracts between the layers are `flakiness-refs.json` (gather -> resolve) and `flakiness-plan.json` (scan -> generate; also carrying the ready `commands`).
-The only other hand-off is the per-project `build/flakiness/project-targets/` directory (resolve -> compile/scan), which is consumed by shell/Java only and carries no TS type.
+The only other hand-off is the per-project `build/flakiness/project-targets/` directory (resolve -> scan), which is consumed by Java only and carries no TS type.
 
-**There is exactly one place where TS/shell touches the intermediate data**, and it is a `cat`: the compile phase runs between resolve and scan, so someone has to turn the resolved targets into a task list before scan exists. Each project writes its own newline-terminated `<project>.compile-tasks.txt`, and the orchestration shell concatenates them (`cat .../*.compile-tasks.txt | sort -u`). No JSON parsing in shell, no extra Gradle task, no extra phase.
+**TS/shell now touches none of the intermediate data.** The compile phase used to be the one exception: it runs between resolve and scan, so something had to turn the resolved targets into a task list before scan existed, which the orchestration shell did with `cat .../*.compile-tasks.txt | sort -u`. Compiling everything removes that hand-off entirely - the compile phase is a fixed, unqualified lifecycle-task list that depends on nothing resolve produced. `<project>.compile-tasks.txt`, `FlakinessTargets.compileTaskPaths`, `BaseTarget.compileTaskPath`, `SourceSetInfo.compileTaskPath`, `BaseTarget.outputDir` and the `flakiness-compile-tasks.txt` artifact are all gone with it.
+
+### Why compile everything
+
+A subset compile cannot answer "is this class abstract, and what are its concrete subclasses?" across project boundaries: `ClassHierarchyScanner` can only report a class abstract if it visited that class's own `.class` file, and it can only find a subclass if that subclass's class file is in the scan set. With only the owning projects' output compiled, an abstract base whose subclasses live elsewhere looks childless, and an abstract base that lives in a `main` source set (`org.elasticsearch.test.AbstractBWCSerializationTestCase`, `ESTestCase`) is not even *known*, so `expand` falls through its pass-through branch and yields the abstract class itself as a single "concrete" run - silently wrong.
+
+Compiling everything was measured, not assumed, on a real CI agent (`n4-custom-32-98304`, `/dev/shm` build dir):
+
+| | wall | tasks |
+|---|---|---|
+| compile all test source sets, remote cache warm | **65s** | 1676 actionable: 431 executed, 1227 from cache |
+| same, `--no-build-cache` | **2m30s** | 1676 actionable: 1658 executed |
+| ASM scan of the resulting 872 class dirs / ~59k classes | ~9s single-threaded | - |
+
+For comparison the old targeted subset compile took ~76s locally, so on CI the repo-wide compile is not a regression at all. The scan is left single-threaded on purpose: parallelising it measured ~1.7s, but ~9s is a small share of the phase and the sequential code is simpler.
+
+### What compiling everything buys
+
+Repo-wide compile + repo-wide scan makes expansion complete: `expansions.total` is the true number of concrete subclasses, and each one is **run by the tasks that actually execute it**.
+
+A run entry cannot simply inherit the base target's `runnableTasks` - those were chosen by intersecting each `Test` task's `testClassesDirs` with the base's *own* source-set output, so a subclass compiled elsewhere is not in them. Emitting `:app:test --tests com.downstream.DownstreamTests` would run zero tests and look exactly like a hang. So expansion has two cases:
+
+| where the concrete subclass was compiled | outcome |
+|---|---|
+| the base target's own source-set output | `run` under the base's tasks |
+| any other output dir (another project, or another source set of the same project) | **re-homed**: `run` under *that* source set's real tasks |
+
+Re-homing works because every project reports a `SourceSetDisposition` per test source set - its output dir, kind, and the `Test` task paths that run it - and the scan indexes those by output dir (`FlakinessTargets.dispositionsByClassDir`). The scanner records which dir each class came from, so the join is exact. Comparison is on the **directory**, not the project path: a base in `:p/test` with a subclass in `:p/internalClusterTest` shares a project but no `Test` task.
+
+If the owning source set has nothing runnable (bwc-only, packaging host), its own `skipReason` is carried through rather than a new one invented.
+
+### Why the cheap exit was removed, and what it cost
+
+Re-homing needs the owning source set's `Test`-task model, and the owning project is by definition one no ref pointed at. The old design short-circuited exactly there: a project owning no ref skipped realizing its `Test` tasks. So the shortcut had to go - "owns no ref" does not mean "irrelevant".
+
+That shortcut was justified on the grounds that realizing `tasks.withType(Test)` is expensive (636 tasks in `:qa:packaging` alone) across hundreds of projects. **Measured, it is not.** Unqualified `flakinessResolveProject` over 450 projects, local 12-core host:
+
+| | with cheap exit | full capture everywhere |
+|---|---|---|
+| resolve, no configuration cache (how CI runs it) | 4.71s | **3.7 - 7.7s, median ~4.3s** |
+| resolve, CC store | 5.03s | 4.51s |
+| CC entry size | 3.5M | 5.2M |
+| `Test` tasks realized | a handful | **3,201 across 342 projects** |
+
+The difference is inside run-to-run variance. Task *realization* is cheap; it is task *execution* that is expensive, and the old note conflated the two. Projects with no candidate test source set still skip realization, since they have nothing a flakiness run could execute.
+
+One real side effect: realizing `Test` tasks everywhere pulls the ES build's per-invocation random test seed (`TestSeedValueSource`) into the configuration-cache key, so a CC entry is never reused across invocations. This does not matter today - **CC is not enabled for this build** (nothing in `.ci/` or `gradle.properties` turns it on, so the production resolve runs without it) - and the mitigation is verified if that changes: pinning `-Dtests.seed` restores reuse (measured 2.04s, "entry reused"). The func tests still run with CC explicitly enabled and pass, so CC compatibility itself is intact.
+
+The scan set must include **`main`**, not just the test source sets - that is where the abstract bases live, and it is also where 36,441 of the 58,712 scanned classes are, i.e. essentially all of the added cost.
 
 ### Why orchestration is one step (fixes a latent cross-agent bug)
 
@@ -72,7 +123,7 @@ new RefResolver(repoRoot, List.of(thisProject), path -> List.of(), 0).resolve(re
 Two consequences:
 
 - **It is authoritative, and it disambiguates nested projects.** `:x-pack:plugin:logsdb` and `:x-pack:plugin:logsdb:qa:rolling-upgrade` have *nested project directories* but *disjoint `srcDirs`*, so exactly one of them claims a given test file. A directory-prefix or nearest-ancestor-build-script heuristic cannot get this right in general; `srcDirs` can, and needs no settings parsing, no `git ls-files`, and no cross-project access.
-- **It is the cheap exit.** `RefResolver` consults the `Test` tasks only *after* it has decided a ref belongs to one of the project's source sets. So a project that owns nothing never calls the lookup, never realizes `tasks.withType(Test)` - the expensive part - and emits an empty model (`ownsRefs: false`) and an empty result. Measured on the real build: **3 projects realized `Test` tasks (1 + 70 + 637 = 708), 447 projects cheap-exited.**
+- **It used to double as a cheap exit.** `RefResolver` consults the `Test` tasks only *after* it has decided a ref belongs to one of the project's source sets, so a project owning nothing could skip realizing `tasks.withType(Test)` entirely. That shortcut has been **removed** - re-homing a cross-project subclass needs the owning project's `Test` tasks, and the owning project is by definition one no ref pointed at. Measurement showed the shortcut was not buying anything anyway (see "Why the cheap exit was removed").
 
 The probe itself costs a handful of path comparisons per ref, plus (for class refs) one `Files.isRegularFile` probe per java source dir - roughly 2-3k `stat` calls across the whole build, which is noise.
 
@@ -106,12 +157,12 @@ That second row is deliberate and is a change from the earlier spike. The owners
 
 ### Output layout, and why it is one shared directory
 
-Each project writes two files into `<repoRoot>/build/flakiness/project-targets/`, named after its project path (`:x-pack:plugin:logsdb:qa:rolling-upgrade` -> `x-pack.plugin.logsdb.qa.rolling-upgrade.*`):
+Each project writes **one** file into `<repoRoot>/build/flakiness/project-targets/`, named after its project path (`:x-pack:plugin:logsdb:qa:rolling-upgrade` -> `x-pack.plugin.logsdb.qa.rolling-upgrade.json`): a `ProjectTargetsFile` carrying
 
-- `<project>.json` - a `ProjectTargetsFile`: each resolved target plus the **index of the ref that produced it**;
-- `<project>.compile-tasks.txt` - the compile task paths of that project's runnable targets, newline-**terminated**.
+- each resolved target plus the **index of the ref that produced it**;
+- that project's `classDirs` - its test source sets plus `main` - written **whether or not it resolved anything**, because the scan step unions them into the repo-wide set it ASM-scans.
 
-They deliberately do *not* live in each project's own `build/` directory. The consumers - `flakinessScan` and the orchestration shell - must find the files without knowing the project set, and a `**/build/flakiness/*.json` glob would mean walking every build output directory in the repo (a `@InputFiles` fingerprint over hundreds of thousands of files). One flat directory makes discovery O(#projects) and the shell glue a `cat`. Each project writes only its own uniquely named files, so no two tasks overlap, and the orchestration `rm -rf`s the directory first so a reused CI workspace cannot leak a previous run's answer.
+It deliberately does *not* live in each project's own `build/` directory. The consumer, `flakinessScan`, must find the files without knowing the project set, and a `**/build/flakiness/*.json` glob would mean walking every build output directory in the repo (a `@InputFiles` fingerprint over hundreds of thousands of files). One flat directory makes discovery O(#projects). Each project writes only its own uniquely named file, so no two tasks overlap, and the orchestration `rm -rf`s the directory first so a reused CI workspace cannot leak a previous run's answer.
 
 ### No merge task
 
@@ -120,7 +171,7 @@ They deliberately do *not* live in each project's own `build/` directory. The co
 - **ref ordering** - each per-project entry carries its ref index, so the merged list reproduces the refs file's order;
 - **the `unresolved` verdict** - a class ref is unresolved only if *no* project claimed it. This is why the per-project task deliberately runs the resolver one ref at a time and throws away its own per-ref "unresolved" verdicts: "not in *this* project" is not "not anywhere".
 
-The only consumer that must run *before* compile is the compile task list, and each project can derive its own share of that - so there is no phase left for a merge task to occupy. `flakiness-base-targets.json` and `flakiness-compile-tasks.txt` no longer exist.
+Nothing between resolve and compile needs the merged view any more: the compile phase reads nothing from resolve at all. So there is no phase left for a merge task to occupy. `flakiness-base-targets.json` and `flakiness-compile-tasks.txt` no longer exist.
 
 ## Which task actually runs this test? (the disposition layer)
 
@@ -231,7 +282,7 @@ Under self-selection every project runs that probe over its own source dirs (rat
 
 ### P7 - `Test`-task realization cost
 Reading the task facts *requires realizing* the project's `Test` tasks, which runs arbitrary task-configuration code (testClusters wiring, distribution resolution, ...).
-Mitigations: it happens only under `-Pflakiness.resolve`; only at configuration-cache store time; and only for the projects that actually **own a resolved ref**, which is what the self-selection cheap exit guarantees.
+Mitigations: it happens only under `-Pflakiness.resolve`, only at configuration-cache store time, and only in projects that have a candidate test source set. It is no longer bounded to ref-owning projects - see "Why the cheap exit was removed" for why, and for the measurement showing the fan-out is free.
 Realizing them for all ~450 projects would be indefensible; realizing them for 1-3 is cheap (measured below: the whole unqualified run is no slower than the old single root task).
 
 Realizing `Test` tasks inside a store-time provider is **permitted** - no error, no CC problem, no deprecation, on 708 `Test` tasks across the three probe projects (`:qa:packaging` alone realized 637). This was the main uncertainty going in, and it simply worked. It is still arbitrary user code running late in the build, so a pathological project could in principle throw there; the failure would be a red resolve step, not a wrong answer.
@@ -323,16 +374,12 @@ All three probe cases:
 - **packaging** - 636 `destructiveDistroTest.*`/`destructiveDistroUpgradeTest.*` candidates found, entry is `skip` / `requires-packaging-host`;
 - **ordinary project** - `:libs:dissect` resolves to the plain enabled bare task.
 
-The 447 other projects each wrote an empty `{"projectPath": "...", "resolved": []}` and an empty compile-tasks file.
+The 447 other projects each wrote `{"projectPath": "...", "resolved": [], "classDirs": [...]}` - an empty share, but still their class dirs, which is what makes the scan repo-wide.
 
-### (b) compile - the shell glue, and scan -> the plan
+### (b) compile - a fixed task list, and scan -> the plan
 
 ```
-$ TASKS=$(cat build/flakiness/project-targets/*.compile-tasks.txt 2>/dev/null | sort -u)
-$ echo "$TASKS"
-:libs:dissect:compileTestJava
-:x-pack:plugin:logsdb:qa:rolling-upgrade:compileJavaRestTestJava
-$ ./gradlew $TASKS
+$ ./gradlew compileTestJava compileInternalClusterTestJava compileJavaRestTestJava compileYamlRestTestJava
 BUILD SUCCESSFUL
 
 $ ./gradlew -Pflakiness.resolve --configuration-cache flakinessScan
@@ -413,9 +460,9 @@ Warm daemon, same machine, same 3 refs, 3 runs each. "Old" is the deleted root `
 
 (wall clock including JVM/daemon handshake; `BUILD SUCCESSFUL in` reports 3-4s storing, ~1s reused.)
 
-**Running the task in 450 projects costs nothing measurable.** The whole-build configuration pass dominates completely, and it happened in the old topology too. On a repeat run CC makes it ~2x faster than the old flow could ever be. The reason the fan-out is free is the cheap exit: 447 projects do a handful of path comparisons and write a 60-byte file.
+**Running the task in 450 projects costs nothing measurable.** The whole-build configuration pass dominates completely, and it happened in the old topology too. This remains true now that every project captures its full model: 3,201 `Test` tasks realized across 342 projects lands inside run-to-run variance (see "Why the cheap exit was removed").
 
-### (e) the cheap exit really is cheap - non-owning projects do not realize their `Test` tasks
+### (e) historical: the cheap exit, and why it was dropped
 
 From the `--info` log of a storing run across all 450 projects:
 
@@ -435,9 +482,9 @@ Exactly the three owning projects realize anything; `:qa:packaging` realizes its
   `ConfigurationCacheArchUnitSpec` 3, `GradleApiUsageArchUnitSpec` 2, `GradlePluginConventionsArchUnitSpec` 4, `IsolatedProjectsArchUnitSpec` 14, `LoggingArchUnitSpec` 2, `TaskModellingArchUnitSpec` 6, `CommandBuilderTests` 11, `FlakinessPerProjectJsonTests` 2, `FlakinessResolverTests` 7, `FlakinessScanTaskTests` 1, `FlakinessTargetsTests` 5, `TestTaskSelectorTests` 11.
   `FlakinessTargetsTests` replaces `FlakinessResolveTaskTests` and additionally pins the fold: ref-order restoration across projects, the global `unresolved` verdict (class refs only), and dedupe of the same identity claimed twice.
 - **`IntegTestCoverageArchUnitSpec` - PASS (5 tests).** Including "no new AbstractGradleInternalPluginFuncTest subclass disables configuration cache" and "the cc-incompatible baseline contains no stale entries" - the latter is what forced the `FlakinessResolvePluginFuncTest` entry (and its now-wrong explanatory comment) out of `KNOWN_CC_INCOMPATIBLE`.
-- **Func test - PASS (2 tests), with the configuration cache ENABLED** (`disableConfigurationCache` is gone). `FlakinessResolvePluginFuncTest` builds a four-project fixture and runs the unqualified resolve -> plain compile -> scan. It asserts: every project ran the task; the three owning projects each wrote their own share with correct `compileTaskPath`/`outputDir`; `:untouched` wrote an **empty** share with `ownsRefs: false` and an **empty `testTasks` list** (the cheap exit, observed in the dumped model); the adversarial `:bwcish` fixture - which disables the bare task through `matching {}.configureEach {}` and registers three alternatives **after** the resolve task is registered - captures the post-mutation state (`test.enabled == false`, 3 `#altTest` tasks) and resolves to `[v9.6.0#altTest, v9.5.1#altTest]`, never `:bwcish:test`; the concatenated per-project compile lists; `Configuration cache entry stored`; the abstract base flattened to its two concrete subclasses; the capped fan-out in `taskSelections`; and the target-neutral (`__GRADLE__`) batch commands. A second test pins that a class ref no project owns is reported `unresolved` exactly once by the scan step.
+- **Func test - PASS (4 tests), with the configuration cache ENABLED** (`disableConfigurationCache` is gone). `FlakinessResolvePluginFuncTest` builds a **five**-project fixture and runs the unqualified resolve -> repo-wide compile -> scan. It asserts: every project ran the task; the owning projects each wrote their own share; `:untouched` resolved **nothing** yet still reported a full model (non-empty `sourceSets`, a captured `test` task), its `classDirs` and its `dispositions` - the cheap exit is gone; the class-dir union spans all five projects and includes `main`; the adversarial `:bwcish` fixture - which disables the bare task through `matching {}.configureEach {}` and registers three alternatives **after** the resolve task is registered - captures the post-mutation state (`test.enabled == false`, 3 `#altTest` tasks) and resolves to `[v9.6.0#altTest, v9.5.1#altTest]`, never `:bwcish:test`; `Configuration cache entry stored`; and the target-neutral (`__GRADLE__`) batch commands. **The cross-project regression test:** `:downstream` holds a third concrete subclass of `:app`'s abstract base, so `expansions[0].total == 3` (a subset scan would have found 2), and that subclass is **re-homed**: `gradleProject: :downstream`, `disposition: run`, `runnableTasks: [:downstream:test]`, and the emitted command is `:downstream:test --tests com.downstream.DownstreamTests` - never under `:app:test`. A fourth test pins that a class ref no project owns is reported `unresolved` exactly once by the scan step.
 - **Real-build end-to-end - PASS.** See PROOF above; `flakiness-plan.json` byte-identical to the old flow's.
-- **TS suite - PASS.** `cd .buildkite && npx vitest run scripts/flakiness-detection` -> 11 files / 121 tests. Updated for the new orchestration shell: unqualified `flakinessResolveProject`, an explicit assertion that the command contains **no** `--no-configuration-cache`, the `rm -rf build/flakiness/project-targets` hygiene step, and the `cat .../*.compile-tasks.txt | sort -u` compile glue.
+- **TS suite - PASS.** `cd .buildkite && npx vitest run scripts/flakiness-detection` -> 11 files / 130 tests. The compile-phase test now asserts the fixed unqualified task list and that **none** of the old glue survives (no `.compile-tasks.txt`, no `$$TASKS`, no empty-list branch), plus: unqualified `flakinessResolveProject`, no `--no-configuration-cache`, and the `rm -rf build/flakiness/project-targets` hygiene step.
 - **`:build-tools-internal` compiles (main + test + integTest) - PASS.**
 
 ### NOT run (per brief / environmental)

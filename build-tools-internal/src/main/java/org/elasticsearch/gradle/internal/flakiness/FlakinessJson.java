@@ -34,9 +34,9 @@ public final class FlakinessJson {
     public record RefsFile(String mergeBase, List<FlakinessRef> refs) {}
 
     /**
-     * The resolved {@link BaseTarget}s (which the compile step turns into compile task paths and the scan
-     * step scans) plus the {@code unresolved} refs (folded verbatim into the plan by the scan step). Produced
-     * in-memory by {@link FlakinessTargets#merge} from the per-project {@link ProjectTargetsFile}s.
+     * The resolved {@link BaseTarget}s plus the {@code unresolved} refs (folded verbatim into the plan by the
+     * scan step). Produced in-memory by {@link FlakinessTargets#merge} from the per-project
+     * {@link ProjectTargetsFile}s.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record BaseTargetsFile(List<BaseTarget> targets, List<FlakinessPlan.Unresolved> unresolved) {}
@@ -50,11 +50,15 @@ public final class FlakinessJson {
      * (written as {@code file:} URIs), so the same records the pure resolver already consumes are reused
      * verbatim - no parallel string-only DTOs.
      *
+     * <p>The model is captured in full for <b>every</b> project, not just the ones that own a ref. Expanding an
+     * abstract base is a repo-wide bytecode question whose answers land in arbitrary projects, and running one
+     * of those answers needs its owning source set's {@code Test} tasks - so there is no useful "this project
+     * is irrelevant" shortcut to take at configuration time.
+     *
+     * @param classDirs     this project's compiled-output directories the scan step must read (test source
+     *                      sets plus {@code main}; see {@link FlakinessProjectModel#scannedClassDirs})
      * @param bwcTestPlugin whether {@code elasticsearch.bwc-test} is applied; informational only (the
      *                      disposition is derived from the {@code Test} tasks themselves, never from this)
-     * @param ownsRefs      whether this project claimed at least one ref. When {@code false} the model is
-     *                      deliberately empty: the project short-circuited before realizing its {@code Test}
-     *                      tasks, which is what makes the unqualified, run-in-every-project invocation cheap
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ProjectModel(
@@ -62,17 +66,35 @@ public final class FlakinessJson {
         Path projectDir,
         List<SourceSetInfo> sourceSets,
         List<TestTaskInfo> testTasks,
-        boolean bwcTestPlugin,
-        boolean ownsRefs
+        List<Path> classDirs,
+        boolean bwcTestPlugin
     ) {}
 
     /** A resolved target together with the index of the ref that produced it (see {@link ProjectModel}). */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record RefTarget(int refIndex, BaseTarget target) {}
 
-    /** One project's share of the resolve answer, folded together by {@link FlakinessTargets#merge}. */
+    /**
+     * One project's share of the resolve answer, folded together by {@link FlakinessTargets#merge}.
+     *
+     * <p>Only {@code resolved} is about the refs. The other two are what every project contributes regardless:
+     * <ul>
+     *   <li>{@code classDirs} - the bytecode the scan must read, so the class hierarchy spans the whole repo
+     *       (see {@link FlakinessTargets#classDirs});</li>
+     *   <li>{@code dispositions} - how each of this project's test source sets can be re-run, so the scan can
+     *       run a subclass it finds here even though the ref pointed somewhere else entirely (see
+     *       {@link SourceSetDisposition} and {@link FlakinessTargets#dispositionsByClassDir}).</li>
+     * </ul>
+     * Together they are what makes cross-project abstract-base expansion work without any cross-project model
+     * access at configuration time: each project reports only its own facts, and the scan joins them.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ProjectTargetsFile(String projectPath, List<RefTarget> resolved) {}
+    public record ProjectTargetsFile(
+        String projectPath,
+        List<RefTarget> resolved,
+        List<Path> classDirs,
+        List<SourceSetDisposition> dispositions
+    ) {}
 
     public static RefsFile parseRefs(String json) {
         try {

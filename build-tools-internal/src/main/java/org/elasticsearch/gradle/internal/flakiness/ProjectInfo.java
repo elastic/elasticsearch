@@ -25,7 +25,7 @@ import java.util.Optional;
  *
  * <p>It deliberately carries no {@code Test}-task facts: those cannot be snapshotted at plain configuration
  * time (see {@link TestTaskInfo}), and realizing them is expensive enough that a project only pays for it
- * once it has claimed a ref (see {@link FlakinessProjectResolvePlugin#ownsAnyRef}).
+ * once it has claimed a ref (see {@link FlakinessProjectResolvePlugin#snapshot}).
  *
  * @param projectPath  Gradle project path, e.g. {@code :x-pack:plugin:esql}
  * @param projectDir   absolute project directory (used for authoritative path-&gt;project resolution)

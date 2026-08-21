@@ -40,15 +40,16 @@ public class FlakinessPerProjectJsonTests {
                     Kinds.SS_JAVA_REST_TEST,
                     List.of(Path.of("/repo/p/src/javaRestTest/java")),
                     List.of(Path.of("/repo/p/src/javaRestTest/resources")),
-                    Path.of("/repo/p/build/classes/java/javaRestTest"),
-                    ":p:compileJavaRestTestJava"
+                    Path.of("/repo/p/build/classes/java/javaRestTest")
                 )
             ),
             List.of(
                 new TestTaskInfo("javaRestTest", ":p:javaRestTest", false, List.of(Path.of("/repo/p/build/classes/java/javaRestTest"))),
                 new TestTaskInfo("v9.6.0#bwcTest", ":p:v9.6.0#bwcTest", true, List.of(Path.of("/repo/p/build/classes/java/javaRestTest")))
             ),
-            true,
+            // classDirs spans main as well as the test source sets: abstract test bases live in main, and the
+            // scan can only call a class abstract if it visited that class's own .class file.
+            List.of(Path.of("/repo/p/build/classes/java/main"), Path.of("/repo/p/build/classes/java/javaRestTest")),
             true
         );
 
@@ -58,6 +59,10 @@ public class FlakinessPerProjectJsonTests {
         assertThat(back.sourceSets().get(0).outputDir(), is(Path.of("/repo/p/build/classes/java/javaRestTest")));
         assertThat(back.testTasks().get(0).enabled(), is(false));
         assertThat(back.testTasks().get(1).testClassesDirs(), contains(Path.of("/repo/p/build/classes/java/javaRestTest")));
+        assertThat(
+            back.classDirs(),
+            contains(Path.of("/repo/p/build/classes/java/main"), Path.of("/repo/p/build/classes/java/javaRestTest"))
+        );
     }
 
     @Test
@@ -69,21 +74,25 @@ public class FlakinessPerProjectJsonTests {
             "org.elasticsearch.dissect.DissectParserTests",
             null,
             null,
-            ":libs:dissect:compileTestJava",
-            "/repo/libs/dissect/build/classes/java/test",
             List.of(":libs:dissect:test"),
             1,
             null
         );
         FlakinessJson.ProjectTargetsFile file = new FlakinessJson.ProjectTargetsFile(
             ":libs:dissect",
-            List.of(new FlakinessJson.RefTarget(2, target))
-        );
+            List.of(new FlakinessJson.RefTarget(2, target)),
+            List.of(Path.of("/repo/libs/dissect/build/classes/java/main"), Path.of("/repo/libs/dissect/build/classes/java/test"))
+        , List.of());
 
         FlakinessJson.ProjectTargetsFile back = FlakinessJson.parseProjectTargets(FlakinessJson.writeProjectTargets(file));
 
         // The ref index is what lets the merge step restore ref ordering and compute the global unresolved set.
         assertThat(back, is(file));
         assertThat(back.resolved().get(0).refIndex(), is(2));
+        // classDirs must survive the round trip: the scan step unions this field across every project's file.
+        assertThat(
+            back.classDirs(),
+            contains(Path.of("/repo/libs/dissect/build/classes/java/main"), Path.of("/repo/libs/dissect/build/classes/java/test"))
+        );
     }
 }

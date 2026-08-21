@@ -16,9 +16,13 @@ import java.util.List;
 /**
  * A resolved base target: the project/sourceSet/kind a {@link FlakinessRef} was resolved to, before
  * bytecode enrichment. It is fully authoritative - every field is derived from the owning project's real
- * configured model (captured by {@link FlakinessProjectResolvePlugin}), including the exact {@code compileTaskPath} the
- * compile step must run, the {@code outputDir} the scan step must scan, and the {@code runnableTasks} that
- * actually re-run this target.
+ * configured model (captured by {@link FlakinessProjectResolvePlugin}), including the {@code runnableTasks}
+ * that actually re-run this target.
+ *
+ * <p>It deliberately carries neither a {@code compileTaskPath} nor an {@code outputDir}. The compile phase
+ * invokes the four {@code compile&lt;Ss&gt;Java} lifecycle tasks unqualified (so every project compiles) and
+ * the scan phase reads the union of every project's class directories, so neither is per-target information
+ * any more. Both were dropped rather than left as unread diagnostics.
  *
  * <p>A base target may still be abstract (in which case {@link PlanBuilder} flattens it into concrete
  * subclasses). yaml suite/runner targets carry a {@code suitePath} rather than an {@code fqcn}; a
@@ -39,8 +43,6 @@ import java.util.List;
  * @param fqcn            fully-qualified class name, or {@code null} for yaml suite/runner targets
  * @param suitePath       yaml suite path, or {@code null}
  * @param yamlTest        parameterised yaml case descriptor, or {@code null}
- * @param compileTaskPath authoritative {@code compile&lt;Ss&gt;Java} task path for this target's source set
- * @param outputDir       authoritative compiled-classes output directory for this target's source set
  * @param runnableTasks   the task paths that actually run this target, capped and newest-first; empty when
  *                        {@code skipReason} is set
  * @param candidateTasks  how many enabled candidate tasks existed before the cap (for the plan's report)
@@ -54,8 +56,6 @@ public record BaseTarget(
     String fqcn,
     String suitePath,
     String yamlTest,
-    String compileTaskPath,
-    String outputDir,
     List<String> runnableTasks,
     int candidateTasks,
     String skipReason

@@ -9,21 +9,24 @@
 
 package org.elasticsearch.gradle.internal.flakiness;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
  * Gradle-free helpers over the per-project resolve outputs: folding them back into one ordered target list,
- * and deriving the compile task paths. Both are pure, so they are unit-testable without Gradle and are shared
- * by the per-project resolve task (which derives its own compile task list) and {@link FlakinessScanTask}
- * (which folds every project's share together).
+ * and unioning their compiled-output directories. Both are pure, so they are unit-testable without Gradle, and
+ * both are consumed by {@link FlakinessScanTask}, which is the one step that needs the global view.
  *
  * <p>This is what used to be a separate root {@code flakinessMergeTargets} task. It needs no task of its own:
- * the only consumer that must run <em>before</em> compile is the compile task list, which each project can
- * derive for itself, and the only consumer that needs the global view is the scan step, which runs after.
+ * nothing between resolve and scan requires the merged view any more. The compile phase used to - it ran the
+ * exact task list the resolve step derived - but it now invokes the {@code compile&lt;Ss&gt;Java} lifecycle
+ * tasks unqualified, so it needs no input from resolve at all.
  */
 public final class FlakinessTargets {
 
@@ -77,16 +80,51 @@ public final class FlakinessTargets {
     }
 
     /**
-     * The distinct compile task paths of the runnable targets, deterministically ordered. A target with no
-     * runnable task is skipped downstream, so there is nothing to compile for it.
+     * The union of every project's compiled-output directories, deduplicated and deterministically ordered -
+     * i.e. the whole repo's bytecode, which is exactly what the ASM scan needs.
+     *
+     * <p>The union is taken over <em>all</em> per-project files rather than only the ones that resolved a ref.
+     * That is the point: an abstract base in one project and its concrete subclasses in another are only
+     * connected if both projects' output is in the scan set. Restricting the scan to the owning projects is
+     * what used to make a cross-project hierarchy unresolvable.
      */
-    public static List<String> compileTaskPaths(List<BaseTarget> targets) {
-        TreeSet<String> compileTasks = new TreeSet<>();
-        for (BaseTarget t : targets) {
-            if (t.runnable() && t.compileTaskPath() != null) {
-                compileTasks.add(t.compileTaskPath());
+    public static List<Path> classDirs(List<FlakinessJson.ProjectTargetsFile> perProject) {
+        TreeSet<Path> dirs = new TreeSet<>();
+        for (FlakinessJson.ProjectTargetsFile file : perProject) {
+            if (file.classDirs() != null) {
+                dirs.addAll(file.classDirs());
             }
         }
-        return new ArrayList<>(compileTasks);
+        return new ArrayList<>(dirs);
+    }
+
+    /**
+     * One project's {@link SourceSetDisposition} together with the project that reported it - what the scan
+     * step needs to turn a class found in some directory into a runnable plan entry.
+     */
+    public record OwnedSourceSet(String projectPath, SourceSetDisposition disposition) {}
+
+    /**
+     * Index every project's source-set dispositions by compiled-output directory. This is the join that makes
+     * cross-project abstract-base expansion actually <em>runnable</em>: the scanner reports which directory a
+     * concrete subclass's bytecode came from, and this map turns that directory into the owning project, source
+     * set, kind and real {@code Test} task paths - regardless of which project the originating ref named.
+     *
+     * <p>First writer wins if two projects somehow claim one directory, so the result is deterministic given
+     * the caller's sorted file order.
+     */
+    public static Map<Path, OwnedSourceSet> dispositionsByClassDir(List<FlakinessJson.ProjectTargetsFile> perProject) {
+        Map<Path, OwnedSourceSet> byDir = new HashMap<>();
+        for (FlakinessJson.ProjectTargetsFile file : perProject) {
+            if (file.dispositions() == null) {
+                continue;
+            }
+            for (SourceSetDisposition d : file.dispositions()) {
+                if (d.outputDir() != null) {
+                    byDir.putIfAbsent(d.outputDir(), new OwnedSourceSet(file.projectPath(), d));
+                }
+            }
+        }
+        return byDir;
     }
 }

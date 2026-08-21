@@ -140,6 +140,28 @@ export interface FlakinessPlan {
   commands?: PlanCommand[];
 }
 
+// The compile phase's task list. These are LIFECYCLE task names, invoked UNQUALIFIED so gradle runs each in
+// every project that has the matching source set - i.e. the whole repo's test code is compiled, not just the
+// projects that own a resolved ref.
+//
+// Compiling everything is deliberate. A subset compile cannot answer "is this class abstract, and what are its
+// concrete subclasses?" when the abstract base and the subclasses live in different Gradle projects: the ASM
+// scan can only report a class abstract if it visited that class's own .class file. Compiling everything makes
+// that question always answerable and removes the need to derive, carry and concatenate a per-project compile
+// task list.
+//
+// Cost measured on a real CI agent (n4-custom-32-98304): ~65s with the remote build cache warm (1227 of 1676
+// tasks served from cache), ~2m30s with `--no-build-cache`. The ASM scan that consumes the output is ~9s.
+//
+// Keep in sync with FlakinessProjectModel.CANDIDATE_SOURCE_SETS on the Java side: one compile task per source
+// set flakiness detection can resolve a ref into.
+export const COMPILE_TASKS = [
+  "compileTestJava",
+  "compileInternalClusterTestJava",
+  "compileJavaRestTestJava",
+  "compileYamlRestTestJava",
+] as const;
+
 export const KIND_ORDER: TestKind[] = [
   "test",
   "internalClusterTest",

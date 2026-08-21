@@ -320,13 +320,13 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     // a glob would mean ~450 uploads per build of what is debug-only detail.
     expect(orchestration.artifact_paths).toEqual([
       "flakiness-project-targets.tgz",
-      "flakiness-compile-tasks.txt",
       "flakiness-plan.json",
       "flakiness-precompile.json",
     ]);
     expect(cmd).toContain("tar -czf flakiness-project-targets.tgz");
-    // The flattened compile list is persisted so a build_failed can be triaged from artifacts alone.
-    expect(cmd).toContain('printf \'%s\\n\' "$$TASKS" > flakiness-compile-tasks.txt');
+    // No compile-task-list artifact: the compile phase invokes a fixed, unqualified task list, so there is
+    // nothing run-specific left to persist for triage.
+    expect(orchestration.artifact_paths).not.toContain("flakiness-compile-tasks.txt");
   });
 
   test("generate step: no agents pin, depends_on orchestration allow_failure, downloads plan, uploads outputs", () => {
@@ -355,13 +355,21 @@ describe("toResolvePipeline (orchestration + separate generate step)", () => {
     expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh");
   });
 
-  test("compile phase concatenates the per-project task lists; empty list is a clean skip", () => {
-    expect(cmd).toContain("TASKS=$(cat build/flakiness/project-targets/*.compile-tasks.txt 2>/dev/null | sort -u)");
-    // Non-empty list -> plain gradle invocation of just the compile tasks (no -Pflakiness / task name).
-    expect(cmd).toMatch(/if \[ -n "\$\$TASKS" \]; then/);
-    expect(cmd).toContain("timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh $$TASKS");
-    // Empty list -> the else branch just echoes and falls through to scan.
-    expect(cmd).toContain('echo "No compile tasks listed; nothing to compile."');
+  test("compile phase compiles every test source set, unqualified, reading nothing from resolve", () => {
+    // A fixed, UNQUALIFIED lifecycle task list: gradle runs each in every project that has the source set,
+    // so the whole repo's test code is compiled. That is what lets the scan phase connect an abstract base
+    // to subclasses in other projects.
+    expect(cmd).toContain(
+      "timeout --foreground --signal=TERM --kill-after=30s 28m .ci/scripts/run-gradle.sh " +
+        "compileTestJava compileInternalClusterTestJava compileJavaRestTestJava compileYamlRestTestJava",
+    );
+    // Plain compile: no -Pflakiness property and no flakiness task name in this phase.
+    const compilePhase = cmd.slice(cmd.indexOf("# --- compile"), cmd.indexOf("# --- scan"));
+    expect(compilePhase).not.toContain("-Pflakiness");
+    // None of the old per-project glue survives: no concatenation, no task-list variable, no empty-list branch.
+    expect(cmd).not.toContain(".compile-tasks.txt");
+    expect(cmd).not.toContain("$$TASKS");
+    expect(cmd).not.toContain("No compile tasks listed");
   });
 
   test("scan phase runs flakinessScan against the local compiled output", () => {

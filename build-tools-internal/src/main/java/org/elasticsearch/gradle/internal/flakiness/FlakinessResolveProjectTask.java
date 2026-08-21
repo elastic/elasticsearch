@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * The <b>per-project</b> resolve task: it resolves {@code flakiness-refs.json} against <em>only its own
@@ -41,21 +40,23 @@ import java.util.stream.Collectors;
  * post-mutation ones, while nothing but a {@code String} is serialized into the entry. The task action itself
  * touches no Gradle model at all.
  *
- * <p>A project that owns none of the refs carries an empty model ({@code ownsRefs == false}) and writes an
- * empty result; that is the cheap path the unqualified, run-everywhere invocation depends on.
+ * <p>A project that owns none of the refs resolves nothing, but still writes its {@code classDirs} and its
+ * per-source-set {@link SourceSetDisposition}s: the scan step may have to run a concrete subclass compiled
+ * here even though every ref pointed elsewhere, and that needs this project's own {@code Test} tasks.
  *
- * <h2>Outputs</h2>
- * Two files under the shared {@link FlakinessProjectResolvePlugin#TARGETS_DIR}, named after this project:
+ * <h2>Output</h2>
+ * One file under the shared {@link FlakinessProjectResolvePlugin#TARGETS_DIR}, named after this project:
+ * {@code <project>.json}, a {@link FlakinessJson.ProjectTargetsFile} carrying
  * <ul>
- *   <li>{@code <project>.json} - a {@link FlakinessJson.ProjectTargetsFile}, carrying each resolved target
- *       together with the <em>index</em> of the ref that produced it. The index is what lets
- *       {@code flakinessScan} restore the original ref ordering and decide which refs no project could
+ *   <li>each resolved target together with the <em>index</em> of the ref that produced it. The index is what
+ *       lets {@code flakinessScan} restore the original ref ordering and decide which refs no project could
  *       resolve - a decision no single project can make on its own;</li>
- *   <li>{@code <project>.compile-tasks.txt} - the compile task paths of this project's runnable targets, one
- *       per line. The orchestration step concatenates these to build the compile invocation that runs
- *       <em>between</em> resolve and scan; keeping it a plain text file means that glue stays a {@code cat}
- *       rather than JSON parsing in shell.</li>
+ *   <li>this project's {@code classDirs}, written <em>whether or not it owns a ref</em>, because the scan step
+ *       unions them into the repo-wide set it ASM-scans (see {@link FlakinessTargets#classDirs}).</li>
  * </ul>
+ *
+ * <p>There is no longer a {@code <project>.compile-tasks.txt}: the compile phase invokes the
+ * {@code compile<Ss>Java} lifecycle tasks unqualified, so it needs nothing from resolve.
  *
  * <p>Note the resolver is deliberately run one ref at a time: {@link RefResolver} reports a class ref it
  * cannot find as {@code unresolved}, but "not in <em>this</em> project" is not "not anywhere", so per-project
@@ -100,10 +101,6 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
     @OutputFile
     public abstract RegularFileProperty getTargetsFile();
 
-    /** The compile task paths of this project's runnable targets, one per line (empty when it owns none). */
-    @OutputFile
-    public abstract RegularFileProperty getCompileTasksFile();
-
     /**
      * The captured model, written out verbatim. Not consumed by anything downstream - it exists so the
      * post-mutation correctness of the store-time capture is inspectable (e.g. that a bwc project's bare
@@ -129,43 +126,49 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
 
         write(getModelFile().get().getAsFile(), getProjectModelJson().get());
 
+        ProjectInfo project = new ProjectInfo(model.projectPath(), model.projectDir(), model.sourceSets());
+        Path repoRoot = getRepoRoot().get().getAsFile().toPath();
+        // Single-project resolver: no cross-project model, no build service, nothing but the plain records
+        // that were carried in through the @Input above.
+        RefResolver resolver = new RefResolver(repoRoot, List.of(project), path -> model.testTasks(), getTaskCap().get());
+
         List<FlakinessJson.RefTarget> resolved = new ArrayList<>();
-        if (model.ownsRefs()) {
-            ProjectInfo project = new ProjectInfo(model.projectPath(), model.projectDir(), model.sourceSets());
-            Path repoRoot = getRepoRoot().get().getAsFile().toPath();
-            // Single-project resolver: no cross-project model, no build service, nothing but the plain records
-            // that were carried in through the @Input above.
-            RefResolver resolver = new RefResolver(repoRoot, List.of(project), path -> model.testTasks(), getTaskCap().get());
-            List<FlakinessRef> refs = refsFile.refs();
-            for (int i = 0; i < refs.size(); i++) {
-                // One ref at a time so each target can be attributed to its ref; the per-ref "unresolved"
-                // verdict is intentionally ignored here (see class javadoc) and recomputed globally by scan.
-                // TODO jozala - how does it filter the tests are in the right task (is it mapped with the directories?) - check the CSV
-                // tests (do they break the assumption?)
-                // TODO jozala - maybe I can check the Gradle test task if it can resolve the test classes that are used by that test???
-                for (BaseTarget target : resolver.resolve(List.of(refs.get(i))).targets()) {
-                    resolved.add(new FlakinessJson.RefTarget(i, target));
-                }
+        List<FlakinessRef> refs = refsFile.refs();
+        for (int i = 0; i < refs.size(); i++) {
+            // One ref at a time so each target can be attributed to its ref; the per-ref "unresolved"
+            // verdict is intentionally ignored here (see class javadoc) and recomputed globally by scan.
+            // TODO jozala - how does it filter the tests are in the right task (is it mapped with the directories?) - check the CSV
+            // tests (do they break the assumption?)
+            // TODO jozala - maybe I can check the Gradle test task if it can resolve the test classes that are used by that test???
+            for (BaseTarget target : resolver.resolve(List.of(refs.get(i))).targets()) {
+                resolved.add(new FlakinessJson.RefTarget(i, target));
             }
         }
 
+        // Reported whether or not this project resolved anything: the scan step runs subclasses it finds HERE
+        // even when every ref pointed at some other project (see SourceSetDisposition).
+        List<SourceSetDisposition> dispositions = dispositionsOf(model, getTaskCap().get());
+
         write(
             getTargetsFile().get().getAsFile(),
-            FlakinessJson.writeProjectTargets(new FlakinessJson.ProjectTargetsFile(model.projectPath(), resolved))
+            FlakinessJson.writeProjectTargets(
+                new FlakinessJson.ProjectTargetsFile(model.projectPath(), resolved, model.classDirs(), dispositions)
+            )
         );
-        // Newline-TERMINATED, not newline-separated: the orchestration step simply `cat`s every project's
-        // file together, so a missing trailing newline would glue two task paths into one word.
-        List<String> compileTasks = FlakinessTargets.compileTaskPaths(resolved.stream().map(FlakinessJson.RefTarget::target).toList());
-        write(getCompileTasksFile().get().getAsFile(), compileTasks.stream().map(t -> t + "\n").collect(Collectors.joining()));
 
-        if (model.ownsRefs() == false) {
-            getLogger().info("flakiness resolve[{}]: owns none of the {} refs", model.projectPath(), refsFile.refs().size());
+        if (resolved.isEmpty()) {
+            getLogger().info(
+                "flakiness resolve[{}]: owns none of the {} refs; reported {} source-set dispositions",
+                model.projectPath(),
+                refs.size(),
+                dispositions.size()
+            );
             return;
         }
         getLogger().lifecycle(
             "flakiness resolve[{}]: {} refs -> {} targets (model: {} source sets, {} Test tasks)",
             model.projectPath(),
-            refsFile.refs().size(),
+            refs.size(),
             resolved.size(),
             model.sourceSets().size(),
             model.testTasks().size()
@@ -178,6 +181,38 @@ public abstract class FlakinessResolveProjectTask extends DefaultTask {
                 getLogger().lifecycle("  ref[{}] {} {} -> skip ({})", rt.refIndex(), t.kind(), identityOf(t), t.skipReason());
             }
         }
+    }
+
+    /**
+     * How each of this project's candidate test source sets can be re-run, using the same
+     * {@link TestTaskSelector} query the resolver applies to a resolved target: intersect every enabled
+     * {@code Test} task's {@code testClassesDirs} with the source set's compiled output.
+     *
+     * <p>Emitted for every project because the scan step needs it for classes it did not resolve a ref to -
+     * a concrete subclass of a foreign abstract base is run by <em>this</em> project's tasks, not by those of
+     * whichever project the ref happened to name. Source sets whose name maps to no Java kind
+     * ({@code yamlRestTest} resolves to yaml kinds, which carry no expandable fqcn) are left out.
+     */
+    private static List<SourceSetDisposition> dispositionsOf(FlakinessJson.ProjectModel model, int taskCap) {
+        List<SourceSetDisposition> dispositions = new ArrayList<>();
+        for (SourceSetInfo ss : model.sourceSets()) {
+            String kind = RefResolver.javaKindOf(ss.name());
+            if (kind == null || Kinds.BYTECODE_ENRICHED.contains(kind) == false) {
+                continue;
+            }
+            TestTaskSelector.Selection selection = TestTaskSelector.select(ss.name(), ss.outputDir(), model.testTasks(), taskCap);
+            dispositions.add(
+                new SourceSetDisposition(
+                    ss.name(),
+                    ss.outputDir(),
+                    kind,
+                    selection.taskPaths(),
+                    selection.candidateCount(),
+                    selection.skipReason()
+                )
+            );
+        }
+        return dispositions;
     }
 
     private static void write(File file, String content) throws IOException {

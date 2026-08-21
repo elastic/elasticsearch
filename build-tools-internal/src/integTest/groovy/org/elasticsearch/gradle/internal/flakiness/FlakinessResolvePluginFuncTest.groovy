@@ -32,10 +32,13 @@ import groovy.json.JsonSlurper
  *       and wrongly emits the disabled bare task, so this fixture fails any capture that is not late.</li>
  * </ol>
  *
- * <p>The fixture is a four-project build:
+ * <p>The fixture is a five-project build:
  * <ul>
  *   <li>{@code :app} - a {@code test} source set with an abstract base and two concrete subclasses, to
  *       exercise ASM abstract-flattening on really-compiled bytecode;</li>
+ *   <li>{@code :downstream} - a THIRD concrete subclass of {@code :app}'s abstract base, in its own project.
+ *       Only a repo-wide compile plus a repo-wide scan finds it, and it must then be reported rather than run
+ *       under {@code :app}'s tasks (which do not contain it);</li>
  *   <li>{@code :other} - a second project, to prove cross-project boundary resolution;</li>
  *   <li>{@code :bwcish} - the disabled-bare-task shape described above;</li>
  *   <li>{@code :untouched} - owns none of the refs.</li>
@@ -48,7 +51,7 @@ import groovy.json.JsonSlurper
  * instead verified by a full-build run (see JAVA_RESOLVER_NOTES.md Verification).
  *
  * <p>The three invocations mirror the three Gradle phases of the Buildkite orchestration step: the
- * unqualified resolve, a plain compile of the task paths the projects emitted, then scan.
+ * unqualified resolve, an unqualified compile of every test source set, then scan.
  */
 class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -70,6 +73,18 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         subProject(":other") << register
         subProject(":untouched") << register
 
+        // :downstream holds a concrete subclass of an abstract base that lives in ANOTHER project. This is the
+        // case a subset compile cannot handle: unless :downstream's bytecode is also in the scan set, the base
+        // looks like it has only the two subclasses in :app. It needs :app's test output on its compile
+        // classpath, which in this lightweight fixture is the direct source-set-output dependency.
+        subProject(":downstream") << register << """
+            evaluationDependsOn(':app')
+            // Hoisted out of `dependencies {}` on purpose: in there, `project(':app')` is the dependency
+            // factory method and returns a ProjectDependency, which has no `sourceSets`.
+            def appTestOutput = project(':app').sourceSets.test.output
+            dependencies { testImplementation appTestOutput }
+        """
+
         // :bwcish flips the bare task off through `matching {}.configureEach {}` and registers the
         // alternatives AFTER the resolve task has been registered, exactly as bwc-test.gradle does.
         subProject(":bwcish") << register << """
@@ -83,9 +98,16 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         """
 
         // :app test hierarchy: AbstractFooTests (abstract) <- {BarTests, BazTests}, plus a standalone class.
-        javaTestClass("app", "com/example/AbstractFooTests", "abstract class AbstractFooTests {}")
+        // public, so the cross-project subclass in :downstream can extend it from another package.
+        javaTestClass("app", "com/example/AbstractFooTests", "public abstract class AbstractFooTests {}")
         javaTestClass("app", "com/example/BarTests", "class BarTests extends AbstractFooTests {}")
         javaTestClass("app", "com/example/BazTests", "class BazTests extends AbstractFooTests {}")
+
+        // ...and a THIRD subclass, in a different project. Only a repo-wide compile + repo-wide scan finds it.
+        javaTestClass("downstream", "com/downstream/DownstreamTests", """
+            import com.example.AbstractFooTests;
+            class DownstreamTests extends AbstractFooTests {}
+        """)
 
         // :other has an unrelated concrete test, referenced via a changed-file ref.
         javaTestClass("other", "com/other/OtherTests", "class OtherTests {}")
@@ -123,8 +145,6 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         appTarget.fqcn == "com.example.AbstractFooTests"
         appTarget.sourceSet == "test"
         appTarget.kind == "test"
-        appTarget.compileTaskPath == ":app:compileTestJava"
-        appTarget.outputDir.replace('\\', '/').endsWith("app/build/classes/java/test")
         // An ordinary project: the plain enabled bare task, derived from the model.
         appTarget.runnableTasks == [":app:test"]
         appTarget.skipReason == null
@@ -132,21 +152,34 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         def otherTarget = projectTargets("other").resolved[0].target
         otherTarget.gradleProject == ":other"
         otherTarget.fqcn == "com.other.OtherTests"
-        otherTarget.compileTaskPath == ":other:compileTestJava"
         otherTarget.runnableTasks == [":other:test"]
 
-        and: "the project that owns nothing wrote an EMPTY share and never realized its Test tasks"
+        and: "the projects that own nothing resolved nothing, but still reported a full model"
         projectTargets("untouched").resolved.isEmpty()
-        compileTasksOf("untouched").isEmpty()
+        projectTargets("downstream").resolved.isEmpty()
         def untouchedModel = new JsonSlurper().parse(file("untouched/build/flakiness/project-model.json"))
-        untouchedModel.ownsRefs == false
-        // The cheap exit: no Test task was realized, so none is in the captured model.
-        untouchedModel.testTasks.isEmpty()
-        untouchedModel.sourceSets.isEmpty()
+        // No cheap exit any more: owning no ref does not make a project irrelevant, because the scan may need
+        // to run a subclass compiled here. So its source sets AND its Test tasks are captured.
+        !untouchedModel.sourceSets.isEmpty()
+        untouchedModel.testTasks.find { it.name == "test" } != null
+
+        and: "every project reports how each of its test source sets can be re-run"
+        def downstreamDisp = projectTargets("downstream").dispositions
+        downstreamDisp.size() == 1
+        downstreamDisp[0].sourceSet == "test"
+        downstreamDisp[0].kind == "test"
+        downstreamDisp[0].runnableTasks == [":downstream:test"]
+        downstreamDisp[0].skipReason == null
+
+        and: "...but they DID report their class dirs, which is what makes the scan repo-wide"
+        classDirsOf("untouched").any { it.endsWith("untouched/build/classes/java/test") }
+        classDirsOf("downstream").any { it.endsWith("downstream/build/classes/java/test") }
+        // main is in the set too: abstract bases live in main source sets in the real repo, and the scan can
+        // only call a class abstract if it visited that class's own .class file.
+        classDirsOf("app").any { it.endsWith("app/build/classes/java/main") }
 
         and: "the disabled-bare-task project resolves to its real alternatives, newest-first and capped"
         def bwcishModel = new JsonSlurper().parse(file("bwcish/build/flakiness/project-model.json"))
-        bwcishModel.ownsRefs == true
         // Proof the capture was late: the mutations applied after registration are visible.
         bwcishModel.testTasks.find { it.name == "test" }.enabled == false
         bwcishModel.testTasks.count { it.name.endsWith("#altTest") } == 3
@@ -157,28 +190,53 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         bwcishTarget.candidateTasks == 3
         bwcishTarget.skipReason == null
 
-        and: "the per-project compile task lists, concatenated, cover all three owning projects"
-        allCompileTasks() as Set == [":app:compileTestJava", ":other:compileTestJava", ":bwcish:compileTestJava"] as Set
+        and: "the class-dir union spans EVERY project, not just the three that own a ref"
+        [":app", ":other", ":bwcish", ":untouched", ":downstream"].every { p ->
+            allClassDirs().any { it.endsWith("${p.substring(1)}/build/classes/java/test") }
+        }
 
         and: "the configuration cache entry was stored without problems"
         resolveResult.output.contains("Configuration cache entry stored")
 
-        when: "the emitted compile tasks are run plainly, then scan enriches the compiled output"
-        gradleRunner(allCompileTasks() as String[]).build()
+        when: "every test source set is compiled UNQUALIFIED (nothing read back from resolve), then scan runs"
+        gradleRunner("compileTestJava").build()
         def scanResult = gradleRunner("-Pflakiness.resolve", "flakinessScan").build()
 
-        then: "the abstract base is flattened to its two concrete subclasses; the other test passes through"
+        then: "the repo-wide scan FINDS all three concrete subclasses, including the one in another project"
         scanResult.task(":flakinessScan").outcome == TaskOutcome.SUCCESS
         def plan = new JsonSlurper().parse(file("flakiness-plan.json"))
         plan.buildFailed == false
 
-        def expanded = plan.entries.findAll { it.expandedFrom == "com.example.AbstractFooTests" }
-        expanded.collect { it.fqcn } as Set == ["com.example.BarTests", "com.example.BazTests"] as Set
-        expanded.every { it.disposition == "run" }
-
         plan.expansions.size() == 1
         plan.expansions[0].abstractFqcn == "com.example.AbstractFooTests"
-        plan.expansions[0].ran == 2
+        // 3, not 2: com.downstream.DownstreamTests lives in :downstream and was invisible to a subset scan.
+        // This count is the regression test for the repo-wide compile + scan.
+        plan.expansions[0].ran == 3
+        plan.expansions[0].total == 3
+
+        and: "the two subclasses in the base's own output run under the base target's real tasks"
+        def sameProject = plan.entries.findAll { it.expandedFrom == "com.example.AbstractFooTests" && it.gradleProject == ":app" }
+        sameProject.collect { it.fqcn } as Set == ["com.example.BarTests", "com.example.BazTests"] as Set
+        sameProject.every { it.disposition == "run" && it.runnableTasks == [":app:test"] }
+
+        and: "the cross-project subclass is RE-HOMED onto its own project's task, not the base's"
+        // :app:test does not contain com.downstream.DownstreamTests, so inheriting the base's tasks would emit
+        // `:app:test --tests com.downstream.DownstreamTests` - zero tests run, looks like a hang. It must be
+        // attributed to :downstream, whose own Test task really executes it. This is only possible because
+        // :downstream reported its source-set disposition despite owning no ref.
+        def crossProject = plan.entries.findAll { it.fqcn == "com.downstream.DownstreamTests" }
+        crossProject.size() == 1
+        crossProject[0].disposition == "run"
+        crossProject[0].gradleProject == ":downstream"
+        crossProject[0].sourceSet == "test"
+        crossProject[0].runnableTasks == [":downstream:test"]
+        crossProject[0].expandedFrom == "com.example.AbstractFooTests"
+
+        and: "and it is invoked under :downstream:test in the emitted commands, never under :app:test"
+        def downstreamCmds = plan.commands.findAll { it.command.contains("com.downstream.DownstreamTests") }
+        downstreamCmds.size() >= 1
+        downstreamCmds.collect { it.command }.join(" ").contains(":downstream:test --tests com.downstream.DownstreamTests")
+        !plan.commands.any { it.command =~ /:app:test[^:]*--tests com\.downstream/ }
 
         def other = plan.entries.find { it.gradleProject == ":other" }
         other.fqcn == "com.other.OtherTests"
@@ -199,12 +257,14 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         and: "the plan carries ready, target-neutral batch commands (Java owns batch-command generation)"
         plan.commands.size() >= 1
         plan.commands.every { it.command.contains("__GRADLE__") }
-        // The three concrete unit tests (2 expanded + OtherTests) are all kind=test; capBatch=3 -> one batch.
-        def unitCmd = plan.commands.find { it.key == "flakiness-detection:unit" }
-        unitCmd != null
-        unitCmd.command.startsWith("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000!")
-        unitCmd.command.contains("--tests com.example.BarTests")
-        unitCmd.command.contains("--tests com.other.OtherTests")
+        // Four concrete unit tests are kind=test now (BarTests, BazTests, the re-homed DownstreamTests and
+        // OtherTests), and capBatch=3, so they slice into two batches rather than one.
+        def unitCmds = plan.commands.findAll { it.key == "flakiness-detection:unit" }
+        unitCmds.size() == 2
+        unitCmds.every { it.command.startsWith("__GRADLE__ -Dtests.iters=100 -Dtests.timeoutSuite=3600000!") }
+        def allUnit = unitCmds.collect { it.command }.join(" ")
+        allUnit.contains("--tests com.example.BarTests")
+        allUnit.contains("--tests com.other.OtherTests")
 
         and: "the commands invoke the real alternative tasks, never the disabled bare one"
         def bwcishCmds = plan.commands.findAll { it.command.contains("com.bwcish.BwcishTests") }
@@ -240,16 +300,15 @@ class FlakinessResolvePluginFuncTest extends AbstractGradleInternalPluginFuncTes
         new JsonSlurper().parse(file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.json"))
     }
 
-    private List<String> compileTasksOf(String project) {
-        file("${FlakinessProjectResolvePlugin.TARGETS_DIR}/${project}.compile-tasks.txt").text.readLines().findAll { it.trim() }
+    private List<String> classDirsOf(String project) {
+        projectTargets(project).classDirs.collect { (it as String).replace('\\', '/') }
     }
 
-    /** What the orchestration shell does: concatenate every project's compile task list. */
-    private List<String> allCompileTasks() {
+    /** What the scan step does: union every project's class dirs, owners and non-owners alike. */
+    private List<String> allClassDirs() {
         file(FlakinessProjectResolvePlugin.TARGETS_DIR).listFiles()
-            .findAll { it.name.endsWith(".compile-tasks.txt") }
-            .collectMany { it.text.readLines() }
-            .findAll { it.trim() }
+            .findAll { it.name.endsWith(".json") }
+            .collectMany { new JsonSlurper().parse(it).classDirs.collect { d -> (d as String).replace('\\', '/') } }
             .unique()
             .sort()
     }

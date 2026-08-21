@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 public class TextStructureWithSecurityInsufficientRoleIT extends TextStructureWithSecurityIT {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.create();
+    public static final ElasticsearchCluster cluster = Clusters.create();
 
     private final ClientYamlTestCandidate testCandidate;
 

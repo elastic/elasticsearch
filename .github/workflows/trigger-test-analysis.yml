@@ -117,7 +117,7 @@ jobs:
             --header "Content-Type: application/json" \
             --data "$BODY"
 
-      - name: Mark issue as processed (:eyes: reaction)
+      - name: "Mark issue as processed (:eyes: reaction)"
         if: steps.check-processed.outputs.alreadyProcessed != 'true'
         uses: actions/github-script@v7
         with:

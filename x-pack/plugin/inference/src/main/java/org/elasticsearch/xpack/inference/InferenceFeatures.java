@@ -82,6 +82,22 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
     public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
+
+    /**
+     * Test feature marking that this node stores only the {@code heuristics} + {@code internal} subset of
+     * {@link org.elasticsearch.inference.metadata.EndpointMetadata} in cluster state (gated on transport version
+     * {@code inference_endpoint_metadata_cluster_state_added} in
+     * {@link org.elasticsearch.inference.EndpointClusterState}).
+     * Nodes that do NOT publish this feature write the full {@code EndpointMetadata} layout (including {@code display},
+     * {@code regions}, and {@code denied_by_region_policy}) to cluster state.
+     * <p>
+     * Used by BWC rolling-upgrade tests to distinguish a self-upgrade task (where the "old" cluster is the same build)
+     * from a genuine old-cluster run, so that the old-cluster {@code display} assertion is not triggered when the old
+     * cluster never wrote {@code display} in the first place.
+     */
+    public static final NodeFeature ENDPOINT_METADATA_CLUSTER_STATE_SUBSET = new NodeFeature(
+        "inference.endpoint_metadata_cluster_state_subset"
+    );
     public static final NodeFeature INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION = new NodeFeature(
         "inference.internal_delete_endpoints_action"
     );
@@ -171,7 +187,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_EMBEDDING_TASK,
                 SemanticTextFieldMapper.SEMANTIC_TEXT_ORIGINAL_VALUES_DOC_VALUES,
                 SemanticFieldMapper.SEMANTIC_FIELD_MAPPER,
-                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX
+                TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_EMPTY_RESULT_FIX,
+                ENDPOINT_METADATA_CLUSTER_STATE_SUBSET
             )
         );
         testFeatures.addAll(getFeatures());

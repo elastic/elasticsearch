@@ -11,10 +11,14 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -42,7 +46,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         TEST_DIMENSIONS_384,
         SimilarityMeasure.COSINE,
         DenseVectorFieldMapper.ElementType.FLOAT,
-        EndpointMetadata.EMPTY_INSTANCE
+        EndpointMetadataClusterState.EMPTY_INSTANCE
     );
 
     private static final String MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON = """
@@ -61,12 +65,9 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         384,
         SimilarityMeasure.COSINE,
         DenseVectorFieldMapper.ElementType.FLOAT,
-        new EndpointMetadata(
+        new EndpointMetadataClusterState(
             new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
-            new EndpointMetadata.Internal("fingerprint", 1L),
-            new EndpointMetadata.Display("name", "creator"),
-            List.of(),
-            false
+            new EndpointMetadata.Internal("fingerprint", 1L)
         )
     );
 
@@ -87,10 +88,6 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             "internal": {
               "fingerprint": "fingerprint",
               "version": 1
-            },
-            "display": {
-              "name": "name",
-              "model_creator": "creator"
             }
           }
         }
@@ -107,7 +104,9 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             similarity = randomFrom(SimilarityMeasure.values());
             elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         }
-        var endpointMetadata = randomBoolean() ? EndpointMetadata.EMPTY_INSTANCE : EndpointMetadataTests.randomInstance();
+        var endpointMetadata = randomBoolean()
+            ? EndpointMetadataClusterState.EMPTY_INSTANCE
+            : EndpointMetadataClusterStateTests.randomInstance();
         return new EndpointClusterState(
             randomBoolean() ? null : randomAlphaOfLength(10),
             taskType,
@@ -191,10 +190,10 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             }
             case 5 -> {
                 // Ensure we always get a different value: if EMPTY, use non-EMPTY; if non-EMPTY, use EMPTY or different instance
-                if (endpointMetadata.equals(EndpointMetadata.EMPTY_INSTANCE)) {
-                    endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
+                if (endpointMetadata.equals(EndpointMetadataClusterState.EMPTY_INSTANCE)) {
+                    endpointMetadata = EndpointMetadataClusterStateTests.randomNonEmptyInstance();
                 } else {
-                    endpointMetadata = randomValueOtherThan(endpointMetadata, EndpointMetadataTests::randomInstance);
+                    endpointMetadata = randomValueOtherThan(endpointMetadata, EndpointMetadataClusterStateTests::randomInstance);
                 }
             }
         }
@@ -204,14 +203,11 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected EndpointClusterState mutateInstanceForVersion(EndpointClusterState instance, TransportVersion version) {
-        var metadataVersion = TransportVersion.fromName("inference_endpoint_metadata_fields_added");
-
         var endpointMetadata = instance.endpointMetadata();
-        if (version.supports(metadataVersion) == false) {
-            endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
-        } else {
-            endpointMetadata = EndpointMetadataTests.doMutateInstanceForVersion(endpointMetadata, version);
+        if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
+            endpointMetadata = EndpointMetadataClusterState.EMPTY_INSTANCE;
         }
+        // EndpointMetadataClusterState has no version-gated fields of its own — heuristics and internal are always written in full.
         return new EndpointClusterState(
             instance.service(),
             instance.taskType(),
@@ -239,7 +235,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         var same = new EndpointClusterState(
             SERVICE_A,
@@ -247,7 +243,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadataTests.randomNonEmptyInstance()
+            EndpointMetadataClusterStateTests.randomNonEmptyInstance()
         );
         assertTrue(settings.canMergeWith(same));
     }
@@ -259,7 +255,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         var same = new EndpointClusterState(
             SERVICE_A,
@@ -267,7 +263,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         assertTrue(settings.canMergeWith(same));
     }
@@ -281,7 +277,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
                 TEST_DIMENSIONS_384,
                 SimilarityMeasure.COSINE,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                EndpointMetadata.EMPTY_INSTANCE
+                EndpointMetadataClusterState.EMPTY_INSTANCE
             );
             var other = new EndpointClusterState(
                 SERVICE_B,
@@ -289,14 +285,28 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
                 TEST_DIMENSIONS_384,
                 SimilarityMeasure.COSINE,
                 DenseVectorFieldMapper.ElementType.FLOAT,
-                EndpointMetadata.EMPTY_INSTANCE
+                EndpointMetadataClusterState.EMPTY_INSTANCE
             );
             assertTrue(settings.canMergeWith(other));
         }
         // Non-embedding task type
         {
-            var settings = new EndpointClusterState(SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
-            var other = new EndpointClusterState(OTHER_SERVICE, TaskType.COMPLETION, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+            var settings = new EndpointClusterState(
+                SERVICE,
+                TaskType.COMPLETION,
+                null,
+                null,
+                null,
+                EndpointMetadataClusterState.EMPTY_INSTANCE
+            );
+            var other = new EndpointClusterState(
+                OTHER_SERVICE,
+                TaskType.COMPLETION,
+                null,
+                null,
+                null,
+                EndpointMetadataClusterState.EMPTY_INSTANCE
+            );
             assertTrue(settings.canMergeWith(other));
         }
     }
@@ -308,9 +318,16 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
-        var other = new EndpointClusterState(null, TaskType.SPARSE_EMBEDDING, null, null, null, EndpointMetadata.EMPTY_INSTANCE);
+        var other = new EndpointClusterState(
+            null,
+            TaskType.SPARSE_EMBEDDING,
+            null,
+            null,
+            null,
+            EndpointMetadataClusterState.EMPTY_INSTANCE
+        );
         assertFalse(settings.canMergeWith(other));
     }
 
@@ -321,7 +338,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         var other = new EndpointClusterState(
             null,
@@ -329,7 +346,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_768,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         assertFalse(settings.canMergeWith(other));
     }
@@ -341,7 +358,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         var other = new EndpointClusterState(
             null,
@@ -349,7 +366,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.DOT_PRODUCT,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         assertFalse(settings.canMergeWith(other));
     }
@@ -361,7 +378,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         var other = new EndpointClusterState(
             null,
@@ -369,7 +386,7 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
             TEST_DIMENSIONS_384,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.BYTE,
-            EndpointMetadata.EMPTY_INSTANCE
+            EndpointMetadataClusterState.EMPTY_INSTANCE
         );
         assertFalse(settings.canMergeWith(other));
     }
@@ -396,5 +413,142 @@ public class EndpointClusterStateTests extends AbstractBWCSerializationTestCase<
         var json = Strings.toString(builder);
 
         assertThat(json, is(XContentHelper.stripWhitespace(MINIMAL_SERVICE_SETTINGS_WITHOUT_METADATA_JSON)));
+    }
+
+    // BWC stream tests
+    // Both read and write directions must fully consume the stream: a misaligned read at
+    // ModelRegistryClusterStateMetadata.java:170's map reader would corrupt the entire cluster-state custom.
+
+    private static final TaskType LEGACY_TEST_TASK_TYPE = TaskType.COMPLETION;
+
+    private static void writeNonMetadataPrefix(StreamOutput out, String service) throws IOException {
+        out.writeOptionalString(service);
+        LEGACY_TEST_TASK_TYPE.writeTo(out);
+        out.writeOptionalInt(null);
+        out.writeOptionalEnum(null);
+        out.writeOptionalEnum(null);
+    }
+
+    private static void readNonMetadataPrefix(StreamInput in) throws IOException {
+        in.readOptionalString();
+        TaskType.fromStream(in);
+        in.readOptionalInt();
+        in.readOptionalEnum(SimilarityMeasure.class);
+        in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class);
+    }
+
+    /**
+     * Verifies that reading a stream written at the 9.4-era version (full EndpointMetadata without regions) produces the correct
+     * EndpointClusterState subset and fully consumes the stream.
+     */
+    public void testReadFrom_LegacyStream_9_4Era_ConsumesFullLayout() throws IOException {
+        var service = randomAlphaOfLength(10);
+        var heuristics = EndpointMetadataTests.randomHeuristics();
+        var internal = EndpointMetadataTests.randomInternal();
+        var display = EndpointMetadataTests.randomDisplay();
+        var original = new EndpointMetadata(heuristics, internal, display, List.of(), false);
+
+        var out = new BytesStreamOutput();
+        out.setTransportVersion(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED);
+        writeNonMetadataPrefix(out, service);
+        original.writeTo(out);
+
+        var in = out.bytes().streamInput();
+        in.setTransportVersion(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED);
+        var parsed = new EndpointClusterState(in);
+
+        assertThat(parsed.endpointMetadata().heuristics(), is(heuristics));
+        assertThat(parsed.endpointMetadata().internal(), is(internal));
+        assertThat(in.available(), is(0));
+    }
+
+    /**
+     * Verifies that reading a stream written at the 9.5-era version (full EndpointMetadata with regions) produces the correct
+     * EndpointClusterState subset and fully consumes the stream.
+     */
+    public void testReadFrom_LegacyStream_9_5Era_ConsumesFullLayout() throws IOException {
+        var service = randomAlphaOfLength(10);
+        var heuristics = EndpointMetadataTests.randomHeuristics();
+        var internal = EndpointMetadataTests.randomInternal();
+        var display = EndpointMetadataTests.randomDisplay();
+        var regions = EndpointMetadataTests.randomRegions();
+        var original = new EndpointMetadata(heuristics, internal, display, regions, true);
+
+        var out = new BytesStreamOutput();
+        out.setTransportVersion(EndpointMetadata.REGIONS_ADDED);
+        writeNonMetadataPrefix(out, service);
+        original.writeTo(out);
+
+        var in = out.bytes().streamInput();
+        in.setTransportVersion(EndpointMetadata.REGIONS_ADDED);
+        var parsed = new EndpointClusterState(in);
+
+        assertThat(parsed.endpointMetadata().heuristics(), is(heuristics));
+        assertThat(parsed.endpointMetadata().internal(), is(internal));
+        assertThat(in.available(), is(0));
+    }
+
+    /**
+     * Verifies that writing an EndpointClusterState at the 9.4-era version produces bytes that an EndpointMetadata reader can
+     * consume, with display/regions/deniedByRegionPolicy coming back as their empty/default values.
+     */
+    public void testWriteTo_LegacyVersion_9_4Era_ProducesFullLayoutForOldPeer() throws IOException {
+        var service = randomAlphaOfLength(10);
+        var clusterState = new EndpointClusterState(
+            service,
+            LEGACY_TEST_TASK_TYPE,
+            null,
+            null,
+            null,
+            EndpointMetadataClusterStateTests.randomNonEmptyInstance()
+        );
+
+        var out = new BytesStreamOutput();
+        out.setTransportVersion(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED);
+        clusterState.writeTo(out);
+
+        var in = out.bytes().streamInput();
+        in.setTransportVersion(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED);
+        readNonMetadataPrefix(in);
+        var fullMetadata = new EndpointMetadata(in);
+
+        assertThat(fullMetadata.heuristics(), is(clusterState.endpointMetadata().heuristics()));
+        assertThat(fullMetadata.internal(), is(clusterState.endpointMetadata().internal()));
+        assertThat(fullMetadata.display(), is(EndpointMetadata.Display.EMPTY_INSTANCE));
+        assertThat(fullMetadata.regions(), is(List.of()));
+        assertFalse(fullMetadata.deniedByRegionPolicy());
+        assertThat(in.available(), is(0));
+    }
+
+    /**
+     * Verifies that writing an EndpointClusterState at the 9.5-era version produces bytes that an EndpointMetadata reader can
+     * consume, with display/regions/deniedByRegionPolicy coming back as their empty/default values.
+     */
+    public void testWriteTo_LegacyVersion_9_5Era_ProducesFullLayoutForOldPeer() throws IOException {
+        var service = randomAlphaOfLength(10);
+        var clusterState = new EndpointClusterState(
+            service,
+            LEGACY_TEST_TASK_TYPE,
+            null,
+            null,
+            null,
+            EndpointMetadataClusterStateTests.randomNonEmptyInstance()
+        );
+
+        var out = new BytesStreamOutput();
+        out.setTransportVersion(EndpointMetadata.REGIONS_ADDED);
+        clusterState.writeTo(out);
+
+        var in = out.bytes().streamInput();
+        in.setTransportVersion(EndpointMetadata.REGIONS_ADDED);
+        readNonMetadataPrefix(in);
+        var fullMetadata = new EndpointMetadata(in);
+
+        assertThat(fullMetadata.heuristics(), is(clusterState.endpointMetadata().heuristics()));
+        assertThat(fullMetadata.internal(), is(clusterState.endpointMetadata().internal()));
+        assertThat(fullMetadata.display(), is(EndpointMetadata.Display.EMPTY_INSTANCE));
+        assertThat(fullMetadata.regions(), is(List.of()));
+        assertFalse(fullMetadata.deniedByRegionPolicy());
+        assertThat(in.available(), is(0));
     }
 }

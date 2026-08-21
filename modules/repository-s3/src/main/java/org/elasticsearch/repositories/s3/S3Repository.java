@@ -34,12 +34,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -50,7 +52,9 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -76,9 +80,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     static final String TYPE = "s3";
 
     /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
 
     /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
@@ -249,9 +255,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // deprecated for a long time, can be removed in v10
     static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
         "unsafely_incompatible_with_s3_conditional_writes",
-        false
+        false,
+        Setting.Property.Deprecated
     );
 
     private final S3Service service;
@@ -392,6 +400,42 @@ class S3Repository extends MeteredBlobStoreRepository {
         This repository's settings include a S3 access key and secret key, but repository settings are stored in plaintext and must not be \
         used for security-sensitive information. Instead, store all secure settings in the keystore. See [%s] for more information.\
         """, ReferenceDocs.SECURE_SETTINGS);
+
+    static final String UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING = Strings.format(
+        """
+            This repository's settings include [%s] which is deprecated and must be removed before upgrade. If this setting is configured \
+            as [true], then first upgrade your storage to a system that is fully compatible with AWS S3.""",
+        UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey()
+    );
+
+    @Override
+    public Collection<RepositoryDeprecationInfo> getDeprecationInfos() {
+        final List<RepositoryDeprecationInfo> deprecationInfos = new ArrayList<>();
+        // The constructor already validates these settings, so this check cannot fail on a successfully-created S3Repository.
+        if (S3ClientSettings.checkDeprecatedCredentials(getMetadata().settings())) {
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "S3 repository stores credentials in insecure repository settings",
+                    ReferenceDocs.SECURE_SETTINGS,
+                    INSECURE_CREDENTIALS_DEPRECATION_WARNING,
+                    false
+                )
+            );
+        }
+        if (UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.exists(getMetadata().settings())) {
+            deprecationInfos.add(
+                new RepositoryDeprecationInfo(
+                    RepositoryDeprecationInfo.Level.CRITICAL,
+                    "S3 repository explicitly configures a deprecated conditional writes setting",
+                    ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                    UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING,
+                    false
+                )
+            );
+        }
+        return deprecationInfos;
+    }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));

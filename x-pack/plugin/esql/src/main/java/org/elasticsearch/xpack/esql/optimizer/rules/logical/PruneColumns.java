@@ -197,21 +197,15 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Prunes attributes the rest of the plan never references, for the two index modes where keeping them is not free.
+     * Prunes unreferenced attributes for the two index modes where {@code InsertFieldExtraction} doesn't already trim to the
+     * fields the query needs.
      * <p>
-     * {@link IndexMode#LOOKUP}: {@code InsertFieldExtraction} can't currently be used for the right-hand index of a LOOKUP JOIN, which
-     * instead extracts every field the relation has other than the join key.
+     * {@link IndexMode#LOOKUP}: the right-hand index of a LOOKUP JOIN extracts every field except the join key.
      * <p>
-     * {@link IndexMode#TIME_SERIES}: a {@code TS} relation resolves the index's dimensions, so on a wide metrics mapping it carries
-     * hundreds of attributes that the query never names. They are all serialized into the plan fragment shipped to every data node. That
-     * is wasted bandwidth, and it is also a correctness hazard: an unreferenced field drags its sub-fields along inside
-     * {@code EsField#properties}, and a sub-field whose type conflicts across indices cannot be serialized at all (#152322).
-     * <p>
-     * Every rule that reads dimensions off the relation runs in the analyzer, before this one: {@code TranslatePromqlToEsqlPlan},
-     * {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate}. By the time we get here, whatever they need is
-     * referenced and therefore retained.
-     * <p>
-     * Other modes are left alone because {@code InsertFieldExtraction} only extracts the fields they actually need.
+     * {@link IndexMode#TIME_SERIES}: a {@code TS} relation resolves all of the index's dimensions, so a wide metrics mapping carries
+     * hundreds of unreferenced attributes into the plan fragment shipped to every data node. Besides the wasted bandwidth, an
+     * unreferenced field drags its sub-fields along in {@code EsField#properties}, and a sub-field whose type conflicts across indices
+     * cannot be serialized (#152322). Rules that read dimensions run earlier in the analyzer, so anything they need is already referenced.
      */
     private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;

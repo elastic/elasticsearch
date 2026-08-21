@@ -11,6 +11,7 @@ package org.elasticsearch.test.fixtures.oldelasticsearch;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.PullOrBuildImage;
+import org.junit.Assume;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -67,8 +68,11 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
         "xpack.ml.enabled: false\nxpack.security.enabled: false\ndiscovery.type: single-node"
     );
 
+    private final String version;
+
     public OldElasticsearchContainer(String version, String repoLocation) {
         super(new PullOrBuildImage(resolveImage(version), localImage(version)));
+        this.version = version;
         addExposedPort(HTTP_PORT);
         withFileSystemBind(repoLocation, repoLocation);
         withEnv("ES_PATH_REPO", repoLocation);
@@ -77,6 +81,41 @@ public class OldElasticsearchContainer extends DockerEnvironmentAwareTestContain
             withEnv("ES_EXTRA_CONFIG", extraConfig);
         }
         setWaitStrategy(Wait.forHttp("/_cluster/health").forPort(HTTP_PORT).forStatusCode(200).withStartupTimeout(Duration.ofMinutes(2)));
+    }
+
+    /**
+     * Skips the fixture on aarch64 for Elasticsearch versions that predate native aarch64 support.
+     *
+     * <p>Elasticsearch first published {@code linux-aarch64} distributions in 7.8.0. Earlier majors
+     * ship only x86-oriented distributions whose bundled JVM options and launch scripts do not run
+     * under aarch64: the containerised old ES process exits immediately (code 1) and the fixture's
+     * {@link Wait} strategy then times out waiting for {@code /_cluster/health}. Rather than let
+     * these suites fail on the aarch64 periodic pipelines, we raise a JUnit assumption so the
+     * dependent tests are skipped there while continuing to run on x86_64. Versions that do have a
+     * native aarch64 distribution (7.8.0+, e.g. 7.9.3/7.10.0) still run on both architectures.
+     */
+    @Override
+    public void start() {
+        Assume.assumeTrue(
+            "Elasticsearch [" + version + "] has no native aarch64 distribution and does not run on aarch64; skipping",
+            isAarch64() == false || hasNativeAarch64Distribution(version)
+        );
+        super.start();
+    }
+
+    private static boolean isAarch64() {
+        return "aarch64".equals(System.getProperty("os.arch"));
+    }
+
+    /**
+     * Whether the given Elasticsearch version ships a native {@code linux-aarch64} distribution,
+     * which was first available in 7.8.0.
+     */
+    static boolean hasNativeAarch64Distribution(String version) {
+        String[] parts = version.split("\\.");
+        int major = Integer.parseInt(parts[0]);
+        int minor = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+        return major > 7 || (major == 7 && minor >= 8);
     }
 
     private static String resolveImage(String version) {

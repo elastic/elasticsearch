@@ -24,11 +24,11 @@ public class Murmur3Hasher {
     private final byte[] remainder = new byte[16];
     private int remainderLength = 0;
     private int length;
-    private long h1, h2;
+    private final long[] state = new long[MurmurHash3.STATE_SIZE];
 
     public Murmur3Hasher(long seed) {
         this.seed = seed;
-        h1 = h2 = seed;
+        MurmurHash3.initState(state, 0, seed);
     }
 
     /**
@@ -54,18 +54,14 @@ public class Murmur3Hasher {
                 offset = bytesToCopyFromInputToRemainder;
                 length = length - bytesToCopyFromInputToRemainder;
 
-                MurmurHash3.IntermediateResult result = MurmurHash3.intermediateHash(remainder, 0, remainder.length, h1, h2);
-                h1 = result.h1;
-                h2 = result.h2;
+                MurmurHash3.mixBlocks(remainder, 0, remainder.length, state, 0);
                 remainderLength = 0;
                 this.length += remainder.length;
             }
-            // hash as many bytes as available in integer multiples of 16 as intermediateHash can only process multiples of 16
+            // hash as many bytes as available in integer multiples of 16 as mixBlocks only processes complete blocks
             int numBytesToHash = length & 0xFFFFFFF0;
             if (numBytesToHash > 0) {
-                MurmurHash3.IntermediateResult result = MurmurHash3.intermediateHash(inputBytes, offset, numBytesToHash, h1, h2);
-                h1 = result.h1;
-                h2 = result.h2;
+                MurmurHash3.mixBlocks(inputBytes, offset, numBytesToHash, state, 0);
                 this.length += numBytesToHash;
             }
 
@@ -87,7 +83,7 @@ public class Murmur3Hasher {
     public void reset() {
         length = 0;
         remainderLength = 0;
-        h1 = h2 = seed;
+        MurmurHash3.initState(state, 0, seed);
     }
 
     /**
@@ -110,7 +106,7 @@ public class Murmur3Hasher {
      */
     public MurmurHash3.Hash128 digestHash(MurmurHash3.Hash128 hash) {
         length += remainderLength;
-        MurmurHash3.finalizeHash(hash, remainder, 0, length, h1, h2);
+        MurmurHash3.finalizeHash(hash, remainder, 0, length, state[MurmurHash3.STATE_H1], state[MurmurHash3.STATE_H2]);
         return hash;
     }
 

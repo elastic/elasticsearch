@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -156,6 +157,12 @@ public class InSubqueryResolver {
      * referenced from the rewritten boolean expression.
      */
     private record MarkJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, Attribute markAttribute) {}
+
+    /**
+     * An {@link InSubquery}/{@link MultiColumnInSubquery} in an aggregate {@code WHERE} clause whose left-hand side names a
+     * grouping alias, along with that name. Carries the offending subquery node so the failure can report its exact position.
+     */
+    private record ShadowedLHS(Expression subquery, String name) {}
 
     /**
      * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
@@ -317,11 +324,17 @@ public class InSubqueryResolver {
     public static LogicalPlan resolveInSubqueryInAggregate(Aggregate aggregate) {
         List<MarkJoinSpec> markJoins = new ArrayList<>();
         List<Alias> syntheticEvals = new ArrayList<>();
+        Set<String> groupingAliasNames = groupingAliasNames(aggregate);
         List<? extends NamedExpression> origAggregates = aggregate.aggregates();
         List<NamedExpression> newAggregates = null;
         for (int i = 0; i < origAggregates.size(); i++) {
             NamedExpression ne = origAggregates.get(i);
-            if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression filteredExpression) {
+            // A filter whose IN subquery LHS names a grouping alias is left unrewritten for checkInAggregate to reject: the alias is not
+            // in scope below the Aggregate, where the MarkJoin would bind. Checked before rewriting rather than reverted after, because
+            // markJoins/syntheticEvals are shared across aggregates and feed the ordinals that keep synthetic names unique.
+            if (ne instanceof Alias alias
+                && alias.child() instanceof FilteredExpression filteredExpression
+                && shadowedGroupingAlias(filteredExpression.filter(), groupingAliasNames) == null) {
                 Expression newFilter = rewriteInSubqueries(filteredExpression.filter(), true, markJoins, syntheticEvals);
                 if (newFilter != filteredExpression.filter()) {
                     ne = alias.replaceChild(new FilteredExpression(filteredExpression.source(), filteredExpression.delegate(), newFilter));
@@ -352,6 +365,65 @@ public class InSubqueryResolver {
         // which is the only code path that initializes newAggregates.
         assert newAggregates != null;
         return aggregate.with(child, aggregate.groupings(), newAggregates);
+    }
+
+    /**
+     * Names introduced by {@code BY name = expr} groupings, which shadow a same-named field of the {@link Aggregate}'s child.
+     * {@code Analyzer#maybeResolveAggregates} resolves the aggregates — including the {@link FilteredExpression} filters — against
+     * {@code NamedExpressions#mergeOutputAttributes(resolvedGroupings, inputAttributes)}, which drops a child field colliding with a
+     * grouping outright, so inside an aggregate {@code WHERE} clause such a name means the alias and never the field. A
+     * {@link MarkJoin} hoisted below the aggregate's child cannot honour that: the alias does not exist there. Callers therefore decline
+     * to rewrite those filters and let {@link #checkInAggregate} reject them. This applies equally to {@code INLINE STATS}, whose
+     * {@link Aggregate} the analyzer resolves the same way.
+     * <p>
+     * A bare {@code BY field} grouping is excluded — it denotes the very column the child field of that name denotes, so nothing is
+     * shadowed. The degenerate identity rename {@code BY x = x} is deliberately not excluded: it would in fact bind correctly, but
+     * special-casing it earns nothing on a query nobody writes, and the resulting failure says "not yet supported" rather than claiming
+     * the query is invalid.
+     */
+    private static Set<String> groupingAliasNames(Aggregate aggregate) {
+        Set<String> names = null;
+        for (Expression grouping : aggregate.groupings()) {
+            if (grouping instanceof Alias alias) {
+                if (names == null) {
+                    names = new HashSet<>();
+                }
+                names.add(alias.name());
+            }
+        }
+        return names == null ? Set.of() : names;
+    }
+
+    /**
+     * Returns the first {@link InSubquery}/{@link MultiColumnInSubquery} in {@code expr} whose left-hand side is an {@link Attribute}
+     * named after one of {@code groupingAliasNames}, or {@code null} when there is none — see {@link #groupingAliasNames} for why such a
+     * subquery cannot be rewritten.
+     * <p>
+     * A foldable left-hand side is never a collision: it is materialized under a {@link #syntheticConstName} of the form
+     * {@code $$in_subquery_const$...}, which no user-written alias can match.
+     */
+    private static ShadowedLHS shadowedGroupingAlias(Expression expr, Set<String> groupingAliasNames) {
+        if (groupingAliasNames.isEmpty()) {
+            return null;
+        }
+        List<Expression> values = emptyList();
+        if (expr instanceof InSubquery inSubquery) {
+            values = singletonList(inSubquery.value());
+        } else if (expr instanceof MultiColumnInSubquery mcs) {
+            values = mcs.values();
+        }
+        for (Expression value : values) {
+            if (value instanceof Attribute attr && groupingAliasNames.contains(attr.name())) {
+                return new ShadowedLHS(expr, attr.name());
+            }
+        }
+        for (Expression child : expr.children()) {
+            ShadowedLHS shadowed = shadowedGroupingAlias(child, groupingAliasNames);
+            if (shadowed != null) {
+                return shadowed;
+            }
+        }
+        return null;
     }
 
     /**
@@ -686,14 +758,30 @@ public class InSubqueryResolver {
      * per-aggregate {@code WHERE} clauses) support IN subqueries — those are walked with {@link #checkInSubqueryExpression} to surface
      * leftovers that {@link #resolveInSubqueryInAggregate} could not rewrite. {@link InSubquery} anywhere else (groupings, aggregate
      * function arguments) keeps the blanket rejection.
+     * <p>
+     * An aggregate WHERE clause whose IN subquery left-hand side names a grouping alias gets its own, more specific failure — see
+     * {@link #groupingAliasNames}. Reporting it here instead of falling through to {@link #checkInSubqueryExpression} keeps the two from
+     * both firing on the same node.
      */
     private static void checkInAggregate(Aggregate aggregate, Failures failures) {
+        Set<String> groupingAliasNames = groupingAliasNames(aggregate);
         for (Expression grouping : aggregate.groupings()) {
             grouping.forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
         }
         for (NamedExpression ne : aggregate.aggregates()) {
             if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression filteredExpression) {
                 filteredExpression.delegate().forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
+                ShadowedLHS shadowed = shadowedGroupingAlias(filteredExpression.filter(), groupingAliasNames);
+                if (shadowed != null) {
+                    failures.add(
+                        fail(
+                            shadowed.subquery(),
+                            "IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [{}]",
+                            shadowed.name()
+                        )
+                    );
+                    continue;
+                }
                 checkInSubqueryExpression(aggregate, filteredExpression.filter(), true, false, null, failures);
             } else {
                 ne.forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));

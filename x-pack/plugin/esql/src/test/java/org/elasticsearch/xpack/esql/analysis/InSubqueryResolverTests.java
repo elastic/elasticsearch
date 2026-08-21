@@ -3175,14 +3175,30 @@ public class InSubqueryResolverTests extends ESTestCase {
 
     // negative inline stats aggregate filter tests
 
-    /**
-     * A non-attribute, non-foldable LHS in an INLINE STATS aggregate filter is not supported.
-     */
     public void testRejectsComplexLHSInSubqueryInInlineStatsWhere() {
         assertResolveError(
             "FROM main | INLINE STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)",
             "line 1:45: Complicated IN subquery is not yet supported in Aggregate "
                 + "[INLINE STATS c = COUNT(*) WHERE abs(x) IN (FROM sub)]"
+        );
+    }
+
+    public void testRejectsInSubqueryInInlineStatsWhereShadowedByGroupingAlias() {
+        assertResolveError(
+            "FROM main | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub) BY x = y",
+            "line 1:45: IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [x]"
+        );
+    }
+
+    public void testRejectsMultiColumnInSubqueryInInlineStatsWhereShadowedByGroupingAlias() {
+        checkMultiColumnInSubquery();
+        var e = expectThrows(
+            VerificationException.class,
+            () -> resolve("FROM main | INLINE STATS c = COUNT(*) WHERE (f1, f2) IN (FROM sub) BY f2 = y")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [f2]")
         );
     }
 

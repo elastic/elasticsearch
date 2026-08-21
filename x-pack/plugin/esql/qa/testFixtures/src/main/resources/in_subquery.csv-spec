@@ -5155,9 +5155,9 @@ FROM employees
 | KEEP emp_no
 | INLINE STATS c = COUNT(*) WHERE emp_no IN (
     FROM employees
-    | SORT emp_no ASC
-    | LIMIT 5
     | INLINE STATS max_emp = MAX(emp_no) BY emp_no
+    | SORT max_emp ASC
+    | LIMIT 5
     | KEEP max_emp
   )
 | WHERE emp_no <= 10003

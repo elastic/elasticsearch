@@ -31,6 +31,22 @@ public class ColumnarDocValuesFormatSelectorTests extends ESTestCase {
         );
     }
 
+    public void testColumnarCodecSettingIsRegisteredWhenFlagEnabled() {
+        assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
+        assertNotNull(
+            "index.columnar_codec.enabled must be a registered index setting",
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.get(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey())
+        );
+    }
+
+    public void testColumnarCodecSettingIsNotRegisteredWhenFlagDisabled() {
+        assumeFalse("columnar_codec feature flag must be disabled", columnarFeatureFlagEnabled());
+        assertNull(
+            "index.columnar_codec.enabled must not be registered when the columnar_codec feature flag is disabled",
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.get(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey())
+        );
+    }
+
     public void testUsesColumnarForStrictColumnarModesWhenEnabled() {
         assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {

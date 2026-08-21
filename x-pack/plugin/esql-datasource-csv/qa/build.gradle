@@ -181,6 +181,27 @@ tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
 }
 generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'))
 
+// Multifile-UBN TSV fixtures: per-file conversion of the two divergent-order CSVs into
+// multifile_ubn/multifile_ubn_{a,b}.tsv, so csv-declared-schema-multifile.csv-spec — whose whole
+// point is that a declaration makes the reconciliation mode irrelevant — runs on TSV too rather
+// than only on the format its fixtures happened to be materialized in.
+['multifile_ubn_a', 'multifile_ubn_b'].each { baseName ->
+  def taskName = "generateMultifileUbnTsv_${baseName}"
+  def ubnCsv = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn/${baseName}.csv")
+  def ubnTsv = file("${tsvFixtureOutputRoot}/iceberg-fixtures/multifile_ubn/${baseName}.tsv")
+  tasks.register(taskName, JavaExec) {
+    dependsOn tasks.named('syncCsvIcebergMultifileUbnFixtures'), serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+    classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+    args = [ubnCsv.path, ubnTsv.path]
+    inputs.file(ubnCsv)
+    outputs.file(ubnTsv)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateStandaloneTsvTasks.add(tasks.named(taskName))
+}
+
 tasks.register('generateStandaloneTsvFixtures') {
   dependsOn generateStandaloneTsvTasks
 }

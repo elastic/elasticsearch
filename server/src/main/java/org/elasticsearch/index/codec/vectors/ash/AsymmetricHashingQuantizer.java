@@ -64,8 +64,8 @@ public final class AsymmetricHashingQuantizer {
      * @param nTrainingIterations number of Procrustes iterations (for LEARNED)
      * @param trainingFactor multiplier on dimension for training sample size
      * @param seed random seed
-     * @throws IllegalArgumentException if {@code bitsPerDim} is not in
-     *         {@link IvfSegmentConfig.AshConfig#SUPPORTED_BITS_PER_DIM} or
+     * @throws IllegalArgumentException if {@code bitsPerDim} is not a
+     *         {@linkplain IvfSegmentConfig.AshConfig#isValidBitsPerDim(int) valid ASH bit width} or
      *         {@code projectedDimsFraction} is not in (0, 1]
      */
     public AsymmetricHashingQuantizer(
@@ -79,11 +79,7 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
-        if (bitsPerDim <= 0 || IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
-            throw new IllegalArgumentException(
-                "bitsPerDim must be one of " + IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim
-            );
-        }
+        IvfSegmentConfig.AshConfig.validateBitsPerDim(bitsPerDim);
         this.projectedDimsFraction = projectedDimsFraction;
         this.method = method;
         this.nTrainingIterations = nTrainingIterations;

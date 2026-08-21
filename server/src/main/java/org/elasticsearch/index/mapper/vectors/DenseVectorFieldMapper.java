@@ -90,9 +90,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoad
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
@@ -2181,19 +2183,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
                 int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
                 if (isAsh) {
-                    if (IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM.contains(quantizeBits) == false) {
+                    if (IvfSegmentConfig.AshConfig.isValidBitsPerDim(quantizeBits) == false) {
                         throw new IllegalArgumentException(
-                            "'bits' must be one of "
-                                + IvfSegmentConfig.AshConfig.SUPPORTED_BITS_PER_DIM
-                                + " for ASH quantization, got: "
-                                + quantizeBits
-                                + " for field ["
-                                + fieldName
-                                + "]"
+                            "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: " + quantizeBits + " for field [" + fieldName + "]"
                         );
                     }
                 } else {
-                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4 || quantizeBits == 7) == false) {
+                    if (QuantEncoding.isValidBits((byte) quantizeBits) == false) {
                         throw new IllegalArgumentException(
                             "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
                         );
@@ -3375,6 +3371,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            if (vectorType != null && vectorType != VectorType.DENSE_VECTOR) {
+                return null;
+            }
+            return new FieldAndFormat(name(), null);
         }
 
         @Override

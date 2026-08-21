@@ -59,14 +59,30 @@ public record IvfSegmentConfig(
     public record AshConfig(float projectedDimsFraction, int bitsPerDim, int queryBitsPerDim, int trainingIterations, int trainingFactor)
         implements
             QuantConfig {
-        /** Supported values for document bits per dimension. */
-        public static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
+        private static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
 
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
         public static final int DEFAULT_BITS_PER_DIM = 2;
         public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
         public static final int DEFAULT_TRAINING_ITERATIONS = 5;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /**
+         * Returns {@code true} if the given bits-per-dimension value is supported for ASH document encoding.
+         */
+        public static boolean isValidBitsPerDim(int bits) {
+            return SUPPORTED_BITS_PER_DIM.contains(bits);
+        }
+
+        /**
+         * Validates that the given bits-per-dimension value is supported for ASH document encoding.
+         * @throws IllegalArgumentException if {@code bits} is not a supported value
+         */
+        public static void validateBitsPerDim(int bits) {
+            if (isValidBitsPerDim(bits) == false) {
+                throw new IllegalArgumentException("ASH bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bits);
+            }
+        }
 
         /**
          * Validates ASH parameters and returns an {@code AshConfig} with default training settings.
@@ -79,9 +95,7 @@ public record IvfSegmentConfig(
          * @throws IllegalArgumentException if any parameter is out of range
          */
         public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction) {
-            if (SUPPORTED_BITS_PER_DIM.contains(bitsPerDim) == false) {
-                throw new IllegalArgumentException("ASH bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bitsPerDim);
-            }
+            validateBitsPerDim(bitsPerDim);
             if (queryBitsPerDim < 0) {
                 throw new IllegalArgumentException("ASH queryBitsPerDim must be >= 0 (0 for float scoring path), got: " + queryBitsPerDim);
             }

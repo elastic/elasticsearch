@@ -86,6 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -287,10 +288,11 @@ public class KnnIndexTester {
                 String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
 
                 if (isAsh) {
-                    int bitsPerDim = args.quantizeBits() != null ? args.quantizeBits() : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM;
-                    int queryBits = args.queryQuantizeBits() != null
-                        ? args.queryQuantizeBits()
-                        : IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM;
+                    int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
+                    int queryBits = Objects.requireNonNullElse(
+                        args.queryQuantizeBits(),
+                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM
+                    );
                     var ashConfig = IvfSegmentConfig.AshConfig.of(bitsPerDim, queryBits, args.projectedDimsFraction());
                     yield new ESNextDiskASHVectorsFormat(
                         ashConfig,
@@ -850,8 +852,8 @@ public class KnnIndexTester {
                 if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
                     // AshConfig.of validates bitsPerDim, queryBitsPerDim, and projectedDimsFraction
                     IvfSegmentConfig.AshConfig.of(
-                        args.quantizeBits() != null ? args.quantizeBits() : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM,
-                        args.queryQuantizeBits() != null ? args.queryQuantizeBits() : IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
+                        Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
+                        Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
                         args.projectedDimsFraction()
                     );
                 } else {

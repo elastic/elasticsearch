@@ -1031,8 +1031,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Adds a field whose embeddings should be returned as part of the search response. If the field has already been added, the vector
      * type from this call replaces the previous one.
+     * <p>
+     * Embeddings fields cannot overlap with fields fetched via {@link fetchFields}. Any overlaps will be reported as errors in
+     * {@link validate(ActionRequestValidationException, boolean, boolean)}.
+     * </p>
      *
+     * @param field the embeddings field name
      * @param vectorType the vector type the field is expected to produce, or {@code null} to accept whichever type it produces
+     *
+     * @apiNote This method is intended for internal usage only. It should not be exposed to users.
      */
     public SearchSourceBuilder fetchEmbeddingsField(String field, @Nullable VectorType vectorType) {
         fetchEmbeddingsFields.put(field, vectorType);

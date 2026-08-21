@@ -1554,6 +1554,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return h.withOptions(options);
     }
 
+    @Override
     public PlanFactory visitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx) {
         Source source = source(ctx);
 

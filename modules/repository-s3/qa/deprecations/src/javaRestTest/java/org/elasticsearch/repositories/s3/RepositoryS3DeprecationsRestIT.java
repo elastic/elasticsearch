@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -38,19 +39,19 @@ import static org.hamcrest.Matchers.hasSize;
 public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3DeprecationsRestIT");
-    private static final String BUCKET = PREFIX + "bucket";
-    private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "deprecations_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
+    private static final Supplier<String> basePathSupplier = testClassIdentifierSupplier("base_path");
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
-        BUCKET,
-        BASE_PATH,
+        bucketSupplier,
+        basePathSupplier,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
     );
@@ -88,8 +89,12 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
             (b, p) -> b.field("type", S3Repository.TYPE)
                 .startObject("settings")
                 .value(
-                    settingsUnaryOperator.apply(Settings.builder().put("bucket", BUCKET).put("base_path", BASE_PATH).put("client", CLIENT))
-                        .build()
+                    settingsUnaryOperator.apply(
+                        Settings.builder()
+                            .put("bucket", bucketSupplier.get())
+                            .put("base_path", basePathSupplier.get())
+                            .put("client", CLIENT)
+                    ).build()
                 )
                 .endObject()
         );

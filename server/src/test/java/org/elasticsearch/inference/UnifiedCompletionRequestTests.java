@@ -9,8 +9,11 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 
@@ -23,10 +26,25 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
     private static final List<String> STOP = List.of("stop");
     private static final ToolChoice TOOL_CHOICE = new ToolChoice.ToolChoiceString("value");
     private static final List<Tool> TOOLS = List.of(new Tool("type", new Tool.FunctionField("description", "name", null, null)));
+    private static final Reasoning REASONING = new Reasoning(Reasoning.ReasoningEffort.HIGH, Reasoning.ReasoningSummary.AUTO, true, false);
+    private static final CacheControl CACHE_CONTROL = new CacheControl("ephemeral", TimeValue.ONE_HOUR);
+    private static final String SESSION_ID = "session";
 
     @Override
     public UnifiedCompletionRequest objectToEstimate() {
-        return new UnifiedCompletionRequest(MESSAGES, MODEL, null, STOP, null, TOOL_CHOICE, TOOLS, null);
+        return new UnifiedCompletionRequest(
+            MESSAGES,
+            MODEL,
+            null,
+            STOP,
+            null,
+            TOOL_CHOICE,
+            TOOLS,
+            null,
+            REASONING,
+            CACHE_CONTROL,
+            SESSION_ID
+        );
     }
 
     @Override
@@ -41,14 +59,67 @@ public class UnifiedCompletionRequestTests extends InferenceObjectRamBytesUsedTe
                 null,
                 TOOL_CHOICE,
                 TOOLS,
-                null
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID
             ),
             // Longer model
-            new UnifiedCompletionRequest(MESSAGES, MODEL.repeat(5), null, STOP, null, TOOL_CHOICE, TOOLS, null),
+            new UnifiedCompletionRequest(
+                MESSAGES,
+                MODEL.repeat(5),
+                null,
+                STOP,
+                null,
+                TOOL_CHOICE,
+                TOOLS,
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID
+            ),
             // More stop
-            new UnifiedCompletionRequest(MESSAGES, MODEL, null, List.of(STOP.getFirst(), STOP.getFirst()), null, TOOL_CHOICE, TOOLS, null),
+            new UnifiedCompletionRequest(
+                MESSAGES,
+                MODEL,
+                null,
+                List.of(STOP.getFirst(), STOP.getFirst()),
+                null,
+                TOOL_CHOICE,
+                TOOLS,
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID
+            ),
             // More tools
-            new UnifiedCompletionRequest(MESSAGES, MODEL, null, STOP, null, TOOL_CHOICE, List.of(TOOLS.getFirst(), TOOLS.getFirst()), null)
+            new UnifiedCompletionRequest(
+                MESSAGES,
+                MODEL,
+                null,
+                STOP,
+                null,
+                TOOL_CHOICE,
+                List.of(TOOLS.getFirst(), TOOLS.getFirst()),
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID
+            ),
+            // Longer session id
+            new UnifiedCompletionRequest(
+                MESSAGES,
+                MODEL,
+                null,
+                STOP,
+                null,
+                TOOL_CHOICE,
+                List.of(TOOLS.getFirst(), TOOLS.getFirst()),
+                null,
+                REASONING,
+                CACHE_CONTROL,
+                SESSION_ID.repeat(5)
+            )
         );
     }
 }

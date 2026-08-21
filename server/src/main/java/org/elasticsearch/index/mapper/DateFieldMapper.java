@@ -45,8 +45,8 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -117,8 +117,6 @@ public final class DateFieldMapper extends FieldMapper {
     ).withLocale(DEFAULT_LOCALE);
     private static final DateFormatter EPOCH_MILLIS_FORMATTER = DateFormatter.forPattern("epoch_millis").withLocale(DEFAULT_LOCALE);
     private static final DateMathParser EPOCH_MILLIS_PARSER = EPOCH_MILLIS_FORMATTER.toDateMathParser();
-    public static final NodeFeature INVALID_DATE_FIX = new NodeFeature("mapper.range.invalid_date_fix");
-
     // FieldType constants for the Lucene field variants emitted by the columnar parse path.
     // The compat harness compares frozen FieldType, so the column must carry exactly the same type
     // as the corresponding field produced by the row-major path.
@@ -1262,23 +1260,12 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain date mappers can be driven through parseCreateField by the bulk batch path.
-        // Excludes: scripts, copy_to, multi-fields, and the data-stream @timestamp field
-        // (which has an additional side effect in indexValue that the v1 batch path does
-        // not handle).
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && isDataStreamTimestampField == false;
-    }
-
-    @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode and a doc-values date field.
-        // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
-        // but are deliberately not rejected here instead rejected at parse time.
-        return indexSettings.getMode().isStrictColumnar()
+        // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
+        // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
+        // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
+        // time instead.
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
             && store == false
             && hasScript() == false
@@ -1309,6 +1296,13 @@ public final class DateFieldMapper extends FieldMapper {
             columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
         }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
+        // Publish the timestamp ESCF column on the context so that postColumnarParse hooks
+        // (DataStreamTimestampFieldMapper, TsidExtractingIdFieldMapper) can read per-document
+        // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's
+        // DataStreamTimestampFieldMapper.storeTimestampValueForReuse call on the row path.
+        if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
+            ctx.setTimestamps((EscfLongColumn) EscfColumn.from(outData));
+        }
     }
 
     private EscfColumnData datesFromStrings(EscfColumn source) {
@@ -1371,7 +1365,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                     } else {
                         context.parser().skipChildren();
                     }
@@ -1388,7 +1382,7 @@ public final class DateFieldMapper extends FieldMapper {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             // Save a copy of the field so synthetic source can load it
-                            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
                         }
                         return;
                     } else {

@@ -37,8 +37,8 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FallbackPostMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -405,9 +405,10 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(DocumentParserContext context) throws IOException {
+    public ParseResult parse(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
 
+        boolean wasAlreadyIgnored = context.getIgnoredFields().contains(fullPath());
         boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -417,7 +418,7 @@ public class TDigestFieldMapper extends FieldMapper {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 context.path().remove();
-                return;
+                return ParseResult.INDEXED;
             }
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
@@ -505,12 +506,13 @@ public class TDigestFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
+        return resolveIgnoredResult(context, wasAlreadyIgnored);
     }
 
     private static String valuesCountSubFieldName(String fullPath) {

@@ -737,9 +737,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
   method: testDoubleRelocationWithManagementEndpoints
   issue: https://github.com/elastic/elasticsearch/issues/156929
-- class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
-  method: testEntitlementAgentAttachLineIsLogged
-  issue: https://github.com/elastic/elasticsearch/issues/156950
 - class: org.elasticsearch.foreign.LinkerHelperTests
   method: testSystemErrorReturnsCapturedGetLastErrorAfterFailedCall
   issue: https://github.com/elastic/elasticsearch/issues/156974
@@ -782,3 +779,30 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testRefreshOnBulkWithNewShardAllocation
   issue: https://github.com/elastic/elasticsearch/issues/157260
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
+  issue: https://github.com/elastic/elasticsearch/issues/157310
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/157314
+- class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
+  method: testUnifiedCompletionInfer
+  issue: https://github.com/elastic/elasticsearch/issues/157322
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
+  method: testFromDatasetDeniedWithoutReadOnName
+  issue: https://github.com/elastic/elasticsearch/issues/157335
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
+  method: testPutDatasetAllowedWithCreateDatasetPrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/157336
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
+  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/157337
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testFromDatasetDeniedWithoutReadOnName
+  issue: https://github.com/elastic/elasticsearch/issues/157338
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testFromDatasetAllowedWithDatasetReadOnly
+  issue: https://github.com/elastic/elasticsearch/issues/157339
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/157340

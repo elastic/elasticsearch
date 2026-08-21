@@ -35,7 +35,10 @@ import java.lang.foreign.MemorySegment;
  */
 final class ZstdChunkCodec {
 
-    private static final int LEVEL = 3;
+    // Level one, as the time-series doc-values format uses. Measured over the keyword shapes a string
+    // column takes, it compressed smaller than level three on every one of them, decompressed just as
+    // fast, and merged a little quicker.
+    private static final int LEVEL = 1;
 
     private static final Zstd ZSTD = NativeAccess.instance().getZstd();
 

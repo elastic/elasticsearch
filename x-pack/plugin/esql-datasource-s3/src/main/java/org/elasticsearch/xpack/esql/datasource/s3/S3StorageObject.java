@@ -143,8 +143,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            long retryAfterMs = 0L;
+            if (throttling && s3.awsErrorDetails() != null && s3.awsErrorDetails().sdkHttpResponse() != null) {
+                retryAfterMs = ExternalUnavailableException.parseRetryAfterMs(
+                    s3.awsErrorDetails().sdkHttpResponse().firstMatchingHeader("Retry-After").orElse(null)
+                );
+            }
             return new ExternalUnavailableException(
                 throttling,
+                retryAfterMs,
                 cause,
                 "S3 store unavailable reading [{}] (HTTP {})",
                 path,

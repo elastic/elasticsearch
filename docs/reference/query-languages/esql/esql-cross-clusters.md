@@ -506,10 +506,10 @@ This also applies to `MMR` when its query vector comes from an inference functio
 
 Querying a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field works the other way around: each cluster generates query embeddings using its own `search_inference_id`, so the endpoint must exist on the cluster that holds the data.
 
-A query that does both needs endpoints on both clusters. For example, the following requires the `semantic_text` field's endpoint on `my_remote_cluster` and the `rerank-1` endpoint on the local cluster:
+A query that does both needs endpoints on both clusters. The following reads no local data at all, and still requires the `semantic_text` field's endpoint on `my_remote_cluster` and the `rerank-1` endpoint on the local cluster:
 
 ```esql
-FROM my-index,my_remote_cluster:my-index
+FROM my_remote_cluster:my-index
 | WHERE semantic_field : "query text"
 | RERANK "query text" ON title WITH { "inference_id": "rerank-1" }
 ```
@@ -518,7 +518,7 @@ Querying a `semantic_text` field across clusters requires every participating cl
 
 ### Relevance scores across clusters [ccq-scores]
 
-Full-text scores are computed independently on each cluster, from that cluster's own term statistics. {{esql}} has no equivalent of the Query DSL `dfs_query_then_fetch` search type, so there is nothing that reconciles those statistics across clusters.
+Full-text scores are computed per shard, from that shard's own term statistics. {{esql}} has no equivalent of the Query DSL `dfs_query_then_fetch` search type, so nothing reconciles those statistics — within a cluster or across them. The shards of one index usually hold similar enough data for this to go unnoticed. Separate clusters often do not.
 
 Scores from different clusters are therefore not directly comparable, and the effect grows as the corpora diverge in size or vocabulary. A term that is rare on one cluster and common on another produces systematically higher scores on the first, regardless of how relevant its documents actually are. This affects `SORT _score`, any `WHERE` clause comparing `_score` against a fixed threshold, and the set of candidates that reaches a later `RERANK`.
 

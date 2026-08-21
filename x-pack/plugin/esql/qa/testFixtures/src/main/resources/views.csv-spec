@@ -342,6 +342,7 @@ required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
 
 FROM airports_mp_filtered, airports METADATA _index
 | WHERE abbrev == "LUH"
@@ -350,7 +351,7 @@ FROM airports_mp_filtered, airports METADATA _index
 
 abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text | scalerank:integer | type:keyword | _index:keyword
 LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | airports
-LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | null
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | airports_mp_filtered
 ;
 
 airportsLookupJoinViewAirportsStats
@@ -382,9 +383,9 @@ required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
 
 FROM airports_mp_filtered, airports METADATA _index
-| EVAL _index = CASE(_index IS NULL, "view", _index)
 | STATS duplications=COUNT(), indexes=VALUES(_index) BY abbrev
 | WHERE duplications == 2
 | EVAL indexes = MV_SORT(indexes)
@@ -392,12 +393,12 @@ FROM airports_mp_filtered, airports METADATA _index
 ignoreOrder:true
 
 duplications:long | abbrev:keyword | indexes:keyword
-2                 | LUH            | [airports, view]
-2                 | SSE            | [airports, view]
-2                 | IXR            | [airports, view]
-2                 | AWZ            | [airports, view]
-2                 | GWL            | [airports, view]
-2                 | HOD            | [airports, view]
+2                 | LUH            | [airports, airports_mp_filtered]
+2                 | SSE            | [airports, airports_mp_filtered]
+2                 | IXR            | [airports, airports_mp_filtered]
+2                 | AWZ            | [airports, airports_mp_filtered]
+2                 | GWL            | [airports, airports_mp_filtered]
+2                 | HOD            | [airports, airports_mp_filtered]
 2                 | PZU            | [airports]
 ;
 
@@ -2319,3 +2320,222 @@ emp_no:integer | first_name:keyword
 10002          | Bezalel
 10005          | Kyoichi
 ;
+
+viewBodyWithMetadataIndex
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_meta_index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+2                     | French                | languages
+3                     | Spanish               | languages
+4                     | German                | languages
+;
+
+viewOuterMetadataIndex
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | view_languages
+2                     | French                | view_languages
+3                     | Spanish               | view_languages
+4                     | German                | view_languages
+;
+
+viewOuterMetadataIndexOverridesBody
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_meta_index METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | view_languages_meta_index
+2                     | French                | view_languages_meta_index
+3                     | Spanish               | view_languages_meta_index
+4                     | German                | view_languages_meta_index
+;
+
+viewBodyMetadataIndexCombinedWithSubquery
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_meta_index, (FROM languages)
+| SORT language_code, _index NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+1                     | English               | null
+2                     | French                | languages
+2                     | French                | null
+3                     | Spanish               | languages
+3                     | Spanish               | null
+4                     | German                | languages
+4                     | German                | null
+;
+
+viewBodyMetadataIndexCombinedWithSubqueryOuterMetadata
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_meta_index, (FROM languages) METADATA _index
+| SORT language_code, _index NULLS LAST
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | view_languages_meta_index
+1                     | English               | null
+2                     | French                | view_languages_meta_index
+2                     | French                | null
+3                     | Spanish               | view_languages_meta_index
+3                     | Spanish               | null
+4                     | German                | view_languages_meta_index
+4                     | German                | null
+;
+
+viewBodyMetadataIndexCombinedWithSubqueryMetadataAndOuterMetadata
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_meta_index, (FROM languages METADATA _index) METADATA _index
+| SORT language_code, _index
+;
+
+language_code:integer | language_name:keyword | _index:keyword
+1                     | English               | languages
+1                     | English               | view_languages_meta_index
+2                     | French                | languages
+2                     | French                | view_languages_meta_index
+3                     | Spanish               | languages
+3                     | Spanish               | view_languages_meta_index
+4                     | German                | languages
+4                     | German                | view_languages_meta_index
+;
+
+deeplyNestedViewsWithMetadata
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages_nested_a METADATA _index
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword | _index:keyword          | viewC_index:keyword | viewB_index:keyword       | viewA_index:keyword
+1                     | English               | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+2                     | French                | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+3                     | Spanish               | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+4                     | German                | view_languages_nested_a | languages           | view_languages_nested_c   | view_languages_nested_b
+;
+
+viewMetadataIdHasViewNamePrefix
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _id
+| EVAL has_prefix = starts_with(_id, "view_languages/")
+| SORT language_code
+| KEEP language_code, language_name, has_prefix
+;
+
+language_code:integer | language_name:keyword | has_prefix:boolean
+1                     | English               | true
+2                     | French                | true
+3                     | Spanish               | true
+4                     | German                | true
+;
+
+viewMetadataVersionPassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _version
+| SORT language_code
+| KEEP language_code, _version
+;
+
+language_code:integer | _version:long
+1                     | null
+2                     | null
+3                     | null
+4                     | null
+;
+
+viewMetadataIgnoredPassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: metadata_ignored_field
+
+FROM view_languages METADATA _ignored
+| STATS non_null_count = COUNT_IF(_ignored IS NOT NULL)
+;
+
+non_null_count:long
+0
+;
+
+viewMetadataScorePassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: metadata_score
+
+FROM view_languages METADATA _score
+| STATS non_null_count = COUNT_IF(_score IS NOT NULL)
+;
+
+non_null_count:long
+0
+;
+
+viewMetadataIndexModePassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+
+FROM view_languages METADATA _index_mode
+| SORT language_code
+| KEEP language_code, _index_mode
+;
+
+language_code:integer | _index_mode:keyword
+1                     | null
+2                     | null
+3                     | null
+4                     | null
+;
+
+viewMetadataTierPassesThroughFromIndex
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: views_metadata_behavior_changes
+required_capability: metadata_tier_field
+
+FROM view_languages METADATA _tier
+| STATS max_tier = MAX(_tier)
+;
+
+max_tier:keyword
+null
+;
+

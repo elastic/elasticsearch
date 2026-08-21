@@ -1589,6 +1589,12 @@ public class EsqlCapabilities {
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
+         * Changes how certain {@code METADATA} fields are handled for views
+         * See https://github.com/elastic/esql-planning/issues/480
+         */
+        VIEWS_METADATA_BEHAVIOR_CHANGES(VIEWS_WITH_BRANCHING.isEnabled()),
+
+        /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
          * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
          * (1) a view used inside a {@code TS} command now raises a clear verification exception

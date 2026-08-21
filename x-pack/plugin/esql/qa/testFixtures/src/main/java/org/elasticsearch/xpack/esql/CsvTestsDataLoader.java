@@ -428,7 +428,12 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_in_subquery_disjunction_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("employees_in_subquery_nested_view", List.of(WHERE_IN_SUBQUERY_WITH_VIEW)),
         new ViewConfig("view_partial_mapping_sample_data"),
-        new ViewConfig("view_sample_data")
+        new ViewConfig("view_sample_data"),
+        new ViewConfig("view_languages", List.of(EsqlCapabilities.Cap.VIEWS_METADATA_BEHAVIOR_CHANGES)),
+        new ViewConfig("view_languages_meta_index", List.of(EsqlCapabilities.Cap.VIEWS_METADATA_BEHAVIOR_CHANGES)),
+        new ViewConfig("view_languages_nested_c", List.of(EsqlCapabilities.Cap.VIEWS_METADATA_BEHAVIOR_CHANGES)),
+        new ViewConfig("view_languages_nested_b", List.of(EsqlCapabilities.Cap.VIEWS_METADATA_BEHAVIOR_CHANGES)),
+        new ViewConfig("view_languages_nested_a", List.of(EsqlCapabilities.Cap.VIEWS_METADATA_BEHAVIOR_CHANGES))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

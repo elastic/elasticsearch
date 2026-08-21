@@ -333,6 +333,11 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
         );
+        // hive never reads a path template, so storing one would store a setting that does nothing.
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_path", "{year}"))
+        );
     }
 
     /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */

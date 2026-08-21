@@ -109,8 +109,8 @@ public class ExternalCsvHivePartitionedIT extends AbstractExternalDataSourceIT {
     /**
      * The documented opt-out against a colliding layout: with {@code partition_detection: none} nothing is derived
      * from the path, so the PHYSICAL {@code year} (1999) is read rather than the directory's 2024, and no shadow
-     * warning is emitted. This is the end-to-end form of the defect in elastic/esql-planning#1749 — on main the
-     * setting was inert, so the substitution happened regardless of what the user asked for.
+     * warning is emitted. This is the end-to-end form of the defect: the setting was inert, so the substitution happened regardless of
+     * what the user asked for.
      */
     public void testDetectionNoneReadsThePhysicalColumnOnACollidingLayout() throws Exception {
         Path root = createTempDir().resolve("hive_collision_none_csv");

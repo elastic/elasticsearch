@@ -479,6 +479,22 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertNull(HivePartitionDetector.castValue(null, DataType.KEYWORD));
     }
 
+    /**
+     * Mixed partition depth — older data partitioned by year only, newer by year/month/day — yields no partition
+     * columns at all, not even the common {@code year}. The detector requires an identical key set across every
+     * file. Pinned as the current contract: changing it to an intersection, to per-file nulls, or to a loud error
+     * would change results for stored datasets and needs its own design pass.
+     */
+    public void testMixedPartitionDepthReturnsEmpty() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/f1.parquet"),
+            entry("s3://bucket/data/year=2024/month=01/f2.parquet"),
+            entry("s3://bucket/data/year=2024/month=01/day=15/f3.parquet")
+        );
+
+        assertTrue("inconsistent key sets across files yield no partition columns", HivePartitionDetector.INSTANCE.detect(files).isEmpty());
+    }
+
     private static StorageEntry entry(String path) {
         return new StorageEntry(StoragePath.of(path), 100, Instant.EPOCH);
     }

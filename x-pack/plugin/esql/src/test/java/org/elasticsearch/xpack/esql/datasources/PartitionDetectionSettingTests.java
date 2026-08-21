@@ -26,20 +26,17 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 
 /**
- * Regression pins for the {@code partition_detection} and {@code partition_path} dataset settings reaching the read
- * path.
+ * Pins that the {@code partition_detection}, {@code partition_path} and {@code hive_partitioning} dataset settings
+ * select the partition detector on the read path.
  *
- * <p>These began as reproductions. Against {@code main} the resolver reduced every partition setting to one
- * boolean and called expander entry points that carried no {@link PartitionConfig}, so the Hive detector ran
- * whatever the user asked for; seven of these tests were red for that reason. They pass now, and a red one means
- * the settings have stopped reaching the detector.
+ * <p>Each test drives {@link GlobExpander#expand} with a settings map, the way {@code ExternalSourceResolver} does,
+ * and asserts the partition columns that fall out. A failure here means a setting has stopped reaching the detector.
  *
- * <p>The two {@code testMachineryHonours*} tests date from that period, when they were the controls: they handed a
- * resolved config straight to the detectors and passed while the rest failed, which located the fault in the wiring
- * rather than the detectors. They no longer differ in kind from the others — every test now drives the same
- * settings-map entry point — but they are kept as the narrowest statement of what each strategy does.
+ * <p>The {@code testMachineryHonours*} pair states the narrowest form of the same contract — what each strategy
+ * does once its config reaches the expander — and is kept as the isolation point between the wiring and the
+ * detectors themselves.
  */
-public class PartitionDetectionSettingReproTests extends ESTestCase {
+public class PartitionDetectionSettingTests extends ESTestCase {
 
     private static final int MAX = Integer.MAX_VALUE;
 
@@ -98,6 +95,34 @@ public class PartitionDetectionSettingReproTests extends ESTestCase {
             columnsOf(viaUndocumentedSetting),
             columnsOf(viaDocumentedSetting)
         );
+    }
+
+    /**
+     * A hive strategy must never let a {@code partition_path} steer the glob rewrite. With both a real
+     * {@code year=2024/} partition and a coincidental bare {@code 2024/} folder present, the template rewrite would
+     * narrow the listing to the bare folder; that listing is non-empty, so the rewrite-to-empty fallback never fires
+     * and the query silently returns the wrong rows rather than a superset.
+     */
+    public void testHiveStrategyWithTemplateListsTheHiveTree() throws IOException {
+        List<StorageEntry> tree = List.of(entry("s3://bucket/data/year=2024/hive.parquet"), entry("s3://bucket/data/2024/flat.parquet"));
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.EQUALS, List.of("2024"))
+        );
+
+        FileList listing = GlobExpander.expand(
+            "s3://bucket/data/*" + "/*.parquet",
+            provider(tree),
+            hints,
+            Map.of("partition_detection", "hive", "partition_path", "{year}"),
+            MAX,
+            MAX
+        );
+
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < listing.fileCount(); i++) {
+            paths.add(listing.path(i).toString());
+        }
+        assertTrue("the real hive partition must be listed, got " + paths, paths.stream().anyMatch(p -> p.contains("year=2024")));
     }
 
     /**

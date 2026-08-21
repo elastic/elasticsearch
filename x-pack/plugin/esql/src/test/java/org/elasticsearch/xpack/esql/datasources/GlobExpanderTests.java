@@ -1248,6 +1248,46 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * The template rewrite narrows a bare glob segment to the template's spelling of the value. That is only sound
+     * under a TEMPLATE strategy: under HIVE the same rewrite would list a coincidental {@code data/2024/} folder
+     * instead of the real {@code data/year=2024/}, and because that listing is non-empty the rewrite-to-empty
+     * fallback never fires.
+     */
+    public void testRewriteGlobHiveStrategyIgnoresTemplate() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.EQUALS, List.of("2024"))
+        );
+        String pattern = "s3://bucket/data/*" + "/*.parquet";
+
+        assertEquals(
+            "a hive strategy must not apply the path template to the glob",
+            pattern,
+            GlobExpander.rewriteGlobWithHints(pattern, hints, new PartitionConfig(PartitionConfig.Strategy.HIVE, "{year}"))
+        );
+        assertEquals(
+            "auto may still resolve to hive at detect time, so it must not apply the template either",
+            pattern,
+            GlobExpander.rewriteGlobWithHints(pattern, hints, new PartitionConfig(PartitionConfig.Strategy.AUTO, "{year}"))
+        );
+    }
+
+    /** The key=value segment rewrite is untouched by that gate — hive keeps the narrowing it always had. */
+    public void testRewriteGlobHiveStrategyStillRewritesKeyValueSegments() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", PartitionFilterHintExtractor.Operator.EQUALS, List.of("2024"))
+        );
+
+        assertEquals(
+            "s3://bucket/data/year=2024/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/data/year=*/*.parquet",
+                hints,
+                new PartitionConfig(PartitionConfig.Strategy.HIVE, "{year}")
+            )
+        );
+    }
+
+    /**
      * Lists only the entries under the requested prefix, as a real provider does. {@link StubProvider} returns its
      * whole listing whatever the prefix, which makes a glob narrowed onto a missing folder indistinguishable from an
      * un-narrowed one — the reason the listing layer's pruning bugs never surfaced in these tests.

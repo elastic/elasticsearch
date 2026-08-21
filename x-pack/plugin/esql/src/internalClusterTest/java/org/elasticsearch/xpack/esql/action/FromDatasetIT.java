@@ -5352,7 +5352,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * The declared-schema face of elastic/esql-planning#1749. A declared column colliding with a path-derived
+     * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
      * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
      * {@code partition_detection: none} could not avoid that rejection because the setting never reached the read
      * path — so a user whose data sat under {@code something=value/} could not declare a column of that name at

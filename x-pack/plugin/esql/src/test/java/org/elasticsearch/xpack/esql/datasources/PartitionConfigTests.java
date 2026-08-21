@@ -114,8 +114,8 @@ public class PartitionConfigTests extends ESTestCase {
         assertEquals("{year}", config.pathTemplate());
     }
 
-    /** The fold applies after the AUTO -> TEMPLATE promotion, so this reads as no-partitions exactly as it does today. */
-    public void testHivePartitioningFalseBeatsTemplatePromotion() {
+    /** hive_partitioning:false folds last and wins over a path template, so this reads as no-partitions. */
+    public void testHivePartitioningFalseBeatsPathTemplate() {
         PartitionConfig config = PartitionConfig.fromConfig(
             Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false", CONFIG_PARTITIONING_PATH, "{year}")
         );
@@ -126,6 +126,29 @@ public class PartitionConfigTests extends ESTestCase {
     public void testTemplateWithoutPathFallsBackToAuto() {
         PartitionConfig config = PartitionConfig.fromConfig(Map.of(CONFIG_PARTITIONING_DETECTION, "template"));
         assertEquals(PartitionConfig.Strategy.AUTO, config.strategy());
+    }
+
+    /** hive never reads a path template, so storing one would store a setting that does nothing. */
+    public void testValidateRejectsHiveWithPartitionPath() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITIONING_PATH, "{year}"))
+        );
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_PATH));
+        assertThat(e.getMessage(), containsString(CONFIG_PARTITIONING_DETECTION));
+
+        // Reading stays lenient: a dataset stored before this check keeps resolving, it simply never uses the template.
+        PartitionConfig stored = PartitionConfig.fromConfig(
+            Map.of(CONFIG_PARTITIONING_DETECTION, "hive", CONFIG_PARTITIONING_PATH, "{year}")
+        );
+        assertEquals(PartitionConfig.Strategy.HIVE, stored.strategy());
+        assertEquals("{year}", stored.pathTemplate());
+    }
+
+    /** auto genuinely consumes the template as its fallback detector, so it stays legal. */
+    public void testValidateAllowsAutoWithPartitionPath() {
+        PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_DETECTION, "auto", CONFIG_PARTITIONING_PATH, "{year}"));
+        PartitionConfig.validate(Map.of(CONFIG_PARTITIONING_PATH, "{year}"));
     }
 
     /** A value stored before the setting was validated as an enum must not fail the read. */

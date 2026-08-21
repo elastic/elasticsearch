@@ -1,26 +1,19 @@
-// End-to-end pins for `partition_detection` reaching the read path (elastic/esql-planning#1749).
+// Pins that the `partition_detection`, `partition_path` and `hive_partitioning` dataset settings select the
+// partition detector on the read path, end to end over a real storage backend.
 //
-// These began as reproductions: the `repro*` cases were red against main, where the setting was parsed, stored and
-// then never consumed, so the Hive detector ran whatever the user asked for. They are regression pins now — a
-// `repro*` case going red again means the setting has stopped reaching the read path.
-//
-// A csv-spec has no error channel, so only the promises expressible as a result table live here; the promises
-// whose fulfilment is an absence — suppressed partition metadata — or a cache-identity property are pinned in
-// PartitionDetectionSettingReproTests instead.
+// A csv-spec has no error channel, so only the promises expressible as a result table live here; the promises whose
+// fulfilment is an absence — suppressed partition metadata — or a cache-identity property are pinned in
+// PartitionDetectionSettingTests instead.
 //
 // Fixtures:
 //   {{employees_hive}}         hive-partitioned/lang=*/              partition key `lang`, payload column `languages`
 //   {{employees_hive_shadow}}  hive-partitioned-shadow/languages=*/  partition key COLLIDES with payload `languages`
 
-// ---------------------------------------------------------------------------------------------------------
-// Control — Hive detection with no partition settings at all. The partition column is real and addressable.
-// ---------------------------------------------------------------------------------------------------------
-
-controlBaselineHiveDetectionOn
+hiveDetectionOnByDefault
 required_capability: dataset_in_from_command
-dataset: repro_baseline: "{{employees_hive}}"
+dataset: employees_hive: "{{employees_hive}}"
 
-FROM repro_baseline
+FROM employees_hive
 | STATS count = COUNT(*) BY lang
 | SORT lang NULLS LAST;
 
@@ -38,11 +31,11 @@ count:long | lang:integer
 // Strategy.NONE), so it must keep behaving exactly as it always has.
 // ---------------------------------------------------------------------------------------------------------
 
-controlHivePartitioningFalseTurnsDetectionOff
+hivePartitioningFalseTurnsDetectionOff
 required_capability: dataset_in_from_command
-dataset: repro_hive_false: "{{employees_hive}}" WITH {"hive_partitioning": "false"}
+dataset: employees_hive_detection_off: "{{employees_hive}}" WITH {"hive_partitioning": "false"}
 
-FROM repro_hive_false
+FROM employees_hive_detection_off
 | STATS count = COUNT(*);
 
 count:long
@@ -50,15 +43,18 @@ count:long
 ;
 
 // ---------------------------------------------------------------------------------------------------------
-// A `partition_path` template names the partition column. Against main this failed with `Unknown column [bucket]`
-// because the Hive detector ran regardless and the template was dropped with no error and no warning.
+// A `partition_path` template names the partition column. If the setting stops reaching the read path the Hive
+// detector runs instead, the template is dropped, and this fails with `Unknown column [bucket]`.
+//
+// The expected `lang=__HIVE_DEFAULT_PARTITION__` is deliberate: template detection binds the literal directory name,
+// and the Hive null sentinel is a Hive-writer convention that only the Hive detector interprets.
 // ---------------------------------------------------------------------------------------------------------
 
-reproTemplateStrategyNamesTheColumnFromTheTemplate
+templateStrategyNamesTheColumnFromTheTemplate
 required_capability: dataset_in_from_command
-dataset: repro_tmpl: "{{employees_hive}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
+dataset: employees_hive_template: "{{employees_hive}}" WITH {"partition_detection": "template", "partition_path": "{bucket}"}
 
-FROM repro_tmpl
+FROM employees_hive_template
 | STATS count = COUNT(*) BY bucket
 | SORT bucket;
 
@@ -78,11 +74,11 @@ count:long | bucket:keyword
 // switches it off.
 // ---------------------------------------------------------------------------------------------------------
 
-controlShadowedColumnSubstitutionAndWarning
+shadowedColumnSubstitutionAndWarning
 required_capability: dataset_in_from_command
-dataset: repro_shadow: "{{employees_hive_shadow}}"
+dataset: employees_hive_shadow_ds: "{{employees_hive_shadow}}"
 
-FROM repro_shadow
+FROM employees_hive_shadow_ds
 | STATS count = COUNT(*) BY languages
 | SORT languages NULLS LAST;
 
@@ -100,15 +96,14 @@ count:long | languages:integer
 
 // ---------------------------------------------------------------------------------------------------------
 // The documented opt-out stops the substitution: with `partition_detection: none` nothing is path-derived, so the
-// physical column is read and no shadow warning is emitted. Against main the warning still fired — the user asked
-// for no partition detection and was told one of their own columns had been replaced by a directory name.
+// physical column is read and no shadow warning is emitted.
 // ---------------------------------------------------------------------------------------------------------
 
-reproNoneStopsTheColumnSubstitution
+noneStopsTheColumnSubstitution
 required_capability: dataset_in_from_command
-dataset: repro_shadow_none: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
+dataset: employees_hive_shadow_none: "{{employees_hive_shadow}}" WITH {"partition_detection": "none"}
 
-FROM repro_shadow_none
+FROM employees_hive_shadow_none
 | STATS count = COUNT(*) BY languages
 | SORT languages NULLS LAST;
 

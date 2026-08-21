@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class TemplatePartitionDetectorTests extends ESTestCase {
 
@@ -315,6 +316,35 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         assertFalse(result.isEmpty());
         assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
         assertEquals(DataType.KEYWORD, result.partitionColumns().get("region"));
+    }
+
+    /**
+     * The template binds the last N segments before the filename, so files at differing depths would bind different
+     * physical levels to the same column — over these three files with {@code {year}} the values would be 2024, 01
+     * and 15, and a STATS BY year would bucket a day as a year. Mixed depth therefore yields no partition columns,
+     * the same all-or-nothing stance {@code HivePartitionDetector} takes when its key sets disagree.
+     */
+    public void testMixedDepthReturnsEmpty() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/2024/f1.parquet"),
+            entry("s3://bucket/data/2024/01/f2.parquet"),
+            entry("s3://bucket/data/2024/01/15/f3.parquet")
+        );
+
+        assertTrue("mixed depth must not bind a template column", new TemplatePartitionDetector("{year}").detect(files).isEmpty());
+        assertTrue(
+            "mixed depth must not bind a multi-column template either",
+            new TemplatePartitionDetector("{year}/{month}").detect(files).isEmpty()
+        );
+    }
+
+    /** The uniform-depth case still binds, so the gate above is not simply switching template detection off. */
+    public void testUniformDepthStillBinds() {
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/2024/01/f1.parquet"), entry("s3://bucket/data/2025/02/f2.parquet"));
+
+        PartitionMetadata result = new TemplatePartitionDetector("{year}/{month}").detect(files);
+        assertFalse(result.isEmpty());
+        assertEquals(Set.of("year", "month"), result.partitionColumns().keySet());
     }
 
     private static StorageEntry entry(String path) {

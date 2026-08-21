@@ -57,10 +57,13 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
      * already-stored dataset, so it never throws on a stored value. Contradictions are rejected at registration
      * instead — see {@link #validate}.
      *
-     * <p>Resolution order matters. The {@code partition_path} promotion of {@code AUTO} to {@code TEMPLATE} is
-     * applied first, then {@code hive_partitioning} folds on top: a dataset carrying
-     * {@code {hive_partitioning: false, partition_path: ...}} resolved to "no partitions" before this method read
-     * {@code hive_partitioning} at all, and must keep resolving that way.
+     * <p>Resolution order: the strategy is parsed from {@code partition_detection}; an unparseable value, and an
+     * explicit {@code template} with nothing to templatise, fall back to {@code AUTO}; then
+     * {@code hive_partitioning: "false"} folds to {@code NONE} last and wins over everything. A
+     * {@code partition_path} does NOT promote {@code AUTO} to {@code TEMPLATE} — {@code AUTO} already means Hive
+     * first with the template as a fallback, which is what a dataset carrying only a {@code partition_path}
+     * resolved to before this setting reached the read path. The final fold is what keeps
+     * {@code {hive_partitioning: false, partition_path: ...}} resolving to "no partitions" as it always did.
      *
      * <p>Only the literal {@code "false"} disables detection, matching the boolean check this replaced — any other
      * value (including {@code "yes"}, {@code 0} or a nonsense string) leaves detection enabled, because the setting
@@ -162,6 +165,23 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
                     + "] is [template] but no ["
                     + CONFIG_PARTITIONING_PATH
                     + "] was given; template detection needs a path template such as [{year}/{month}]"
+            );
+        }
+
+        // The hive strategy never reads a path template, so accepting one would store a setting that does nothing —
+        // and, before the rewrite was gated on the strategy, one that silently steered the glob. AUTO stays legal:
+        // AutoPartitionDetector genuinely consumes the template as its fallback detector.
+        if (declared == Strategy.HIVE && hasTemplate) {
+            throw new IllegalArgumentException(
+                "["
+                    + CONFIG_PARTITIONING_PATH
+                    + "] is set but ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] is [hive], which never reads a path template; set ["
+                    + CONFIG_PARTITIONING_DETECTION
+                    + "] to [template] or remove ["
+                    + CONFIG_PARTITIONING_PATH
+                    + "]"
             );
         }
 

@@ -1,10 +1,10 @@
 LimitExec[1000[INTEGER],null]
 \_ExchangeExec[[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19],false]
   \_ProjectExec[[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, double{f}#6, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]]
-    \_FieldExtractExec[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]<[],[],[]>
+    \_FieldExtractExec[[!alias_integer, boolean{f}#0, byte{f}#1, constant_keyword-foo{f}#2, date{f}#3, date_nanos{f}#4, dense_vector{f}#5, float{f}#7, half_float{f}#8, integer{f}#9, ip{f}#10, keyword{f}#11, long{f}#12, scaled_float{f}#13, semantic_text{f}#14, short{f}#15, text{f}#16, unsigned_long{f}#17, version{f}#18, wildcard{f}#19]<[],[],[]>,_doc{f}#20]
       \_LimitExec[1000[INTEGER],28]
         \_FilterExec[MVINRANGE(double{f}#6,0.0[DOUBLE],1.0[DOUBLE],MapExpression[[include_lower[KEYWORD], false[BOOLEAN], include_upper[KEYWORD], false[BOOLEAN]]])]
-          \_FieldExtractExec[double{f}#6]<[],[],[]>
+          \_FieldExtractExec[[double{f}#6]<[],[],[]>,_doc{f}#20]
             \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#20], limit[], sort[] estimatedRowSize[7430] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "filter" : [

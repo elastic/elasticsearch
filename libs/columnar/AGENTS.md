@@ -22,6 +22,18 @@ Read `README.md` for the architecture first, then this. It covers what is expens
    tables use `DirectMonotonic` (temp file on write, mapped slice on read); presence uses
    `IndexedDISI`. Only bounded metadata and one decode block stay in memory.
 
+## Chunks
+
+`ChunkedBytesWriter`/`ChunkedBytesReader` sit below the encoders: they store a column's byte stream as
+byte-bounded chunks, each compressed whole by a `ChunkCodec` on a frozen `byte` id. A caller appends
+values and calls `boundary()` wherever a chunk may end, which is what keeps a block — or any other unit
+the caller addresses — from straddling two chunks.
+
+Two rules to keep: the compression unit is sized in **bytes**, never in values, so the ratio does not
+move with value width; and nothing the writer holds grows with the column — one chunk is buffered and
+the chunk index is staged in a temporary file, because `MonotonicWriter` needs its entry count up front
+and the chunk count is only known at the end.
+
 ## Encoders
 
 A block is encoded by a `NumericPipeline`: adaptive `BlockTransform`s (delta, offset, GCD — reversible

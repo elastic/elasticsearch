@@ -778,7 +778,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
-    public void testPitRemainsEnabledWhenCrossProjectEnabledButNoLinkedProjects() throws InterruptedException {
+    public void testDisablePitWhenCrossProjectEnabledEvenWithoutLinkedProjects() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var crossProjectModeDecider = mock(CrossProjectModeDecider.class);
         when(crossProjectModeDecider.crossProjectEnabled()).thenReturn(true);
 
@@ -802,10 +803,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 config
             );
 
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doNextSearch(0, listener),
-                response -> assertNotNull(response.pointInTimeId())
-            );
+            assertPitIsNeverUsed(indexer);
         }
     }
 

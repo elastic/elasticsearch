@@ -124,6 +124,147 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("http://[::1]/logs/2026-06/data.parquet", result.path(1).toString());
     }
 
+    // -- non-data object exclusion --
+
+    /**
+     * A Spark _SUCCESS marker at the same prefix level must not appear in the expansion result.
+     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesUnderscorePrefixedMarker() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_SUCCESS", 0),
+            entry("s3://bucket/data/file1.parquet", 100),
+            entry("s3://bucket/data/file2.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
+    }
+
+    /**
+     * A .crc sidecar file must not appear in the expansion result.
+     * Hidden-file convention: objects whose name begins with '.' are excluded (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesDotPrefixedSidecar() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/.part-r-00001.parquet.crc", 10),
+            entry("s3://bucket/data/file1.parquet", 100)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A _metadata file must not appear in the expansion result.
+     * Hidden-file convention: objects whose name begins with '_' are excluded (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesMetadataFile() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_metadata", 512), entry("s3://bucket/data/file1.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * A zero-byte directory placeholder key (ending in '/') must not appear in the expansion result.
+     * Object stores create these when the S3 console creates a "folder" (esql-planning#1544).
+     */
+    @SuppressWarnings("RegexpMultiline")
+    public void testExpandGlobExcludesZeroByteDirectoryPlaceholder() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/subdir/", 0), entry("s3://bucket/data/subdir/file.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/subdir/file.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Files under a _delta_log directory must not appear in the expansion result.
+     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     */
+    @SuppressWarnings("RegexpMultiline")
+    public void testExpandGlobExcludesDeltaLogContent() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_delta_log/00000000000000000001.json", 500),
+            entry("s3://bucket/data/_delta_log/", 0),
+            entry("s3://bucket/data/file1.parquet", 100)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Files under a _temporary directory must not appear in the expansion result.
+     * A directory whose name begins with '_' and all its descendants are hidden by convention (esql-planning#1544).
+     */
+    @SuppressWarnings("RegexpMultiline")
+    public void testExpandGlobExcludesTemporaryDirContent() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_temporary/part-00001.parquet", 100),
+            entry("s3://bucket/data/file1.parquet", 100)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+    }
+
+    /**
+     * Mixed non-data objects (_SUCCESS marker, .crc sidecars, zero-byte placeholder) alongside real
+     * Parquet data files: only the data files must be returned, exactly as Hive/Spark/Trino behave
+     * on the same prefix (esql-planning#1544).
+     */
+    public void testExpandGlobExcludesAllNonDataObjectsFromCleanPrefix() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_SUCCESS", 0),
+            entry("s3://bucket/data/.part-r-00001.parquet.crc", 4),
+            entry("s3://bucket/data/file1.parquet", 1000),
+            entry("s3://bucket/data/file2.parquet", 2000)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+        assertEquals("s3://bucket/data/file1.parquet", result.path(0).toString());
+        assertEquals("s3://bucket/data/file2.parquet", result.path(1).toString());
+    }
+
+    /**
+     * The brace-only fast path uses {@code exists()} to probe each candidate and skips {@link
+     * GlobExpander#isHiddenObject}. This is intentional: a brace pattern explicitly names every
+     * alternative, so the caller is opting in — the same way a literal path would. This test locks in
+     * that design so the asymmetry with wildcard expansion is visible and deliberate.
+     */
+    public void testBraceOnlyPathDoesNotFilterHiddenNames() throws IOException {
+        StubProvider provider = new StubProvider(List.of());
+        provider.existingPaths.add("s3://bucket/data/_SUCCESS");
+        provider.existingPaths.add("s3://bucket/data/file.parquet");
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/{_SUCCESS,file.parquet}", provider);
+        assertTrue(result.isResolved());
+        assertEquals("brace-enumerated _SUCCESS must be returned: explicit opt-in, not wildcard discovery", 2, result.fileCount());
+    }
+
     // -- expandCommaSeparated --
 
     public void testExpandCommaSeparatedMixedGlobAndLiteral() throws IOException {
@@ -786,8 +927,9 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * The property the listing cache key rests on: equal discriminators must mean equal listings. Hints reach the
      * listing through the glob rewrite and the {@code _file.*} filters, and nothing else. This catches a new listing
-     * channel added to the expansion but not the discriminator — <b>only for the hint shapes below</b>, so extend
-     * {@code hintSets} whenever a new channel or hint kind is introduced, or it can slip through.
+     * channel added to the expansion but not the discriminator — <b>only for the hint shapes and flag values below</b>,
+     * so extend {@code hintSets} and the {@code excludeNonData} loop whenever a new channel or hint kind is introduced,
+     * or it can slip through.
      */
     public void testDiscriminatorDeterminesTheListing() throws IOException {
         Map<String, List<StorageEntry>> tree = Map.of(
@@ -824,6 +966,72 @@ public class GlobExpanderTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * The {@code excludeNonDataObjects} flag is a listing channel — it changes which entries survive the iterator
+     * loop — so it must be part of the cache key. This test uses a flat {@code *} pattern so that {@code _SUCCESS}
+     * genuinely matches the glob and the two flag values produce different listings. It verifies both that the
+     * discriminator moves (cache-safety) and that the expansions actually differ (the channel is wired in).
+     */
+    public void testDiscriminatorCoversExcludeNonDataObjectsChannel() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/data/",
+            List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100))
+        );
+        String pattern = "s3://bucket/data/*";
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(tree);
+
+        // The flag must produce different cache keys — a cached filtered listing must not be served to an
+        // unfiltered request (or vice versa).
+        String discriminatorOn = GlobExpander.listingCacheDiscriminator(pattern, null, false, true);
+        String discriminatorOff = GlobExpander.listingCacheDiscriminator(pattern, null, false, false);
+        assertNotEquals("excludeNonDataObjects flag must move the discriminator", discriminatorOn, discriminatorOff);
+
+        // The expansions must actually differ — _SUCCESS matches * but is excluded when the flag is on.
+        FileList withExclusion = GlobExpander.expand(pattern, provider, null, false, MAX, MAX, true);
+        FileList withoutExclusion = GlobExpander.expand(pattern, provider, null, false, MAX, MAX, false);
+        assertEquals("exclusion on: only data file survives", 1, withExclusion.fileCount());
+        assertEquals("exclusion off: _SUCCESS included", 2, withoutExclusion.fileCount());
+    }
+
+    /**
+     * When non-data exclusion is explicitly disabled the raw listing is returned, restoring the old behavior.
+     * This also proves the flag is not hard-wired to {@code true} inside the expansion.
+     */
+    public void testNonDataExclusionCanBeDisabled() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList excluded = GlobExpander.expand("s3://bucket/data/*", provider, null, false, MAX, MAX, true);
+        assertEquals("exclusion on: _SUCCESS must be filtered out", 1, excluded.fileCount());
+
+        FileList raw = GlobExpander.expand("s3://bucket/data/*", provider, null, false, MAX, MAX, false);
+        assertEquals("exclusion off: _SUCCESS must be present", 2, raw.fileCount());
+    }
+
+    /**
+     * Non-data exclusion must apply through the comma-separated path ({@code doExpandCommaSeparated}), not just the
+     * single-glob path. Each comma segment independently calls {@link GlobExpander#expandGlobWithRewriteFallback},
+     * which in turn calls {@code doExpandGlob} where the filter lives — so the flag must be threaded all the way.
+     */
+    public void testNonDataExclusionAppliesToCommaSeparatedSegments() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/a/",
+            List.of(entry("s3://bucket/a/_SUCCESS", 0), entry("s3://bucket/a/file1.parquet", 100)),
+            "s3://bucket/b/",
+            List.of(entry("s3://bucket/b/.part-r-00001.parquet.crc", 10), entry("s3://bucket/b/file2.parquet", 200))
+        );
+        String paths = "s3://bucket/a/*,s3://bucket/b/*";
+
+        FileList result = GlobExpander.expand(paths, new PrefixAwareStubProvider(tree), null, false, MAX, MAX, true);
+        assertEquals("both segments: only data files survive", 2, result.fileCount());
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < result.fileCount(); i++) {
+            names.add(result.path(i).toString());
+        }
+        assertTrue(names.contains("s3://bucket/a/file1.parquet"));
+        assertTrue(names.contains("s3://bucket/b/file2.parquet"));
     }
 
     /**

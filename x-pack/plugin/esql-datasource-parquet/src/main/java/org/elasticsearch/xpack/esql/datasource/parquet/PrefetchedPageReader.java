@@ -17,14 +17,15 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.elasticsearch.compute.data.arrow.DirectBufferPool;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -38,11 +39,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * original page type ({@link DataPageV1} stays V1, {@link DataPageV2} stays V2 with only the
  * data portion decompressed). Encryption and CRC verification are not supported.
  *
- * <p>Decompression uses one reusable {@link ArrowBuf} from the supplied {@link BufferAllocator},
- * exposed via {@link ArrowBuf#nioBuffer(long, int)} for the direct-to-direct JNI fast path.
- * {@link #readPage()} overwrites that buffer. It grows only when a later page needs more
- * capacity — breaker residency is the high-water-mark page, not the current page — and is
- * released on {@link #close()}. Heap-backed compressed input still copies through a per-page
+ * <p>Decompression uses one reusable {@link ArrowBuf} borrowed from the supplied
+ * {@link DirectBufferPool}, exposed via {@link ArrowBuf#nioBuffer(long, int)} for the
+ * direct-to-direct JNI fast path. {@link #readPage()} overwrites that buffer. It grows only
+ * when a later page needs more capacity — breaker residency is the high-water-mark page, not
+ * the current page — and is returned to the pool on {@link #close()} so the next query can
+ * reuse it without a malloc. Heap-backed compressed input still copies through a per-page
  * scratch buffer; production prefetch already yields direct slices, so that path is idle.
  * Returned {@link DataPage}s and {@link BytesInput}s alias the current buffer and must not be
  * used after the next {@link #readPage()} or {@link #close()}.
@@ -60,12 +62,14 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private final BytesInputDecompressor decompressor;
     private final BufferAllocator allocator;
+    private final DirectBufferPool decompBufferPool;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
     private final DictionaryPage compressedDictionaryPage;
-    // Reusable decompress-output buffer. Grown when a page needs more capacity; released on
-    // close(). Overwritten in place across pages so we do not malloc/free per page — that churn
-    // is what retained glibc arenas after the allocator balance had already returned to baseline.
+    // Reusable decompress-output buffer. Grown when a page needs more capacity; returned to
+    // decompBufferPool on close() so the next query reuses it. Overwritten in place across pages
+    // so we do not malloc/free per page — that churn is what retained glibc arenas after the
+    // allocator balance had already returned to baseline.
     private ArrowBuf reusableDecompBuf;
 
     private DictionaryPage cachedDictionaryPage;
@@ -77,12 +81,14 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
         BufferAllocator allocator,
+        DirectBufferPool decompBufferPool,
         List<CompressedPage> compressedPages,
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
         this.decompressor = decompressor;
         this.allocator = allocator;
+        this.decompBufferPool = Objects.requireNonNull(decompBufferPool, "decompBufferPool");
         this.compressedPages = new ArrayDeque<>(compressedPages);
         this.compressedDictionaryPage = compressedDictionaryPage;
         this.valueCount = valueCount;
@@ -305,27 +311,24 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         }
     }
 
+    /**
+     * Direct decompress output. Explicit {@code (index, length)}: ArrowBuf may round capacity up,
+     * but the codec's size sanity check expects {@code remaining() ==} declared decompressed size.
+     */
     private ByteBuffer allocateDirect(int size) {
-        if (reusableDecompBuf == null || reusableDecompBuf.capacity() < size) {
-            closeReusableDecompBuf();
-            reusableDecompBuf = allocator.buffer(size);
+        ArrowBuf current = reusableDecompBuf;
+        if (current != null && current.capacity() >= size) {
+            return current.nioBuffer(0, size);
         }
-        // Explicit (index, length): ArrowBuf may round capacity up, but the codec's size sanity
-        // check expects remaining() == declared decompressed size.
-        return reusableDecompBuf.nioBuffer(0, size);
-    }
-
-    private void closeReusableDecompBuf() {
-        if (reusableDecompBuf == null) {
-            return;
-        }
-        ArrowBuf buf = reusableDecompBuf;
         reusableDecompBuf = null;
-        try {
-            DirectMemoryDebug.poison(buf.nioBuffer(0, Math.toIntExact(buf.capacity())));
-        } finally {
-            buf.close();
+        if (current != null) {
+            // Known undersized: close it. Returning it then immediately borrowing a larger
+            // size would poll the same buf and free it anyway, and would also close other
+            // idle undersized buffers still useful to other columns.
+            current.close();
         }
+        reusableDecompBuf = decompBufferPool.borrow(allocator, size);
+        return reusableDecompBuf.nioBuffer(0, size);
     }
 
     @Override
@@ -336,6 +339,8 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // Drop the cached dictionary page reference. It is deliberately heap-backed (see
         // readDictionaryPage), so this is reference hygiene, not a buffer-lifetime requirement.
         cachedDictionaryPage = null;
-        closeReusableDecompBuf();
+        ArrowBuf buf = reusableDecompBuf;
+        reusableDecompBuf = null;
+        decompBufferPool.returnBuf(buf);
     }
 }

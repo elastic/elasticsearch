@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 import org.elasticsearch.compute.data.arrow.DirectBufferAllocationManager;
+import org.elasticsearch.compute.data.arrow.DirectBufferPool;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -51,6 +52,7 @@ public class BlockFactory {
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
     protected volatile BufferAllocator arrowAllocator;
+    protected volatile DirectBufferPool directBufferPool;
     private static final Cleaner cleaner = Cleaner.create();
 
     /**
@@ -97,13 +99,20 @@ public class BlockFactory {
                             listener,
                             DirectBufferAllocationManager.arrowDirectMemoryLimit()
                         );
+                        var pool = new DirectBufferPool();
                         cleaner.register(this, () -> {
+                            try {
+                                pool.close();
+                            } catch (Exception e) {
+                                log.error("Error closing the Arrow direct buffer pool", e);
+                            }
                             try {
                                 allocator.close();
                             } catch (Exception e) {
                                 log.error("Error closing the Arrow root allocator", e);
                             }
                         });
+                        directBufferPool = pool;
                         arrowAllocator = allocator;
                     } else {
                         arrowAllocator = childFactoryAllocator();
@@ -118,6 +127,19 @@ public class BlockFactory {
         // Store it locally to avoid crawling the parent chain every time we need it.
         // Overridden in tests
         return parent.arrowAllocator();
+    }
+
+    /**
+     * Node-lifetime pool of reusable Arrow direct buffers. Child factories share the root
+     * pool so buffers survive across queries. Pooled buffers stay charged to the REQUEST
+     * breaker until {@link DirectBufferPool#releaseIdle()} or factory GC.
+     */
+    public DirectBufferPool directBufferPool() {
+        if (parent != null) {
+            return parent.directBufferPool();
+        }
+        arrowAllocator();
+        return directBufferPool;
     }
 
     // For testing

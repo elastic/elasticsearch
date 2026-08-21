@@ -18,6 +18,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.arrow.DirectBufferPool;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -28,6 +29,7 @@ import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -40,8 +42,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * direct memory grew monotonically across iterations.
  *
  * <p>After the fix, decompression buffers come from a {@link BufferAllocator}-managed
- * {@link org.apache.arrow.memory.ArrowBuf} that is released deterministically when the
- * reader is closed, so each iteration's peak goes back to the baseline within a small delta.
+ * {@link org.apache.arrow.memory.ArrowBuf} returned to {@link DirectBufferPool} on reader
+ * close. Later iterations reuse that buffer: allocator balance after the first cycle is the
+ * pooled size, not zero, and stays flat.
  */
 public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
 
@@ -73,12 +76,15 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
 
         long directBaseline = directMemoryUsedBytes();
         long allocBaseline = allocator.getAllocatedMemory();
+        DirectBufferPool pool = blockFactory.directBufferPool();
+        long pooledAfterFirst = -1L;
 
         for (int i = 0; i < ITERATIONS; i++) {
             try (
                 PrefetchedPageReader reader = new PrefetchedPageReader(
                     codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                     allocator,
+                    pool,
                     fixture.copyPages(),
                     null,
                     (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
@@ -89,7 +95,12 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                     consume(page);
                 }
             }
-            assertEquals("allocator must return to baseline after cycle " + i, allocBaseline, allocator.getAllocatedMemory());
+            if (i == 0) {
+                pooledAfterFirst = allocator.getAllocatedMemory();
+                assertThat("first cycle must park a decompress buffer", pooledAfterFirst, greaterThan(allocBaseline));
+            } else {
+                assertEquals("allocator must stay flat after cycle " + i, pooledAfterFirst, allocator.getAllocatedMemory());
+            }
         }
 
         long after = directMemoryUsedBytes();
@@ -104,22 +115,23 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                 + " pages; expected <= "
                 + (MAX_DIRECT_GROWTH_BYTES >>> 20)
                 + " MB. After the fix, decompressToDirectBuffer allocates from a BufferAllocator-managed"
-                + " ArrowBuf released by PrefetchedPageReader.close().",
+                + " ArrowBuf returned to DirectBufferPool by PrefetchedPageReader.close().",
             grew,
             lessThanOrEqualTo(MAX_DIRECT_GROWTH_BYTES)
         );
     }
 
     /**
-     * Concurrent zstd decompress loops must not accumulate native memory. Arrow accounting is
-     * exact (zero after join); MXBean remains a coarse JVM-wide ceiling matching the
-     * single-threaded regression.
+     * Concurrent zstd decompress loops must not accumulate native memory beyond one pooled
+     * buffer per reader. MXBean remains a coarse JVM-wide ceiling matching the single-threaded
+     * regression.
      */
     public void testDirectMemoryStableUnderConcurrentReads() throws Exception {
         ZstdPageFixture fixture = compressedZstdPages();
         long allocBaseline = allocator.getAllocatedMemory();
         long directBaseline = directMemoryUsedBytes();
 
+        DirectBufferPool pool = blockFactory.directBufferPool();
         startInParallel(CONCURRENT_READERS, i -> {
             try {
                 for (int iter = 0; iter < CONCURRENT_ITERS_PER_READER; iter++) {
@@ -127,6 +139,7 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                         PrefetchedPageReader reader = new PrefetchedPageReader(
                             codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                             allocator,
+                            pool,
                             fixture.copyPages(),
                             null,
                             (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
@@ -142,7 +155,13 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                 throw new AssertionError(e);
             }
         });
-        assertEquals("allocator must return to baseline after concurrent reads", allocBaseline, allocator.getAllocatedMemory());
+        long after = allocator.getAllocatedMemory();
+        assertThat("concurrent readers park at least one decompress buffer", after, greaterThan(allocBaseline));
+        assertThat(
+            "concurrent readers must not exceed one buffer per reader",
+            after,
+            lessThanOrEqualTo(allocBaseline + (long) CONCURRENT_READERS * PAGE_PAYLOAD_BYTES)
+        );
         long grew = directMemoryUsedBytes() - directBaseline;
         assertThat(
             "direct-memory grew "

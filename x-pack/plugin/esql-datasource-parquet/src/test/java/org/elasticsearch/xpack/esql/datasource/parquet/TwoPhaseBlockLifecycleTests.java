@@ -151,6 +151,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             assertTrue("breaker must have actually fired", breaker.tripped());
         }
 
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals(
             "breaker must return to zero after the failure unwinds (pre-fix, the second "
                 + "close on an already-released predicate Block masked the original breaker exception "
@@ -211,6 +212,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         }
 
         assertThat("expected at least one successful batch before the trip", rowsConsumed.get(), greaterThanOrEqualTo(1L));
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals("breaker must return to zero after a late-batch failure", 0L, breaker.getUsed());
     }
 
@@ -249,6 +251,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
         }
 
         assertEquals("filter survivor count", 100, rowsRead);
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals("breaker must return to zero after a successful scan", 0L, breaker.getUsed());
     }
 
@@ -293,6 +296,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             }
         }
         assertThat("LIMIT cap respected", rowsRead, equalTo(37));
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals("breaker must return to zero after LIMIT-truncated scan", 0L, breaker.getUsed());
     }
 
@@ -369,6 +373,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             assertTrue("breaker must have actually fired", breaker.tripped());
         }
 
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals(
             "breaker must return to zero — pre-fix double-close masked the breaker error and " + "left memory stranded",
             0L,
@@ -427,6 +432,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             assertTrue("breaker must have actually fired", breaker.tripped());
         }
 
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals("breaker must return to zero — pre-fix double-close masked the breaker error", 0L, breaker.getUsed());
     }
 
@@ -478,6 +484,7 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             assertTrue("breaker must have actually fired", breaker.tripped());
         }
 
+        blockFactory.directBufferPool().releaseIdle();
         assertEquals("breaker must return to zero — pre-fix double-close masked the breaker error", 0L, breaker.getUsed());
     }
 

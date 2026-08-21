@@ -61,6 +61,9 @@ public class MockBlockFactory extends BlockFactory {
 
     public void ensureAllBlocksAreReleased() {
 
+        if (directBufferPool != null) {
+            directBufferPool.close();
+        }
         if (arrowAllocator != null) {
             arrowAllocator.close();
         }

@@ -16,6 +16,7 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.statistics.IntStatistics;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.elasticsearch.compute.data.arrow.DirectBufferPool;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,7 +34,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * Pins two contracts on {@link PrefetchedPageReader}: live native memory stays O(high-water-mark
  * page), not O(uncompressed column chunk); and equal-sized direct pages malloc the decompress
  * buffer once, not once per page. The reader reuses one buffer (grown only when a later page
- * needs more capacity) and releases it on {@link PrefetchedPageReader#close()}.
+ * needs more capacity) and returns it to {@link DirectBufferPool} on
+ * {@link PrefetchedPageReader#close()} so the next reader/query does not malloc.
  *
  * <p>Before per-page bounding, every {@code decompressToDirectBuffer} output was parked until
  * {@link PrefetchedPageReader#close()} at row-group rollover. The live-bound tests FAIL on that
@@ -53,7 +55,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
     /**
      * Canonical case from the leak investigation: zstd {@link DataPageV2}, decompressed through the
      * direct-to-direct fast path. Asserts the live allocator balance stays bounded by one page as
-     * pages are read, and returns to zero at {@code close()}.
+     * pages are read, and stays parked in the pool at {@code close()} until the pool is closed.
      */
     public void testZstdV2DecompressBufferReleasedPerPageAndOnClose() throws IOException {
         assertPerPageReleaseAndZeroOnClose(buildZstdV2Pages());
@@ -79,10 +81,12 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         Arrays.fill(sizes, PAGE_PAYLOAD_BYTES);
         CountingListener listener = new CountingListener();
         DirectPagesFixture fixture = buildDirectZstdV2Pages(sizes);
+        DirectBufferPool pool = new DirectBufferPool();
         try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                 allocator,
+                pool,
                 fixture.pages,
                 null,
                 valueCount(sizes)
@@ -99,9 +103,12 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             } finally {
                 reader.close();
             }
-            assertEquals("close() must return the reused buffer to the allocator", 0L, allocator.getAllocatedMemory());
+            assertThat("close() parks the buffer in the pool", allocator.getAllocatedMemory(), greaterThan(0L));
+            pool.close();
+            assertEquals("pool.close() must return the reused buffer to the allocator", 0L, allocator.getAllocatedMemory());
         } finally {
             fixture.codecFactory.release();
+            pool.close();
         }
     }
 
@@ -113,10 +120,12 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
         int[] sizes = { 32 * 1024, 64 * 1024, 128 * 1024, 64 * 1024 };
         CountingListener listener = new CountingListener();
         DirectPagesFixture fixture = buildDirectZstdV2Pages(sizes);
+        DirectBufferPool pool = new DirectBufferPool();
         try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                 allocator,
+                pool,
                 fixture.pages,
                 null,
                 valueCount(sizes)
@@ -153,17 +162,22 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             } finally {
                 reader.close();
             }
-            assertEquals("close() must return the reused buffer to the allocator", 0L, allocator.getAllocatedMemory());
+            assertThat("close() parks the high-water buffer in the pool", allocator.getAllocatedMemory(), greaterThan(0L));
+            pool.close();
+            assertEquals("pool.close() must return the reused buffer to the allocator", 0L, allocator.getAllocatedMemory());
         } finally {
             fixture.codecFactory.release();
+            pool.close();
         }
     }
 
     private void assertPerPageReleaseAndZeroOnClose(PagesFixture fixture) {
+        DirectBufferPool pool = new DirectBufferPool();
         try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 fixture.codecFactory.getDecompressor(fixture.codec),
                 allocator,
+                pool,
                 fixture.pages,
                 null,
                 (long) PAGE_PAYLOAD_BYTES * PAGES
@@ -194,9 +208,63 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
             } finally {
                 reader.close();
             }
-            assertEquals("close() must return every decompress buffer to the allocator", 0L, allocator.getAllocatedMemory());
+            assertThat("close() parks the page buffer in the pool", allocator.getAllocatedMemory(), greaterThan(0L));
+            pool.close();
+            assertEquals("pool.close() must return every decompress buffer to the allocator", 0L, allocator.getAllocatedMemory());
         } finally {
             fixture.codecFactory.release();
+            pool.close();
+        }
+    }
+
+    /**
+     * Two readers sharing one pool must not double-allocate: reader 2 reuses reader 1's buffer.
+     */
+    public void testCrossRowGroupBufferReuse() throws IOException {
+        int[] sizes = new int[PAGES];
+        Arrays.fill(sizes, PAGE_PAYLOAD_BYTES);
+        CountingListener listener = new CountingListener();
+        DirectPagesFixture first = buildDirectZstdV2Pages(sizes);
+        DirectPagesFixture second = buildDirectZstdV2Pages(sizes);
+        DirectBufferPool pool = new DirectBufferPool();
+        try (RootAllocator allocator = new RootAllocator(listener, Long.MAX_VALUE)) {
+            int allocsBefore = listener.allocations;
+            drainReader(first, allocator, pool);
+            long afterFirst = allocator.getAllocatedMemory();
+            assertThat(afterFirst, greaterThanOrEqualTo((long) PAGE_PAYLOAD_BYTES));
+            int allocsAfterFirst = listener.allocations;
+            assertEquals("first reader mallocs once", 1, allocsAfterFirst - allocsBefore);
+
+            drainReader(second, allocator, pool);
+            assertEquals("second reader must reuse the pooled buffer", afterFirst, allocator.getAllocatedMemory());
+            assertEquals("second reader must not malloc", allocsAfterFirst, listener.allocations);
+
+            pool.close();
+            assertEquals(0L, allocator.getAllocatedMemory());
+        } finally {
+            first.codecFactory.release();
+            second.codecFactory.release();
+            pool.close();
+        }
+    }
+
+    private static void drainReader(DirectPagesFixture fixture, RootAllocator allocator, DirectBufferPool pool) throws IOException {
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            fixture.codecFactory.getDecompressor(CompressionCodecName.ZSTD),
+            allocator,
+            pool,
+            fixture.pages,
+            null,
+            valueCount(new int[] { PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES, PAGE_PAYLOAD_BYTES })
+        );
+        try {
+            DataPageV2 page;
+            int i = 0;
+            while ((page = (DataPageV2) reader.readPage()) != null) {
+                assertArrayEquals(fixture.payloads.get(i++), page.getData().toByteArray());
+            }
+        } finally {
+            reader.close();
         }
     }
 

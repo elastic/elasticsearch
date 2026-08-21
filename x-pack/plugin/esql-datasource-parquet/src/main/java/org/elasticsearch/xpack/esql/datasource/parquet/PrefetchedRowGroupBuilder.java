@@ -31,6 +31,7 @@ import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.compute.data.arrow.DirectBufferPool;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -97,6 +98,8 @@ final class PrefetchedRowGroupBuilder {
      * @param allocator Arrow allocator used by {@link PrefetchedPageReader} to back native
      *            decompression buffers; allocations are breaker-accounted via
      *            {@code BlockFactory.arrowAllocator()}'s {@code CircuitBreakerAllocationListener}
+     * @param decompBufferPool node-lifetime pool of decompress {@link org.apache.arrow.memory.ArrowBuf}s;
+     *            readers borrow on first page and return on close so the next query does not malloc
      */
     static PrefetchedPageReadStore build(
         BlockMetaData block,
@@ -108,7 +111,8 @@ final class PrefetchedRowGroupBuilder {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks,
         StorageObject storageObject,
         CompressionCodecFactory codecFactory,
-        BufferAllocator allocator
+        BufferAllocator allocator,
+        DirectBufferPool decompBufferPool
     ) {
         Map<String, ColumnDescriptor> descriptorsByPath = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
@@ -156,10 +160,11 @@ final class PrefetchedRowGroupBuilder {
                         block.getRowCount(),
                         decompressor,
                         allocator,
+                        decompBufferPool,
                         rowGroupOrdinal
                     );
                 } else {
-                    reader = buildSequential(column, primitiveType, source, decompressor, allocator, rowGroupOrdinal);
+                    reader = buildSequential(column, primitiveType, source, decompressor, allocator, decompBufferPool, rowGroupOrdinal);
                 }
                 readers.put(descriptor, reader);
             }
@@ -200,6 +205,7 @@ final class PrefetchedRowGroupBuilder {
         long rowGroupRowCount,
         BytesInputDecompressor decompressor,
         BufferAllocator allocator,
+        DirectBufferPool decompBufferPool,
         int rowGroupOrdinal
     ) {
         DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
@@ -229,7 +235,7 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
+        return new PrefetchedPageReader(decompressor, allocator, decompBufferPool, pages, dictPage, valueCount);
     }
 
     /**
@@ -243,6 +249,7 @@ final class PrefetchedRowGroupBuilder {
         ColumnPageBytesSource source,
         BytesInputDecompressor decompressor,
         BufferAllocator allocator,
+        DirectBufferPool decompBufferPool,
         int rowGroupOrdinal
     ) {
         long startingPos = column.getStartingPos();
@@ -282,7 +289,7 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
+            return new PrefetchedPageReader(decompressor, allocator, decompBufferPool, pages, dictPage, valueCount);
         } catch (IOException e) {
             throw new IllegalArgumentException(
                 "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),

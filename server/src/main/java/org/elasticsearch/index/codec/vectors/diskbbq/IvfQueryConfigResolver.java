@@ -63,12 +63,6 @@ public class IvfQueryConfigResolver {
     /**
      * The oversample that configuration alone asks for: the query-time override when there is one, otherwise
      * the mapping default.
-     * <p>
-     * "Declared" contrasts with the effective value {@link #resolve} produces, which slots a calibrated
-     * segment's own persisted factor in ahead of the mapping default. The two agree only when a query-time
-     * override is set, or when nothing persisted a factor - always the case with {@link #isAutoCalibrate()}
-     * off. Anything sizing work per segment must go through {@link #resolve}; this is for the case where there
-     * is no segment to resolve at all.
      */
     public float declaredRescoreOversample() {
         return queryOversample != null ? queryOversample : mappingRescoreOversample;

@@ -115,16 +115,18 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * 8 logical docs: 4 pass (vectors 0..3, children 0/2/4/6), 4 fail (vectors 10..13). With k=4,
-     * numCands=3, and scale=0.5, the delegate collects the 3 closest children {0,2,4}. All 3 pass,
-     * but k=4 needs 1 more. Retry excludes {0,2,4} and finds child 6 (vector 3.0), closing the gap.
+     * 8 logical docs: 6 pass (vectors 0..5, children 0/2/4/6/8/10), 2 fail (vectors 10..11), so selectivity
+     * is 0.75 - inside the band post-filtering actually runs in, since it only engages at selectivity >= the
+     * configured threshold. With k=4, numCands=3, and scale=0.5, the delegate collects the 3 closest children
+     * {0,2,4}. All 3 pass, but k=4 needs 1 more. Retry excludes {0,2,4} and finds child 6 (vector 3.0),
+     * closing the gap.
      */
     public void testRetryClosesTheGap() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 6; i++) {
                 indexDocBlock(writer, "vector", (float) i, "pass");
             }
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 2; i++) {
                 indexDocBlock(writer, "vector", 10f + i, "fail");
             }
             writer.forceMerge(1);
@@ -146,11 +148,11 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
 
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.postFilterDelegateCalls());
-                assertEquals(0.5f, meta.postFilterDelegateSelectivity(), 0.001f);
+                assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0, 2, 4 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0, 2, 4 } }, meta.retrySeedDocs());
-                assertEquals(1, meta.retryRemainingK());
+                assertEquals("1 parent short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
             }
         }
     }
@@ -199,15 +201,20 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * 8 logical docs: logical 0 passes (vector 0.0, child 0), logical 1-6 fail (vectors 1..6),
-     * logical 7 passes (vector 7.0, child 14). With k=2, numCands=3, and scale=1.5, the delegate
-     * collects the 3 closest children {0,2,4}; only child 0 passes. Retry finds no passer, so the
-     * query falls through to the bare inner query which returns children {0,14}.
+     * Reaching the fallback needs a filter that is hostile <em>near the query</em>, not a globally selective
+     * one: post-filtering only engages at selectivity >= the configured threshold, so a corpus-wide 0.25 is
+     * unreachable. Here 20 logical docs are 0.75 selective overall, but the five failures sit immediately next
+     * to the query - the negatively-correlated shape that actually defeats post-filtering in production.
+     * <p>
+     * Logical 0 passes (vector 0.0, child 0), logical 1-5 fail (vectors 1..5, children 2/4/6/8/10), logical
+     * 6-19 pass. With k=2, numCands=3, and scale=1.5, the delegate collects the 3 closest children {0,2,4};
+     * only child 0 passes. The retry's candidates {6,8,10} all fail, so the query falls through to the bare
+     * inner query, which returns children {0,12}.
      */
     public void testFallThroughToInnerQueryClosesTheGap() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            for (int i = 0; i < 8; i++) {
-                boolean passes = (i == 0 || i == 7);
+            for (int i = 0; i < 20; i++) {
+                boolean passes = (i == 0 || i > 5);
                 indexDocBlock(writer, "vector", (float) i, passes ? "pass" : "fail");
             }
             writer.forceMerge(1);
@@ -225,15 +232,15 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
                 TopDocs td = searcher.search(pfq, k);
 
                 assertEquals(k, td.scoreDocs.length);
-                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 14 });
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 12 });
 
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.postFilterDelegateCalls());
-                assertEquals(0.25f, meta.postFilterDelegateSelectivity(), 0.001f);
+                assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0, 2, 4 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0 } }, meta.retrySeedDocs());
-                assertEquals(1, meta.retryRemainingK());
+                assertEquals("1 parent short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
             }
         }
     }

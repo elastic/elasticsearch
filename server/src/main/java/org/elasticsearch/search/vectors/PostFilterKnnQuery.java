@@ -45,15 +45,9 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeScoreDocArrays
  * See {@link PostFilterableKnnQuery#createRetryQuery}.
  * <p>
  * Two sizes matter here and must not be conflated. {@link #k} is the <em>final</em> result count the user
- * asked for. {@link PostFilterableKnnQuery#candidatePoolSize(List)} is the larger pool that the final scoring pass
+ * asked for. {@link PostFilterableKnnQuery#postFilterCandidatePoolSize(List)} is the larger pool that the final scoring pass
  * consumes - an outer {@code RescoreKnnVectorQuery}, or
- * {@link PostFilterableKnnQuery#finalizeTopK} for auto-calibrated IVF. Rounds are sized and retried against
- * the pool; the decision to give up is made against {@code k}, because returning {@code k} exactly-scored
- * hits is the contract, and demanding a full pool before accepting would send most queries down the
- * fallback path for no gain.
- * <p>
- * If post-filtering still leaves the result short of {@code k}, the outer rewrite falls through to the
- * bare inner query (standard pre-filtered search with the full k beam).
+ * {@link PostFilterableKnnQuery#finalizeTopK} for auto-calibrated IVF.
  */
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
@@ -175,9 +169,14 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             // Seeds are the nearest (highest-scoring) round-0 matches per leaf, selected here while the
             // scores are still available on `matching`; excluded still needs the full matching set above.
             int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_LEAF);
+            // The shortfall is counted in docs that SURVIVED the filter, but a retry collects candidates and
+            // the filter will eat (1 - selectivity) of them too. So inflate it exactly as round 0 was
+            // inflated; asking for the raw shortfall makes a small retry collect about as many candidates as
+            // it needs survivors, and at low selectivity it can come back with none at all.
             int remaining = poolSize - scoreDocs.length;
-            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, remaining);
-            TopDocs retryDocs = searcher.search(retry, remaining);
+            int retryK = PostFilterableKnnQuery.computeScaledK(remaining, selectivity);
+            Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, retryK);
+            TopDocs retryDocs = searcher.search(retry, retryK);
             if (retryDocs.scoreDocs.length > 0) {
                 PostFilterableKnnQuery retryQuery = (PostFilterableKnnQuery) retry;
                 vectorOps += retryQuery.totalVectorOps();
@@ -223,19 +222,13 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
      * {@code k * selectivity}. We bail when the observed count is below half of that - i.e. the
      * filter is letting through fewer than half of what its global selectivity predicts in the
      * kNN region.
-     * <p>
-     * Both the gate and the expectation use the user's {@code k}, never the larger candidate pool. The pool
-     * exists to feed the final scoring pass, not to describe what the user asked for, and scaling the
-     * expectation by it would make the heuristic bail on queries that are on track to return a full result
-     * set - while raising the {@code EARLY_EXIT_MIN_K} floor to a multiple of the real {@code k}, so the
-     * "too small to be informative" guard would stop guarding the small-{@code k} cases it exists for.
      */
     private boolean shouldExitEarly(int scoreDocsCount, float selectivity) {
         if (k < EARLY_EXIT_MIN_K) {
             return false;
         }
         double expectedHits = k * (double) selectivity;
-        double threshold = expectedHits / 2.0;
+        double threshold = expectedHits * 0.5;
         boolean shouldExit = scoreDocsCount < threshold;
         if (shouldExit) {
             logger.debug(
@@ -426,7 +419,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             // How many docs to be left holding: what the inner query would have yielded unfiltered. Read off
             // the ORIGINAL query - the delegate's own is already scaled up by the filter oversample, so using
             // it would have the orchestrator chasing a target nobody asked for.
-            int candidatePoolSize = Math.max(k, innerQuery.candidatePoolSize(leaves));
+            int candidatePoolSize = Math.max(k, innerQuery.postFilterCandidatePoolSize(leaves));
             Query delegate = innerQuery.createPostFilterDelegate(selectivity);
             return new PostFilterRewriteMeta(delegate, selectivity, candidatePoolSize);
         }

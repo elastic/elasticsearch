@@ -49,7 +49,7 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
  * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
  * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}. The pool that
- * expansion produces is reported by {@link #candidatePoolSize(List)}.
+ * expansion produces is reported by {@link #postFilterCandidatePoolSize(List)}.
  */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
@@ -302,23 +302,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      * query vector, slice ids, parents filter, visit ratio, config resolver - is copied across; only
      * {@code filter}, {@code k}, {@code numCands} and {@code postFilterDelegate} are taken from the
      * arguments. Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate}.
-     * <p>
-     * The query vector is not a parameter because no caller ever substitutes a different one, and each
-     * subclass carries its own by reference: nothing mutates it, since preconditioning is applied
-     * per-segment inside {@code getLeafResults}, into a fresh array.
-     * <p>
-     * Overrides narrow the return type to their own concrete class, so a respawn cannot cross encodings.
      */
     protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate);
 
     @Override
-    public int candidatePoolSize(List<LeafReaderContext> leaves) throws IOException {
-        // The same value rewrite() will use for mergeK: the largest oversample any leaf resolves to. It has to
-        // be resolved rather than read off declaredRescoreOversample(), because under auto_calibrate a
-        // calibrated segment substitutes its own persisted factor - usually a smaller one, since calibration
-        // takes the cheapest depth that meets target recall - for the mapping default. Sizing the pool from
-        // the declared value makes the exact pass in finalizeTopK run deeper than calibration decided was
-        // needed, and deeper than the very same query without a filter.
+    public int postFilterCandidatePoolSize(List<LeafReaderContext> leaves) throws IOException {
         float maxOversample = Float.NaN;
         for (LeafReaderContext context : leaves) {
             FieldInfo fieldInfo = context.reader().getFieldInfos().fieldInfo(field);
@@ -337,11 +325,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      * {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
      *  during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
      */
-    /**
-     * {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them during posting-list
-     * iteration, which is what gives cross-round dedup. {@code seedDocsPerLeaf} are ignored: there is no graph
-     * to enter, only centroid posting lists to walk.
-     */
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
         assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
@@ -353,10 +336,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        // Collect k/selectivity instead of k, so that k of them are still standing once the filter has run.
-        // Everything this query does with a k - the per-segment rescore oversample, the leaf collector
-        // budgets, the shard merge - scales off the inflated k on its own, so nothing here needs to know
-        // about any of it.
         int scaledK = PostFilterableKnnQuery.computeScaledK(k, filterSelectivity);
         return withParams(null, scaledK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, scaledK), true);
     }

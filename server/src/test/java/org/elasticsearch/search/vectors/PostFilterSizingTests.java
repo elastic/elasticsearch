@@ -21,7 +21,7 @@ public class PostFilterSizingTests extends ESTestCase {
     /**
      * {@code Math.clamp} throws when {@code min > max}, and the {@code 1.2x} floor crosses
      * {@code NUM_CANDS_LIMIT} at {@code k = 8334}. IVF reaches this sooner than a bare {@code k} would: it
-     * sizes from {@code candidatePoolSize()}, so at the default {@code bbq_disk} oversample of 3 a user
+     * sizes from {@code postFilterCandidatePoolSize()}, so at the default {@code bbq_disk} oversample of 3 a user
      * {@code k} of ~2779 already produces a pool above the threshold. Sizing must saturate, not throw.
      */
     public void testScaledKSaturatesInsteadOfThrowing() {
@@ -49,6 +49,6 @@ public class PostFilterSizingTests extends ESTestCase {
     public void testNumCandsPreservingRatioClampsToKAndLimit() {
         assertEquals("never below the new k", 30, PostFilterableKnnQuery.numCandsPreservingRatio(5, 10, 30));
         assertEquals(NUM_CANDS_LIMIT, PostFilterableKnnQuery.numCandsPreservingRatio(NUM_CANDS_LIMIT, 10, NUM_CANDS_LIMIT));
-        assertEquals("degenerate source k", 7, PostFilterableKnnQuery.numCandsPreservingRatio(3, 0, 7));
+        assertEquals("a k of 0 cannot define a ratio", 7, PostFilterableKnnQuery.numCandsPreservingRatio(3, 0, 7));
     }
 }

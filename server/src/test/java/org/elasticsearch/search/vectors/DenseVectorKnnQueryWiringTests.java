@@ -107,7 +107,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         assertEquals(
             "the pool IVF expands to is what the rescore consumes",
             (int) Math.ceil(K * OVERSAMPLE),
-            ivf.candidatePoolSize(List.of())
+            ivf.postFilterCandidatePoolSize(List.of())
         );
     }
 
@@ -119,7 +119,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) rescore.innerQuery();
         assertEquals(K, ivf.k());
         assertEquals(Math.max((int) Math.ceil(K * 5.0f), NUM_CANDS), ivf.numCands());
-        assertEquals(50, ivf.candidatePoolSize(List.of()));
+        assertEquals(50, ivf.postFilterCandidatePoolSize(List.of()));
     }
 
     /**
@@ -138,7 +138,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
     /**
      * The post-filter wrapper targets the FINAL {@code k}; the larger pool it retries towards comes from
-     * {@link PostFilterableKnnQuery#candidatePoolSize(List)}. Giving the wrapper the oversampled count instead
+     * {@link PostFilterableKnnQuery#postFilterCandidatePoolSize(List)}. Giving the wrapper the oversampled count instead
      * would make it demand that many filter survivors before accepting the post-filtered result, sending
      * most queries down the fallback path.
      */

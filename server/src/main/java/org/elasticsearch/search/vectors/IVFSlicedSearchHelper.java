@@ -180,14 +180,6 @@ final class IVFSlicedSearchHelper {
      * Slice-restricted version of {@link KnnQueryUtils#computeSelectivity}: a sliced query only ever visits
      * the requested slices, so estimating its filter selectivity against the whole reader measures a corpus
      * it will not touch.
-     * <p>
-     * The denominator is exact - the slice ranges come from the {@code sliceField} skipper, so the vector
-     * count is capped at the docs the query can actually reach. The numerator scales each leaf's filter cost
-     * by the share of the leaf its slices cover, because {@link org.apache.lucene.search.ScorerSupplier#cost}
-     * is a whole-leaf figure and narrowing it exactly would mean walking the filter's doc-id set - work
-     * proportional to the match set, which is largest exactly when post-filtering is under consideration.
-     * The consequence is that a filter correlated with slice membership is still estimated from its global
-     * rate; the retry round is the safety net for that, as it is for correlated filters generally.
      */
     static float estimateSliceFilterSelectivity(
         List<LeafReaderContext> leaves,

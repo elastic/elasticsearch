@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import static org.elasticsearch.license.DiskBBQLicensingIT.enableLicensing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -65,6 +66,9 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
     // Realistic dimensionality for the exact-score assertion: at DIMS=4 quantization is effectively lossless.
     private static final int EXACT_SCORE_DIMS = 64;
     private static final int EXACT_SCORE_DOCS = 200;
+    // Fixed so the quantization error is the same every run: the assertion below only discriminates
+    // while approximate and exact scores actually differ, so the fixture must not vary per seed.
+    private static final long EXACT_SCORE_VECTOR_SEED = 42L;
     private static final float POST_FILTER_THRESHOLD = 0.7f;
 
     @Before
@@ -141,10 +145,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFallback(indexName, new float[] { 1, 1, 1, 100 });
     }
 
-    /**
-     * Multi-segment variant of the flat post-filter path. Docs are indexed in two flushes without a
-     * force-merge so the IVF query must stash and filter per-leaf candidates across more than one segment.
-     */
     public void testIvfFloatMultiSegment() throws IOException {
         String indexName = "ivf_float_multi_segment_test";
         createIvfIndex(indexName);
@@ -152,14 +152,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
     }
 
-    /**
-     * Layout that forces round-0 to come up short of {@code k} while still leaving enough far-away
-     * "pass" docs for the retry round to fill the remainder — without falling back to the pre-filtered
-     * inner query. Nearest neighborhood is almost all "fail" with only two "pass" docs; additional
-     * "pass" docs sit far from the query so only the retry (after excluding round-0 candidates) can
-     * surface them. {@code default_visit_percentage: 100} keeps the search exhaustive so the retry is
-     * deterministic.
-     */
     public void testIvfFloatRetryWithoutFallback() throws IOException {
         String indexName = "ivf_float_retry_test";
         createIvfIndex(indexName);
@@ -167,10 +159,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterRetry(indexName, new float[] { 1, 1, 1, 100 });
     }
 
-    /**
-     * Post-filtering with {@code auto_calibrate: true}. The post-filter delegate must skip exact
-     * auto-rescore of the oversampled pool and still return filter-passing hits.
-     */
     public void testIvfFloatAutoCalibrate() throws IOException {
         String indexName = "ivf_float_auto_calibrate_test";
         createIvfAutoCalibrateIndex(indexName);
@@ -178,12 +166,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
     }
 
-    /**
-     * The default {@code bbq_disk} shape: {@code bits: 1}, so {@code rescore_vector} defaults to a 3x
-     * oversample and an outer rescore wraps the query, and the mapping's default visit percentage, so the
-     * codec's dynamic visit ratio is in play. The {@code bits: 4} indices used elsewhere in this suite leave
-     * {@code rescore_vector} unset, which bypasses the oversample plumbing entirely.
-     */
     public void testIvfFloatDefaultBits() throws IOException {
         String indexName = "ivf_float_default_bits_test";
         createIvfDefaultBitsIndex(indexName);
@@ -191,30 +173,19 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFlat(indexName, new float[] { 1, 1, 1, 20 });
     }
 
-    /**
-     * With {@code auto_calibrate} the exact rescore lives inside the IVF query, and a post-filter delegate
-     * skips it because its pool has not been filtered yet. Something must still apply it afterwards, or
-     * post-filtered hits come back carrying approximate scores while the same query on the pre-filter path
-     * returns exact ones - two score domains for one query, which corrupts the coordinator's merge.
-     * <p>
-     * Asserted against the arithmetic rather than by comparing two indices, because a comparison passes
-     * trivially whenever both sides happen to take the same path. The expected {@code l2_norm} score of a doc
-     * is {@code 1/(1 + ||doc - query||^2)} computed from the vectors this test generates, so an approximate
-     * score cannot satisfy it.
-     * <p>
-     * {@link #EXACT_SCORE_DIMS} dimensions matter: at the 4 dimensions the rest of this suite uses, 1-bit
-     * quantization error is around 1e-7 and rescoring is numerically indistinguishable from not rescoring,
-     * so the assertion would hold either way and prove nothing.
-     */
     public void testAutoCalibratePostFilteredScoresAreExact() throws IOException {
         String indexName = "ivf_ac_exact_scores";
         createIvfExactScoreIndex(indexName);
 
         // 80% "pass", spread uniformly, so round 0's pool always yields enough survivors to avoid the
         // fallback (which would rescore anyway and make the assertion vacuous).
+        Random vectorSource = new Random(EXACT_SCORE_VECTOR_SEED);
         float[][] vectors = new float[EXACT_SCORE_DOCS][];
         for (int i = 0; i < EXACT_SCORE_DOCS; i++) {
-            vectors[i] = exactScoreVector(i);
+            vectors[i] = new float[EXACT_SCORE_DIMS];
+            for (int d = 0; d < EXACT_SCORE_DIMS; d++) {
+                vectors[i][d] = vectorSource.nextFloat() * 2f - 1f;
+            }
             prepareIndex(indexName).setId(Integer.toString(i))
                 .setSource(VECTOR_FIELD, vectors[i], TAG_FIELD, i % 5 == 0 ? "fail" : "pass")
                 .get();
@@ -222,7 +193,8 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         refresh(indexName);
 
         int k = 5;
-        float[] queryVector = exactScoreVector(EXACT_SCORE_DOCS / 2);
+        // Query one of the indexed vectors, so the fixture has a guaranteed exact match to rank around.
+        float[] queryVector = vectors[EXACT_SCORE_DOCS / 2];
         var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 100, null, null, null).addFilterQuery(
             QueryBuilders.termQuery(TAG_FIELD, "pass")
         );
@@ -248,23 +220,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Deterministic, well-spread vectors in {@code [-1, 1)} via a xorshift-multiply mix of the seed, so the
-     * test can recompute the exact distance without storing anything, and so 1-bit quantization of a
-     * {@link #EXACT_SCORE_DIMS}-dimensional vector loses real precision.
-     */
-    private static float[] exactScoreVector(int seed) {
-        float[] vector = new float[EXACT_SCORE_DIMS];
-        long h = seed * 0x9E3779B97F4A7C15L + 0x165667B19E3779F9L;
-        for (int d = 0; d < EXACT_SCORE_DIMS; d++) {
-            h ^= h >>> 33;
-            h *= 0xFF51AFD7ED558CCDL;
-            h ^= h >>> 29;
-            vector[d] = ((h >>> 40) % 2000) / 1000f - 1f;
-        }
-        return vector;
-    }
-
     public void testPostFilterReportsVectorOpsInProfile() throws IOException {
         String indexName = "ivf_profile_test";
         createIvfIndex(indexName);
@@ -281,11 +236,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         });
     }
 
-    /**
-     * Asserts the profile reports a non-zero {@code vector_operations_count}. Exercises the
-     * post-filter accounting path that accumulates round-0 + retry (and, on fallback, the inner
-     * query's) vector operations into {@code PostFilterKnnQuery#totalVectorOps}.
-     */
     private static void assertProfileReportsVectorOps(SearchResponse response) {
         var shardResults = response.getSearchProfileShardResults();
         assertFalse("Profile results should not be empty", shardResults.isEmpty());
@@ -357,11 +307,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         ensureGreen(indexName);
     }
 
-    /**
-     * Default {@code bits} (1), so {@code rescore_vector} defaults to 3x oversample, and the mapping's
-     * default visit percentage, so the codec's dynamic visit ratio is in play. This is the configuration the
-     * oversample plumbing actually ships with; the {@code bits: 4} indices above bypass it entirely.
-     */
     private void createIvfDefaultBitsIndex(String indexName) throws IOException {
         prepareCreate(indexName).setMapping(ivfMapping(false, 1, null)).get();
         ensureGreen(indexName);
@@ -371,13 +316,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         return ivfMapping(autoCalibrate, 4, 100);
     }
 
-    /**
-     * @param bits            quantization bits. 4 leaves {@code rescore_vector} unset, so no oversample and no
-     *                        outer rescore; 1 (the {@code bbq_disk} default) defaults it to 3x, which is the
-     *                        shape that drives the oversample plumbing in {@code createKnnFloatQuery}.
-     * @param visitPercentage {@code null} keeps the mapping default of 0, i.e. the codec's dynamic visit
-     *                        ratio; 100 forces an exhaustive scan for tests that need determinism.
-     */
     private static XContentBuilder ivfMapping(boolean autoCalibrate, int bits, Integer visitPercentage) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -430,11 +368,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         ensureGreen(indexName);
     }
 
-    /**
-     * Creates a sliced {@code bbq_disk} index. Slicing routes docs into index-sorted slices, and combined with a term
-     * filter over a searched slice it drives the sliced IVF post-filter query. The post-filter threshold is lowered like
-     * the other indices so the ~0.8-selectivity filter takes the post-filter path.
-     */
     private void createSlicedIvfIndex(String indexName) throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -467,11 +400,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         ensureGreen(indexName);
     }
 
-    /**
-     * Indexes 100 docs per slice ("s1", "s2") with a random 80/20 "common"/"rare" tag split and vectors
-     * {@code [1, 1, 1, i]}. Doc ids are prefixed with the slice name so slice membership can be asserted.
-     * Expected selectivity(common) ~ 0.8 &gt; 0.7 → post-filter path.
-     */
     private void indexSlicedDocs(String indexName) {
         for (String slice : List.of("s1", "s2")) {
             for (int i = 0; i < 100; i++) {
@@ -490,11 +418,6 @@ public class PostFilterIVFKnnSearchIT extends ESIntegTestCase {
         refresh(indexName);
     }
 
-    /**
-     * Query vector is nearest to high-index docs, filter requires "common", and the search is scoped to a single slice.
-     * Post-filtering only returns filter-passing docs, and slice scoping only returns docs from the queried slice, so
-     * every hit must be "common" and carry the queried slice's id prefix.
-     */
     private void assertPostFilterSliced(String indexName, String slice, float[] queryVector) {
         int k = 5;
         var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 20, null, null, null).addFilterQuery(

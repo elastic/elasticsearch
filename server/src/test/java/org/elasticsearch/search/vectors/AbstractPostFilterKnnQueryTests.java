@@ -75,20 +75,24 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * 8 docs: docs 0-3 pass (vectors 0..3), docs 4-7 fail (vectors 10..13). With k=4, numCands=3,
-     * and scale=0.5, the delegate collects numCands=3 candidates: {0,1,2}. All 3 pass, but k=4
-     * needs 1 more. The retry excludes {0,1,2} (filteredOut(empty) union topK({0,1,2})) and is seeded
-     * from all matching = {0,1,2}. The retry finds {3}, which passes, closing the gap.
+     * 8 docs: docs 0-5 pass (vectors 0..5), docs 6-7 fail (vectors 10..11), so selectivity is 0.75 - inside
+     * the band post-filtering actually runs in, since it only engages at selectivity >= the configured
+     * threshold. With k=4, numCands=3, and scale=0.5, the delegate collects numCands=3 candidates: {0,1,2}.
+     * All 3 pass, but k=4 needs 1 more. The retry excludes {0,1,2} (filteredOut(empty) union topK({0,1,2}))
+     * and is seeded from all matching = {0,1,2}. The retry finds {3}, which passes, closing the gap.
+     * <p>
+     * The retry asks for 4, not 1: the shortfall is in survivors, so it is inflated for filter attrition the
+     * same way round 0 was - computeScaledK(1, 0.75) = ceil((1 + 2.5*sqrt(1*0.25/0.75))/0.75) = 4.
      */
     public void testRetryClosesTheGap() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 6; i++) {
                 Document doc = new Document();
                 addVectorField(doc, "vector", (float) i);
                 doc.add(new KeywordField("tag", "pass", Field.Store.NO));
                 writer.addDocument(doc);
             }
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 2; i++) {
                 Document doc = new Document();
                 addVectorField(doc, "vector", 10f + i);
                 doc.add(new KeywordField("tag", "fail", Field.Store.NO));
@@ -112,11 +116,11 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
 
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.postFilterDelegateCalls());
-                assertEquals(0.5f, meta.postFilterDelegateSelectivity(), 0.001f);
+                assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0, 1, 2 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0, 1, 2 } }, meta.retrySeedDocs());
-                assertEquals(1, meta.retryRemainingK());
+                assertEquals("1 survivor short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
             }
         }
     }
@@ -172,18 +176,25 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * 8 docs: doc 0 passes (vector 0.0), docs 1-6 fail (vectors 1..6), doc 7 passes (vector 7.0).
-     * With k=2, numCands=3, and scale=1.5, the delegate collects numCands=3 candidates: {0,1,2}.
-     * Only doc 0 passes. Retry excludes filteredOut({1,2}) union topK({0}) = {0,1,2}, seeded from
-     * {0}. Retry's top result among {3,4,5} is doc 3 (fail). Post-filter rounds return null,
-     * falling through to the bare inner query which pre-filters for docs {0,7}.
+     * Reaching the fallback needs a filter that is hostile <em>near the query</em>, not a globally selective
+     * one: post-filtering only engages at selectivity >= the configured threshold, so a corpus-wide 0.25 is
+     * unreachable. Here 20 docs are 0.75 selective overall, but the five failures sit immediately next to the
+     * query - the negatively-correlated shape that actually defeats post-filtering in production.
+     * <p>
+     * doc 0 passes (vector 0.0), docs 1-5 fail (vectors 1..5), docs 6-19 pass. With k=2, numCands=3, and
+     * scale=1.5, the delegate collects numCands=3 candidates: {0,1,2}. Only doc 0 passes. Retry excludes
+     * filteredOut({1,2}) union topK({0}) = {0,1,2}, seeded from {0}, and its candidates {3,4,5} all fail.
+     * Post-filter rounds return null, falling through to the bare inner query which pre-filters for {0,6}.
+     * <p>
+     * The retry asks for computeScaledK(1, 0.75) = 4, but numCands stays 3, so it still surfaces only
+     * {3,4,5} and the fall-through is unchanged.
      */
     public void testFallThroughToInnerQueryClosesTheGap() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 20; i++) {
                 Document doc = new Document();
                 addVectorField(doc, "vector", (float) i);
-                boolean passes = (i == 0 || i == 7);
+                boolean passes = (i == 0 || i > 5);
                 doc.add(new KeywordField("tag", passes ? "pass" : "fail", Field.Store.NO));
                 writer.addDocument(doc);
             }
@@ -201,15 +212,15 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
                 TopDocs td = searcher.search(pfq, k);
 
                 assertEquals(k, td.scoreDocs.length);
-                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 7 });
+                assertDocsByScoreDescending(td.scoreDocs, new int[] { 0, 6 });
 
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.postFilterDelegateCalls());
-                assertEquals(0.25f, meta.postFilterDelegateSelectivity(), 0.001f);
+                assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
                 assertArrayEquals(new int[] { 0, 1, 2 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0 } }, meta.retrySeedDocs());
-                assertEquals(1, meta.retryRemainingK());
+                assertEquals("1 survivor short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
             }
         }
     }
@@ -387,12 +398,13 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * The retry round must aim for {@link PostFilterableKnnQuery#candidatePoolSize(List)}, not the user's {@code k}:
+     * The retry round must aim for {@code PostFilterableKnnQuery#candidatePoolSize}, not the user's {@code k}:
      * the pool is what the final scoring pass consumes, so stopping at {@code k} survivors starves it.
      * <p>
      * 8 docs all passing, vectors 0..7. k=2 with poolScale=3 makes the candidate pool 6; numCands=4 caps round 0 at 4
      * candidates. 4 &ge; k, so a k-based retry decision would fire nothing at all - the discriminating
-     * assertion here is that a retry fires, asking for the missing 6-4=2.
+     * assertion here is that a retry fires, asking for the missing 6-4=2 - which, every doc passing, the
+     * 1.2x floor in computeScaledK rounds up to 3.
      */
     public void testRetryTargetsCandidatePoolNotFinalK() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
@@ -420,7 +432,7 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
                 AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
                 assertEquals(1, meta.postFilterDelegateCalls());
                 assertEquals("a retry must fire even though round 0 already had k survivors", 1, meta.retryCalls());
-                assertEquals("retry must ask for the pool shortfall, not the k shortfall", 2, meta.retryRemainingK());
+                assertEquals("retry must ask for the pool shortfall, not the k shortfall", 3, meta.retryRemainingK());
             }
         }
     }

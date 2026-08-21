@@ -98,7 +98,12 @@ public class ColumnarNumericRangeSlicingBenchmark {
         final int loRank = numDocs / 2;
         final int hiRank = Math.min(numDocs - 1, loRank + (int) (numDocs * selectivity));
         final Query query = format.rangeQuery(FIELD, sorted[loRank], sorted[hiRank]);
-        weight = new IndexSearcher(reader).createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final IndexSearcher searcher = new IndexSearcher(reader);
+        // createWeight wraps the weight in the query cache whenever scores are not needed, and this weight
+        // is reused by every invocation, so the cache would serve a stored bit set instead of running the
+        // format's range path.
+        searcher.setQueryCache(null);
+        weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
     }
 
     @Benchmark

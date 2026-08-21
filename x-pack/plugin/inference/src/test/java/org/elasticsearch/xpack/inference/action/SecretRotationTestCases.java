@@ -150,6 +150,7 @@ public class SecretRotationTestCases {
         };
 
         // Two secret fields: access_key and secret_key
+        var region = "us-east-1";
         var initialSecrets = new HashMap<String, Object>(
             Map.of(AmazonBedrockConstants.ACCESS_KEY_FIELD, INITIAL_ACCESS_KEY, AmazonBedrockConstants.SECRET_KEY_FIELD, INITIAL_SECRET_KEY)
         );
@@ -167,7 +168,7 @@ public class SecretRotationTestCases {
                 new HashMap<>(
                     Map.of(
                         AmazonBedrockConstants.REGION_FIELD,
-                        "us-east-1",
+                        region,
                         AmazonBedrockConstants.MODEL_FIELD,
                         "amazon.titan-embed-text-v2:0",
                         AmazonBedrockConstants.PROVIDER_FIELD,
@@ -188,7 +189,7 @@ public class SecretRotationTestCases {
                 new HashMap<>(
                     Map.of(
                         AmazonBedrockConstants.REGION_FIELD,
-                        "us-east-1",
+                        region,
                         AmazonBedrockConstants.MODEL_FIELD,
                         "anthropic.claude-3-sonnet-20240229-v1:0",
                         AmazonBedrockConstants.PROVIDER_FIELD,
@@ -209,7 +210,7 @@ public class SecretRotationTestCases {
                 new HashMap<>(
                     Map.of(
                         AmazonBedrockConstants.REGION_FIELD,
-                        "us-east-1",
+                        region,
                         AmazonBedrockConstants.MODEL_FIELD,
                         "amazon.nova-lite-v1:0",
                         AmazonBedrockConstants.PROVIDER_FIELD,

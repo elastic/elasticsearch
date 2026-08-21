@@ -95,7 +95,8 @@ public final class CredentialTransitions {
         boolean crossProjectEnabled,
         boolean callerHasCloudCredential,
         boolean envelopeExists,
-        boolean affectsCrossProjectSearchSurface
+        boolean affectsCrossProjectSearchSurface,
+        boolean forceRekeying
     ) {}
 
     private final AnomalyDetectionAuditor auditor;
@@ -131,7 +132,8 @@ public final class CredentialTransitions {
         if (ctx.callerHasCloudCredential() == false && ctx.envelopeExists()) {
             return Intent.CLEAR;
         }
-        if (ctx.callerHasCloudCredential() && (ctx.envelopeExists() == false || ctx.affectsCrossProjectSearchSurface())) {
+        if (ctx.callerHasCloudCredential()
+            && (ctx.forceRekeying() || ctx.envelopeExists() == false || ctx.affectsCrossProjectSearchSurface())) {
             return Intent.REPLACE;
         }
         return Intent.KEEP;

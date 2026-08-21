@@ -4782,6 +4782,28 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
         );
+        // Reject field references outside ON while translating the query.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"title:fox\" ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"title:fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        // Report the first field outside ON.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
+        );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));
         fullText().error(

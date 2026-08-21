@@ -25,14 +25,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -258,15 +256,14 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                 historyUuidAfterFirstTransition,
                 notNullValue()
             );
-            final ShardRouting recoveringPrimary = primaryShardRouting();
             assertThat(
                 "the first restore's shard must still be initializing (blocked on the repository) when the second transition publishes",
-                recoveringPrimary.state(),
+                primaryShardRouting().state(),
                 equalTo(ShardRoutingState.INITIALIZING)
             );
 
-            // publish a second transition over the same, still-recovering shard, addressed by node ID (not name) as routing requires
-            initializeRestoreOverOpenIndex(restoreTarget, recoveringPrimary.currentNodeId());
+            // publish a second transition over the same, still-recovering shard
+            initializeRestoreOverOpenIndex(restoreTarget);
 
             assertThat(
                 "the second transition must assign yet another new history UUID, not resume the first one",
@@ -341,18 +338,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
      * and keeps its index UUID but gains a new history UUID together with a restoring shard assigned to it.
      */
     private void initializeRestoreOverOpenIndex(RestoreTarget restoreTarget) {
-        final ShardRouting startedPrimary = primaryShardRouting();
-        assertThat(startedPrimary.state(), equalTo(ShardRoutingState.STARTED));
-        initializeRestoreOverOpenIndex(restoreTarget, startedPrimary.currentNodeId());
-    }
-
-    /**
-     * Like {@link #initializeRestoreOverOpenIndex(RestoreTarget)}, but assigns the restoring primary to {@code shardNodeId} without
-     * requiring the current primary to be {@link ShardRoutingState#STARTED} first. This lets a test publish a second transition while a
-     * previous one is still recovering on that node, to exercise this node-side logic the way an ungated caller could invoke it.
-     */
-    private void initializeRestoreOverOpenIndex(RestoreTarget restoreTarget, String shardNodeId) {
-        safeGet(publishRestoreInitialization(restoreTarget, shardNodeId));
+        safeGet(publishRestoreInitialization(restoreTarget));
     }
 
     /**
@@ -360,15 +346,12 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
      * the destination index keeps its index UUID and stays open, but receives a new history UUID, snapshot-recovery routing, rebuilt blocks
      * and a correlated {@link RestoreInProgress} entry.
      * <p>
-     * The restoring primary is assigned to {@code shardNodeId}, the node that already holds the shard, within that same update. The
-     * routing built by {@link RoutingTable.Builder#addAsRestore} leaves restored shards unassigned for a subsequent reroute to place; going
-     * through that intermediate state would make the node drop its index service through the ordinary "no longer assigned" path and never
-     * observe an open-to-open history UUID change. Assigning the shard up front produces the single-state transition under test, and reuses
-     * the local store, which is the point of an in-place restore.
-     *
-     * @param shardNodeId the node that currently holds the started primary, and that the restoring primary is assigned to
+     * The routing is rebuilt via {@link RoutingTable.Builder#addAsRestore}, the same call the real restore code makes: every copy
+     * (primary and replicas) is freshly unassigned, and the trailing {@link AllocationService#reroute} call below resolves them before
+     * this method's result is ever published, exactly as it does in production. No cluster state with the shards actually unassigned is
+     * ever observed by a data node.
      */
-    private PlainActionFuture<Void> publishRestoreInitialization(RestoreTarget restoreTarget, String shardNodeId) {
+    private PlainActionFuture<Void> publishRestoreInitialization(RestoreTarget restoreTarget) {
         final String restoreUuid = UUIDs.randomBase64UUID();
 
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -418,7 +401,7 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
                     .putRoutingTable(
                         projectId,
                         RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentState.routingTable(projectId))
-                            .add(assignedRestoreRouting(restoredIndexMetadata, recoverySource, shardNodeId))
+                            .addAsRestore(restoredIndexMetadata, recoverySource)
                             .build()
                     )
                     .putCustom(
@@ -460,46 +443,6 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
             )
         );
         ensureGreen(INDEX_NAME);
-    }
-
-    /**
-     * @return snapshot-recovery routing for the index with every primary already initializing on {@code shardNodeId}; any replica copies
-     * are left unassigned for the ordinary allocator to place, once the restoring primary they depend on becomes active, exactly like the
-     * routing built by {@link RoutingTable.Builder#addAsRestore} does for a real restore
-     */
-    private static IndexRoutingTable assignedRestoreRouting(
-        IndexMetadata restoredIndexMetadata,
-        SnapshotRecoverySource recoverySource,
-        String shardNodeId
-    ) {
-        final Index index = restoredIndexMetadata.getIndex();
-        final IndexRoutingTable.Builder routing = IndexRoutingTable.builder(index);
-        for (int shard = 0; shard < restoredIndexMetadata.getNumberOfShards(); shard++) {
-            final ShardId shardId = new ShardId(index, shard);
-            routing.addShard(
-                ShardRouting.newUnassigned(
-                    shardId,
-                    true,
-                    recoverySource,
-                    new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "restore over open index"),
-                    ShardRouting.Role.DEFAULT,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-                ).initialize(shardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
-            );
-            for (int replica = 0; replica < restoredIndexMetadata.getNumberOfReplicas(); replica++) {
-                routing.addShard(
-                    ShardRouting.newUnassigned(
-                        shardId,
-                        false,
-                        RecoverySource.PeerRecoverySource.INSTANCE,
-                        new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "restore over open index"),
-                        ShardRouting.Role.DEFAULT,
-                        ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-                    )
-                );
-            }
-        }
-        return routing.build();
     }
 
     private ShardRouting primaryShardRouting() {

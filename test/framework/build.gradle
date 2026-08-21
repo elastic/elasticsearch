@@ -29,7 +29,7 @@ dependencies {
   // This also avoids jarHell issues with different hamcrest related dependencies
   // like hamcrest and hamcrest-core
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api("junit:junit:${versions.junit}") {
+  api("junit:junit:${versions.junit4}") {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
   api("org.apache.lucene:lucene-test-framework:${versions.lucene}") {

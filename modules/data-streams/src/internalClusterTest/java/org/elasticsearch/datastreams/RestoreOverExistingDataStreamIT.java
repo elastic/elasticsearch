@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
@@ -297,12 +296,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             return new RestoreTarget(
                 snapshot,
                 snapshotInfo,
-                new RestoreService.DataStreamRestoreTarget(
-                    destination,
-                    target.snapshotDataStream(),
-                    target.indicesToRestore(),
-                    target.snapshotIndexMetadataByName()
-                )
+                new RestoreService.DataStreamRestoreTarget(destination, target.snapshotDataStream(), target.indicesToRestore())
             );
         }
     }
@@ -315,23 +309,23 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final Metadata snapshotGlobalMetadata = repository.getSnapshotGlobalMetadata(snapshotInfo.snapshotId(), false);
         final DataStream snapshotDataStream = snapshotGlobalMetadata.getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME);
 
-        final Map<String, IndexId> indicesToRestore = new HashMap<>();
-        final Map<String, IndexMetadata> snapshotIndexMetadataByName = new HashMap<>();
+        final Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> indicesToRestore = new HashMap<>();
         for (Index index : Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
             .toList()) {
             final IndexId indexId = repositoryData.resolveIndexId(index.getName());
-            indicesToRestore.put(index.getName(), indexId);
-            snapshotIndexMetadataByName.put(
+            indicesToRestore.put(
                 index.getName(),
-                repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId)
+                new RestoreService.DataStreamRestoreTarget.SnapshotIndex(
+                    indexId,
+                    repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId)
+                )
             );
         }
 
         final RestoreService.DataStreamRestoreTarget target = new RestoreService.DataStreamRestoreTarget(
             currentDataStream(),
             snapshotDataStream,
-            indicesToRestore,
-            snapshotIndexMetadataByName
+            indicesToRestore
         );
         return new RestoreTarget(snapshot, snapshotInfo, target);
     }

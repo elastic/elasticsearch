@@ -577,27 +577,31 @@ public final class RestoreService implements ClusterStateApplier {
      * restore over, the snapshot-side {@link DataStream} to restore, and the repository-side identity plus metadata of every backing and
      * failure-store index the snapshot-side data stream references.
      *
-     * @param destinationDataStream    the exact current identity (name plus exact backing/failure {@link Index} identities) of the data
-     *                                 stream to delete and restore over, resolved by the caller before submitting the guarded restore, so
-     *                                 that a data stream deleted and recreated under the same name is never silently adopted
-     * @param snapshotDataStream       the data stream as recorded in the snapshot, to be restored under the same name
-     * @param indicesToRestore         backing/failure-store index name to its {@link IndexId} within the snapshot
-     * @param snapshotIndexMetadataByName the snapshot-side {@link IndexMetadata} for every entry in {@code indicesToRestore}, keyed by name
+     * @param destinationDataStream the exact current identity (name plus exact backing/failure {@link Index} identities) of the data
+     *                              stream to delete and restore over, resolved by the caller before submitting the guarded restore, so
+     *                              that a data stream deleted and recreated under the same name is never silently adopted
+     * @param snapshotDataStream    the data stream as recorded in the snapshot, to be restored under the same name
+     * @param indicesToRestore      every backing/failure-store index referenced by {@code snapshotDataStream}, keyed by name
      */
     public record DataStreamRestoreTarget(
         DataStream destinationDataStream,
         DataStream snapshotDataStream,
-        Map<String, IndexId> indicesToRestore,
-        Map<String, IndexMetadata> snapshotIndexMetadataByName
-    ) {}
+        Map<String, SnapshotIndex> indicesToRestore
+    ) {
+        /**
+         * The repository-side identity and metadata of a single index within a snapshot, neither of which is derivable from the
+         * {@link DataStream}'s own {@link Index} references: {@link IndexId} is a repository-generated identifier distinct from the
+         * index's cluster-side UUID, and {@link IndexMetadata} (settings, mappings, aliases) isn't part of {@link DataStream} at all.
+         */
+        public record SnapshotIndex(IndexId indexId, IndexMetadata metadata) {}
+    }
 
     /**
      * The guarded atomic data-stream delete-and-restore operation: deletes the given destination data streams and their
      * backing/failure-store indices and restores the corresponding snapshot data streams under the same names, in one
      * cluster-state update that atomically removes the old destinations, applies the restored metadata, adds snapshot-recovery routing
      * for the newly-restored backing/failure indices, installs the correlated {@link RestoreInProgress} entry, and reroutes. Every target
-     * is validated before anything is deleted, so a conflict on any one target — most notably an active snapshot of the destination,
-     * which is treated as a transient condition the caller should retry once the snapshot finishes — leaves every destination unchanged.
+     * is validated before anything is deleted, so a conflict on any one target leaves every destination unchanged.
      * <p>
      * Unlike {@link #restoreSnapshot}, this does not resolve indices or data streams by name against a {@link RestoreSnapshotRequest}:
      * the caller has already completed recovery-point lookup, source expansion, destination mapping, and preflight, and supplies the
@@ -606,10 +610,6 @@ public final class RestoreService implements ClusterStateApplier {
      * <p>
      * A retry that supplies the same {@code restoreUUID} as an already-applied guarded restore observes the correlated
      * {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
-     * <p>
-     * This method has no caller yet and is deliberately not gated by a {@link org.elasticsearch.features.NodeFeature}: a feature gate is
-     * only meaningful once it ships alongside a real consumer, since its meaning is effectively permanent once released. Add one, checked
-     * before any mutation below, when a real caller (e.g. a REST endpoint) is wired up.
      *
      * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
      */
@@ -627,10 +627,12 @@ public final class RestoreService implements ClusterStateApplier {
         final List<DataStream> dataStreamsToRestore = new ArrayList<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
         for (DataStreamRestoreTarget target : targets) {
-            indicesToRestore.putAll(target.indicesToRestore());
             guardedDataStreamTargets.put(target.destinationDataStream().getName(), target.destinationDataStream());
             dataStreamsToRestore.add(target.snapshotDataStream());
-            target.snapshotIndexMetadataByName().values().forEach(indexMetadata -> snapshotProjectBuilder.put(indexMetadata, false));
+            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.indicesToRestore().entrySet()) {
+                indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
+                snapshotProjectBuilder.put(entry.getValue().metadata(), false);
+            }
         }
         snapshotProjectBuilder.dataStreams(
             dataStreamsToRestore.stream().collect(Collectors.toMap(DataStream::getName, Function.identity())),

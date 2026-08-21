@@ -1933,4 +1933,90 @@ public class ImplClassWriterTests extends ProcessorTestCase {
         Object callback = lib.newInstance("test.Doubler");
         assertEquals("the upcall stub must invoke the Java callback (21 doubled)", 42, (int) lib.call("apply", callback));
     }
+
+    /**
+     * Verifies that a nested {@code @Upcall} interface (declared inside the library interface) works
+     * end-to-end. The bug was that {@link org.elasticsearch.foreign.processor.model.UpcallModel} used
+     * {@code getQualifiedName()} (dot-separated
+     * canonical name) when building the {@code ClassDesc} for the callback interface, which produced
+     * {@code Outer.Inner} instead of the binary name {@code Outer$Inner} that {@code ClassDesc.of()}
+     * requires, causing a {@code ClassNotFoundException} at class-init time.
+     */
+    public void testUpcallStubWithNestedCallbackInterfaceWorks() throws Throwable {
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("test.CallbackLib", """
+            package test;
+            import java.lang.foreign.FunctionDescriptor;
+            import java.lang.foreign.Linker;
+            import java.lang.foreign.MemorySegment;
+            import java.lang.foreign.SymbolLookup;
+            import java.lang.foreign.ValueLayout;
+            import java.lang.invoke.MethodHandle;
+            import java.lang.invoke.MethodHandles;
+            import java.lang.invoke.MethodType;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.LinkerHelper;
+            import org.elasticsearch.foreign.MethodHandleResolver;
+            import org.elasticsearch.foreign.ResolvedSymbol;
+            import org.elasticsearch.foreign.SymbolResolver;
+            import org.elasticsearch.foreign.Upcall;
+            @LibrarySpecification(
+                symbolResolver = CallbackLib.FakeSymbolResolver.class,
+                methodHandleResolver = CallbackLib.StubInvokingResolver.class
+            )
+            public interface CallbackLib {
+                @Upcall
+                @FunctionalInterface
+                interface NestedCallback {
+                    int call(int x);
+                }
+
+                @Function("apply")
+                int apply(NestedCallback cb);
+
+                static int invokeStub(MemorySegment stub) throws Throwable {
+                    MethodHandle mh = LinkerHelper.downcallHandle(
+                        stub,
+                        FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT)
+                    );
+                    return (int) mh.invokeExact(21);
+                }
+
+                class FakeSymbolResolver implements SymbolResolver {
+                    public FakeSymbolResolver() {}
+                    public ResolvedSymbol resolve(String name, SymbolLookup lookup) {
+                        return new ResolvedSymbol(name, MemorySegment.ofAddress(1L));
+                    }
+                }
+
+                class StubInvokingResolver implements MethodHandleResolver {
+                    public StubInvokingResolver() {}
+                    public MethodHandle resolve(ResolvedSymbol symbol, FunctionDescriptor descriptor,
+                                                Linker linker, Linker.Option... options) {
+                        try {
+                            return MethodHandles.lookup()
+                                .findStatic(CallbackLib.class, "invokeStub",
+                                    MethodType.methodType(int.class, MemorySegment.class));
+                        } catch (ReflectiveOperationException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                }
+            }
+            """);
+        sources.put("test.Tripler", """
+            package test;
+            public final class Tripler implements CallbackLib.NestedCallback {
+                public Tripler() {}
+                public int call(int x) {
+                    return x * 3;
+                }
+            }
+            """);
+
+        LoadedLibrary lib = loadLibrary(sources, "test.CallbackLib");
+        Object callback = lib.newInstance("test.Tripler");
+        assertEquals("nested @Upcall callback must be reachable via binary name (21 tripled)", 63, (int) lib.call("apply", callback));
+    }
 }

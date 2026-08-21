@@ -290,7 +290,14 @@ public record MethodModel(
             for (int upcallParamIndex : upcallIndices) {
                 var param = method.getParameters().get(upcallParamIndex);
                 TypeElement upcallType = (TypeElement) ((DeclaredType) param.asType()).asElement();
-                UpcallModel upcallModel = UpcallModel.from(upcallParamIndex, upcallType, param, env.getTypeUtils(), messager);
+                UpcallModel upcallModel = UpcallModel.from(
+                    upcallParamIndex,
+                    upcallType,
+                    param,
+                    env.getTypeUtils(),
+                    env.getElementUtils(),
+                    messager
+                );
                 if (upcallModel == null) {
                     return null;
                 }

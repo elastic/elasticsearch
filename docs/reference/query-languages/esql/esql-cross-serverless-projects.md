@@ -398,6 +398,8 @@ FROM logs METADATA _project._alias        <2>
 
 ## Limitations
 
+The [{{esql}} cross-cluster search limitations](/reference/query-languages/esql/esql-cross-clusters.md#ccq-limitations) apply to cross-project search as well. In particular, inference endpoints for `RERANK`, `COMPLETION`, `MMR`, `TEXT_EMBEDDING` and `EMBEDDING` must exist in the origin project, while a `semantic_text` field is embedded by the project that holds the data.
+
 ### LOOKUP JOIN across projects
 
 {{esql}} `LOOKUP JOIN` follows the same constraints as [{{esql}} cross-cluster `LOOKUP JOIN`](/reference/query-languages/esql/esql-lookup-join.md#cross-cluster-support). By default, {{esql}} resolves the lookup index on every project in the query and each project joins against its own local index with that name. In this case, the lookup index must exist on every project being queried.

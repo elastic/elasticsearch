@@ -496,7 +496,47 @@ Running multiple versions of {{es}} in the same cluster beyond the duration of a
 For more information about upgrades, see [Upgrading {{es}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
 
 
-## Limitations
+## Limitations [ccq-limitations]
+
+### Inference endpoints [ccq-inference-endpoints]
+
+The `RERANK`, `COMPLETION` and `MMR` commands, and the `TEXT_EMBEDDING` and `EMBEDDING` functions, always run on the cluster that receives the query. Their inference endpoint must exist on **that** cluster, even when every document comes from a remote. If it does not, the query fails with `Inference endpoint not found`.
+
+Querying a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field works the other way around: each cluster generates query embeddings using its own `search_inference_id`, so the endpoint must exist on the cluster that holds the data.
+
+A query that does both needs endpoints on both clusters. For example, the following requires the `semantic_text` field's endpoint on `my_remote_cluster` and the `rerank-1` endpoint on the local cluster:
+
+```esql
+FROM my-index,my_remote_cluster:my-index
+| WHERE semantic_field : "query text"
+| RERANK "query text" ON title WITH { "inference_id": "rerank-1" }
+```
+
+Querying a `semantic_text` field across clusters requires every participating cluster to run 9.4.0 or later, or a 9.3 patch release that includes the necessary support. Against an older remote the query fails with an error naming the required version.
+
+### Relevance scores across clusters [ccq-scores]
+
+Full-text scores are computed independently on each cluster, from that cluster's own term statistics. {{esql}} has no equivalent of the Query DSL `dfs_query_then_fetch` search type, so there is nothing that reconciles those statistics across clusters.
+
+Scores from different clusters are therefore not directly comparable, and the effect grows as the corpora diverge in size or vocabulary. A term that is rare on one cluster and common on another produces systematically higher scores on the first, regardless of how relevant its documents actually are. This affects `SORT _score`, any `WHERE` clause comparing `_score` against a fixed threshold, and the set of candidates that reaches a later `RERANK`.
+
+Only lexical scoring is affected. `KNN` and dense `semantic_text` fields score on vector similarity, and sparse `semantic_text` fields score on stored per-token weights; neither depends on corpus statistics, so both are comparable across clusters.
+
+When fusing result sets with [`FUSE`](/reference/query-languages/esql/commands/fuse.md), prefer the default `RRF` method in cross-cluster queries. `RRF` combines ranks rather than scores and is unaffected. `LINEAR` normalizes the scores themselves, so across clusters it normalizes values that were never on a common scale.
+
+### `dense_vector` fields [ccq-dense-vector]
+
+`dense_vector` fields are only available when every cluster in the query supports them. If any cluster is too old, the fields are treated as unsupported for the whole query, including on clusters that do support them.
+
+A query that uses `KNN`, `TO_DENSE_VECTOR` or one of the `V_*` similarity functions keeps the fields enabled instead, and any cluster that cannot handle the type reports a failure for its own shards while the rest of the query returns partial results.
+
+### `LOOKUP JOIN` after other commands [ccq-lookup-join-limits]
+
+A cross-cluster `LOOKUP JOIN` cannot follow a command that runs on the querying cluster. In addition to `STATS`, `SORT`, `LIMIT` and coordinator-side `ENRICH`, this includes `FORK`, `FUSE`, `RERANK`, `COMPLETION` and `MMR`. Refer to [`LOOKUP JOIN` coordinator mode](/reference/query-languages/esql/esql-lookup-join.md#coordinator-mode) for the workaround and its own constraints.
+
+### Views across clusters
+
+Remote views are not supported. Refer to [view limitations](/reference/query-languages/esql/esql-views.md) for details.
 
 ### Datasets across clusters
 ```{applies_to}

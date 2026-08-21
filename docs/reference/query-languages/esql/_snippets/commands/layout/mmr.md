@@ -49,6 +49,11 @@ Learn more about using [ES|QL for search use cases](docs-content://solutions/sea
 The ordering of results returned from the input rows is preserved.
 :::
 
+:::{note}
+In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md), the inference
+endpoint used to generate a query vector must exist on the cluster that receives the query.
+:::
+
 :::{important}
 You must limit the number of input rows before the `MMR` command.
 For example, you can use the [LIMIT command](../../../../esql/commands/limit.md) to restrict the input.

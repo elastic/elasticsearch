@@ -122,6 +122,10 @@ To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
 
+In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md), `COMPLETION` runs
+on the cluster that receives the query, so the inference endpoint must exist on that cluster even when
+the documents come from a remote.
+
 ### Handling timeouts
 
 `COMPLETION` commands may time out when processing large datasets or complex prompts.

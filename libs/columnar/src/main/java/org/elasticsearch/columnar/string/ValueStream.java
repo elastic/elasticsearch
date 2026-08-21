@@ -18,6 +18,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.columnar.substrate.ByteArrayInts;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
 import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
@@ -168,7 +169,7 @@ public final class ValueStream {
             for (int i = 0; i < pendingCount; i++) {
                 max = Math.max(max, pending[i]);
             }
-            final int width = max < 0x100 ? 1 : (max < 0x10000 ? 2 : 4);
+            final int width = ByteArrayInts.widthFor(max);
             // Which layout is smaller is decided after compression, so an uncompressed byte count cannot
             // choose between them. What separates them is how long the values are: short ones repeat
             // together with their length as a single pattern, and splitting the two apart costs more than
@@ -188,32 +189,25 @@ public final class ValueStream {
             scratch[0] = (byte) width;
             int at = 1;
             for (int i = 0; i < pendingCount; i++) {
-                final int value = pending[i];
-                for (int b = 0; b < width; b++) {
-                    scratch[at++] = (byte) (value >>> (8 * b));
-                }
+                ByteArrayInts.writeIntLE(pending[i], width, scratch, at);
+                at += width;
             }
             chunks.append(scratch, 0, length);
             chunks.append(pendingBytes, 0, pendingLength);
         }
 
         private void writeInline() throws IOException {
-            scratch = ArrayUtil.growNoCopy(scratch, 5);
+            scratch = ArrayUtil.growNoCopy(scratch, ByteArrayInts.MAX_VINT_BYTES);
             scratch[0] = INLINE;
             chunks.append(scratch, 0, 1);
-            final byte[] vint = scratch;
             int at = 0;
             for (int i = 0; i < pendingCount; i++) {
-                int length = pending[i];
-                int n = 0;
-                while ((length & ~0x7F) != 0) {
-                    vint[n++] = (byte) ((length & 0x7F) | 0x80);
-                    length >>>= 7;
-                }
-                vint[n++] = (byte) length;
-                chunks.append(vint, 0, n);
-                chunks.append(pendingBytes, at, pending[i]);
-                at += pending[i];
+                final int length = pending[i];
+                // The marker is already appended, so scratch is free to hold this value's length.
+                final int vintBytes = ByteArrayInts.writeVInt(length, scratch, 0);
+                chunks.append(scratch, 0, vintBytes);
+                chunks.append(pendingBytes, at, length);
+                at += length;
             }
         }
 
@@ -300,14 +294,8 @@ public final class ValueStream {
             if (width == INLINE) {
                 int position = block.offset + 1;
                 for (int i = 0; i < count; i++) {
-                    int length = 0;
-                    int shift = 0;
-                    byte b;
-                    do {
-                        b = bytes[position++];
-                        length |= (b & 0x7F) << shift;
-                        shift += 7;
-                    } while ((b & 0x80) != 0);
+                    final int length = ByteArrayInts.readVInt(bytes, position);
+                    position += ByteArrayInts.vIntLength(length);
                     starts[i] = position;
                     lengths[i] = length;
                     position += length;
@@ -317,10 +305,8 @@ public final class ValueStream {
             int at = block.offset + 1;
             int position = at + count * width;
             for (int i = 0; i < count; i++) {
-                int length = 0;
-                for (int b = 0; b < width; b++) {
-                    length |= (bytes[at++] & 0xFF) << (8 * b);
-                }
+                final int length = ByteArrayInts.readIntLE(bytes, at, width);
+                at += width;
                 starts[i] = position;
                 lengths[i] = length;
                 position += length;

@@ -326,6 +326,35 @@ tests:
       removeEntries(src, [{ class: "org.elasticsearch.Foo", method: "testA" }]),
     ).toThrow(/unexpected entry layout/);
   });
+
+  it("removes an individual test from an entry with multiple tests", () => {
+    const src = `
+      tests:
+      - class: org.elasticsearch.Foo
+        method: testA
+        issue: https://github.com/elastic/elasticsearch/issues/1
+      - class: org.elasticsearch.Bar
+        methods:
+          - testB-1
+          - testB-2
+        issue: https://github.com/elastic/elasticsearch/issues/2
+    `;
+
+    expect(
+      removeEntries(src, [
+        {
+          class: "org.elasticsearch.Foo",
+          method: "testA",
+          issue: "https://github.com/elastic/elasticsearch/issues/1",
+        },
+        {
+          class: "org.elasticsearch.Bar",
+          method: "testB-1",
+          issue: "https://github.com/elastic/elasticsearch/issues/2",
+        },
+      ]),
+    ).toBe("");
+  });
 });
 
 describe("end-to-end against the real muted-tests.yml", () => {

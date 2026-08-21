@@ -13,6 +13,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
@@ -157,13 +158,85 @@ public class StringColumnTests extends ColumnarStringTestCase {
     }
 
     /** Writes {@code docValues} as a string column, reads it back, and asserts every value round-trips in order. */
+    /**
+     * A value larger than the bytes a chunk is meant to hold. A chunk closes only on a block boundary, so it
+     * has to grow past its target rather than split the value across two chunks.
+     */
+    public void testValueLargerThanAChunk() throws IOException {
+        final BytesRef[] docs = new BytesRef[between(4, 40)];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = new BytesRef("x".repeat(between(600, 1200)));
+        }
+        assertColumn(docs, randomValidBlockSize(), randomChunkCodec(), 256);
+    }
+
+    /**
+     * Chunks small enough that one closes every few blocks, so values land either side of a chunk boundary
+     * and the block that spans it has to be found in the chunk that holds it.
+     */
+    public void testValuesAcrossChunkBoundaries() throws IOException {
+        final BytesRef[] docs = new BytesRef[between(500, 3000)];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = new BytesRef("host-" + d + "." + "svc".repeat(between(1, 6)));
+        }
+        assertColumn(docs, randomValidBlockSize(), randomChunkCodec(), randomFrom(64, 128, 512));
+    }
+
+    /**
+     * The same values under both codecs. A chunk stored verbatim is served straight from the mapped file
+     * while a compressed one is decoded into a buffer, so the two take different paths to the same bytes.
+     */
+    public void testCodecsAgree() throws IOException {
+        final BytesRef[] docs = new BytesRef[between(200, 2000)];
+        for (int d = 0; d < docs.length; d++) {
+            docs[d] = randomBoolean() ? new BytesRef("") : new BytesRef(randomAlphaOfLengthBetween(1, 80));
+        }
+        final int blockSize = randomValidBlockSize();
+        final int chunkBytes = randomFrom(128, 4096);
+        assertColumn(docs, blockSize, ChunkCodec.IDENTITY, chunkBytes);
+        assertColumn(docs, blockSize, ChunkCodec.ZSTD, chunkBytes);
+    }
+
+    /**
+     * Values short enough that a block keeps their lengths beside them, and long enough that it packs the
+     * lengths at its head instead. Both layouts have to read back the same, including where a column mixes
+     * them and the choice differs from block to block.
+     */
+    public void testShortAndLongValueLayouts() throws IOException {
+        final BytesRef[] shortValues = new BytesRef[between(300, 1500)];
+        for (int d = 0; d < shortValues.length; d++) {
+            shortValues[d] = new BytesRef(randomAlphaOfLengthBetween(1, 8));
+        }
+        assertColumn(shortValues);
+
+        final BytesRef[] longValues = new BytesRef[between(300, 1500)];
+        for (int d = 0; d < longValues.length; d++) {
+            longValues[d] = new BytesRef(randomAlphaOfLengthBetween(200, 400));
+        }
+        assertColumn(longValues);
+
+        final BytesRef[] mixed = new BytesRef[between(300, 1500)];
+        for (int d = 0; d < mixed.length; d++) {
+            mixed[d] = new BytesRef(randomAlphaOfLengthBetween(1, 8));
+        }
+        // A run of long values in the middle, so the blocks covering it choose differently from the rest.
+        for (int d = mixed.length / 3; d < Math.min(mixed.length, 2 * mixed.length / 3); d++) {
+            mixed[d] = new BytesRef(randomAlphaOfLengthBetween(200, 400));
+        }
+        assertColumn(mixed);
+    }
+
     private void assertColumn(BytesRef[] docValues) throws IOException {
         assertColumn(docValues, randomValidBlockSize());
     }
 
     private void assertColumn(BytesRef[] docValues, int blockSize) throws IOException {
+        assertColumn(docValues, blockSize, randomChunkCodec(), randomTargetChunkBytes());
+    }
+
+    private void assertColumn(BytesRef[] docValues, int blockSize, ChunkCodec chunkCodec, int targetChunkBytes) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
-        withColumn(docValues, blockSize, (metadata, reader) -> {
+        withColumn(docValues, blockSize, chunkCodec, targetChunkBytes, (metadata, reader) -> {
             assertFalse("string columns are single-valued for now", metadata.multiValued());
             assertEquals("recorded layout", StringColumnLayout.PLAIN, metadata.layout());
             assertEquals("numValues", numDocsWithField, reader.numValues());
@@ -171,9 +244,9 @@ public class StringColumnTests extends ColumnarStringTestCase {
             int seenDocs = 0;
             ColumnIterator iterator = reader.iterator();
             for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                int rank = iterator.rank();
-                assertEquals("value count at doc " + doc, 1, reader.valueCount(rank));
-                BytesRef actual = reader.valueAt(reader.firstValueAddress(rank));
+                int index = iterator.index();
+                assertEquals("value count at doc " + doc, 1, reader.valueCount(index));
+                BytesRef actual = reader.valueAt(reader.firstValueAddress(index));
                 assertEquals("doc " + doc, docValues[doc], actual);
                 seenDocs++;
             }

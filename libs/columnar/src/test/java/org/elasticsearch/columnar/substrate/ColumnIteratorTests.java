@@ -25,7 +25,7 @@ import java.io.IOException;
 
 /**
  * Round-trips the column iterator through a real {@link Directory} for the empty, dense, and sparse
- * shapes, checking that iteration, ranks ({@link ColumnIterator#rank()}),
+ * shapes, checking that iteration, value ordinals ({@link ColumnIterator#index()}),
  * {@link ColumnIterator#advanceExact}, and {@link ColumnIterator#intoBitSet} all agree with a
  * reference {@link FixedBitSet} of the documents that have a value.
  */
@@ -160,7 +160,7 @@ public class ColumnIteratorTests extends ESTestCase {
         BitSetIterator reference = new BitSetIterator(expected, cardinality);
         for (int doc = reference.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = reference.nextDoc()) {
             assertEquals(doc, iterator.nextDoc());
-            assertEquals("rank at doc " + doc, rank, iterator.rank());
+            assertEquals("value ordinal at doc " + doc, rank, iterator.index());
             rank++;
         }
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
@@ -174,7 +174,7 @@ public class ColumnIteratorTests extends ESTestCase {
             boolean present = expected.get(doc);
             assertEquals("iterator at doc " + doc, present, iterator.advanceExact(doc));
             if (present) {
-                assertEquals("rank at doc " + doc, seen, iterator.rank());
+                assertEquals("value ordinal at doc " + doc, seen, iterator.index());
                 seen++;
             }
         }

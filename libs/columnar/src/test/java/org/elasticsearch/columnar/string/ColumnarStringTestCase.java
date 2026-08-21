@@ -19,7 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.FormatVersion;
-import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,23 +50,51 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     /**
      * Writes {@code docValues} as a single-valued string column — a {@code null} entry being a document with no
      * value — reads the metadata back through the header and footer checks, and runs {@code check} over a reader
-     * on it. The block size is random, so repeated runs land the values on different block boundaries; a test
-     * that needs a particular boundary picks the size with {@link #withColumn(BytesRef[], int, ColumnCheck)}.
+     * on it.
+     *
+     * <p>The block size, the chunk codec and the bytes a chunk holds are all random, so repeated runs land the
+     * values on different block boundaries and different chunk boundaries, and read them back both verbatim
+     * and compressed. A test that needs particular boundaries fixes them with
+     * {@link #withColumn(BytesRef[], int, ChunkCodec, int, ColumnCheck)}.
      */
     protected void withColumn(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
-        withColumn(docValues, randomValidBlockSize(), check);
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), check);
     }
 
     /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with the block size fixed. */
     protected void withColumn(final BytesRef[] docValues, final int blockSize, final ColumnCheck check) throws IOException {
+        withColumn(docValues, blockSize, randomChunkCodec(), randomTargetChunkBytes(), check);
+    }
+
+    /** As {@link #withColumn(BytesRef[], ColumnCheck)}, with every layout choice fixed. */
+    protected void withColumn(
+        final BytesRef[] docValues,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, new StringColumnReader(metadata, data));
             }
         }
+    }
+
+    /** Verbatim or compressed; a value must read back the same either way. */
+    protected static ChunkCodec randomChunkCodec() {
+        return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
+    }
+
+    /**
+     * Bytes a chunk holds before it closes. The small sizes matter more than the realistic one: they put a
+     * chunk boundary every few blocks, which is where a value that straddles two of them would be lost.
+     */
+    protected static int randomTargetChunkBytes() {
+        return randomFrom(64, 512, 4096, 64 * 1024);
     }
 
     /** The number of documents in {@code docValues} that have a value. */
@@ -84,7 +112,9 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final Directory dir,
         final byte[] segmentId,
         final BytesRef[] docValues,
-        final int blockSize
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes
     ) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
         final StringColumnMetadata written;
@@ -96,7 +126,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 numDocsWithField,
                 () -> cursor(docValues),
                 blockSize,
-                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                chunkCodec,
+                targetChunkBytes,
                 dir,
                 IOContext.DEFAULT,
                 out

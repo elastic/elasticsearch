@@ -37,7 +37,9 @@ import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
+import org.elasticsearch.columnar.string.ValueStream;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
@@ -62,6 +64,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
     private final int blockSize;
+
+    /** Bytes a chunk of a string column's byte stream holds before it is closed and compressed. */
+    private static final int TARGET_CHUNK_BYTES = 64 * 1024;
     private boolean closed = false;
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
@@ -343,8 +348,9 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             numDocsWithField,
             numValues,
             cursors,
-            blockSize,
-            BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+            ValueStream.VALUES_PER_BLOCK,
+            ChunkCodec.ZSTD,
+            TARGET_CHUNK_BYTES,
             directory,
             context,
             data

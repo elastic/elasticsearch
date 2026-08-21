@@ -13,7 +13,6 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
-import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 
 import java.io.IOException;
@@ -32,18 +31,11 @@ public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
     long numValues,
-    int blockSize,
-    byte blockBytesCodecId,
     StringColumnLayout layout,
-    long valuesOffset,
-    long blockOffsetsDataOffset,
-    long blockOffsetsDataLength,
-    byte[] blockOffsetsMeta
+    ValueStream.Metadata values
 ) implements ColumnMetadata {
-    private static final byte[] NONE = new byte[0];
-
-    static StringColumnMetadata empty(ColumnIteratorMetadata iterator, byte blockBytesCodecId) {
-        return new StringColumnMetadata(iterator, 0, 0, 0, blockBytesCodecId, StringColumnLayout.PLAIN, 0, 0, 0, NONE);
+    static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
+        return new StringColumnMetadata(iterator, 0, 0, StringColumnLayout.PLAIN, ValueStream.Metadata.empty());
     }
 
     /** True when at least one document has more than one value. */
@@ -59,14 +51,8 @@ public record StringColumnMetadata(
             return;
         }
         out.writeVLong(numValues);
-        out.writeVInt(blockSize);
-        out.writeByte(blockBytesCodecId);
         out.writeByte(layout.id());
-        out.writeVLong(valuesOffset);
-        out.writeVLong(blockOffsetsDataOffset);
-        out.writeVLong(blockOffsetsDataLength);
-        out.writeVInt(blockOffsetsMeta.length);
-        out.writeBytes(blockOffsetsMeta, 0, blockOffsetsMeta.length);
+        values.writeTo(out);
     }
 
     /**
@@ -85,37 +71,11 @@ public record StringColumnMetadata(
         ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc, formatVersion);
         int numDocsWithField = in.readVInt();
         if (numDocsWithField == 0) {
-            return empty(iterator, BlockBytesCodec.IDENTITY_ID);
+            return empty(iterator);
         }
         long numValues = in.readVLong();
-        int blockSize = in.readVInt();
-        byte blockBytesCodecId = in.readByte();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
-        long valuesOffset = in.readVLong();
-        long blockOffsetsDataOffset = in.readVLong();
-        long blockOffsetsDataLength = in.readVLong();
-        byte[] blockOffsetsMeta = readBytes(in);
-        return new StringColumnMetadata(
-            iterator,
-            numDocsWithField,
-            numValues,
-            blockSize,
-            blockBytesCodecId,
-            layout,
-            valuesOffset,
-            blockOffsetsDataOffset,
-            blockOffsetsDataLength,
-            blockOffsetsMeta
-        );
+        return new StringColumnMetadata(iterator, numDocsWithField, numValues, layout, ValueStream.Metadata.readFrom(in));
     }
 
-    private static byte[] readBytes(DataInput in) throws IOException {
-        byte[] bytes = new byte[in.readVInt()];
-        in.readBytes(bytes, 0, bytes.length);
-        return bytes;
-    }
-
-    long numBlocks() {
-        return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
-    }
 }

@@ -39,9 +39,9 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
     @Override
     public BytesRef binaryValue() throws IOException {
-        final int rank = iterator.rank();
-        final long first = reader.firstValueAddress(rank);
-        final long count = reader.valueCount(rank);
+        final int index = iterator.index();
+        final long first = reader.firstValueAddress(index);
+        final long count = reader.valueCount(index);
         if (values.length < count) {
             values = new BytesRef[ArrayUtil.oversize((int) count, Integer.BYTES)];
         }
@@ -131,9 +131,9 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    int rank = iterator.rank();
-                    first = reader.firstValueAddress(rank);
-                    count = reader.valueCount(rank);
+                    int index = iterator.index();
+                    first = reader.firstValueAddress(index);
+                    count = reader.valueCount(index);
                     upto = 0;
                 }
                 return doc;

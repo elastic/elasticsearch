@@ -15,10 +15,9 @@
 
 ffwTypedDivergentAllRows
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | SORT name ASC;
@@ -32,10 +31,9 @@ bob          | 40
 
 ffwTypedDivergentCount
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | STATS count = COUNT(*);
@@ -48,10 +46,9 @@ count:long
 
 ffwTypedDivergentFilterNonNull
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+dataset: employees_multifile_ubn_ffw_skip: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "first_file_wins", "error_mode": "skip_row"}
 
 FROM employees_multifile_ubn_ffw_skip
 | WHERE age IS NOT NULL
@@ -76,10 +73,9 @@ bob          | 40
 
 ffwTypeDriftAllRows
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "first_file_wins", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | SORT id ASC;
@@ -97,10 +93,9 @@ id:integer | col:integer | note:keyword
 
 ffwTypeDriftFilterNonNull
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "first_file_wins", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | WHERE col IS NOT NULL
@@ -116,10 +111,9 @@ id:integer | col:integer | note:keyword
 
 ffwTypeDriftCount
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+dataset: employees_type_drift_ffw_null: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "first_file_wins", "error_mode": "null_field"}
 
 FROM employees_type_drift_ffw_null
 | STATS count = COUNT(*), non_null_col = COUNT(col);

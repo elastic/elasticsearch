@@ -28,10 +28,9 @@
 
 multiFileUnionByNameRecipe
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_union
 | SORT name ASC
@@ -47,10 +46,9 @@ dave         | 60       | london
 
 multiFileUnionByNameRecipeWithPruning
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_multifile_ubn_union
 | KEEP name, city
@@ -83,11 +81,10 @@ dave         | london
 
 multiFileUnionByNameTypeDrift
 required_capability: dataset_in_from_command
-required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: external_union_by_name_keyword_fallback
 required_capability: datasource_file_readers_no_text_type
-dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
 FROM employees_type_drift_union
 | SORT id ASC

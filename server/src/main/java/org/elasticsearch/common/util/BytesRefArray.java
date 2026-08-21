@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -143,7 +144,15 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             fixedLength = length;
             return;
         }
-        transitionFixedLengthToOffsets(newOffset);
+        try {
+            transitionFixedLengthToOffsets(newOffset);
+        } catch (CircuitBreakingException e) {
+            Releasables.close(intOffsets, longOffsets);
+            intOffsets = null;
+            longOffsets = null;
+            throw e;
+        }
+        fixedLength = -1;
     }
 
     private void transitionFixedLengthToOffsets(long newOffset) {
@@ -159,7 +168,6 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
                 longOffsets.append(off);
             }
         }
-        fixedLength = -1;
         if (newOffset <= maxIntOffset) {
             intOffsets.append((int) newOffset);
         } else {
@@ -171,58 +179,30 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     public void append(BytesRef value) {
-        final long committedOffset = lastOffset;
-        final int committedFixedLength = fixedLength;
+        final long newOffset = lastOffset + value.length;
         try {
-            lastOffset += value.length;
-            appendOffset(lastOffset, value.length);
             bytes.append(value.bytes, value.offset, value.length);
-            ++size;
-        } catch (Throwable t) {
-            rollbackFailedAppend(committedOffset, committedFixedLength);
-            throw t;
+            appendOffset(newOffset, value.length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
         }
+        lastOffset = newOffset;
+        ++size;
     }
 
     public void append(PagedBytesCursor cursor) {
         final int length = cursor.remaining();
-        final long committedOffset = lastOffset;
-        final int committedFixedLength = fixedLength;
+        final long newOffset = lastOffset + length;
         try {
-            lastOffset += length;
-            appendOffset(lastOffset, length);
             bytes.append(cursor);
-            ++size;
-        } catch (Throwable t) {
-            rollbackFailedAppend(committedOffset, committedFixedLength);
-            throw t;
+            appendOffset(newOffset, length);
+        } catch (CircuitBreakingException e) {
+            bytes.truncateTo(lastOffset);
+            throw e;
         }
-    }
-
-    /**
-     * Undoes a failed {@link #append} so that the array still describes exactly the {@code size} entries it held
-     * beforehand and stays usable. The end offset of the refused entry is recorded before the growth that fails,
-     * so it has to be dropped and the byte storage rolled back to where the previous entry ended.
-     *
-     * @param committedOffset      the {@link #lastOffset} observed before the append began
-     * @param committedFixedLength the {@link #fixedLength} observed before the append began
-     */
-    private void rollbackFailedAppend(long committedOffset, int committedFixedLength) {
-        if (intOffsets != null && fixedLength < 0) {
-            // The tables are authoritative, so only the refused entry's offset goes
-            truncateOffsets(size + 1);
-        } else {
-            if (intOffsets != null) {
-                // Fixed length still authoritative, so transitionFixedLengthToOffsets() gave up part way
-                Releasables.close(intOffsets, longOffsets);
-                intOffsets = null;
-                longOffsets = null;
-            }
-            // Undo the fixed length appendOffset() installs on an empty array's first append
-            fixedLength = committedFixedLength;
-        }
-        lastOffset = committedOffset;
-        bytes.truncateTo(committedOffset);
+        lastOffset = newOffset;
+        ++size;
     }
 
     /**

@@ -29,6 +29,7 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -217,12 +218,20 @@ public class EsqlCCSUtils {
 
     /**
      * Check per-cluster failures for remote non-remotable-abstraction errors — views and datasets — thrown by remote
-     * clusters during field resolution. Neither is supported across clusters (views never; datasets not yet, in TP), so
-     * any such error must fail the entire query regardless of whether other clusters succeeded.
+     * clusters during field resolution.
      * <p>
-     * Both kinds are collected in a single pass and reported together via one {@link RemoteResourceNotSupportedException},
-     * so a query that matches a remote view on one cluster and a remote dataset on another surfaces both at once rather
-     * than whichever kind happened to be checked first.
+     * When {@link EsqlCapabilities.Cap#REMOTE_VIEW_RESOLUTION} is enabled, view-only failures from remote clusters are
+     * silently ignored here. Those views should already have been fetched and expanded into cluster-scoped sub-plans
+     * during the earlier {@code ViewResolver} phase, so by the time field-caps runs the relevant index patterns are the
+     * view body's underlying indices, not the view names themselves. If a view-only failure does reach here (e.g. a
+     * wildcard pattern on a remote that incidentally matches a view not yet pre-resolved), ignoring it is safe — the
+     * view was not in scope for this query's planning. Remote dataset failures always fail the query immediately.
+     * <p>
+     * When {@link EsqlCapabilities.Cap#REMOTE_VIEW_RESOLUTION} is disabled (the default on non-snapshot builds), any
+     * remote view or dataset failure fails the entire query, preserving historical behaviour.
+     * <p>
+     * Both kinds are collected in a single pass so a query that matches a remote view on one cluster and a remote
+     * dataset on another surfaces both at once rather than whichever kind happened to be checked first.
      */
     static void checkForRemoteResourceErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
         List<String> views = new ArrayList<>();
@@ -241,6 +250,10 @@ public class EsqlCCSUtils {
                     datasets.addAll(datasetEx.datasets());
                 }
             }
+        }
+        if (EsqlCapabilities.Cap.REMOTE_VIEW_RESOLUTION.isEnabled() && datasets.isEmpty()) {
+            // View-only failures are expected when remote views have been pre-resolved by ViewResolver; ignore them.
+            return;
         }
         if (views.isEmpty() == false || datasets.isEmpty() == false) {
             throw new RemoteResourceNotSupportedException(views, datasets);

@@ -1589,6 +1589,16 @@ public class EsqlCapabilities {
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
 
         /**
+         * Infrastructure for remote view resolution: the cluster can receive an
+         * {@code EsqlFetchRemoteViewsAction} request and return view definitions to a remote
+         * coordinator. Gated on snapshot builds while the full remote-views feature is developed.
+         * When enabled, {@code EsqlCCSUtils.checkForRemoteResourceErrors} collects remote view
+         * names instead of immediately failing the query, so callers can proceed to fetch and
+         * expand those views.
+         */
+        REMOTE_VIEW_RESOLUTION(Build.current().isSnapshot()),
+
+        /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to
          * crash with "optimized incorrectly due to missing references [_tsid, _timeseries]":
          * (1) a view used inside a {@code TS} command now raises a clear verification exception

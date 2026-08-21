@@ -66,9 +66,24 @@ never be reused or renumbered. A format bump is required for layout changes — 
 different block framing, changed offset-table encoding — not for id additions: an unknown id already
 fails loudly at first field access. See `AGENTS.md` for full policy.
 
-Block bytes pass through a `BlockBytesCodec` (identity today). Planned block compression adds Zstd as
-the pipeline's last encoder, reusing the native `org.elasticsearch.nativeaccess.Zstd` binding rather
-than a Java LZ4.
+## Chunks
+
+Compression is a layer below encoding, in `ChunkedBytesWriter`/`ChunkedBytesReader`. A column's byte
+stream is written as **chunks**: byte-bounded units, each compressed whole by a `ChunkCodec` (identity
+or Zstd, on frozen ids). A **block** stays what it was — a fixed count of values, addressed by its
+offset in the *uncompressed* stream — and a chunk only ever closes on a block boundary, so no block
+straddles two chunks and no read spans more than one. Two `DirectMonotonic` tables locate a chunk: its
+start in the uncompressed stream, and where it landed in the file.
+
+Sizing the compression unit in bytes rather than values is what makes the ratio independent of the
+data: a 128-value block of 20-byte values gives a codec 2.5 KB to work with, the same block of
+200-byte values gives it 25 KB. Under the identity codec the uncompressed stream is the file, so the
+chunk layer is a pass-through and values are read straight from the mapped input.
+
+Zstd runs through the native `org.elasticsearch.nativeaccess.Zstd` binding rather than a Java
+implementation, and both directions hand it memory it addresses directly — the compressed bytes as a
+`MemorySegment` slice of the mapped file, the decoded chunk as a heap array passed through a critical
+downcall.
 
 See `docs/PLAN.md` for the roadmap, `docs/BENCHMARKS.md` for the benchmarks, and `AGENTS.md` for
 conventions.

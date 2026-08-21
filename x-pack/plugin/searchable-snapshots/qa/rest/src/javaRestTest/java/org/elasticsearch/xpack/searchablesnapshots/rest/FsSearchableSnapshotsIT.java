@@ -6,13 +6,36 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsRestTestCase;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
+
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
+
+    private static final ElasticsearchCluster cluster = SearchableSnapshotsRestTestCluster.buildCluster(
+        () -> repoDirectory.getRoot().getPath()
+    );
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected String writeRepositoryType() {
@@ -21,7 +44,7 @@ public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
 
     @Override
     protected Settings writeRepositorySettings() {
-        return Settings.builder().put("location", System.getProperty("tests.path.repo")).build();
+        return Settings.builder().put("location", repoDirectory.getRoot().getPath()).build();
     }
 
     @Override

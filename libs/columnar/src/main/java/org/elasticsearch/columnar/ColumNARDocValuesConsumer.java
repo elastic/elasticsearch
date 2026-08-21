@@ -121,7 +121,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             writeNumericColumn(field, type, () -> ColumnarNumericBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
         } else {
             assert type == ColumnarFieldType.STRING : "Unsupported ColumNAR type [" + type + "]";
-            writeStringColumn(field, type, () -> ColumnarStringBinaryDocValues.decodePayloads(valuesProducer.getBinary(field)));
+            writeStringColumn(field, type, () -> ColumnarStringBinaryDocValues.singleValues(valuesProducer.getBinary(field)));
         }
     }
 
@@ -248,7 +248,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
             StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
                 ? columnar.directValues()
-                : ColumnarStringBinaryDocValues.decodePayloads(binary);
+                : ColumnarStringBinaryDocValues.singleValues(binary);
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
         }

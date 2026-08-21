@@ -11,52 +11,44 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 
 import java.io.IOException;
 
 /**
- * A string column at the {@code BINARY} surface: {@link #binaryValue} re-emits a document's values as a
- * {@link StringBinaryPayload}. Which {@link StringColumnLayout} the segment used is invisible here — a layout
- * resolves its own encoding inside the reader, so nothing layout-specific reaches this surface.
+ * A string column at the {@code BINARY} surface: {@link #binaryValue} hands back a document's value as the
+ * bytes it was given, which is what a keyword field writes for a lone value. Which {@link StringColumnLayout}
+ * the segment used is invisible here — a layout resolves its own encoding inside the reader, so nothing
+ * layout-specific reaches this surface.
  */
 public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
     private final StringColumnReader reader;
     private final ColumnIterator iterator;
 
-    private final BytesRefBuilder payload = new BytesRefBuilder();
-    private BytesRef[] values = new BytesRef[1];
-
     public ColumnarStringBinaryDocValues(StringColumnReader reader, ColumnIterator iterator) {
         this.reader = reader;
         this.iterator = iterator;
     }
 
+    /**
+     * The document's value, as the bytes the mapper handed over. A keyword field writes a lone value as its
+     * raw bytes — no count, no length prefix — under both of the encodings the mapper uses, so a
+     * single-valued column needs no encoding of its own here and hands the value straight back.
+     *
+     * <p>A column holding several values for one document has no representation at this surface. The writer
+     * refuses to build one, so this cannot be reached; the assert says so for whoever lifts that.
+     */
     @Override
     public BytesRef binaryValue() throws IOException {
         final int index = iterator.index();
-        final long first = reader.firstValueAddress(index);
-        final long count = reader.valueCount(index);
-        if (values.length < count) {
-            values = new BytesRef[ArrayUtil.oversize((int) count, Integer.BYTES)];
-        }
-        // A PLAIN column hands back one reused BytesRef, so reading several value addresses before encoding
-        // would alias them all onto the last value. Columns are single-valued today, which makes that
-        // unreachable; this assert is the tripwire for whoever turns multi-valued columns on.
-        assert count == 1
+        assert reader.valueCount(index) == 1
             : "multi-valued string column reached binaryValue with "
-                + count
-                + " values: copy each value out of the reader (a PLAIN column reuses one BytesRef across "
-                + "calls), or encode into the payload while walking the value addresses";
-        for (int i = 0; i < count; i++) {
-            values[i] = reader.valueAt(first + i);
-        }
-        return StringBinaryPayload.encode(values, (int) count, payload);
+                + reader.valueCount(index)
+                + " values; this surface carries one value per document";
+        return reader.valueAt(reader.firstValueAddress(index));
     }
 
     @Override
@@ -142,23 +134,21 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * Wraps a foreign {@link BinaryDocValues} of {@link StringBinaryPayload}s as a write-path cursor. This is
-     * the ingest path (the mapper hands the format payloads) and the merge fallback for a segment written by
-     * some other implementation of this surface.
+     * Wraps a foreign {@link BinaryDocValues} as a write-path cursor, one value per document, the value
+     * being the bytes themselves. This is the ingest path — a keyword field writes a lone value as its raw
+     * bytes — and the merge fallback for a segment written by some other implementation of this surface.
      */
-    public static StringColumnValues decodePayloads(BinaryDocValues binary) {
+    public static StringColumnValues singleValues(BinaryDocValues binary) {
         return new StringColumnValues() {
-            private final StringBinaryPayload.Reader payloadReader = new StringBinaryPayload.Reader();
-            private int count;
 
             @Override
             public int valueCount() {
-                return count;
+                return 1;
             }
 
             @Override
-            public BytesRef nextValue() {
-                return payloadReader.next();
+            public BytesRef nextValue() throws IOException {
+                return binary.binaryValue();
             }
 
             @Override
@@ -168,12 +158,12 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
 
             @Override
             public int nextDoc() throws IOException {
-                return position(binary.nextDoc());
+                return binary.nextDoc();
             }
 
             @Override
             public int advance(int target) throws IOException {
-                return position(binary.advance(target));
+                return binary.advance(target);
             }
 
             @Override
@@ -181,12 +171,6 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
                 return binary.cost();
             }
 
-            private int position(int doc) throws IOException {
-                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    count = payloadReader.reset(binary.binaryValue());
-                }
-                return doc;
-            }
         };
     }
 }

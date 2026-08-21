@@ -159,11 +159,9 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
         withColumn(docValues, (metadata, reader) -> check.check(new ColumnarStringBinaryDocValues(reader, reader.iterator())));
     }
 
-    /** The current document's only value, decoded from the payload the surface re-emits. */
+    /** The current document's only value, which the surface hands back as the bytes it was given. */
     private static BytesRef single(ColumnarStringBinaryDocValues dv) throws IOException {
-        final StringBinaryPayload.Reader payloadReader = new StringBinaryPayload.Reader();
-        assertEquals("single-valued", 1, payloadReader.reset(dv.binaryValue()));
-        return BytesRef.deepCopyOf(payloadReader.next());
+        return BytesRef.deepCopyOf(dv.binaryValue());
     }
 
     /** The first document at or after {@code target} that has a value, or {@code NO_MORE_DOCS}. */

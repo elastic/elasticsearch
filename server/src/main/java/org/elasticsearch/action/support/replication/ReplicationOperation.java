@@ -151,13 +151,13 @@ public class ReplicationOperation<
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
-            // we have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
+            // We have to make sure to get the global checkpoint before the replication group, to ensure that the global checkpoint
             // is valid for the replication group. If we sample in the reverse, the global checkpoint might be based on a subset
             // of the sampled replication group, and advanced further than what the given replication group would allow it to.
             // This would entail that some shards could learn about a global checkpoint that would be higher than its local checkpoint.
             final long globalCheckpoint = primary.computedGlobalCheckpoint();
-            // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
-            // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
+            // We have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
+            // We have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
 

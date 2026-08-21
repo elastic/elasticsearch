@@ -20,9 +20,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * DoubleGaugeAdapter wraps an otel ObservableLongGauge
- */
 class DoubleAsyncGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGauge> implements DoubleAsyncGauge {
 
     DoubleAsyncGaugeAdapter(

@@ -261,7 +261,7 @@ public final class DatasetRegistry {
                 b.field("settings", settings);
             }
             if (mappings != null) {
-                b.field("mappings", mappings);
+                b.field(MAPPINGS, mappings);
             }
             b.endObject();
             return Strings.toString(b);

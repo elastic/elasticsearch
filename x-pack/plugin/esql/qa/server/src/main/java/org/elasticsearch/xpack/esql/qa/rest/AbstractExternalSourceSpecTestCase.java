@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -333,6 +334,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private boolean useAzureHadoopForm;
 
+    /**
+     * Per-test memos for the two questions that would otherwise re-parse every directive's {@code WITH} JSON on
+     * each ask. {@code ensureDataset} deliberately keys its cache off the RAW text so a registration parses only
+     * on a cache miss; the declared-schema guards and the trim_spaces injector would have undone that by parsing
+     * per call. Both answers are fixed for a test instance -- the directives do not change mid-test.
+     */
+    private Boolean declaresMappingsMemo;
+    private final Map<DatasetSource, String> withJsonMemo = new IdentityHashMap<>();
+
     protected AbstractExternalSourceSpecTestCase(
         String fileName,
         String groupName,
@@ -572,9 +582,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return false;
     }
 
-    /** Whether any of this spec's {@code dataset:} directives declares a schema. */
+    /** Whether any of this spec's {@code dataset:} directives declares a schema. Memoized: asked at two guard sites. */
     private boolean declaresMappings() {
-        return testCase.datasetSources.stream().anyMatch(source -> DatasetRegistry.declaresMappings(source.withJson()));
+        if (declaresMappingsMemo == null) {
+            declaresMappingsMemo = testCase.datasetSources.stream().anyMatch(source -> DatasetRegistry.declaresMappings(source.withJson()));
+        }
+        return declaresMappingsMemo;
     }
 
     /**
@@ -591,7 +604,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private static volatile Boolean declaredSchemaSupported;
 
-    protected static boolean clusterSupportsDeclaredSchema() throws IOException {
+    private static boolean clusterSupportsDeclaredSchema() throws IOException {
         // Racy single-check: read the volatile field ONCE into a local. Reading it twice would let the
         // @AfterClass reset land between the assignment and the return and unbox null. A duplicate probe is
         // harmless -- the capability is immutable for a cluster's lifetime.
@@ -662,11 +675,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * exercise the no-trim default end to end).
      */
     private String withJsonForSource(DatasetSource source) {
-        // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
-        // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
-        // column-aligned fixtures with trimming; the shared injector adds the key.
-        boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
-        return csvOrTsv ? injectTrimSpaces(source.withJson()) : source.withJson();
+        // Memoized per source: injectTrimSpaces parses the JSON to decide whether the directive already sets
+        // trim_spaces, and this is asked once per registration and again when the query is built.
+        return withJsonMemo.computeIfAbsent(source, s -> {
+            // format is the base format or a codec-suffixed variant ("csv", "csv.gz", "tsv.zstd", ...). Other
+            // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
+            // column-aligned fixtures with trimming; the shared injector adds the key.
+            boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
+            return csvOrTsv ? injectTrimSpaces(s.withJson()) : s.withJson();
+        });
     }
 
     /**

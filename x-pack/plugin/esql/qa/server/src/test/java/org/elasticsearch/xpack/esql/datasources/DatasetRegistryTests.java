@@ -18,8 +18,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 /**
- * Unit tests for the {@code PUT /_query/dataset/<name>} body {@link DatasetRegistry} builds, which is also the
- * content signature {@link DatasetRegistry#ensureDataset} caches on. Lives in the same qa/server project as the class
+ * Unit tests for the {@code PUT /_query/dataset/<name>} body {@link DatasetRegistry} builds.
+ * {@link DatasetRegistry#ensureDataset} caches on a signature of {@code dataSource|resource|<raw withJson>},
+ * not on this body -- the raw text is what keeps the JSON off the per-call parse path. Lives in the same qa/server project as the class
  * under test so it can be a plain {@link ESTestCase} unit test — no cluster, no client — alongside
  * {@link FixtureUtilsTests}.
  */
@@ -85,9 +86,10 @@ public class DatasetRegistryTests extends ESTestCase {
     }
 
     /**
-     * {@code ensureDataset} caches on the request body, which is what makes a declaration part of a registration's
-     * identity. Two registrations of one dataset name that differ only in their schema must differ in signature, or
-     * the second silently reuses the first's declaration.
+     * A declaration is part of a registration's identity. {@code ensureDataset} signs the raw {@code withJson},
+     * which already contains the declaration, so this test pins the weaker property that the BODY differs too:
+     * two registrations of one dataset name differing only in their schema must not produce the same body, or a
+     * caller keying off the body would silently reuse the first's declaration.
      */
     public void testSignatureDistinguishesDeclarations() throws IOException {
         String none = DatasetRegistry.datasetRequestBody("ds", "s3://b/k", Map.of(), null);

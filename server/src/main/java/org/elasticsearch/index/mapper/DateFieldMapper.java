@@ -279,7 +279,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index;
         private final DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -1171,7 +1171,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean store;
+    private final boolean stored;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
@@ -1202,7 +1202,7 @@ public final class DateFieldMapper extends FieldMapper {
         String offsetsFieldName
     ) {
         super(leafName, mappedFieldType, builderParams);
-        this.store = builder.store.getValue();
+        this.stored = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.dvFactory = new DocValuesFieldFactory(
@@ -1267,7 +1267,7 @@ public final class DateFieldMapper extends FieldMapper {
         // time instead.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && store == false
+            && stored == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
@@ -1432,10 +1432,10 @@ public final class DateFieldMapper extends FieldMapper {
         } else if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }
-        if (store) {
+        if (stored) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
-        if (docValuesParameters.enabled() == false && (indexed || store)) {
+        if (docValuesParameters.enabled() == false && (indexed || stored)) {
             // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
             context.addToFieldNames(fieldType().name());
         }

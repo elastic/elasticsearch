@@ -34,6 +34,10 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.StoreMetricsIndexInput;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.store.IndexInputUtils;
@@ -79,6 +83,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * its files should be accessed using this cache directory.
      */
     private final IndexBlobStoreCacheDirectory cacheDirectory;
+
     /**
      * A callback to invoke when a generational file is deleted (by Lucene). It is used for
      * ref-counting their associated BCC blobs.
@@ -741,7 +746,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * exposed through {@link DirectAccessInput}, whose segments are scoped to a single callback, rather than through Lucene's
      * {@link MemorySegmentAccessInput}, whose segments must remain valid until the input is closed.
      */
-    class ReopeningIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput {
+    class ReopeningIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput, SelfAccountingIndexInput {
 
         private final String name;
         private final IOContext context;
@@ -752,6 +757,10 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final long sliceLength;
 
         private volatile Delegate delegate;
+        /**
+         * Where to account the bytes this input reads, whether from the local copy or through the cache.
+         */
+        private PluggableDirectoryMetricsHolder<StoreMetrics> storeMetrics = StoreMetrics.NOOP_HOLDER;
         private boolean closed;
         private boolean clone;
         private long position;
@@ -1052,6 +1061,22 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
+        public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+            this.storeMetrics = holder;
+        }
+
+        /**
+         * Passes the holder on to an input that escapes this one, so that reads through it are accounted to the same
+         * place. A clone of a fully buffered input is a plain byte array input, which cannot account for itself.
+         */
+        private IndexInput accountBytesRead(IndexInput input) {
+            if (storeMetrics == StoreMetrics.NOOP_HOLDER) {
+                return input;
+            }
+            return StoreMetricsIndexInput.create(input.toString(), input, storeMetrics.singleThreaded());
+        }
+
+        @Override
         public IndexInput clone() {
             var bufferClone = tryCloneBuffer();
             if (bufferClone != null) {
@@ -1063,7 +1088,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                         // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
                         IndexInput inputToClone = current.getDelegate();
                         assert FilterIndexInput.unwrap(inputToClone) instanceof BlobCacheIndexInput : toString();
-                        return seekOnClone(inputToClone.clone());
+                        return accountBytesRead(seekOnClone(inputToClone.clone()));
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
                         clone.delegate = (Delegate) current.clone();
@@ -1100,7 +1125,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             return executeLocallyOrReopen(current -> {
                 if (current.isCached()) {
                     assert FilterIndexInput.unwrap(current.getDelegate()) instanceof BlobCacheIndexInput : toString();
-                    return current.slice(sliceDescription, sliceOffset, sliceLength);
+                    return accountBytesRead(current.slice(sliceDescription, sliceOffset, sliceLength));
                 } else {
                     ensureSlice(sliceDescription, sliceOffset, sliceLength, current);
                     var slice = new ReopeningIndexInput(
@@ -1114,6 +1139,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                         sliceLength
                     );
                     slice.clone = true;
+                    slice.accountBytesReadTo(storeMetrics.singleThreaded());
                     return slice;
                 }
             });
@@ -1128,6 +1154,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 current.readBytes(b.array(), offset, len);
                 b.position(offset + len);
                 position += len;
+                storeMetrics.instance().addBytesRead(len);
                 return null;
             });
         }

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -26,6 +24,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
 /**
  * The allocation decider is similar to {@link org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider}
@@ -92,45 +91,16 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
 
     private final FrequencyCappedAction logCanRemainMessage;
     private final FrequencyCappedAction logCanAllocateMessage;
-    private volatile boolean enabled;
-    private volatile boolean highWatermarkEnabled;
-    private volatile RatioValue estimatedHeapLowWatermark;
-    private volatile RatioValue estimatedHeapHighWatermark;
-    private volatile ByteSizeValue minimumHeapSizeForEnabled;
+    private final EstimatedHeapSettings heapSettings;
 
-    public EstimatedHeapUsageAllocationDecider(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(
-            InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-            this::setEnabled
-        );
-        clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-            value -> highWatermarkEnabled = value
-        );
+    public EstimatedHeapUsageAllocationDecider(EstimatedHeapSettings heapSettings, ClusterSettings clusterSettings) {
+        this.heapSettings = heapSettings;
         logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, timeValue -> {
             logCanRemainMessage.setMinInterval(timeValue);
             logCanAllocateMessage.setMinInterval(timeValue);
         });
-        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK, this::setEstimatedHeapLowWatermark);
-        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK, this::setEstimatedHeapHighWatermark);
-        clusterSettings.initializeAndWatch(
-            MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
-            byteSizeValue -> this.minimumHeapSizeForEnabled = byteSizeValue
-        );
-    }
-
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    private void setEstimatedHeapLowWatermark(RatioValue estimatedHeapLowWatermark) {
-        this.estimatedHeapLowWatermark = estimatedHeapLowWatermark;
-    }
-
-    private void setEstimatedHeapHighWatermark(RatioValue estimatedHeapHighWatermark) {
-        this.estimatedHeapHighWatermark = estimatedHeapHighWatermark;
     }
 
     @Override
@@ -143,8 +113,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         assert nodeHeapUsageForNode != null : "expected to have a valid heap usage estimate for the node";
 
         final double heapUsedPercentageForNode = nodeHeapUsageForNode.estimatedUsageAsPercentage();
-        final double lowWaterMarkAsPercentage = estimatedHeapLowWatermark.getAsPercent();
-        if (heapUsedPercentageForNode > lowWaterMarkAsPercentage) {
+        final double lowWaterMarkAsPercentage = heapSettings.lowWatermarkPercent();
+        if (heapSettings.exceedsLowWatermark(heapUsedPercentageForNode)) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String message = Strings.format(
                     "insufficient estimated heap available on node [%s]: heap usage percentage [%.2f] exceeds low watermark [%.2f]",
@@ -180,7 +150,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             node.hasIndex(shardRouting.index()) ? 0 : shardAndIndexHeapUsage.indexHeapUsageBytes(),
             shardAndIndexHeapUsage.shardHeapUsageBytes()
         );
-        if (newNodeHeapUsageForNode.estimatedUsageAsPercentage() > lowWaterMarkAsPercentage) {
+        if (heapSettings.exceedsLowWatermark(newNodeHeapUsageForNode.estimatedUsageAsPercentage())) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String message = Strings.format(
                     "insufficient estimated heap available on node [%s]: shard [%s] would add [%d] bytes, increasing the node used heap "
@@ -220,7 +190,7 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             return heapUsageDisabledForNodeDecision;
         }
 
-        if (highWatermarkEnabled == false) {
+        if (heapSettings.highWatermarkEnabled() == false) {
             return allocation.decision(Decision.YES, NAME, "heap decider can remain disabled");
         }
 
@@ -228,8 +198,8 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
         assert nodeHeapUsageForNode != null : "expected to have a valid heap usage estimate for the node";
 
         final double heapUsedPercentage = nodeHeapUsageForNode.estimatedUsageAsPercentage();
-        final double highWaterMarkPercentage = estimatedHeapHighWatermark.getAsPercent();
-        if (heapUsedPercentage > highWaterMarkPercentage) {
+        final double highWaterMarkPercentage = heapSettings.highWatermarkPercent();
+        if (heapSettings.exceedsHighWatermark(heapUsedPercentage)) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final String message = Strings.format(
                     "insufficient estimated heap available on node [%s]: used percentage [%.2f] exceeds high watermark [%.2f]",
@@ -269,11 +239,11 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
      * @return a Decision if one of the above failed and the caller should return early, otherwise null (meaning the decider is enabled).
      */
     private @Nullable Decision heapUsageDisabledForNode(RoutingNode node, RoutingAllocation allocation) {
-        if (enabled == false) {
+        if (heapSettings.enabled() == false) {
             return YES_ESTIMATED_HEAP_USAGE_DECIDER_DISABLED;
         }
 
-        if (node.node().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+        if (EstimatedHeapSettings.appliesToNode(node.node()) == false) {
             return YES_ESTIMATED_HEAP_USAGE_FOR_INDEX_NODE_ONLY;
         }
 
@@ -287,12 +257,12 @@ public class EstimatedHeapUsageAllocationDecider extends AllocationDecider {
             );
         }
 
-        if (nodeHeapMetrics.totalBytes() < minimumHeapSizeForEnabled.getBytes()) {
+        if (heapSettings.belowMinimumHeapForEnablement(nodeHeapMetrics.totalBytes())) {
             return allocation.decision(
                 Decision.YES,
                 NAME,
                 "estimated heap decider will not intervene if heap size is below [%s]",
-                minimumHeapSizeForEnabled
+                heapSettings.minimumHeapSizeForEnablement()
             );
         }
 

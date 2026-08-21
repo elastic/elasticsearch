@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -43,9 +45,14 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         R apply(T t, U u, V v);
     }
 
+    @FunctionalInterface
+    protected interface QuadFunction<T, U, V, W, R> {
+        R apply(T t, U u, V v, W w);
+    }
+
     /**
-     * All spatial grid functions have one license requirement in common, and that is that they are licensed aty PLATINUM level
-     * oif the spatial field is a shape, otherwise they are licensed at BASIC level. This is to mimic the license requirements
+     * All spatial grid functions have one license requirement in common, and that is that they are licensed at PLATINUM level
+     * if the spatial field is a shape, otherwise they are licensed at BASIC level. This is to mimic the license requirements
      * of the spatial aggregations.
      * @param fieldTypes (null for the function itself, otherwise a map of field named to types)
      * @return The license requirement for the function with that type signature
@@ -69,12 +76,21 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         return testClassName.replace("Tests", "");
     }
 
+    /**
+     * Adds test case suppliers for a spatial grid function.
+     *
+     * <p>The {@code expectedValue} and {@code expectedValueWithBounds} functions accept a
+     * {@link Consumer}{@code <String>} that receives any truncation-warning messages produced
+     * when the shape intersects more than {@link SpatialGridFunction#MAX_GRID_CELLS} cells.
+     * Pass a collecting consumer (e.g. {@code warnings::add}) to capture warnings and verify
+     * them in the resulting test case.
+     */
     protected static void addTestCaseSuppliers(
         List<TestCaseSupplier> suppliers,
         DataType[] dataTypes,
         DataType gridType,
-        BiFunction<BytesRef, Integer, Object> expectedValue,
-        TriFunction<BytesRef, Integer, GeoBoundingBox, Object> expectedValueWithBounds
+        TriFunction<BytesRef, Integer, Consumer<String>, Object> expectedValue,
+        QuadFunction<BytesRef, Integer, GeoBoundingBox, Consumer<String>, Object> expectedValueWithBounds
     ) {
         for (DataType spatialType : dataTypes) {
             TestCaseSupplier.TypedDataSupplier geometrySupplier = testCaseSupplier(spatialType, false);
@@ -93,27 +109,16 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         precisionData = precisionData.forceLiteral();
                         evaluatorName = "FromFieldAndLiteralEvaluator[wkbBlock=Attribute[channel=0], precision=" + precision + "]";
                     }
-                    Object expected;
-                    IllegalArgumentException tooManyCellsEx = null;
-                    try {
-                        expected = expectedValue.apply(geometry, precision);
-                    } catch (IllegalArgumentException e) {
-                        // geo_shape intersects more than MAX_GRID_CELLS cells: evaluator returns null + warning
-                        expected = null;
-                        tooManyCellsEx = e;
-                    }
+                    List<String> warnings = new ArrayList<>();
+                    Object expected = expectedValue.apply(geometry, precision, warnings::add);
                     TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData),
                         getFunctionClassName() + evaluatorName,
                         gridType,
                         equalTo(expected)
                     );
-                    if (tooManyCellsEx != null) {
-                        tc = tc.withWarning(
-                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                        )
-                            .withWarning("Line 1:1: java.lang.IllegalArgumentException: " + tooManyCellsEx.getMessage())
-                            .withFoldingException(IllegalArgumentException.class, tooManyCellsEx.getMessage());
+                    if (warnings.isEmpty() == false) {
+                        tc = tc.withWarning("Line 1:1 [source]: " + warnings.get(0));
                     }
                     return tc;
                 }));
@@ -130,26 +135,16 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
                         evaluatorName = "FromFieldAndLiteralAndLiteralEvaluator[in=Attribute[channel=0]";
                     }
                     var boundsData = randomBoundsData();
-                    Object boundedExpected;
-                    IllegalArgumentException boundedTooManyCellsEx = null;
-                    try {
-                        boundedExpected = expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox());
-                    } catch (IllegalArgumentException e) {
-                        boundedExpected = null;
-                        boundedTooManyCellsEx = e;
-                    }
+                    List<String> warnings = new ArrayList<>();
+                    Object boundedExpected = expectedValueWithBounds.apply(geometry, precision, boundsData.geoBoundingBox(), warnings::add);
                     TestCaseSupplier.TestCase tc = new TestCaseSupplier.TestCase(
                         List.of(geoTypedData, precisionData, boundsData.typedData),
                         startsWith(getFunctionClassName() + evaluatorName),
                         gridType,
                         equalTo(boundedExpected)
                     );
-                    if (boundedTooManyCellsEx != null) {
-                        tc = tc.withWarning(
-                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                        )
-                            .withWarning("Line 1:1: java.lang.IllegalArgumentException: " + boundedTooManyCellsEx.getMessage())
-                            .withFoldingException(IllegalArgumentException.class, boundedTooManyCellsEx.getMessage());
+                    if (warnings.isEmpty() == false) {
+                        tc = tc.withWarning("Line 1:1 [source]: " + warnings.get(0));
                     }
                     return tc;
                 }));
@@ -196,7 +191,17 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
         );
     }
 
-    protected Object process(int precision, BiFunction<BytesRef, Integer, Object> expectedValue) {
+    /**
+     * Runs the function evaluator for the given precision and returns the result, comparing it
+     * against the expected value computed by {@code expectedValue}.
+     *
+     * <p>The no-op consumer {@code w -> {}} is passed to {@code expectedValue} because this method
+     * is only used in precision-validation tests ({@code testInvalidPrecision}) where the evaluator
+     * throws before any shape-cell computation — so truncation warnings cannot occur. Evaluator
+     * warnings that do arise from normal computation land in the driver context, not through
+     * the consumer, and are asserted separately by the framework.
+     */
+    protected Object process(int precision, TriFunction<BytesRef, Integer, Consumer<String>, Object> expectedValue) {
         Object spatialObj = this.testCase.getDataValues().getFirst();
         assumeNotNull(spatialObj);
         assumeTrue("Expected a BytesRef, but got " + spatialObj.getClass(), spatialObj instanceof BytesRef);
@@ -207,7 +212,7 @@ public abstract class SpatialGridFunctionTestCase extends AbstractScalarFunction
             ).get(driverContext());
             Block block = eval.eval(row(List.of(wkb, precision)))
         ) {
-            return block.isNull(0) ? null : expectedValue.apply(wkb, precision);
+            return block.isNull(0) ? null : expectedValue.apply(wkb, precision, w -> {});
         }
     }
 

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
@@ -59,19 +60,19 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static Object valueOf(BytesRef wkb, int precision) {
+    private static Object valueOf(BytesRef wkb, int precision, Consumer<String> warnings) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             return StGeotile.unboundedGrid.calculateGridId(point, precision);
         }
         try {
-            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, null));
+            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, null, warnings));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
         }
     }
 
-    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> warnings) {
         Geometry geometry = GEO.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             StGeotile.GeoTileBoundedGrid bounds = new StGeotile.GeoTileBoundedGrid.Factory(precision, bbox).get(null);
@@ -79,7 +80,7 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
             return gridId < 0 ? null : gridId;
         }
         try {
-            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, bbox));
+            return SpatialGridFunction.foldMultiValue(StGeotile.computeGeotileCells(wkb, precision, bbox, warnings));
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geotile for geo_shape", e);
         }

@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
@@ -50,6 +51,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
@@ -221,7 +224,11 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             GeoBoundingBox bbox = asGeoBoundingBox(boundsValue);
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoHexBoundedGrid.Factory bounds = new GeoHexBoundedGrid.Factory(precision, bbox);
-            GeoShapeCellsComputer shapeTiler = wkb -> computeGeohexCells(wkb, precision, bbox);
+            Source evalSource = source();
+            Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
+                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                return wkb -> computeGeohexCells(wkb, precision, bbox, w::registerWarning);
+            };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
@@ -232,14 +239,18 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                     source(),
                     toEvaluator.apply(spatialField),
                     bounds::get,
-                    shapeTiler
+                    shapeTilerFactory
                 );
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-            GeoShapeCellsComputer shapeTiler = wkb -> computeGeohexCells(wkb, precision, null);
+            Source evalSource = source();
+            Function<DriverContext, GeoShapeCellsComputer> shapeTilerFactory = ctx -> {
+                Warnings w = Warnings.createOnlyWarnings(ctx, evalSource);
+                return wkb -> computeGeohexCells(wkb, precision, null, w::registerWarning);
+            };
             return spatialDocValues
                 ? new StGeohexFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
-                : new StGeohexFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision, shapeTiler);
+                : new StGeohexFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision, shapeTilerFactory);
         }
     }
 
@@ -256,7 +267,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                 if (geometry instanceof Point point) {
                     return unboundedGrid.calculateGridId(point, precision);
                 }
-                return foldMultiValue(computeGeohexCells(wkb, precision, null));
+                return foldMultiValue(computeGeohexCells(wkb, precision, null, foldWarningConsumer()));
             } else {
                 Object boundsValue = bounds().fold(ctx);
                 if (boundsValue == null) {
@@ -269,20 +280,20 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                     long gridId = bounds.calculateGridId(point);
                     return gridId < 0 ? null : gridId;
                 }
-                return foldMultiValue(computeGeohexCells(wkb, precision, bbox));
+                return foldMultiValue(computeGeohexCells(wkb, precision, bbox, foldWarningConsumer()));
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to compute geohex for geo_shape", e);
         }
     }
 
-    @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "FromFieldAndLiteral")
     static void fromFieldAndLiteral(
         LongBlock.Builder results,
         @Position int p,
         BytesRefBlock wkbBlock,
         @Fixed int precision,
-        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoShapeCellsComputer shapeTiler
     ) {
         fromWKB(results, p, wkbBlock, precision, unboundedGrid, shapeTiler);
     }
@@ -292,13 +303,13 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
         fromEncodedLong(results, p, encoded, precision, unboundedGrid);
     }
 
-    @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    @Evaluator(extraName = "FromFieldAndLiteralAndLiteral")
     static void fromFieldAndLiteralAndLiteral(
         LongBlock.Builder results,
         @Position int p,
         BytesRefBlock in,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHexBoundedGrid bounds,
-        @Fixed(includeInToString = false) GeoShapeCellsComputer shapeTiler
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoShapeCellsComputer shapeTiler
     ) {
         fromWKB(results, p, in, bounds, shapeTiler);
     }
@@ -335,30 +346,38 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
     // ---- Geohex cell computation for geo_shape ----
 
     /**
-     * Computes all H3 cells at the given precision that intersect the WKB-encoded geometry.
-     * Optionally filtered by a bounding box.
+     * Computes all H3 cells at the given precision that intersect the WKB-encoded geometry,
+     * truncating at {@link SpatialGridFunction#MAX_GRID_CELLS} and calling {@code onTruncation}
+     * with a warning message when the limit is reached.
      * <p>
      * The recursive H3-tree descent strategy is adapted from {@code GeoHexGridTiler.setValuesByRecursion}
      * in the spatial module. The bounding-box pre-check per level replaces the {@code GeoHexVisitor}
      * approach (which depends on {@code H3CartesianUtil} from the spatial module) with
      * {@link GeoShapeDocValues#intersects} over a Lucene {@link LatLonGeometry} bounding rectangle.
      * At leaf level an exact hexagon polygon intersection is performed.
+     * </p>
+     * The fold path emits warnings via HTTP response headers using {@link SpatialGridFunction#foldWarningConsumer()};
+     * the evaluator path passes {@code warnings::registerWarning} so the user sees a driver-context warning.
      */
-    static List<Long> computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox) throws IOException {
+    static List<Long> computeGeohexCells(BytesRef wkb, int precision, GeoBoundingBox bbox, Consumer<String> onTruncation)
+        throws IOException {
         GeoShapeDocValues shape = GeoShapeDocValues.from(wkb, GEO_SHAPE_INDEXER);
         GeoHexBoundedPredicate predicate = bbox == null ? null : new GeoHexBoundedPredicate(bbox);
         List<Long> cells = new ArrayList<>();
         // Scratch bbox is reused across recursion levels to avoid per-cell allocation
         GeoBoundingBox scratch = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         for (long res0cell : H3.getLongRes0Cells()) {
-            recursiveGeohex(shape, res0cell, precision, predicate, cells, scratch);
+            if (recursiveGeohex(shape, res0cell, precision, predicate, cells, scratch, onTruncation)) {
+                break;
+            }
         }
         return cells;
     }
 
     /**
      * Recursively descends the H3 hierarchy, adding cells that intersect the shape.
-     * Adapted from {@code GeoHexGridTiler.setValuesByRecursion} in the spatial module.
+     * Returns {@code true} if truncation occurred (limit reached), {@code false} otherwise.
+     * When truncation occurs, calls {@code onTruncation} with a warning message; never throws.
      *
      * <p>Two subtleties from the original are preserved here:
      * <ol>
@@ -378,31 +397,36 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
      *       {@code GeoHexGridTiler.setValuesByRecursion}.</li>
      * </ol>
      */
-    private static void recursiveGeohex(
+    private static boolean recursiveGeohex(
         GeoShapeDocValues shape,
         long h3,
         int targetRes,
         GeoHexBoundedPredicate predicate,
         List<Long> cells,
-        GeoBoundingBox scratch
+        GeoBoundingBox scratch,
+        Consumer<String> onTruncation
     ) throws IOException {
         int res = H3.getResolution(h3);
         if (res == targetRes) {
             // At the target resolution: apply the exact hexagon intersection test.
             H3SphericalUtil.computeGeoBounds(h3, scratch);
             if (geohexBboxIntersectsShape(shape, scratch) == false) {
-                return;
+                return false;
             }
             if (predicate == null || predicate.validHex(h3)) {
                 if (h3CellIntersectsShape(shape, h3)) {
                     if (cells.size() >= SpatialGridFunction.MAX_GRID_CELLS) {
-                        throw new IllegalArgumentException(
-                            "ST_GEOHEX generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells"
-                        );
+                        String msg = "ST_GEOHEX generated more than " + SpatialGridFunction.MAX_GRID_CELLS + " grid cells";
+                        if (onTruncation != null) {
+                            onTruncation.accept(msg);
+                            return true;
+                        }
+                        throw new IllegalArgumentException(msg);
                     }
                     cells.add(h3);
                 }
             }
+            return false;
         } else {
             // At intermediate resolutions: use the bbox as a fast pruning check.
             // Near the poles the equirectangular projection distorts cell shapes, so skip the bbox check
@@ -411,11 +435,13 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
             boolean inPolarBand = scratch.top() > H3CartesianUtil.getNorthPolarBound(res)
                 || scratch.bottom() < H3CartesianUtil.getSouthPolarBound(res);
             if (inPolarBand == false && geohexBboxIntersectsShape(shape, scratch) == false) {
-                return;
+                return false;
             }
             // Recurse all H3 children of this cell.
             for (long child : H3.h3ToChildren(h3)) {
-                recursiveGeohex(shape, child, targetRes, predicate, cells, scratch);
+                if (recursiveGeohex(shape, child, targetRes, predicate, cells, scratch, onTruncation)) {
+                    return true;
+                }
             }
             // H3 cells at the next resolution can physically extend beyond their H3 parent's area.
             // Visit each noChild (a next-resolution cell that intersects this cell but has a different
@@ -425,9 +451,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper, An
                 long noChildParent = H3.h3ToParent(noChild);
                 H3SphericalUtil.computeGeoBounds(noChildParent, scratch);
                 if (geohexBboxIntersectsShape(shape, scratch) == false) {
-                    recursiveGeohex(shape, noChild, targetRes, predicate, cells, scratch);
+                    if (recursiveGeohex(shape, noChild, targetRes, predicate, cells, scratch, onTruncation)) {
+                        return true;
+                    }
                 }
             }
+            return false;
         }
     }
 

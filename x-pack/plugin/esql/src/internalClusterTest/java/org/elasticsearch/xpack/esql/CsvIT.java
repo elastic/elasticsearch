@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -281,9 +282,7 @@ public class CsvIT extends ESTestCase {
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
-        var seed = Optional.ofNullable(System.getProperty("tests.seed"))
-            .map(s -> Long.parseUnsignedLong(s, 16))
-            .orElseGet(System::nanoTime);
+        var seed = Optional.ofNullable(System.getProperty("tests.seed")).map(SeedUtils::parseSeed).orElseGet(System::nanoTime);
         // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
         Collections.shuffle(specs, new Random(seed));
         Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));

@@ -165,7 +165,7 @@ Both queries match documents against a set of exact values. On `integer` and `lo
 **Lower heap usage**
 :   The values stay in the bitmap's compressed form rather than being expanded into a list of boxed numbers, and matches are streamed lazily out of the bitmap during execution, so the full set is never materialized into an intermediate structure.
 
-For a set of 100,000 terms, `bitmap_terms` can be several times faster than an equivalent `terms` query, and its advantage grows with the number of terms.
+For a set of 100,000 values, `bitmap_terms` can be several times faster than an equivalent `terms` query, and its advantage grows with the number of values.
 
 
 ## Optimization on a sorted index [bitmap-terms-sorted-index]
@@ -203,7 +203,7 @@ PUT my-index-000002
 
 ### Lower `track_total_hits` to get the full benefit [bitmap-terms-track-total-hits]
 
-Early termination only helps if the search does not need a full hit count. By default {{es}} counts matches up to 10,000, so the scan has to produce that many documents before it can stop, which leaves most of the gain on the table.
+Early termination only helps if the search does not need a full hit count. By default {{es}} counts matches up to 10,000, so the scan has to produce that many documents before it can stop, which means the full early-termination benefit is not realized.
 
 Set `track_total_hits` to `false` so the query can terminate as soon as `size` hits have been collected:
 

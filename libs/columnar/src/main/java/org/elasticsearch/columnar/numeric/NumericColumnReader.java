@@ -86,6 +86,14 @@ public final class NumericColumnReader {
         return iteratorReader.iterator();
     }
 
+    /**
+     * Whether any document holds more than one value. A single-valued column maps a rank straight to an
+     * ordinal.
+     */
+    public boolean multiValued() {
+        return valueAddresses != null;
+    }
+
     /** The ordinal of a document's first value, given its rank. */
     public long firstOrdinal(int rank) {
         return valueAddresses == null ? rank : valueAddresses.get(rank);

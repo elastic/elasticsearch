@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class CountSerializationTests extends AbstractExpressionSerializationTests<Count> {
     @Override
@@ -32,5 +37,18 @@ public class CountSerializationTests extends AbstractExpressionSerializationTest
 
     private static Expression randomOptionalChild() {
         return randomBoolean() ? null : randomChild();
+    }
+
+    public void testHistogramBucketCannotBeSerializedToOldNode() throws IOException {
+        Count count = new Count(randomSource(), randomChild(), randomChild());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            PlanStreamOutput planOut = new PlanStreamOutput(out, configuration());
+            planOut.setTransportVersion(TransportVersionUtils.randomVersionNotSupporting(Count.ESQL_COUNT_HISTOGRAM_BUCKET));
+            UnsupportedOperationException exception = expectThrows(
+                UnsupportedOperationException.class,
+                () -> planOut.writeNamedWriteable(count)
+            );
+            assertThat(exception.getMessage(), equalTo("version does not support count(histogram, bucket)"));
+        }
     }
 }

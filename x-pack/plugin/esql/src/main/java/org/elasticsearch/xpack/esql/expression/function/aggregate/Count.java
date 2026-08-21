@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.DenseVectorCountAggregatorFunction;
@@ -59,6 +61,7 @@ public class Count extends AggregateFunction
         SurrogateExpression,
         AggregateMetricDoubleNativeSupport,
         OptionalArgument {
+    public static final TransportVersion ESQL_COUNT_HISTOGRAM_BUCKET = TransportVersion.fromName("esql_count_histogram_bucket");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
         .binary(Count::new)
@@ -170,6 +173,14 @@ public class Count extends AggregateFunction
 
     private Count(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        if (bucket() != null && out.getTransportVersion().supports(ESQL_COUNT_HISTOGRAM_BUCKET) == false) {
+            throw new UnsupportedOperationException("version does not support count(histogram, bucket)");
+        }
+        super.writeTo(out);
     }
 
     @Override

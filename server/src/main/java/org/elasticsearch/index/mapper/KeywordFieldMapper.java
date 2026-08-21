@@ -1499,20 +1499,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain keyword mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_above is allowed — it's handled by indexValue and only needs addIgnoredField on
-        // the context, which BatchDocumentParserContext records. Dimensions, non-default
-        // normalizers, copy_to, multi-fields, and scripts all pull in behavior that the v1 batch
-        // path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && normalizerName == null
-            && fieldType().isDimension() == false;
-    }
-
-    @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         return indexSettings.getMode().isStrictColumnar()
             && supportsColumnarDocValues()

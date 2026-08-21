@@ -1259,18 +1259,6 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain date mappers can be driven through parseCreateField by the bulk batch path.
-        // Excludes: scripts, copy_to, multi-fields, and the data-stream @timestamp field
-        // (which has an additional side effect in indexValue that the v1 batch path does
-        // not handle).
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && isDataStreamTimestampField == false;
-    }
-
-    @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support requires strict-columnar index mode and a doc-values date field.
         // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch

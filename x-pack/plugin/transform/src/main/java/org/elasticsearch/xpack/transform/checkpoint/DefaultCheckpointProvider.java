@@ -112,7 +112,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 queryForShardFiltering,
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 timeout,
-                transformConfig.getSource().getProjectRouting(),
+                TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && indicesOption.resolveCrossProjectIndexExpression()
+                    ? transformConfig.getSource().getProjectRouting()
+                    : null,
                 indicesOption.resolveCrossProjectIndexExpression()
             );
 

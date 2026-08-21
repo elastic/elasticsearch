@@ -349,7 +349,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     // get progress information
                     SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
-                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && strictIndicesOptions.resolveCrossProjectIndexExpression()) {
                         request.setProjectRouting(transformConfig.getSource().getProjectRouting());
                     }
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
@@ -1181,7 +1181,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
              */
             getConfig().getSource().getIndex()
         );
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && getConfig().getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             request.setProjectRouting(getConfig().getSource().getProjectRouting());
         }
 
@@ -1212,7 +1213,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, context.getPageSize());
 
         SearchRequest request = new SearchRequest();
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && config.getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             request.setProjectRouting(config.getSource().getProjectRouting());
         }
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();

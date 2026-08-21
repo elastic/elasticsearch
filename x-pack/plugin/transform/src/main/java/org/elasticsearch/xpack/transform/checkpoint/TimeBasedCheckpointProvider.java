@@ -99,7 +99,8 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(transformConfig.getScopedIndicesOptions())
             .source(sourceBuilder);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+            && transformConfig.getScopedIndicesOptions().resolveCrossProjectIndexExpression()) {
             searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
         }
 

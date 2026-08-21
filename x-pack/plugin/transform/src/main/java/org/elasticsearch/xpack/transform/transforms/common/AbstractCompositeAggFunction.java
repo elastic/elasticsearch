@@ -237,7 +237,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         buildSearchQuery(sourceBuilder, null, pageSize);
         logger.debug("[{}] Querying {} for data: {}", logId, sourceConfig.getIndex(), sourceBuilder);
         SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex()).source(sourceBuilder).indicesOptions(indicesOptions);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && indicesOptions.resolveCrossProjectIndexExpression()) {
             searchRequest.setProjectRouting(sourceConfig.getProjectRouting());
         }
         return searchRequest;

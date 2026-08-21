@@ -181,8 +181,26 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             }
         });
 
+        // <3.5> A caller with no cloud credential cannot fan out cross-project, so reject an explicit
+        // remote/cross-project source before deduce-mappings tries (and fails) to obtain a request-scoped
+        // token for it. Only relevant when CPS is enabled; a cloud caller is allowed through to resolution
+        // (which surfaces "No such project" for an unknown linked project).
+        ActionListener<Boolean> validateRemoteSourceListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+            if (SourceDestValidations.isCrossProjectSource(crossProjectModeDecider)
+                && request.cloudCredential() == null
+                && hasExplicitNonOriginRemoteSource(config.getSource().getIndex())) {
+                l.onFailure(
+                    new ValidationException().addValidationError(
+                        SourceDestValidator.REMOTE_SOURCE_AND_CROSS_PROJECT_INDICES_ARE_NOT_SUPPORTED
+                    )
+                );
+            } else {
+                l.onResponse(true);
+            }
+        });
+
         // <3> Validate Project Routing is not set when CPS is not supported
-        ActionListener<Boolean> validateProjectRoutingListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+        ActionListener<Boolean> validateProjectRoutingListener = validateRemoteSourceListener.delegateFailureAndWrap((l, ignored) -> {
             if (config.getSource().getProjectRouting() == null || crossProjectModeDecider.crossProjectEnabled()) {
                 l.onResponse(true);
             } else {
@@ -213,5 +231,16 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             ),
             validateSourceDestListener
         );
+    }
+
+    // An explicit remote/cross-project source ("cluster:index"), other than the CPS local qualifier
+    // "_origin:", cannot be resolved by a caller that holds no cloud credential.
+    private static boolean hasExplicitNonOriginRemoteSource(String[] indices) {
+        for (String index : indices) {
+            if (RemoteClusterLicenseChecker.isRemoteIndex(index) && index.startsWith("_origin:") == false) {
+                return true;
+            }
+        }
+        return false;
     }
 }

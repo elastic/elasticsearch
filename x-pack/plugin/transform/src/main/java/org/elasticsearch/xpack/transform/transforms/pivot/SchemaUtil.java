@@ -301,7 +301,9 @@ public final class SchemaUtil {
             .fields(fields)
             .runtimeFields(sourceConfig.getRuntimeMappings())
             .indicesOptions(indicesOptions);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        // project_routing may only be set when the request actually resolves cross-project; otherwise
+        // FieldCapabilitiesRequest.validate() rejects it. Keep the two in lockstep with the scoped options.
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && indicesOptions.resolveCrossProjectIndexExpression()) {
             fieldCapabilitiesRequest.projectRouting(sourceConfig.getProjectRouting());
         }
         ClientHelper.executeWithHeadersAsync(

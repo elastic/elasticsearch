@@ -389,6 +389,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         // A declared schema is a property of the DATASET, not of a query: EXTERNAL has no clause that carries one, and
         // copying the directive's reserved `mappings` key into an EXTERNAL WITH would fail option validation instead of
+        // declaring anything, so such a case is skipped rather than rebuilt.
+        //
         // Live, not dormant: ParquetRsFormatSpecIT globs external-*.csv-spec AND forces the EXTERNAL rebuild, and
         // external-declared-schema.csv-spec is now such a file in which every case declares a schema. This skip is
         // what keeps those cases off that suite -- a declaration has no EXTERNAL-query equivalent to rebuild into.
@@ -587,9 +589,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * them. Reset in the same {@code @AfterClass} that clears the registry's caches, so a later suite in the JVM
      * fork cannot inherit a verdict about a cluster it is not talking to.
      */
-    private static Boolean declaredSchemaSupported;
+    private static volatile Boolean declaredSchemaSupported;
 
-    protected static synchronized boolean clusterSupportsDeclaredSchema() throws IOException {
+    protected static boolean clusterSupportsDeclaredSchema() throws IOException {
         if (declaredSchemaSupported == null) {
             declaredSchemaSupported = clusterHasCapability(
                 client(),

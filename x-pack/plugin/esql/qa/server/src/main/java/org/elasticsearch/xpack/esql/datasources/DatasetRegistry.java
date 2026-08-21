@@ -245,7 +245,7 @@ public final class DatasetRegistry {
     /**
      * The {@code PUT /_query/dataset/<name>} body: {@code data_source}, {@code resource}, {@code settings} when
      * non-empty, then the declared {@code mappings} when there is one. {@code mappings} is appended last, so for a
-     * given settings map a body without a declaration is byte-for-byte what this registry emitted before declared
+     * given settings map, THIS method emits a declaration-free body byte-for-byte as it did before declared
      * schemas were reachable. (The directive-based {@link #ensureDataset} signs the raw {@code WITH} text, which already contains any
      * declaration, so it needs no separate mappings term.)
      */

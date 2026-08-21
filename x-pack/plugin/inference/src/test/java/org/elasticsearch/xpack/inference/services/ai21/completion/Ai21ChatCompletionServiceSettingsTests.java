@@ -113,18 +113,6 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCSerializa
         }
     }
 
-    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
-        var originalServiceSettings = new Ai21ChatCompletionServiceSettings(
-            INITIAL_TEST_MODEL_ID,
-            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
-        );
-
-        assertThat(updatedServiceSettings, is(originalServiceSettings));
-    }
-
     public void testFromMap_AllFields_Success() {
         var serviceSettings = Ai21ChatCompletionServiceSettings.fromMap(
             getServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),

@@ -1,0 +1,32 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      cluster.put_component_template:
+        name: exemplars-otel@custom
+        body:
+          template:
+            settings:
+              index:
+                time_series:
+                  start_time: 2020-01-01T00:00:00.000Z
+---
+"Complex filtered attributes are flattened":
+  - do:
+      bulk:
+        index: exemplars-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.request.duration":"exemplar_value_double"}}
+          - '{"@timestamp":"2020-01-01T00:00:01.000Z","data_stream":{"dataset":"generic.otel","namespace":"default","type":"exemplars"},"_metric_names_hash":"abcd1234","filtered_attributes":{"nested":{"value":"foo"}},"metrics":{"request.duration":0.42}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: exemplars-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: exemplars-generic.otel-default
+  - match: { .$backing_index.mappings.properties.filtered_attributes.properties.nested.type: flattened }

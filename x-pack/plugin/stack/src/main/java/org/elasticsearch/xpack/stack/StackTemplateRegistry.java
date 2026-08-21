@@ -34,11 +34,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 23;
+    public static final int REGISTRY_VERSION = 24;
 
     // The computed checksum of all templates and components that are registered in this registry.
     // This is used by a test to ensure that REGISTRY_VERSION is updated when any of the components change.
-    static final String COMPUTED_CHECKSUM = "74a60a43";
+    static final String COMPUTED_CHECKSUM = "ceff6ad7";
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -85,6 +85,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics@tsdb-settings";
     public static final String METRICS_ILM_POLICY_NAME = "metrics@lifecycle";
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
+
+    //////////////////////////////////////////////////////////
+    // Exemplars components (for matching exemplars-*-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String EXEMPLARS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "exemplars@tsdb-settings";
+    public static final String EXEMPLARS_ILM_POLICY_NAME = "exemplars@lifecycle";
 
     //////////////////////////////////////////////////////////
     // Base traces components
@@ -180,6 +186,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
+                EXEMPLARS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/exemplars@tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
                 TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/traces@settings.json",
                 REGISTRY_VERSION,
@@ -254,6 +267,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(TRACES_ILM_POLICY_NAME, "/traces@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(EXEMPLARS_ILM_POLICY_NAME, "/exemplars@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),

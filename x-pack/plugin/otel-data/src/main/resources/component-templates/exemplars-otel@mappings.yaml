@@ -1,0 +1,42 @@
+---
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default mappings for the OpenTelemetry metric exemplars index template installed by x-pack
+  managed: true
+template:
+  mappings:
+    properties:
+      trace_id:
+        type: keyword
+      trace.id:
+        type: alias
+        path: trace_id
+      span_id:
+        type: keyword
+      span.id:
+        type: alias
+        path: span_id
+      # The attributes that were filtered out of the metric data point attributes when the exemplar was recorded.
+      # In contrast to the "attributes" field, these are not time series dimensions.
+      filtered_attributes:
+        type: passthrough
+        dynamic: true
+        priority: 15
+    # Exemplar values are individual raw observations rather than aggregated values.
+    # They are mapped as plain longs / doubles and must not get a time_series_metric type.
+    dynamic_templates:
+      - complex_filtered_attributes:
+          path_match: filtered_attributes.*
+          match_mapping_type: object
+          mapping:
+            type: flattened
+      - exemplar_value_long:
+          mapping:
+            type: long
+            meta:
+              unit: "{{unit}}"
+      - exemplar_value_double:
+          mapping:
+            type: double
+            meta:
+              unit: "{{unit}}"

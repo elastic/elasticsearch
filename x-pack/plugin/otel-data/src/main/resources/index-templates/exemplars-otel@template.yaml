@@ -1,0 +1,34 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["exemplars-*.otel-*"]
+priority: 120
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: default OpenTelemetry metric exemplars template installed by x-pack
+  managed: true
+# Exemplar data streams reuse the metrics mappings so that the time series dimensions
+# and the exemplar value field names exactly match the corresponding metrics data stream.
+# This is required to navigate from a metrics query to the corresponding exemplars.
+composed_of:
+  - exemplars@tsdb-settings
+  - otel@mappings
+  - otel@settings
+  - metrics-otel@mappings
+  - exemplars-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - exemplars@custom
+  - exemplars-otel@custom
+  - ecs-tsdb@mappings
+ignore_missing_component_templates:
+  - exemplars@custom
+  - exemplars-otel@custom
+template:
+  settings:
+    index:
+      mode: time_series
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: exemplars

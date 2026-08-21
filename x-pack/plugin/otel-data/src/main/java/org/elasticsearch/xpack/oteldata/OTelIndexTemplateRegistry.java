@@ -16,11 +16,14 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
+import java.util.Set;
+
 import static org.elasticsearch.xpack.oteldata.OTelPlugin.OTEL_DATA_REGISTRY_ENABLED;
 
 public class OTelIndexTemplateRegistry extends YamlTemplateRegistry {
 
     public static final String OTEL_TEMPLATE_VERSION_VARIABLE = "xpack.oteldata.template.version";
+    private static final Set<String> EXEMPLAR_TEMPLATES = Set.of("exemplars-otel@mappings", "exemplars-otel@template");
 
     public OTelIndexTemplateRegistry(
         Settings nodeSettings,
@@ -30,7 +33,16 @@ public class OTelIndexTemplateRegistry extends YamlTemplateRegistry {
         NamedXContentRegistry xContentRegistry,
         FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
+        super(
+            nodeSettings,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry,
+            featureService,
+            name -> OTelPlugin.EXEMPLARS_FEATURE_FLAG.isEnabled() || EXEMPLAR_TEMPLATES.contains(name) == false,
+            NODE_FEATURE_FILTERS
+        );
     }
 
     @Override

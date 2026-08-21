@@ -21,6 +21,10 @@ setup:
         policy: "metrics@lifecycle"
 
   - do:
+      ilm.get_lifecycle:
+        policy: "exemplars@lifecycle"
+
+  - do:
       cluster.get_component_template:
         name: data-streams-mappings
   - do:
@@ -61,6 +65,10 @@ setup:
   - do:
       cluster.get_component_template:
         name: metrics@tsdb-settings
+
+  - do:
+      cluster.get_component_template:
+        name: exemplars@tsdb-settings
 
   - do:
       indices.get_index_template:

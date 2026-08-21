@@ -27,6 +27,17 @@ setup:
   - contains: {index_templates: {name: metrics-otel@template}}
 
 ---
+"Test exemplars-otel* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: exemplars-otel*
+  - length: {index_templates: 1}
+  - contains: {index_templates: {name: exemplars-otel@template}}
+
+---
 "Test logs-otel* template installation":
   - skip:
       reason: contains is a newly added assertion

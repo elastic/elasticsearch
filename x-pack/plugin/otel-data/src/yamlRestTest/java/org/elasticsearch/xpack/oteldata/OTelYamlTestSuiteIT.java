@@ -10,12 +10,18 @@ package org.elasticsearch.xpack.oteldata;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    private static final FeatureFlag METRIC_EXEMPLARS_FEATURE_FLAG = new FeatureFlag("metric_exemplars");
+
+    private final boolean exemplarTest;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -40,6 +46,14 @@ public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public OTelYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+        String testPath = testCandidate.getTestPath();
+        exemplarTest = testPath.contains("/20_exemplars_tests/")
+            || testPath.endsWith("/10_otel/Test exemplars-otel* template installation");
+    }
+
+    @Before
+    public void skipExemplarTestsWhenFeatureFlagIsDisabled() {
+        assumeTrue("requires the metric_exemplars feature flag", exemplarTest == false || METRIC_EXEMPLARS_FEATURE_FLAG.isEnabled());
     }
 
     @ParametersFactory

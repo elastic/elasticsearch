@@ -9,11 +9,13 @@ component-templates:
   - logs-otel@mappings
   - semconv-resource-to-ecs@mappings
   - metrics-otel@mappings
+  - exemplars-otel@mappings
   - traces-otel@mappings
   - ecs-tsdb@mappings
 index-templates:
   - logs-otel@template
   - metrics-otel@template
+  - exemplars-otel@template
   - traces-otel@template
   - metrics-transaction.60m.otel@template
   - metrics-transaction.10m.otel@template

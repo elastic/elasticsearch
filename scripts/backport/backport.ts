@@ -2,25 +2,34 @@ import { execSync } from "child_process";
 import { readFileSync, writeFileSync } from "fs";
 import { basename, join } from "path";
 import { backportRun } from "backport";
-import { parseRemovedBlocks, removeBlocks } from "./muted-tests.ts";
+import { diffRemovedEntries, removeEntries } from "./muted-tests.ts";
 
 const MUTED_TESTS_FILE = "muted-tests.yml";
 
 await backportRun({
   options: {
-    autoFixConflicts({ files, directory }) {
+    autoFixConflicts({ files, directory, logger }) {
       if (!files.some((f) => basename(f) === MUTED_TESTS_FILE)) {
         return false;
       }
 
       try {
-        const diff = execSync(
-          `git show CHERRY_PICK_HEAD -- ${MUTED_TESTS_FILE}`,
-          { cwd: directory, encoding: "utf8" },
-        );
+        const show = (rev: string) =>
+          execSync(`git show ${rev}:${MUTED_TESTS_FILE}`, {
+            cwd: directory,
+            encoding: "utf8",
+          });
 
-        const removedBlocks = parseRemovedBlocks(diff);
-        if (!removedBlocks || removedBlocks.length === 0) {
+        // Compare the file as it looked either side of the commit being
+        // cherry-picked, rather than parsing its diff.
+        const removed = diffRemovedEntries(
+          show("CHERRY_PICK_HEAD^"),
+          show("CHERRY_PICK_HEAD"),
+        );
+        if (!removed || removed.length === 0) {
+          logger.info(
+            `${MUTED_TESTS_FILE}: not a pure unmuting, skipping auto-fix`,
+          );
           return false;
         }
 
@@ -31,7 +40,13 @@ await backportRun({
 
         const filePath = join(directory, MUTED_TESTS_FILE);
         const content = readFileSync(filePath, "utf8");
-        writeFileSync(filePath, removeBlocks(content, removedBlocks));
+        writeFileSync(filePath, removeEntries(content, removed));
+
+        logger.info(
+          `${MUTED_TESTS_FILE}: unmuted ${removed
+            .map((e) => `${e.class}${e.method ? `#${e.method}` : ""}`)
+            .join(", ")}`,
+        );
 
         execSync(`git add ${MUTED_TESTS_FILE}`, { cwd: directory });
 

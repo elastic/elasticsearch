@@ -1,122 +1,16 @@
+import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
-import { parseRemovedBlocks, removeBlocks } from "./muted-tests.ts";
+import {
+  diffRemovedEntries,
+  parseMutedTests,
+  removeEntries,
+} from "./muted-tests.ts";
 
-// Realistic diff header shared by all test diffs.
-const DIFF_HEADER = `diff --git a/muted-tests.yml b/muted-tests.yml
-index abc1234..def5678 100644
---- a/muted-tests.yml
-+++ b/muted-tests.yml`;
-
-function makeDiff(hunk: string): string {
-  return `${DIFF_HEADER}\n${hunk}`;
-}
-
-describe("parseRemovedBlocks", () => {
-  it("returns one block for a single removed entry", () => {
-    const diff = makeDiff(`@@ -1,7 +1,4 @@
- tests:
--- class: org.elasticsearch.xpack.esql.CsvIT
--  method: test {csv-spec:k8s-misc.by_four_dims}
--  issue: https://github.com/elastic/elasticsearch/issues/156313
- - class: org.elasticsearch.SomeOtherTest
-   method: testFoo
-   issue: https://github.com/elastic/elasticsearch/issues/1`);
-
-    expect(parseRemovedBlocks(diff)).toEqual([
-      [
-        "- class: org.elasticsearch.xpack.esql.CsvIT",
-        "  method: test {csv-spec:k8s-misc.by_four_dims}",
-        "  issue: https://github.com/elastic/elasticsearch/issues/156313",
-      ],
-    ]);
-  });
-
-  it("returns multiple blocks when several entries are removed", () => {
-    const diff = makeDiff(`@@ -1,10 +1,4 @@
- tests:
--- class: org.elasticsearch.Foo
--  method: testA
--  issue: https://github.com/elastic/elasticsearch/issues/1
--- class: org.elasticsearch.Bar
--  method: testB
--  issue: https://github.com/elastic/elasticsearch/issues/2
- - class: org.elasticsearch.Remaining
-   method: testC
-   issue: https://github.com/elastic/elasticsearch/issues/3`);
-
-    expect(parseRemovedBlocks(diff)).toEqual([
-      [
-        "- class: org.elasticsearch.Foo",
-        "  method: testA",
-        "  issue: https://github.com/elastic/elasticsearch/issues/1",
-      ],
-      [
-        "- class: org.elasticsearch.Bar",
-        "  method: testB",
-        "  issue: https://github.com/elastic/elasticsearch/issues/2",
-      ],
-    ]);
-  });
-
-  it("returns null when the diff adds lines (a muting commit, not unmuting)", () => {
-    const diff = makeDiff(`@@ -1,4 +1,7 @@
- tests:
-+- class: org.elasticsearch.xpack.esql.CsvIT
-+  method: test {csv-spec:k8s-misc.four_rates_by_four_dims}
-+  issue: https://github.com/elastic/elasticsearch/issues/156314
- - class: org.elasticsearch.SomeOtherTest
-   method: testFoo
-   issue: https://github.com/elastic/elasticsearch/issues/1`);
-
-    expect(parseRemovedBlocks(diff)).toBeNull();
-  });
-
-  it("returns null when the diff both removes and adds lines", () => {
-    const diff = makeDiff(`@@ -1,7 +1,7 @@
- tests:
--- class: org.elasticsearch.Foo
--  method: testA
--  issue: https://github.com/elastic/elasticsearch/issues/1
-+- class: org.elasticsearch.Bar
-+  method: testB
-+  issue: https://github.com/elastic/elasticsearch/issues/2`);
-
-    expect(parseRemovedBlocks(diff)).toBeNull();
-  });
-
-  it("returns an empty array when there are no removals in the hunk", () => {
-    const diff = makeDiff(`@@ -1,4 +1,4 @@
- tests:
- - class: org.elasticsearch.SomeOtherTest
-   method: testFoo
-   issue: https://github.com/elastic/elasticsearch/issues/1`);
-
-    expect(parseRemovedBlocks(diff)).toEqual([]);
-  });
-
-  it("handles quoted method names containing special characters", () => {
-    const diff = makeDiff(`@@ -1,4 +1,1 @@
- tests:
--- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
--  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive int>}"
--  issue: https://github.com/elastic/elasticsearch/issues/145886`);
-
-    expect(parseRemovedBlocks(diff)).toEqual([
-      [
-        "- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests",
-        '  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive int>}"',
-        "  issue: https://github.com/elastic/elasticsearch/issues/145886",
-      ],
-    ]);
-  });
-});
-
-describe("removeBlocks", () => {
-  const FILE = `tests:
+const FILE = `tests:
 - class: org.elasticsearch.Foo
-  method: testA
+  method: "testA"
   issue: https://github.com/elastic/elasticsearch/issues/1
-- class: org.elasticsearch.Bar
+- class: "org.elasticsearch.Bar"
   method: testB
   issue: https://github.com/elastic/elasticsearch/issues/2
 - class: org.elasticsearch.Baz
@@ -124,13 +18,131 @@ describe("removeBlocks", () => {
   issue: https://github.com/elastic/elasticsearch/issues/3
 `;
 
-  it("removes a single block", () => {
-    const block = [
-      "- class: org.elasticsearch.Bar",
-      "  method: testB",
-      "  issue: https://github.com/elastic/elasticsearch/issues/2",
-    ];
-    const result = removeBlocks(FILE, [block]);
+describe("parseMutedTests", () => {
+  it("parses class and method, ignoring issue", () => {
+    expect(parseMutedTests(FILE)).toEqual([
+      { class: "org.elasticsearch.Foo", method: "testA" },
+      { class: "org.elasticsearch.Bar", method: "testB" },
+      { class: "org.elasticsearch.Baz", method: "testC" },
+    ]);
+  });
+
+  it("parses entries with no method (whole-class mute)", () => {
+    const src = `tests:
+- class: org.elasticsearch.Foo
+  issue: https://github.com/elastic/elasticsearch/issues/1
+`;
+    expect(parseMutedTests(src)).toEqual([
+      { class: "org.elasticsearch.Foo", method: undefined },
+    ]);
+  });
+
+  it("parses quoted methods containing colons and braces", () => {
+    const src = `tests:
+- class: org.elasticsearch.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv doubles>, percentile: <int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145886
+`;
+    expect(parseMutedTests(src)).toEqual([
+      {
+        class: "org.elasticsearch.MvPercentileTests",
+        method:
+          "testEvaluate {TestCase=field: <random mv doubles>, percentile: <int>}",
+      },
+    ]);
+  });
+
+  it("treats an empty tests key as an empty list", () => {
+    expect(parseMutedTests("tests:\n")).toEqual([]);
+  });
+
+  it("throws on invalid YAML", () => {
+    expect(() => parseMutedTests("tests:\n- [unclosed\n")).toThrow();
+  });
+
+  it("throws when an entry has no class", () => {
+    expect(() => parseMutedTests("tests:\n- method: testA\n")).toThrow(
+      /no `class`/,
+    );
+  });
+});
+
+describe("diffRemovedEntries", () => {
+  it("returns the removed entry", () => {
+    const after = `tests:
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/1
+- class: org.elasticsearch.Baz
+  method: testC
+  issue: https://github.com/elastic/elasticsearch/issues/3
+`;
+    expect(diffRemovedEntries(FILE, after)).toEqual([
+      { class: "org.elasticsearch.Bar", method: "testB" },
+    ]);
+  });
+
+  it("returns multiple removed entries", () => {
+    const after = `tests:
+- class: org.elasticsearch.Bar
+  method: testB
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`;
+    expect(diffRemovedEntries(FILE, after)).toEqual([
+      { class: "org.elasticsearch.Foo", method: "testA" },
+      { class: "org.elasticsearch.Baz", method: "testC" },
+    ]);
+  });
+
+  it("returns null when the commit adds an entry (a muting commit)", () => {
+    const after = `${FILE}- class: org.elasticsearch.New
+  method: testD
+  issue: https://github.com/elastic/elasticsearch/issues/4
+`;
+    expect(diffRemovedEntries(FILE, after)).toBeNull();
+  });
+
+  it("returns null when the commit both adds and removes", () => {
+    const after = `tests:
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/1
+- class: org.elasticsearch.New
+  method: testD
+  issue: https://github.com/elastic/elasticsearch/issues/4
+`;
+    expect(diffRemovedEntries(FILE, after)).toBeNull();
+  });
+
+  it("returns an empty array when nothing changed", () => {
+    expect(diffRemovedEntries(FILE, FILE)).toEqual([]);
+  });
+
+  it("ignores a changed issue link, since issue is not part of identity", () => {
+    const after = FILE.replace("issues/2", "issues/999");
+    expect(diffRemovedEntries(FILE, after)).toEqual([]);
+  });
+
+  it("detects removal even when the file is reordered", () => {
+    const after = `tests:
+- class: org.elasticsearch.Baz
+  method: testC
+  issue: https://github.com/elastic/elasticsearch/issues/3
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/1
+`;
+    expect(diffRemovedEntries(FILE, after)).toEqual([
+      { class: "org.elasticsearch.Bar", method: "testB" },
+    ]);
+  });
+});
+
+describe("removeEntries", () => {
+  it("removes a single entry and leaves everything else byte-identical", () => {
+    const result = removeEntries(FILE, [
+      { class: "org.elasticsearch.Bar", method: "testB" },
+    ]);
     expect(result).toBe(`tests:
 - class: org.elasticsearch.Foo
   method: testA
@@ -141,20 +153,11 @@ describe("removeBlocks", () => {
 `);
   });
 
-  it("removes multiple blocks", () => {
-    const blocks = [
-      [
-        "- class: org.elasticsearch.Foo",
-        "  method: testA",
-        "  issue: https://github.com/elastic/elasticsearch/issues/1",
-      ],
-      [
-        "- class: org.elasticsearch.Baz",
-        "  method: testC",
-        "  issue: https://github.com/elastic/elasticsearch/issues/3",
-      ],
-    ];
-    const result = removeBlocks(FILE, blocks);
+  it("removes multiple entries", () => {
+    const result = removeEntries(FILE, [
+      { class: "org.elasticsearch.Foo", method: "testA" },
+      { class: "org.elasticsearch.Baz", method: "testC" },
+    ]);
     expect(result).toBe(`tests:
 - class: org.elasticsearch.Bar
   method: testB
@@ -162,34 +165,148 @@ describe("removeBlocks", () => {
 `);
   });
 
-  it("leaves the file unchanged when the block is not found", () => {
-    const block = [
-      "- class: org.elasticsearch.Missing",
-      "  method: testX",
-      "  issue: https://github.com/elastic/elasticsearch/issues/99",
-    ];
-    expect(removeBlocks(FILE, [block])).toBe(FILE);
+  it("matches on class/method even when the issue link differs", () => {
+    const target = FILE.replace("issues/2", "issues/12345");
+    const result = removeEntries(target, [
+      { class: "org.elasticsearch.Bar", method: "testB" },
+    ]);
+    expect(result).not.toContain("org.elasticsearch.Bar");
+    expect(result).toContain("org.elasticsearch.Foo");
+  });
+
+  it("is a no-op when the entry is already absent on the target branch", () => {
+    const result = removeEntries(FILE, [
+      { class: "org.elasticsearch.NotHere", method: "testX" },
+    ]);
+    expect(result).toBe(FILE);
+  });
+
+  it("does not confuse a whole-class mute with a method mute", () => {
+    const src = `tests:
+- class: org.elasticsearch.Foo
+  issue: https://github.com/elastic/elasticsearch/issues/1
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`;
+    const result = removeEntries(src, [{ class: "org.elasticsearch.Foo" }]);
+    expect(result).toBe(`tests:
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`);
+  });
+
+  it("removes an entry whose method is a quoted multi-token string", () => {
+    const src = `tests:
+- class: org.elasticsearch.MvPercentileTests
+  method: "testEvaluate {TestCase=field: <random mv doubles>, percentile: <int>}"
+  issue: https://github.com/elastic/elasticsearch/issues/145886
+- class: org.elasticsearch.Keep
+  method: testKeep
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`;
+    const result = removeEntries(src, [
+      {
+        class: "org.elasticsearch.MvPercentileTests",
+        method:
+          "testEvaluate {TestCase=field: <random mv doubles>, percentile: <int>}",
+      },
+    ]);
+    expect(result).toBe(`tests:
+- class: org.elasticsearch.Keep
+  method: testKeep
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`);
+  });
+
+  it("preserves surrounding comments and blank lines", () => {
+    const src = `# top comment
+tests:
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/1
+
+- class: org.elasticsearch.Bar
+  method: testB
+  issue: https://github.com/elastic/elasticsearch/issues/2
+`;
+    const result = removeEntries(src, [
+      { class: "org.elasticsearch.Bar", method: "testB" },
+    ]);
+    expect(result).toBe(`# top comment
+tests:
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/1
+
+`);
   });
 
   it("preserves the trailing newline", () => {
-    const block = [
-      "- class: org.elasticsearch.Foo",
-      "  method: testA",
-      "  issue: https://github.com/elastic/elasticsearch/issues/1",
-    ];
-    const result = removeBlocks(FILE, [block]);
+    const result = removeEntries(FILE, [
+      { class: "org.elasticsearch.Foo", method: "testA" },
+    ]);
     expect(result.endsWith("\n")).toBe(true);
   });
 
   it("preserves CRLF line endings", () => {
     const crlf = FILE.replace(/\n/g, "\r\n");
-    const block = [
-      "- class: org.elasticsearch.Bar",
-      "  method: testB",
-      "  issue: https://github.com/elastic/elasticsearch/issues/2",
-    ];
-    const result = removeBlocks(crlf, [block]);
-    expect(result).not.toContain("\r\n- class: org.elasticsearch.Bar");
-    expect(result.split("\r\n").length).toBeGreaterThan(1);
+    const result = removeEntries(crlf, [
+      { class: "org.elasticsearch.Bar", method: "testB" },
+    ]);
+    expect(result).toBe(
+      `tests:
+- class: org.elasticsearch.Foo
+  method: testA
+  issue: https://github.com/elastic/elasticsearch/issues/1
+- class: org.elasticsearch.Baz
+  method: testC
+  issue: https://github.com/elastic/elasticsearch/issues/3
+`.replace(/\n/g, "\r\n"),
+    );
+  });
+
+  it("is a no-op when given no entries", () => {
+    expect(removeEntries(FILE, [])).toBe(FILE);
+  });
+
+  it("throws rather than corrupting a flow-style sequence", () => {
+    const src = `tests: [{class: org.elasticsearch.Foo, method: testA}]\n`;
+    expect(() =>
+      removeEntries(src, [{ class: "org.elasticsearch.Foo", method: "testA" }]),
+    ).toThrow(/unexpected entry layout/);
+  });
+});
+
+describe("end-to-end against the real muted-tests.yml", () => {
+  it("removes an entry from the checked-in file, changing only those lines", () => {
+    const real = readFileSync(
+      new URL("../../muted-tests.yml", import.meta.url),
+      "utf8",
+    );
+    const entries = parseMutedTests(real);
+    expect(entries.length).toBeGreaterThan(0);
+
+    const victim = entries[0]!;
+    const result = removeEntries(real, [victim]);
+
+    const before = real.split("\n");
+    const after = result.split("\n");
+
+    // Every remaining entry is untouched, and the victim is gone.
+    expect(parseMutedTests(result)).toEqual(entries.slice(1));
+
+    // `after` must be `before` with whole lines deleted — no line added,
+    // reworded, or reordered. Verified by walking it as a subsequence.
+    let i = 0;
+    for (const line of after) {
+      while (i < before.length && before[i] !== line) i++;
+      expect(i, `line not found in original: ${line}`).toBeLessThan(
+        before.length,
+      );
+      i++;
+    }
+    expect(before.length - after.length).toBeGreaterThan(0);
   });
 });

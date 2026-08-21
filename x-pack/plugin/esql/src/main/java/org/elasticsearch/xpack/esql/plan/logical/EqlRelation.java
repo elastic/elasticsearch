@@ -88,9 +88,9 @@ public class EqlRelation extends LeafPlan {
     private final List<Attribute> output;
     /**
      * The row {@code LIMIT} folded into the EQL request {@code size} by {@code PushLimitIntoEqlRelation}, or
-     * {@code null} when no limit was pushed (event queries with no enclosing limit, and all sequence/sample
-     * queries — for which a row limit does not map to the number of matches). Null means the request falls back
-     * to the ES|QL result-truncation cap. Only meaningful for {@link Mode#EVENT}.
+     * {@code null} when no limit was pushed. Applies in every mode: {@code size} bounds the number of matches and
+     * each match unnests to at least one row, so a pushed size can never yield fewer rows than the retained
+     * {@code LIMIT} trims to. Null means the request falls back to the ES|QL result-truncation cap.
      */
     private final Integer pushedLimit;
     /**

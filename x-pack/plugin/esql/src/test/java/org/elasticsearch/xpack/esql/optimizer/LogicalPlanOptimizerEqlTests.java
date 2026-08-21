@@ -26,8 +26,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for {@link PushLimitIntoEqlRelation}: a row {@code LIMIT} directly above an event-mode {@link EqlRelation}
- * is folded into the request size ({@code pushedLimit}); everything else leaves it {@code null} (cap-driven).
+ * Tests for {@link PushLimitIntoEqlRelation}: a row {@code LIMIT} directly above an {@link EqlRelation} (in any mode)
+ * is folded into the request size ({@code pushedLimit}); a non-adjacent limit or a blocking op leaves it {@code null}.
  */
 public class LogicalPlanOptimizerEqlTests extends ESTestCase {
 
@@ -55,9 +55,18 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
         assertPushedLimit("EQL eql_test \"process where true\" | WHERE pid == 100 | LIMIT 2", null);
     }
 
-    public void testSequenceModeIsNotPushed() {
-        // Sequence rows are unnested per event, so a row limit does not map to the number of matches.
-        assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\" | LIMIT 3", null);
+    public void testSequenceModeLimitPushed() {
+        // size bounds sequence matches; each match unnests to >= 1 row and the kept LIMIT trims, so pushing cannot under-fetch.
+        assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\" | LIMIT 3", 3);
+    }
+
+    public void testSampleModeLimitPushed() {
+        assertPushedLimit("EQL eql_test \"sample by category [process where true] [network where true]\" | LIMIT 4", 4);
+    }
+
+    public void testBareSequenceQueryPushesImplicitDefaultLimit() {
+        // The implicit LIMIT 1000 is pushed in sequence mode too, matching event mode.
+        assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\"", 1000);
     }
 
     public void testLimitPushdownPreservesMetadataColumns() {

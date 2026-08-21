@@ -71,12 +71,11 @@ CPU therefore bound the query, sized by the EQL result set. Keep that result set
 
 `LIMIT` and the `size` option bound different things:
 
-* For an **event query**, a `LIMIT n` placed directly after the command is folded into the EQL request,
-  so only about `n` events are fetched. `WITH { "size": n }` caps the number of events too and takes
-  precedence over `LIMIT`.
-* For a **`sequence`** or **`sample`** query, `LIMIT` is not folded into the request (the rows are
-  unnested per event, so a row count does not map to a number of matches). Use `WITH { "size": n }` to
-  cap the number of whole matches.
+* A `LIMIT n` placed directly after the command is folded into the EQL request in **every mode**, so only
+  about `n` matches are fetched. `LIMIT` bounds **rows**: for a `sequence` or `sample` query, whose rows are
+  unnested per event, it can return a partial match (some events of a match without the rest).
+* `WITH { "size": n }` bounds whole **matches** — events, sequences or samples — and takes precedence over
+  `LIMIT`. Use it when you want complete matches rather than a row count.
 * If neither a pushed `LIMIT` nor `WITH { "size": … }` sets the size, the request falls back to the
   {{esql}} result-truncation limit. In that case the command warns that the results may be incomplete.
 

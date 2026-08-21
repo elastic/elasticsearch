@@ -69,7 +69,7 @@ public final class ApplicationPrivilege extends Privilege {
      * permission fields.
      */
     public String[] getPatterns() {
-        return patterns;
+        return patterns.clone();
     }
 
     /**

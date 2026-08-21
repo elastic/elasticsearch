@@ -66,6 +66,9 @@ public abstract class VectorScorerBulkBenchmark {
     @Param({ "MMAP", "STATELESS_INDEX_LOCAL" })
     public DirectoryType directoryType;
 
+    @Param("RANDOM")
+    public DataAccessPattern accessMode;
+
     public int numVectorsToScore;
 
     private Path path;
@@ -85,10 +88,13 @@ public abstract class VectorScorerBulkBenchmark {
         final int[] ordinals;
         final int targetOrd;
 
-        VectorData(int numVectors, int numVectorsToScore, Random random) {
+        VectorData(int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
             this.numVectorsToScore = numVectorsToScore;
 
-            ordinals = BenchmarkUtils.generateRandomOrdinals(numVectors, numVectorsToScore, random);
+            ordinals = switch (accessMode) {
+                case SEQUENTIAL -> BenchmarkUtils.generateSequentialOrdinals(numVectorsToScore);
+                case RANDOM -> BenchmarkUtils.generateRandomOrdinals(numVectors, numVectorsToScore, random);
+            };
             targetOrd = random.nextInt(numVectors);
         }
 
@@ -125,18 +131,7 @@ public abstract class VectorScorerBulkBenchmark {
     }
 
     @Benchmark
-    public float[] scoreMultipleSequential() throws IOException {
-        int v = 0;
-        while (v < numVectorsToScore) {
-            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
-                scores[i] = scorer.score(v);
-            }
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreMultipleRandom() throws IOException {
+    public float[] scoreMultiple() throws IOException {
         int v = 0;
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
@@ -147,7 +142,7 @@ public abstract class VectorScorerBulkBenchmark {
     }
 
     @Benchmark
-    public float[] scoreQueryMultipleRandom() throws IOException {
+    public float[] scoreQueryMultiple() throws IOException {
         int v = 0;
         while (v < numVectorsToScore) {
             for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
@@ -158,18 +153,7 @@ public abstract class VectorScorerBulkBenchmark {
     }
 
     @Benchmark
-    public float[] scoreMultipleSequentialBulk() throws IOException {
-        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
-            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
-            // Copy the slice of sequential IDs to the scratch array
-            System.arraycopy(ids, i, toScore, 0, toScoreInThisBatch);
-            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
-        }
-        return scores;
-    }
-
-    @Benchmark
-    public float[] scoreMultipleRandomBulk() throws IOException {
+    public float[] scoreMultipleBulk() throws IOException {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
             // Copy the slice of random ordinals to the scratch array
@@ -180,7 +164,7 @@ public abstract class VectorScorerBulkBenchmark {
     }
 
     @Benchmark
-    public float[] scoreQueryMultipleRandomBulk() throws IOException {
+    public float[] scoreQueryMultipleBulk() throws IOException {
         for (int i = 0; i < numVectorsToScore; i += bulkSize) {
             int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
             // Copy the slice of random ordinals to the scratch array

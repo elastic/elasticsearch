@@ -134,15 +134,24 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/131_knn_query_nested_inner_hits_score/nested kNN inner_hits are scored like the query phase on a quantized field}
-  issue: https://github.com/elastic/elasticsearch/issues/156759
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValuesByteRefGroupingAggregatorFunctionTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/155069
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.put_alias/all_path_options/put alias with missing name}
   issue: https://github.com/elastic/elasticsearch/issues/156886
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.mvKeywordExpressionJoinWarningsFromRightSideWhenNotKept}
+  issue: https://github.com/elastic/elasticsearch/issues/157303
+- class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
+  method: testSingleValuedFieldGetProperty
+  issue: https://github.com/elastic/elasticsearch/issues/157330
+- class: org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceTests
+  method: testUnifiedCompletionError
+  issue: https://github.com/elastic/elasticsearch/issues/157332
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.create/30_dynamic_template/Create index with dynamic_mappings, match is single-valued}
+  issue: https://github.com/elastic/elasticsearch/issues/157333
 
 # Examples:
 #

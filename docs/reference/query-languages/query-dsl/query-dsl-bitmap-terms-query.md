@@ -3,6 +3,7 @@ applies_to:
   stack: ga 9.6
   serverless: ga
 navigation_title: "Bitmap terms"
+Use the `bitmap_terms` query to match documents whose integer or long field value is contained in a roaring bitmap provided as a base64-encoded string.
 ---
 
 # Bitmap terms query [query-dsl-bitmap-terms-query]
@@ -95,7 +96,7 @@ The field type determines which roaring bitmap width {{es}} expects:
 | `integer` | 32-bit roaring bitmap |
 | `long` | 64-bit roaring bitmap, in the **portable** format |
 
-Sending a bitmap of the wrong width is rejected rather than silently mismatched: a 32-bit bitmap on a `long` field, or a 64-bit bitmap on an `integer` field, returns an error.
+Elasticsearch rejects a bitmap of the wrong width rather than silently mismatching it: a 32-bit bitmap on a `long` field, or a 64-bit bitmap on an `integer` field, returns an error.
 
 ### Generating the bitmap [bitmap-terms-generating-the-bitmap]
 
@@ -156,7 +157,7 @@ Both queries match documents against a set of exact values. On `integer` and `lo
 :   Roaring bitmaps compress dense integer sets aggressively, so millions of values travel as a compact base64 string instead of a multi-megabyte JSON array.
 
 **Query construction is effectively free**
-:   A `terms` query has to parse, sort, and encode every value on every request, and that cost grows with the size of the set — at 100,000 values it alone accounts for several milliseconds per request. A bitmap is deserialized once and the query wraps it directly, so construction cost barely moves as the set grows.
+:   A `terms` query has to parse, sort, and encode every value on every request, and that cost grows with the size of the set, at 100,000 values that overhead alone can account for several milliseconds per request. A bitmap is deserialized once and the query wraps it directly, so construction cost barely moves as the set grows.
 
 **Faster search**
 :   The bitmap is intersected with the index in a single ordered pass, instead of looking up each value separately.
@@ -169,7 +170,7 @@ For a set of 100,000 terms, `bitmap_terms` can be several times faster than an e
 
 ## Optimization on a sorted index [bitmap-terms-sorted-index]
 
-`bitmap_terms` is especially fast when the index is [sorted](/reference/elasticsearch/index-settings/sorting.md) in ascending order on the field being queried. This holds for both index structures: fields on the default BKD mapping and fields mapped with `index_terms: true`.
+`bitmap_terms` is especially fast when the index is [sorted](/reference/elasticsearch/index-settings/sorting.md) in ascending order on the field being queried. This applies to both index structures: fields on the default BKD mapping and fields mapped with `index_terms: true`.
 
 Under such a sort, value order is document order, so matches come out already ordered as the query walks the bitmap. {{es}} can then stream them and stop as soon as it has collected enough hits, instead of building the complete set of matching documents up front.
 
@@ -178,7 +179,7 @@ The optimization applies when:
 * The index is sorted in ascending order on the queried field.
 * The field is single-valued. Documents that have no value at all are fine.
 
-If either condition does not hold, the query falls back to collecting all matches first. Results are the same either way.
+If either condition does not hold, the query falls back to collecting all matches first, but results are the same either way.
 
 ```console
 PUT my-index-000002
@@ -221,6 +222,6 @@ GET my-index-000002/_search
 ```
 % TEST[continued]
 
-A small number, such as `"track_total_hits": 10`, works too if you still want a lower bound on the count.
+A small number, such as `"track_total_hits": 10`, also works if you want a lower bound on the count.
 
 On an unsorted index this setting makes no difference to `bitmap_terms`, because the full set of matches is built before any hits are collected.

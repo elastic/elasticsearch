@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -135,9 +136,16 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            ShardId shardId
+            ShardId shardId,
+            IndexVersion creationVersion
         ) {
-            return new GenerationalFilesTrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            return new GenerationalFilesTrackingSearchDirectory(
+                cacheService,
+                cacheBlobReaderService,
+                objectStoreUploadTracker,
+                shardId,
+                creationVersion
+            );
         }
 
         @Override
@@ -334,9 +342,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            ShardId shardId
+            ShardId shardId,
+            IndexVersion creationVersion
         ) {
-            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
+            super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean(), creationVersion);
         }
 
         @Override

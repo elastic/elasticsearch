@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -124,9 +125,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
             StatelessSharedBlobCacheService cacheService,
             CacheBlobReaderService cacheBlobReaderService,
             MutableObjectStoreUploadTracker objectStoreUploadTracker,
-            ShardId shardId
+            ShardId shardId,
+            IndexVersion creationVersion
         ) {
-            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, creationVersion);
         }
 
         private static class TrackingSearchDirectory extends SearchDirectory {
@@ -138,9 +140,10 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
                 StatelessSharedBlobCacheService cacheService,
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                ShardId shardId
+                ShardId shardId,
+                IndexVersion creationVersion
             ) {
-                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
+                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean(), creationVersion);
             }
 
             @Override

@@ -71,6 +71,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
@@ -1559,6 +1560,7 @@ public class StatelessPlugin extends Plugin
             indexModule.addIndexEventListener(this.searchShardInformationIndexListener.get());
             indexModule.addIndexEventListener(this.pitRelocationService.get());
 
+            final var searchIdxVersion = indexModule.indexSettings().getIndexVersionCreated();
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
@@ -1566,7 +1568,8 @@ public class StatelessPlugin extends Plugin
                         sharedBlobCacheService.get(),
                         cacheBlobReaderService.get(),
                         new AtomicMutableObjectStoreUploadTracker(),
-                        shardRouting.shardId()
+                        shardRouting.shardId(),
+                        searchIdxVersion
                     );
                 } else {
                     return in;
@@ -1915,10 +1918,18 @@ public class StatelessPlugin extends Plugin
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
-        ShardId shardId
+        ShardId shardId,
+        IndexVersion creationVersion
     ) {
         boolean hasTimestampField = hasTimestampField(indicesService.get(), shardId);
-        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, hasTimestampField);
+        return new SearchDirectory(
+            cacheService,
+            cacheBlobReaderService,
+            objectStoreUploadTracker,
+            shardId,
+            hasTimestampField,
+            creationVersion
+        );
     }
 
     /**

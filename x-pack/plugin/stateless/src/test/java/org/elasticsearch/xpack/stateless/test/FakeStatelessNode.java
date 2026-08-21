@@ -446,7 +446,14 @@ public class FakeStatelessNode implements Closeable {
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
+        return new SearchDirectory(
+            sharedCacheService,
+            cacheBlobReaderService,
+            objectStoreUploadTracker,
+            shardId,
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
+        );
     }
 
     protected StatelessSharedBlobCacheService createCacheService(

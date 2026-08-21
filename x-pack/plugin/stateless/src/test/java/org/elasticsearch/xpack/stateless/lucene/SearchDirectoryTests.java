@@ -28,6 +28,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -104,6 +106,16 @@ public class SearchDirectoryTests extends ESTestCase {
         boolean hasTimestampField,
         boolean timestampBackfillEnabled
     ) throws IOException {
+        return createFakeStatelessNode(regionSize, cacheSize, hasTimestampField, timestampBackfillEnabled, IndexVersion.current());
+    }
+
+    private FakeStatelessNode createFakeStatelessNode(
+        ByteSizeValue regionSize,
+        ByteSizeValue cacheSize,
+        boolean hasTimestampField,
+        boolean timestampBackfillEnabled,
+        IndexVersion creationVersion
+    ) throws IOException {
         return createFakeStatelessNode(regionSize, cacheSize, originalCacheBlobReader -> new CacheBlobReader() {
             @Override
             public ByteRange getRange(long position, int length, long remainingFileLength) {
@@ -116,7 +128,7 @@ public class SearchDirectoryTests extends ESTestCase {
             public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
                 originalCacheBlobReader.getRangeInputStream(position, length, listener);
             }
-        }, originalBlobContainer -> originalBlobContainer, hasTimestampField, timestampBackfillEnabled);
+        }, originalBlobContainer -> originalBlobContainer, hasTimestampField, timestampBackfillEnabled, creationVersion);
     }
 
     private FakeStatelessNode createFakeStatelessNode(
@@ -125,7 +137,8 @@ public class SearchDirectoryTests extends ESTestCase {
         Function<CacheBlobReader, CacheBlobReader> objectStoreCacheBlobReaderWrapper,
         Function<BlobContainer, BlobContainer> blobContainerWrapper,
         boolean hasTimestampField,
-        boolean timestampBackfillEnabled
+        boolean timestampBackfillEnabled,
+        IndexVersion creationVersion
     ) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
 
@@ -178,7 +191,8 @@ public class SearchDirectoryTests extends ESTestCase {
                     customCacheBlobReaderService,
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId,
-                    hasTimestampField
+                    hasTimestampField,
+                    creationVersion
                 );
             }
 
@@ -531,7 +545,8 @@ public class SearchDirectoryTests extends ESTestCase {
                 },
                 originalBlobContainer -> FakeStatelessNode.syntheticBytesContainer(originalBlobContainer),
                 false,
-                false
+                false,
+                IndexVersion.current()
             )
         ) {
             final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
@@ -660,7 +675,14 @@ public class SearchDirectoryTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, true);
+                return new SearchDirectory(
+                    sharedCacheService,
+                    cacheBlobReaderService,
+                    objectStoreUploadTracker,
+                    shardId,
+                    true,
+                    IndexVersion.current()
+                );
             }
 
             @Override
@@ -831,6 +853,90 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testResolveRegionTimestampMillisFallbackForPreTimestampFieldIndices() throws IOException {
+        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final long rangeMidpoint = BlobFileRanges.midpointMillisOrUnknownForCache(range);
+        final var regionSize = ByteSizeValue.ofBytes(4096);
+        final var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        final var preFieldVersion = IndexVersions.MINIMUM_COMPATIBLE;
+        // If minimum compatible grows beyond the TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION, then this test and overall logic can be
+        // removed.
+        assertThat(
+            "This test requires minimum compatible index version to below version from Dec 2025",
+            preFieldVersion.before(SearchDirectory.TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION),
+            equalTo(true)
+        );
+
+        // Time-based index created before the field-introduction version: null range falls back to the old-tail timestamp.
+        try (var node = createFakeStatelessNode(regionSize, cacheSize, true, false, preFieldVersion)) {
+            var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            assertThat(
+                "pre-field time-based shard should use the old-tail fallback",
+                directory.fallbackRegionTimestampMillis(),
+                equalTo(SearchDirectory.PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS)
+            );
+            assertThat(
+                "null range should resolve to the old-tail timestamp on pre-field time-based shards",
+                directory.resolveRegionTimestampMillis(null),
+                equalTo(SearchDirectory.PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS)
+            );
+            assertThat(
+                "unknown raw timestamp should fall back to the old-tail timestamp on pre-field time-based shards",
+                directory.resolveRegionTimestampMillis(UNKNOWN_TIMESTAMP),
+                equalTo(SearchDirectory.PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS)
+            );
+            assertThat("known raw timestamp should be preserved", directory.resolveRegionTimestampMillis(5000L), equalTo(5000L));
+            assertThat(
+                "a real range should still resolve to its midpoint",
+                directory.resolveRegionTimestampMillis(range),
+                equalTo(rangeMidpoint)
+            );
+            assertThat(
+                "metadata-read directory should inherit the old-tail fallback when backfill is disabled",
+                directory.createMetadataReadDirectory(false).fallbackRegionTimestampMillis(),
+                equalTo(SearchDirectory.PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS)
+            );
+        }
+
+        // Time-based index created exactly at the field-introduction version: unchanged MINIMAL_CACHE_TIMESTAMP fallback.
+        try (
+            var node = createFakeStatelessNode(
+                regionSize,
+                cacheSize,
+                true,
+                false,
+                SearchDirectory.TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION
+            )
+        ) {
+            var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            assertThat(
+                "time-based shard created on the field-introduction version should not use the old-tail fallback",
+                directory.fallbackRegionTimestampMillis(),
+                equalTo(MINIMAL_CACHE_TIMESTAMP)
+            );
+        }
+
+        // Newer index version
+        try (var node = createFakeStatelessNode(regionSize, cacheSize, true, false, IndexVersion.current())) {
+            var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            assertThat(
+                "time-based shard created after the field-introduction version should not use the old-tail fallback",
+                directory.fallbackRegionTimestampMillis(),
+                equalTo(MINIMAL_CACHE_TIMESTAMP)
+            );
+        }
+
+        // Non-time-based index created before the field-introduction version: still UNKNOWN, gated by hasTimestampField.
+        try (var node = createFakeStatelessNode(regionSize, cacheSize, false, false, preFieldVersion)) {
+            var directory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+            assertThat(
+                "non-time-based shard should stay UNKNOWN regardless of creation version",
+                directory.fallbackRegionTimestampMillis(),
+                equalTo(UNKNOWN_TIMESTAMP)
+            );
+        }
+    }
+
     /**
      * Recovery-time backfill with {@code clearOrphans=true} must re-stamp orphaned BACKFILL_IN_PROGRESS_TIMESTAMP
      * regions to MINIMAL_CACHE_TIMESTAMP while resolving re-read blobs to their real timestamps.
@@ -840,6 +946,8 @@ public class SearchDirectoryTests extends ESTestCase {
         var regionSize = ByteSizeValue.ofBytes(4096);
         var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
         final var capturingPolicy = new TimestampCapturingEvictionPolicy();
+        // Randomized across both index-creation eras: orphan clearing must not pick up the pre-field fallback.
+        final var creationVersion = randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE);
         try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
             protected Settings nodeSettings() {
@@ -860,7 +968,14 @@ public class SearchDirectoryTests extends ESTestCase {
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
                 // Force time-based caching on so metadata reads stamp BACKFILL_IN_PROGRESS.
-                return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, true);
+                return new SearchDirectory(
+                    sharedCacheService,
+                    cacheBlobReaderService,
+                    objectStoreUploadTracker,
+                    shardId,
+                    true,
+                    creationVersion
+                );
             }
 
             @Override

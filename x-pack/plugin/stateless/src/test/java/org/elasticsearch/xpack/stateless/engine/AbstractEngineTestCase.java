@@ -607,7 +607,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             },
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
             shardId,
-            randomBoolean()
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
         ) {
             @Override
             public boolean updateCommit(StatelessCompoundCommit newCommit, Map<String, BlobFileRanges> commitFilesRangesOverride) {
@@ -738,7 +739,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             ),
             objectStoreUploadTracker,
             shardId,
-            randomBoolean()
+            randomBoolean(),
+            indexSettings.getIndexVersionCreated()
         );
         directory.setBlobContainer(primaryTerm -> blobContainer);
         // update the CC of the directory because assertions use it for the primary term

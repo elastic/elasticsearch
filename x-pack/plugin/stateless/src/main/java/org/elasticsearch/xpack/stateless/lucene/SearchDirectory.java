@@ -23,6 +23,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
@@ -59,6 +62,15 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 
 public class SearchDirectory extends BlobStoreCacheDirectory {
     private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
+
+    /// IndexVersion that introduced storing a `@timestamp` field value range in the compound commit header
+    /// (buffered a few versions above the true introduction point to absorb promotion lag). Indices created before
+    /// this version can contain compound commits with no recorded range purely because the field did not exist yet,
+    /// not because the commit lacks `@timestamp` data.
+    public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES;
+
+    /// Conservative upper bound on the `@timestamp` of any commit written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
+    public static final long PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS = Instant.parse("2025-12-01T00:00:00Z").toEpochMilli();
 
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();
@@ -83,26 +95,35 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     private final AtomicLong submittedObsoleteRegionsEvictionTasks = new AtomicLong();
 
     private final boolean hasTimestampField;
+    private final long fallbackRegionTimestampMillis;
 
     public SearchDirectory(
         StatelessSharedBlobCacheService cacheService,
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker,
         ShardId shardId,
-        boolean hasTimestampField
+        boolean hasTimestampField,
+        IndexVersion creationVersion
     ) {
         super(cacheService, shardId);
         this.cacheBlobReaderService = cacheBlobReaderService;
         this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.generationalFilesTermAndGens = new HashMap<>();
         this.hasTimestampField = hasTimestampField;
+        this.fallbackRegionTimestampMillis = resolveFallbackRegionTimestampMillis(hasTimestampField, creationVersion);
     }
 
-    /**
-     * Whether this shard is time-based, i.e. its index has a {@code @timestamp} field.
-     */
-    public boolean hasTimestampField() {
-        return hasTimestampField;
+    private static long resolveFallbackRegionTimestampMillis(boolean hasTimestampField, IndexVersion creationVersion) {
+        if (hasTimestampField == false) {
+            return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        }
+        // For a time-based index created after the introduction of timestamp range field, we treat all CCs without timestamp as having
+        // a minimal timestamp. This should be a rare case, e.g. a soft-delete only commit.
+        // For indices created before that, we could have CCs lacking timestamp range purely because the field did not exist yet. We
+        // conservatively assign a timestamp to them
+        return creationVersion.before(TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION)
+            ? PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS
+            : SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
     }
 
     /**
@@ -115,7 +136,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public long fallbackRegionTimestampMillis() {
-        return hasTimestampField ? SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        return fallbackRegionTimestampMillis;
     }
 
     /**

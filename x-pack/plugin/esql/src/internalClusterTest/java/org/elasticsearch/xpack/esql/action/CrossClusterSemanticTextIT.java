@@ -217,17 +217,45 @@ public class CrossClusterSemanticTextIT extends AbstractCrossClusterTestCase {
 
         // FUSE keys on _id and _index; _index is cluster-qualified in CCS, so documents from the two
         // clusters stay distinct through the fusion.
-        String query = "FROM "
+        try (EsqlQueryResponse resp = runQuery(fuseQuery("") + " | KEEP id", false)) {
+            assertThat(idsFrom(resp), equalTo(Set.of("local-1", "local-2", "remote-1", "remote-2")));
+        }
+    }
+
+    public void testFuseKeepsCollidingIdsFromDifferentClustersDistinct() {
+        setupSemanticIndices();
+
+        // Each cluster holds _id 1 and 2, so keying on _id alone would collapse four documents into two.
+        try (EsqlQueryResponse resp = runQuery(fuseQuery("") + " | KEEP id, _id, _index | SORT id", false)) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(4));
+            assertThat(columnValues(values, 0), equalTo(Set.of("local-1", "local-2", "remote-1", "remote-2")));
+            assertThat(columnValues(values, 1), equalTo(Set.of("1", "2")));
+            assertThat(columnValues(values, 2), equalTo(Set.of(INDEX, REMOTE_CLUSTER_1 + ":" + INDEX)));
+        }
+    }
+
+    public void testFuseWithLinearNormalizationAcrossClusters() {
+        setupSemanticIndices();
+
+        // LINEAR normalizes the scores themselves rather than combining ranks, so it reduces over the
+        // per-cluster scores in a different way than the default.
+        String fuse = " LINEAR WITH { \"normalizer\": \"minmax\" }";
+        try (EsqlQueryResponse resp = runQuery(fuseQuery(fuse) + " | KEEP id", false)) {
+            assertThat(idsFrom(resp), equalTo(Set.of("local-1", "local-2", "remote-1", "remote-2")));
+        }
+    }
+
+    private String fuseQuery(String fuseOptions) {
+        return "FROM "
             + INDEX
             + ","
             + remoteIndex()
             + " METADATA _id, _index, _score"
             + " | FORK ( WHERE body : \"quick\" | SORT _score DESC | LIMIT 10 )"
             + "        ( WHERE body : \"lazy\" | SORT _score DESC | LIMIT 10 )"
-            + " | FUSE | KEEP id";
-        try (EsqlQueryResponse resp = runQuery(query, false)) {
-            assertThat(idsFrom(resp), equalTo(Set.of("local-1", "local-2", "remote-1", "remote-2")));
-        }
+            + " | FUSE"
+            + fuseOptions;
     }
 
     public void testRerankOverRemoteDataUsesCoordinatorEndpoint() {
@@ -265,6 +293,10 @@ public class CrossClusterSemanticTextIT extends AbstractCrossClusterTestCase {
         return getValuesList(resp).stream().map(row -> (String) row.get(0)).collect(Collectors.toSet());
     }
 
+    private static Set<String> columnValues(List<List<Object>> values, int column) {
+        return values.stream().map(row -> (String) row.get(column)).collect(Collectors.toSet());
+    }
+
     private void setupSemanticIndices() {
         setupSemanticIndex(LOCAL_CLUSTER, "local", LOCAL_INFERENCE_ID, LOCAL_DENSE_INFERENCE_ID);
         setupSemanticIndex(REMOTE_CLUSTER_1, "remote", REMOTE_INFERENCE_ID, REMOTE_DENSE_INFERENCE_ID);
@@ -298,13 +330,15 @@ public class CrossClusterSemanticTextIT extends AbstractCrossClusterTestCase {
                 )
         );
 
+        // Both clusters use the same _id values on purpose: _id is unique per index, so in CCS only the
+        // cluster-qualified _index tells the two apart. The id field stays distinct so tests can assert on it.
         client.prepareBulk()
             .add(
-                new IndexRequest(INDEX).id(idPrefix + "-1")
+                new IndexRequest(INDEX).id("1")
                     .source("id", idPrefix + "-1", "host", "host-1", "body", "the quick brown fox", "body_dense", "the quick brown fox")
             )
             .add(
-                new IndexRequest(INDEX).id(idPrefix + "-2")
+                new IndexRequest(INDEX).id("2")
                     .source("id", idPrefix + "-2", "host", "host-2", "body", "a lazy dog sleeps", "body_dense", "a lazy dog sleeps")
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

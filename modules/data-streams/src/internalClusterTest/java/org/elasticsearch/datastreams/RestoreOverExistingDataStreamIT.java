@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -225,16 +226,43 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
 
         assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
 
-        // a destination that has been deleted entirely (rather than merely changed) gets a distinct, more specific message
-        final DataStream missingDestination = restoreTarget.target().destinationDataStream().copy().setName("missing-ds").build();
+        // a destination that has been deleted entirely (rather than merely changed) gets a distinct, more specific message. The
+        // destination is genuinely deleted here, rather than simulated by renaming the resolved destination object, so that this
+        // exercises the "no longer exists" branch specifically rather than the guarded restore's same-name precondition
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
+                .get()
+        );
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> missingFuture = restoreOverExistingDataStreamFuture(
-            restoreTarget.withDestination(missingDestination)
+            restoreTarget
         );
         final SnapshotRestoreException missingException = expectThrows(
             SnapshotRestoreException.class,
             () -> missingFuture.actionGet(TEST_REQUEST_TIMEOUT)
         );
         assertThat(missingException.getMessage(), containsString("no longer exists in the cluster state"));
+    }
+
+    /**
+     * The caller is required to resolve a snapshot data stream and destination of the same name; a mismatched pair (e.g. a caller bug
+     * that resolved the wrong snapshot data stream for a destination) must be rejected before anything is deleted, rather than silently
+     * deleting the destination and installing an unrelated data stream under its own, different name.
+     */
+    public void testGuardedDataStreamRestoreRejectsNameMismatch() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+
+        createRepositoryAndSnapshottedDataStream();
+        final RestoreTarget restoreTarget = resolveRestoreTarget();
+
+        final DataStream mismatchedDestination = restoreTarget.target().destinationDataStream().copy().setName("other-ds").build();
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = restoreOverExistingDataStreamFuture(
+            restoreTarget.withDestination(mismatchedDestination)
+        );
+        final SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(e.getMessage(), containsString("guarded restore only supports restoring a data stream over one of the same name"));
+
+        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
     }
 
     /**

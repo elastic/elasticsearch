@@ -628,11 +628,11 @@ public final class RestoreService implements ClusterStateApplier {
         ActionListener<RestoreCompletionResponse> listener
     ) {
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
-        final Map<String, DataStream> guardedDataStreamTargets = new HashMap<>();
+        final Map<String, DataStreamRestoreTarget> guardedDataStreamTargets = new HashMap<>();
         final List<DataStream> dataStreamsToRestore = new ArrayList<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
         for (DataStreamRestoreTarget target : targets) {
-            guardedDataStreamTargets.put(target.destinationDataStream().getName(), target.destinationDataStream());
+            guardedDataStreamTargets.put(target.destinationDataStream().getName(), target);
             dataStreamsToRestore.add(target.snapshotDataStream());
             for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.indicesToRestore().entrySet()) {
                 indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
@@ -1456,11 +1456,10 @@ public final class RestoreService implements ClusterStateApplier {
         private final RestoreSnapshotRequest request;
 
         /**
-         * Data-stream name to the exact current {@link DataStream} identity (name plus exact backing/failure {@link Index} identities)
-         * that the caller has explicitly authorized deleting and restoring over. Empty for an ordinary restore, which only ever restores
-         * into a data stream that doesn't already exist.
+         * Destination data-stream name to the full {@link DataStreamRestoreTarget} that the caller has explicitly authorized deleting and
+         * restoring over. Empty for an ordinary restore, which only ever restores into a data stream that doesn't already exist.
          */
-        private final Map<String, DataStream> guardedDataStreamTargets;
+        private final Map<String, DataStreamRestoreTarget> guardedDataStreamTargets;
 
         /**
          * Feature states to restore.
@@ -1534,7 +1533,7 @@ public final class RestoreService implements ClusterStateApplier {
             Settings settings,
             ActionListener<RestoreCompletionResponse> listener,
             String restoreUUID,
-            Map<String, DataStream> guardedDataStreamTargets
+            Map<String, DataStreamRestoreTarget> guardedDataStreamTargets
         ) {
             super(request.masterNodeTimeout());
             this.request = request;
@@ -1809,16 +1808,27 @@ public final class RestoreService implements ClusterStateApplier {
          * unchanged: the thrown exception discards the whole (never-returned) {@link ClusterState}, matching the {@link
          * ClusterStateUpdateTask} contract that already gives the rest of this task's per-index loop its all-or-nothing guarantee.
          *
-         * @param guardedDataStreamTargets data-stream name to the expected exact current {@link DataStream} identity
+         * @param guardedDataStreamTargets destination data-stream name to the full target the caller resolved for it
          */
         private ClusterState validateAndDeleteGuardedDataStreamTargets(
             ClusterState currentState,
             ProjectId projectId,
-            Map<String, DataStream> guardedDataStreamTargets
+            Map<String, DataStreamRestoreTarget> guardedDataStreamTargets
         ) {
             final ProjectState projectState = currentState.projectState(projectId);
             final ProjectMetadata projectMetadata = projectState.metadata();
-            for (DataStream expected : guardedDataStreamTargets.values()) {
+            for (DataStreamRestoreTarget target : guardedDataStreamTargets.values()) {
+                final DataStream expected = target.destinationDataStream();
+                if (expected.getName().equals(target.snapshotDataStream().getName()) == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        "cannot restore data stream ["
+                            + target.snapshotDataStream().getName()
+                            + "] over data stream ["
+                            + expected.getName()
+                            + "] because a guarded restore only supports restoring a data stream over one of the same name"
+                    );
+                }
                 final DataStream current = projectMetadata.dataStreams().get(expected.getName());
                 if (current == null) {
                     throw new SnapshotRestoreException(
@@ -1853,7 +1863,11 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
             }
-            return MetadataDataStreamsService.deleteDataStreams(projectState, Set.copyOf(guardedDataStreamTargets.values()), settings);
+            final Set<DataStream> destinationsToDelete = guardedDataStreamTargets.values()
+                .stream()
+                .map(DataStreamRestoreTarget::destinationDataStream)
+                .collect(Collectors.toSet());
+            return MetadataDataStreamsService.deleteDataStreams(projectState, destinationsToDelete, settings);
         }
 
         private static boolean sameBackingAndFailureIndices(DataStream a, DataStream b) {

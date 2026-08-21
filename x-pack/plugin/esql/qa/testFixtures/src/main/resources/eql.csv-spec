@@ -482,3 +482,15 @@ _sequence:long |serial_event_id:long
 0              |1
 0              |2
 ;
+
+// A head/tail inside the EQL query composed with an outer LIMIT that pushes a smaller size: the engine's own
+// head 6 and our pushed size = 3 must still yield the first 3 events, not a wrong slice.
+eventQueryInnerHeadWithSmallerOuterLimit
+required_capability: eql_command
+EQL endgame-140 "process where true | head 6" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 3 | KEEP serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+;

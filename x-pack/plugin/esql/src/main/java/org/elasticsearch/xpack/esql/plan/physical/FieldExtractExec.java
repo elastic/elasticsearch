@@ -278,11 +278,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         sb.append(",");
         NodeUtils.toString(sb, centroidAttributes, format, mapper);
         sb.append(">,");
-        if (sourceAttribute == null) {
-            sb.append("null");
-        } else {
-            sourceAttribute.nodeString(sb, format, mapper);
-        }
+        NodeUtils.toString(sb, sourceAttribute, format, mapper);
         sb.append("]");
     }
 

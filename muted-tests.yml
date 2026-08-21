@@ -149,6 +149,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceTests
   method: testUnifiedCompletionError
   issue: https://github.com/elastic/elasticsearch/issues/157332
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=indices.create/30_dynamic_template/Create index with dynamic_mappings, match is single-valued}
+  issue: https://github.com/elastic/elasticsearch/issues/157333
 
 # Examples:
 #

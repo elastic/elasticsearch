@@ -9,13 +9,27 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.health.RestGetHealthAction.CAPABILITY_STATELESS;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class RestGetHealthActionTests extends ESTestCase {
 
     public void testHealthReportAPIDoesNotTripCircuitBreakers() {
         assertThat(new RestGetHealthAction().canTripCircuitBreaker(), is(false));
+    }
+
+    public void testAdvertisesStatelessCapabilityWhenStateless() {
+        Settings settings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        assertThat(new RestGetHealthAction(settings).supportedCapabilities(), hasItem(CAPABILITY_STATELESS));
+    }
+
+    public void testDoesNotAdvertiseStatelessCapabilityWhenStateful() {
+        assertThat(new RestGetHealthAction().supportedCapabilities(), not(hasItem(CAPABILITY_STATELESS)));
     }
 }

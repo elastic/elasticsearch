@@ -10,6 +10,8 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -32,6 +34,21 @@ public class RestGetHealthAction extends BaseRestHandler {
     private static final String SIZE_PARAM = "size";
 
     private static final String CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY = "multi_project_shards_availability";
+
+    /** Used by YAML test runners to distinguish between stateful and stateless clusters */
+    public static final String CAPABILITY_STATELESS = "stateless";
+
+    private final Set<String> capabilities;
+
+    public RestGetHealthAction() {
+        this(Settings.EMPTY);
+    }
+
+    public RestGetHealthAction(Settings settings) {
+        this.capabilities = DiscoveryNode.isStateless(settings)
+            ? Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY, CAPABILITY_STATELESS)
+            : Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY);
+    }
 
     @Override
     public String getName() {
@@ -64,6 +81,6 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Sets.union(Set.of(CAPABILITY_MULTI_PROJECT_SHARDS_AVAILABILITY), super.supportedCapabilities());
+        return Sets.union(capabilities, super.supportedCapabilities());
     }
 }

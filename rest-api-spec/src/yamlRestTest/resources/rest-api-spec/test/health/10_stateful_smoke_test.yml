@@ -1,8 +1,15 @@
 ---
-"cluster health basic test":
+"stateful cluster health smoke test":
   - requires:
+      test_runner_features: capabilities
       cluster_features: "gte_v8.13.0"
       reason: "data stream lifecycle indicator was added in 8.13.0"
+  - skip:
+      capabilities:
+        - method: GET
+          path: /_health_report
+          capabilities: [ stateless ]
+      reason: "stateless health API is covered by health/20_stateless_smoke_test.yml"
 
   - do:
       health_report: { }
@@ -36,9 +43,12 @@
   - exists: indicators.shards_availability.details.started_primaries
   - exists: indicators.shards_availability.details.unassigned_replicas
 
-  # The shards_availability indicator is dependent on HealthMetadata being present in the cluster state, which we can't guarantee.
+  # The shards_capacity indicator is dependent on HealthMetadata being present in the cluster state, which we can't guarantee.
   - is_true: indicators.shards_capacity.status
   - is_true: indicators.shards_capacity.symptom
 
   - is_true: indicators.data_stream_lifecycle.status
   - is_true: indicators.data_stream_lifecycle.symptom
+
+  - is_true: indicators.file_settings.status
+  - is_true: indicators.file_settings.symptom

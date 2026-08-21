@@ -909,7 +909,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
         registerHandler.accept(new RestRemoveIndexBlockAction());
-        registerHandler.accept(new RestGetHealthAction());
+        registerHandler.accept(new RestGetHealthAction(settings));
         registerHandler.accept(new RestPrevalidateNodeRemovalAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());

@@ -3,7 +3,7 @@ applies_to:
   stack: ga 9.6
   serverless: ga
 navigation_title: "Bitmap terms"
-Use the `bitmap_terms` query to match documents whose integer or long field value is contained in a roaring bitmap provided as a base64-encoded string.
+description: "Use the `bitmap_terms` query to match documents whose integer or long field value is contained in a roaring bitmap provided as a base64-encoded string."
 ---
 
 # Bitmap terms query [query-dsl-bitmap-terms-query]

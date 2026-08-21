@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * ]}}
  * }</pre>
  * A document with no elements at all is a public document, visible to every user this provider grants
- * an implicit privilege to. This shape is owned by the Kibana SML plugin's storage schema; the
+ * an implicit privilege to. This shape is owned by the Kibana agent_builder_sml plugin's storage schema; the
  * {@code ai-index-*} index template deliberately does not declare it, so this Javadoc and
  * {@code ElasticAiIndexImplicitPrivilegesIT} are the de-facto contract.
  * <p>

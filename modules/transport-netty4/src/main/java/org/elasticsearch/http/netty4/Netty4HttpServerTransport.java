@@ -24,6 +24,7 @@ import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpContentEncoder;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
@@ -454,16 +455,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             }).addLast(new Netty4HttpContentSizeHandler(handlingSettings.maxContentLength()));
 
             if (handlingSettings.compression()) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.compressionLevel()) {
-                    @Override
-                    protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
-                        if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
-                            return null;
-                        } else {
-                            return super.beginEncode(httpResponse, acceptEncoding);
-                        }
-                    }
-                });
+                ch.pipeline()
+                    .addLast(
+                        "encoder_compress",
+                        new PipelinedHttpContentCompressor(handlingSettings.compressionLevel(), transport.pipeliningMaxEvents)
+                    );
             }
             if (ResourceLeakDetector.isEnabled()) {
                 ch.pipeline().addLast(new Netty4LeakDetectionHandler());
@@ -489,6 +485,47 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             super.exceptionCaught(ctx, cause);
+        }
+    }
+
+    /**
+     * An {@link HttpContentEncoder} that delegates compression to an {@link HttpContentCompressor} instance and
+     * allows configuring the maximum number of unresponded in-flight requests ({@code maxPipelineDepth}).
+     * <p>
+     * {@link HttpContentCompressor} uses the default depth of 128, which is too low for deeply-pipelined HTTP
+     * connections. This class passes {@code pipeliningMaxEvents} as the depth so the limit is consistent with
+     * the rest of the HTTP pipeline.
+     */
+    private static final class PipelinedHttpContentCompressor extends HttpContentEncoder {
+
+        /**
+         * Subclass solely to widen the visibility of {@link HttpContentCompressor#beginEncode} from
+         * {@code protected} to {@code public} so that {@link PipelinedHttpContentCompressor} can call it.
+         */
+        private static final class Delegate extends HttpContentCompressor {
+            Delegate(int compressionLevel) {
+                super(compressionLevel);
+            }
+
+            @Override
+            public Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+                return super.beginEncode(httpResponse, acceptEncoding);
+            }
+        }
+
+        private final Delegate delegate;
+
+        PipelinedHttpContentCompressor(int compressionLevel, int maxPipelineDepth) {
+            super(maxPipelineDepth);
+            this.delegate = new Delegate(compressionLevel);
+        }
+
+        @Override
+        protected Result beginEncode(HttpResponse httpResponse, String acceptEncoding) throws Exception {
+            if (ChunkedZipResponse.ZIP_CONTENT_TYPE.equals(httpResponse.headers().get("content-type"))) {
+                return null;
+            }
+            return delegate.beginEncode(httpResponse, acceptEncoding);
         }
     }
 

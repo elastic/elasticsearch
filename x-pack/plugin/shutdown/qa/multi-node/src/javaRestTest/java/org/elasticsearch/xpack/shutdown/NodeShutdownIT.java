@@ -47,7 +47,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     private static final String PASS = "x-pack-test-password";
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(4)
         .module("x-pack-shutdown")
         .module("analysis-common")

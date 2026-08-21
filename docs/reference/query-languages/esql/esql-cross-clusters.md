@@ -522,7 +522,7 @@ Full-text scores are computed per shard, from that shard's own term statistics. 
 
 Scores from different clusters are therefore not directly comparable, and the effect grows as the corpora diverge in size or vocabulary. A term that is rare on one cluster and common on another produces systematically higher scores on the first, regardless of how relevant its documents actually are. This affects `SORT _score`, any `WHERE` clause comparing `_score` against a fixed threshold, and the set of candidates that reaches a later `RERANK`.
 
-Only lexical scoring is affected. `KNN` and dense `semantic_text` fields score on vector similarity, and sparse `semantic_text` fields on stored per-token weights, so neither varies with corpus statistics. That makes them comparable across clusters that map the field the same way.
+Only lexical scoring is affected by corpus statistics. `KNN` and dense `semantic_text` fields score on vector similarity, and sparse `semantic_text` fields on stored per-token weights. Their scores do not vary with corpus statistics, but they are comparable across clusters only when the fields use the same embedding model and equivalent similarity or scoring configuration.
 
 This carries into [`FUSE`](/reference/query-languages/esql/commands/fuse.md). The default `RRF` method compares ranks rather than score magnitudes, so it is less exposed to the difference, though not immune: those ranks are themselves produced by the scores above. `LINEAR` combines the score values directly, and rescales them only if you set its `normalizer` option, which defaults to `none`. Prefer `RRF` in cross-cluster queries.
 

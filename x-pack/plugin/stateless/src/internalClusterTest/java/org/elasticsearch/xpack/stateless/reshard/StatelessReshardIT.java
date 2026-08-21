@@ -189,6 +189,7 @@ import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHA
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -5246,7 +5247,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // The stale-index GC runs only on an index-role node, and reads its interval once when its persistent task starts, so the
         // interval has to be set in that node's own settings. 1s is the lowest value the setting accepts.
         startMasterOnlyNode();
-        startIndexNode(Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        final String indexNode = startIndexNode(
+            Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
         startSearchNode();
         ensureStableCluster(3);
 
@@ -5302,7 +5305,14 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         logger.info("Split target states observed at delete time: {}", observedSplitStates);
 
         // Nothing reclaims an abandoned reshard's target blobs eagerly, so the stale-index GC has to remove the whole per-index prefix.
-        assertBusy(() -> assertThat(getIndexUUIDsInObjectStore(), everyItem(not(in(deletedIndexUUIDs)))), 30, TimeUnit.SECONDS);
+        // An abandoned split must also leave no state behind on either service, or it leaks memory.
+        final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
+        final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        assertBusy(() -> {
+            assertThat(getIndexUUIDsInObjectStore(), everyItem(not(in(deletedIndexUUIDs))));
+            assertThat("Split target state left behind", splitTargetService.getShardsWithOngoingSplits(), empty());
+            assertThat("Split source state left behind", splitSourceService.getShardsWithActiveSplitState(), empty());
+        });
     }
 
     private static Set<String> getIndexUUIDsInObjectStore() {

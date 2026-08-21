@@ -34,58 +34,13 @@ import static org.hamcrest.Matchers.not;
  * full production path: the plugin is bundled into the default distribution and auto-discovered
  * via the {@code SecurityExtension} SPI, so no test plugin is installed.
  * <p>
- * This is also the only place the nested permissions mapping is exercised against real Lucene. The
- * unit tests assert on query <em>serialisation</em>; only this test proves that {@code terms_set}
- * with {@code minimum_should_match_field} resolves {@code count} from the matching nested child
- * document rather than from the root. If that assumption were wrong the search would return zero
- * hits, which is why the visibility assertion pins an exact positive set — <b>a zero-hit result is a
- * failure signal, not a pass.</b>
- * <p>
- * <b>The index declares its own mappings.</b> The {@code ai-index-*} index template deliberately does
- * not carry the permissions shape, so this test owns the mapping the provider is written against. Do
- * not "simplify" by deleting the explicit {@code mappings} block and relying on the template: dynamic
- * mapping never produces {@code nested} for an array of objects, and a {@code nested} query against an
- * {@code object} field throws rather than under-matching.
- * <p>
- * <b>Alias, not a concrete index.</b> The mapping and documents live on {@code ai-index-idx-sml-data-000001};
- * every request here names the alias {@code ai-index-idx-sml-data}, which is the only name the implicit
- * grant covers. That mirrors what the Kibana storage adapter builds, and it is the arrangement worth
- * testing: it proves the nested DLS filter reaches the backing index when the request is authorized
- * through the alias. Do not collapse the two into one concrete index — the test would still pass, but
- * it would no longer exercise the production path.
- * <p>
- * <b>The user's grant.</b> {@code ai_index:dashboard/read} in {@code space:marketing} and
- * {@code ai_index:workflow/read} in {@code space:finance} — deliberately <em>different</em> actions in
- * two spaces, which is what makes the cross-space leak case below testable at all. The fixtures cover:
- * <ul>
- *   <li>{@code marketing-dashboard} — visible; the user holds exactly what the marketing element
- *       requires.</li>
- *   <li>{@code finance-dashboard} — hidden; right action, wrong space.</li>
- *   <li>{@code marketing-workflow} — hidden; right space, wrong action.</li>
- *   <li>{@code shared-dashboard} — visible; shared into two spaces and the user satisfies one of them.
- *       Proves nested matching is existential, i.e. OR across spaces.</li>
- *   <li>{@code cross-space-leak} — hidden. <b>The regression case this design exists for.</b> The
- *       document requires both actions in marketing <em>and</em> both in finance; the user holds one of
- *       two in each. Under the previous flat composite-token design the user's two tokens hit the flat
- *       count of 2 and {@code terms_set} could not tell they came from different spaces, so the
- *       document was visible. Under {@code nested} each child is scored alone: marketing scores 1 &lt; 2,
- *       finance scores 1 &lt; 2, no child matches, root hidden.</li>
- *   <li>{@code all-spaces-dashboard} — visible; scoped to every space via {@code "*"} and requiring an
- *       action the user holds. An all-spaces document lives in marketing too, so a marketing-scoped
- *       user must see it.</li>
- *   <li>{@code all-spaces-connector} — hidden; all-spaces, but requires an action the user holds
- *       nowhere. The {@code "*"} space arm widens which elements are eligible, never which actions
- *       are held.</li>
- *   <li>{@code mixed-counts} — visible; two entries requiring <em>different</em> numbers of actions.
- *       Proves {@code minimum_should_match_field} resolves {@code count} from the entry being matched
- *       rather than from the first entry or a document-wide value — the only fixture that can
- *       distinguish those, since every other multi-entry document here has equal counts.</li>
- *   <li>{@code global-no-perms} — visible; a document with no permissions block is public.</li>
- * </ul>
- * <p>
- * The registered privileges deliberately bundle {@code login:} and {@code saved_object:dashboard/get}
- * alongside the {@code ai_index:} actions, so the surfaced DLS query also demonstrates that actions
- * outside the {@code ai_index:} namespace never become DLS terms.
+ * The happy path verifies that a role holding {@code ai_index:<kiType>/read} Kibana application privileges,
+ * granted in different spaces (with no explicit index privileges), can read the Elastic AI Index
+ * {@code ai-index-idx-sml-data}, and that the implicit document-level-security filter restricts results
+ * to the following rule: a document is visible only when the user holds <em>all</em> the
+ * actions it requires <em>within a single space</em>. Actions accumulated across different spaces
+ * must not grant access, and a document scoped to every space via {@code "*"} must still be visible
+ * to a space-scoped user.
  */
 public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
@@ -148,7 +103,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertImplicitGrantSurfaced("ai_marketing_reader");
 
         // 6. The user can read the Elastic AI Index without any explicit index privilege, and DLS restricts the
-        // visible documents to exactly the three that satisfy a whole nested element.
+        // visible documents to exactly those that satisfy a whole nested element.
         assertUserSeesOnlyAuthorizedDocs();
     }
 
@@ -184,7 +139,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     /**
      * Grants dashboard/read in marketing and workflow/read in finance. The actions must differ per
      * space, otherwise the cross-space-leak fixture would be satisfied by either element and the
-     * regression this test guards would be invisible.
+     * permission leak this test guards would be invisible.
      */
     private void putAiIndexReaderRole(String roleName) throws Exception {
         final Request request = new Request("PUT", "/_security/role/" + roleName);
@@ -305,13 +260,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // HIDDEN — THE REGRESSION CASE. This is the whole point of the change.
-        // Requires BOTH actions in marketing AND both in finance. The user holds
+        // HIDDEN: Requires BOTH actions in marketing AND both in finance. The user holds
         // dashboard/read in marketing and workflow/read in finance — one of two in each.
-        // Under the old flat composite-token design this document was VISIBLE: the user's two
-        // tokens hit the flat count of 2 and terms_set could not tell they came from different
-        // spaces. Under nested, each child is scored alone: marketing scores 1 < 2, finance
-        // scores 1 < 2, no child matches, root hidden.
         indexDoc("cross-space-leak", """
             {
               "type": "dashboard",
@@ -322,7 +272,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        // VISIBLE — proves `count` is read from the MATCHING entry, not from the first entry or from
+        // VISIBLE: proves `count` is read from the MATCHING entry, not from the first entry or from
         // some document-wide value.
         indexDoc("mixed-counts", """
             {

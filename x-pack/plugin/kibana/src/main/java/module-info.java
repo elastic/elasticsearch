@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.kibana.KibanaSecurityPlugin;
 
 module org.elasticsearch.xpack.kibana {
-    // For org.apache.lucene.search.join.ScoreMode, required to build the nested DLS query.
     requires org.apache.lucene.join;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;

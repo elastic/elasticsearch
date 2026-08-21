@@ -131,10 +131,9 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
     }
 
     /**
-     * Regression guard for the under-grant the union rule prevents: a user holding action A globally
-     * and action B in marketing genuinely holds both in marketing, so the marketing clause must carry
-     * both. Without the union, a document requiring {A, B} in marketing would be wrongly hidden.
-     * The additional space-less clause carries only the global actions.
+     * A user holding action A globally and action B in 'marketing' then holds both in 'marketing',
+     * so the 'marketing' clause must carry both. Without the union, a document requiring {A, B} in
+     * marketing would be wrongly hidden. The additional space-less clause carries only the global actions.
      */
     public void testWildcardActionsAreUnionedIntoSpaceClauses() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(

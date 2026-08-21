@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -38,7 +37,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETION_ROW_LIMIT_SETTING;
 
 /**
  * The {@code DENSE_VECTOR} command generates a {@code dense_vector} embedding column per input field.
@@ -59,8 +57,6 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         "DenseVector",
         DenseVector::new
     );
-
-    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(Source.EMPTY, COMPLETION_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY));
 
     /** Input fields to embed (unresolved names before analysis, resolved attributes after). */
     private final List<NamedExpression> fields;
@@ -96,7 +92,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null
@@ -130,7 +126,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         return fields.stream()
             .map(
                 f -> (Attribute) new ReferenceAttribute(
-                    source,
+                    f.source(),
                     null,
                     f.name() + OUTPUT_SUFFIX,
                     DataType.DENSE_VECTOR,
@@ -265,5 +261,10 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), fields, generatedFields);
+    }
+
+    @Override
+    public String nodeName() {
+        return "DENSE_VECTOR";
     }
 }

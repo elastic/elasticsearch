@@ -159,3 +159,37 @@ FROM books
 book_no:keyword | sorted_author:keyword                                | sorted_author_dense_vector:dense_vector
 2924            | [Alan Myers, Fyodor Dostoevsky, W. J. Leatherbarrow] | [45.0, 52.0, 51.0]
 ;
+
+// Assert the generated column is a usable dense_vector.
+dense_vector command output consumed by v_cosine
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+required_capability: vector_similarity_functions_pushdown
+
+FROM books
+| WHERE book_no == "2924"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| EVAL sim = v_cosine(publisher_dense_vector, publisher_dense_vector)
+| KEEP book_no, sim
+;
+
+book_no:keyword | sim:double
+2924            | 1.0
+;
+
+// Assert a generated column shadows an existing same-named column (last wins).
+// Case (a) - two inputs producing the same name - can't happen; see AnalyzerTests dotted-name tests.
+dense_vector command generated column shadows an existing same-named column
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+FROM books
+| WHERE book_no == "2924"
+| EVAL publisher_dense_vector = "placeholder"
+| DENSE_VECTOR publisher WITH { "inference_id" : "test_dense_inference" }
+| KEEP book_no, publisher_dense_vector
+;
+
+book_no:keyword | publisher_dense_vector:dense_vector
+2924            | [45.0, 56.0, 48.0]
+;

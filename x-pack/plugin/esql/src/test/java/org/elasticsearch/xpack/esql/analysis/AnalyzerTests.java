@@ -4578,6 +4578,44 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(getAttributeByName(denseVector.output(), "description_dense_vector"), notNullValue());
     }
 
+    public void testDenseVectorResolvesQualifiedFieldNames() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // One generated column per input field, keyed by the full dotted field name (no collision/shadowing).
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("text.raw_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("text.english_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "text.raw_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "text.english_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesNestedAndMixedFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field-variation.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
+                WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // A plain root field, a deeply nested field, and a parent text field vs its keyword subfield all
+        // produce distinct full-path generated columns.
+        assertThat(denseVector.generatedAttributes(), hasSize(4));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("keyword_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("some.dotted.field_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(2).name(), equalTo("some.string_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(3).name(), equalTo("some.string.typical_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "keyword_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.dotted.field_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string.typical_dense_vector"), notNullValue());
+    }
+
     public void testDenseVectorResolvesKeywordField() {
         assumeDenseVectorCommandEnabled();
         LogicalPlan plan = books().query("""
@@ -4603,6 +4641,14 @@ public class AnalyzerTests extends ESTestCase {
         books().error(
             "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
             containsString("Unknown column [nonexistent]")
+        );
+    }
+
+    public void testDenseVectorInvalidInferenceIdFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"unknown-inference-id\" }",
+            containsString("unresolved inference [unknown-inference-id]")
         );
     }
 

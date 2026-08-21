@@ -25,13 +25,15 @@ import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttribut
 public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializationTests<DenseVector> {
     @Override
     protected DenseVector createTestInstance() {
+        Source source = randomSource();
+        List<NamedExpression> fields = randomFields();
         return new DenseVector(
-            randomSource(),
+            source,
             randomChild(0),
             randomInferenceId(),
             randomRowLimit(),
-            randomFields(),
-            randomGeneratedFields(),
+            fields,
+            DenseVector.generatedAttributesFor(source, fields),
             randomTimeout()
         );
     }
@@ -45,13 +47,16 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
         List<Attribute> generatedFields = instance.generatedAttributes();
         TimeValue timeout = instance.timeout();
 
-        switch (between(0, 5)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
             case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
-            case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
-            case 4 -> generatedFields = randomValueOtherThan(generatedFields, this::randomGeneratedFields);
-            case 5 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
+            case 3 -> {
+                // Keep generatedFields consistent with fields (1:1), as produced during analysis.
+                fields = randomValueOtherThan(fields, this::randomFields);
+                generatedFields = DenseVector.generatedAttributesFor(instance.source(), fields);
+            }
+            case 4 -> timeout = randomValueOtherThan(timeout, this::randomTimeout);
         }
         return new DenseVector(instance.source(), child, inferenceId, rowLimit, fields, generatedFields, timeout);
     }
@@ -66,10 +71,6 @@ public class DenseVectorSerializationTests extends AbstractLogicalPlanSerializat
 
     private List<NamedExpression> randomFields() {
         return randomList(0, 5, () -> (NamedExpression) randomReferenceAttribute(randomBoolean()));
-    }
-
-    private List<Attribute> randomGeneratedFields() {
-        return randomList(0, 5, () -> (Attribute) randomReferenceAttribute(randomBoolean()));
     }
 
     private TimeValue randomTimeout() {

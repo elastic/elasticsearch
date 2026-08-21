@@ -26,7 +26,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ParameterizedYamlRollin
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(RollingUpgradePerformer.getOldClusterVersion(), RollingUpgradePerformer.isOldClusterDetachedVersion())
+        .version(RollingUpgradePerformer.getOldClusterVersion(), isOldClusterDetachedVersion())
         .nodes(NODE_NUM)
         .setting("repositories.url.allowed_urls", "http://snapshot.test*")
         .setting("xpack.security.enabled", "false")

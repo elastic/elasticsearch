@@ -184,19 +184,11 @@ public class RollingUpgradePerformer {
     }
 
     /**
-     * Whether the old cluster version is not of the released versions, but a detached build.
-     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
-     */
-    public static boolean isOldClusterDetachedVersion() {
-        return System.getProperty("tests.bwc.refspec.main") != null;
-    }
-
-    /**
      * Returns {@code true} if the node identified by the given version string and build hash
      * belongs to the old (pre-upgrade) cluster.
      */
     public static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
-        if (isOldClusterDetachedVersion()) {
+        if (ESRestTestCase.isOldClusterDetachedVersion()) {
             return System.getProperty("tests.bwc.refspec.main").equals(buildHash);
         }
         return getOldClusterVersion().equals(nodeVersion);

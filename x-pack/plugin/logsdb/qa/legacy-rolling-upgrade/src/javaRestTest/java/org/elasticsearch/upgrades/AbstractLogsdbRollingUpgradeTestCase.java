@@ -23,7 +23,7 @@ import org.junit.rules.TestRule;
 
 import java.util.function.Supplier;
 
-public abstract class AbstractLegacyLogsdbRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
+public abstract class AbstractLogsdbRollingUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
@@ -48,7 +48,7 @@ public abstract class AbstractLegacyLogsdbRollingUpgradeTestCase extends Paramet
     @ClassRule
     public static final TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
-    protected AbstractLegacyLogsdbRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
+    protected AbstractLogsdbRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 

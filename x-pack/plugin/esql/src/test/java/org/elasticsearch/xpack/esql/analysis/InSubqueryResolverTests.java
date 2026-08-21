@@ -1536,7 +1536,10 @@ public class InSubqueryResolverTests extends ESTestCase {
             VerificationException.class,
             () -> resolve("FROM main | WHERE CASE(abs(x) IN (FROM sub), true, false) == true")
         );
-        assertThat(e.getMessage(), containsString("Complicated IN subquery is not yet supported in the WHERE command"));
+        assertThat(
+            e.getMessage(),
+            containsString("Complicated IN subquery is not yet supported in Filter [WHERE CASE(abs(x) IN (FROM sub), true, false) == true]")
+        );
     }
 
     public void testRejectsInSubqueryNestedInsideLambda() {

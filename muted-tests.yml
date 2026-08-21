@@ -803,3 +803,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
   method: testFromDatasetAllowedWithDatasetReadOnly
   issue: https://github.com/elastic/elasticsearch/issues/157339
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
+  issue: https://github.com/elastic/elasticsearch/issues/157340

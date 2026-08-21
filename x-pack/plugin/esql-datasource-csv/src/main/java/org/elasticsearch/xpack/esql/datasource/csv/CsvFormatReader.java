@@ -4899,6 +4899,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directRecFrom = from;
             directRecTo = to;
             if (directBlockQuoted) {
+                if (rowHasNoSpecialChars(buf, from, to)) {
+                    return splitAndConvertPlain(buf, from, to);
+                }
                 try {
                     return splitAndConvertQuoted(buf, from, to);
                 } catch (MalformedRowException e) {
@@ -4907,6 +4910,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             return splitAndConvertPlain(buf, from, to);
+        }
+
+        /**
+         * Returns {@code true} when the record {@code [from, to)} contains neither a
+         * {@link CsvFormatOptions#quoteChar()} nor (when escaping is active) a
+         * {@link CsvFormatOptions#escapeChar()}. When the row is clear of both, no quoted-field or
+         * escape-sequence assembly can occur and the cheaper {@link #splitAndConvertPlain} path is
+         * equivalent to {@link #splitAndConvertQuoted} for that row.
+         */
+        private boolean rowHasNoSpecialChars(char[] buf, int from, int to) {
+            final char quote = options.quoteChar();
+            if (options.escaping()) {
+                final char esc = options.escapeChar();
+                for (int i = from; i < to; i++) {
+                    final char c = buf[i];
+                    if (c == quote || c == esc) return false;
+                }
+            } else {
+                for (int i = from; i < to; i++) {
+                    if (buf[i] == quote) return false;
+                }
+            }
+            return true;
         }
 
         /** Lazily materializes the current direct-path record as a String, for cold error/warning paths only. */

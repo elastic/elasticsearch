@@ -800,3 +800,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
   method: testFromDatasetDeniedWithoutReadOnName
   issue: https://github.com/elastic/elasticsearch/issues/157338
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testFromDatasetAllowedWithDatasetReadOnly
+  issue: https://github.com/elastic/elasticsearch/issues/157339

@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
  * Reruns the entire {@link EsqlSecurityIT} field-level-security suite with the FLS indices in {@code logsdb} mode, proving that ESQL

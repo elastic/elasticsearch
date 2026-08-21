@@ -15,11 +15,14 @@ import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.Variadic;
+import org.elasticsearch.foreign.WideString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
@@ -63,6 +66,12 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
  *        specs); always {@code false} for interface-based specs
  * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
+ * @param upcalls per-parameter metadata for each {@code @Upcall}-typed parameter, in parameter order;
+ *        empty when the method has none. A method cannot combine {@code @Upcall} parameters with
+ *        {@code String} parameters (see {@link #from}) since no current or planned binding needs both
+ * @param wideStringParamIndices 0-based indices of {@code String} parameters annotated with {@code @WideString},
+ *        marshaled as UTF-16LE rather than the implicit UTF-8 default; empty for {@code @StructFactory} methods
+ *        and for {@code @Function} methods with no wide-string parameters
  */
 public record MethodModel(
     String methodName,
@@ -78,7 +87,9 @@ public record MethodModel(
     String structReturnSimpleName,
     String packedElementSimpleName,
     boolean isProtected,
-    List<BoundsCheckModel> boundsChecks
+    List<BoundsCheckModel> boundsChecks,
+    List<UpcallModel> upcalls,
+    Set<Integer> wideStringParamIndices
 ) {
 
     /**
@@ -115,8 +126,9 @@ public record MethodModel(
      * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
      *        used to validate {@code @StructFactory} return types
      * @param unavailableOn enum constant names of platforms where the enclosing {@code @LibrarySpecification} is
-     *        unavailable, used to derive the {@code @CaptureSystemError} capture channel ({@code errno} vs
-     *        {@code GetLastError}) from the library's target platform family
+     *        unavailable, used to reject {@code @WideString} parameters on libraries unavailable on Windows and to
+     *        derive the {@code @CaptureSystemError} capture channel ({@code errno} vs {@code GetLastError}) from the
+     *        library's target platform family
      */
     public static MethodModel from(
         ExecutableElement method,
@@ -157,6 +169,28 @@ public record MethodModel(
                 messager.printMessage(Kind.ERROR, "@StructFactory method '" + methodName + "' must not have @Critical", method);
                 return null;
             }
+            for (var param : method.getParameters()) {
+                if (ModelUtil.classifyType(param.asType()) == NativeType.UPCALL) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@StructFactory method '"
+                            + methodName
+                            + "' must not have an @Upcall-typed parameter '"
+                            + param.getSimpleName()
+                            + "'",
+                        method
+                    );
+                    return null;
+                }
+                if (param.getAnnotation(WideString.class) != null) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@StructFactory method '" + methodName + "' must not have @WideString on any parameter",
+                        method
+                    );
+                    return null;
+                }
+            }
             return buildStructFactoryModel(method, methodName, enclosingStructNames, messager);
         }
 
@@ -168,7 +202,7 @@ public record MethodModel(
 
         // @Function method
         NativeType returnType = ModelUtil.classifyType(method.getReturnType());
-        if (returnType == null) {
+        if (returnType == null || returnType == NativeType.UPCALL) {
             messager.printMessage(
                 Kind.ERROR,
                 "Unsupported return type '" + method.getReturnType() + "' on method '" + methodName + "'",
@@ -179,6 +213,8 @@ public record MethodModel(
 
         List<NativeType> paramTypes = new ArrayList<>();
         List<String> paramStructSimpleNames = new ArrayList<>();
+        Set<Integer> wideStringParamIndices = new LinkedHashSet<>();
+        int paramIndex = 0;
         for (var param : method.getParameters()) {
             NativeType paramType = ModelUtil.classifyType(param.asType());
             String structSimpleName = null;
@@ -199,6 +235,64 @@ public record MethodModel(
             }
             paramTypes.add(paramType);
             paramStructSimpleNames.add(structSimpleName);
+            if (param.getAnnotation(WideString.class) != null) {
+                if (paramType != NativeType.STRING) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@WideString may only be applied to String parameters, got "
+                            + param.asType()
+                            + " on parameter '"
+                            + param.getSimpleName()
+                            + "'",
+                        param
+                    );
+                    return null;
+                }
+                wideStringParamIndices.add(paramIndex);
+            }
+            paramIndex++;
+        }
+
+        if (wideStringParamIndices.isEmpty() == false && unavailableOn.contains(Platform.WINDOWS_X64.name())) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@WideString on '" + methodName + "' is invalid: enclosing @LibrarySpecification lists WINDOWS_X64 in unavailableOn",
+                method
+            );
+            return null;
+        }
+
+        List<UpcallModel> upcalls = List.of();
+        List<Integer> upcallIndices = new ArrayList<>();
+        for (int i = 0; i < paramTypes.size(); i++) {
+            if (paramTypes.get(i) == NativeType.UPCALL) {
+                upcallIndices.add(i);
+            }
+        }
+
+        if (upcallIndices.isEmpty() == false) {
+            if (paramTypes.contains(NativeType.STRING)) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "Method '"
+                        + methodName
+                        + "' combines an @Upcall-typed parameter with a String parameter; this combination is "
+                        + "not supported",
+                    method
+                );
+                return null;
+            }
+            List<UpcallModel> builtUpcalls = new ArrayList<>();
+            for (int upcallParamIndex : upcallIndices) {
+                var param = method.getParameters().get(upcallParamIndex);
+                TypeElement upcallType = (TypeElement) ((DeclaredType) param.asType()).asElement();
+                UpcallModel upcallModel = UpcallModel.from(upcallParamIndex, upcallType, param, env.getTypeUtils(), messager);
+                if (upcallModel == null) {
+                    return null;
+                }
+                builtUpcalls.add(upcallModel);
+            }
+            upcalls = Collections.unmodifiableList(builtUpcalls);
         }
 
         boolean isCritical = method.getAnnotation(Critical.class) != null;
@@ -244,7 +338,9 @@ public record MethodModel(
             null,
             null,
             isProtected,
-            boundsChecks
+            boundsChecks,
+            upcalls,
+            Collections.unmodifiableSet(wideStringParamIndices)
         );
     }
 
@@ -369,7 +465,9 @@ public record MethodModel(
             structReturnSimpleName,
             packedElementSimpleName,
             isProtected,
-            List.of()
+            List.of(),
+            List.of(),
+            Set.of() // @StructFactory params cannot carry @WideString (enforced above before this call)
         );
     }
 

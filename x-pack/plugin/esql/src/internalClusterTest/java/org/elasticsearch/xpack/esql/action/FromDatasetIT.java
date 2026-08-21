@@ -3776,7 +3776,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private void registerReal(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
-        // Copy into the allowlisted temp dir the harness permits (esql.datasource.local_allowed_paths); the real
+        // Copy into the allowlisted temp dir the harness permits (esql.external.local_allowed_paths); the real
         // download lives outside it. One copy is shared across the three registrations via a per-test cache.
         if (realClickBenchLocal == null) {
             realClickBenchLocal = createTempDir().resolve("hits.parquet");

@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -451,7 +450,6 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             transformConfigManager,
             transformAuditor,
             transformConfig,
-            mock(CrossProjectModeDecider.class),
             initialDelay,
             hasProcessedData
         );

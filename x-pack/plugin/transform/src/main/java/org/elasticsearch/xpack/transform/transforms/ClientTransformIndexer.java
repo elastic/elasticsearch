@@ -32,7 +32,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -84,7 +83,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -100,7 +98,6 @@ class ClientTransformIndexer extends TransformIndexer {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
     private final boolean crossProjectEnabled;
-    private final Function<ProjectId, Boolean> hasLinkedProjects;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -163,7 +160,6 @@ class ClientTransformIndexer extends TransformIndexer {
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
         crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
-        this.hasLinkedProjects = transformServices.hasLinkedProjects();
     }
 
     Client wrappedClient() {
@@ -365,12 +361,26 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void validate(ActionListener<ValidateTransformAction.Response> listener) {
+        // Runtime validation runs the same source "test query" as the indexer search, so it must run under the same stored
+        // cloud credential; otherwise a cross-project source fails the test query with FORBIDDEN ("no cloud credential in
+        // thread context"). TransportValidateTransformAction derives both the wrapped client and cross-project resolution
+        // from request.cloudCredential(), so the credential has to travel on the request. Use toCloudCredential (not
+        // TransformCloudCredentialManager#cloudCredentialFromPersisted) because it reads the persisted credential eagerly
+        // into an owned copy and does NOT close the shared context credential that wrappedClient() reuses for every search.
+        var persistedCredential = context.getPersistedCloudCredential();
+        var request = new ValidateTransformAction.Request(
+            transformConfig,
+            false,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            persistedCredential == null ? null : credentialManager.toCloudCredential(persistedCredential)
+        );
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
-            new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            listener
+            request,
+            // Closes the request's owned CloudCredential copy once validation completes; the shared context credential is untouched.
+            ActionListener.releaseAfter(listener, request)
         );
     }
 
@@ -618,12 +628,13 @@ class ClientTransformIndexer extends TransformIndexer {
         ActionListener<Tuple<String, SearchRequest>> listener
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
-        // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
-        // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
+        // We explicitly disable PIT when the source can span clusters or projects due to huge PIT handles causing performance problems:
+        // remote clusters in the source (classic CCS), and any cross-project-search-enabled environment (CPS). We should not re-enable
+        // until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
         if (disablePit
             || searchRequest.indices().length == 0
             || transformConfig.getSource().requiresRemoteCluster()
-            || (crossProjectEnabled && hasLinkedProjects.apply(context.projectId()))) {
+            || crossProjectEnabled) {
             listener.onResponse(namedSearchRequest);
             return;
         }

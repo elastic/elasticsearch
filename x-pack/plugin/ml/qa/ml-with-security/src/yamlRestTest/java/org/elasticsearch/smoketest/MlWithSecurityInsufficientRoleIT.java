@@ -8,9 +8,11 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,6 +23,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 
 public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.create();
 
     private final ClientYamlTestCandidate testCandidate;
 
@@ -78,6 +83,11 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
                 );
             }
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override

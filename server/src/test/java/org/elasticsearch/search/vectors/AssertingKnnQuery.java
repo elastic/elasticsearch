@@ -124,7 +124,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     private final int numCandsParam;
     private final Query filter;
     private final float postFilterScale;
-    // candidatePoolK() = ceil(k * poolScale); 1.0f keeps k() == candidatePoolK(), the HNSW convention.
+    // candidatePoolSize() = ceil(k * poolScale); 1.0f keeps k() == candidatePoolSize(), the HNSW convention.
     private final float poolScale;
     private final boolean useRetrySeeds;
     private final PostFilterMeta postFilterMeta;
@@ -137,7 +137,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     /**
-     * Variant that decouples {@link #candidatePoolK()} from {@link #k()} (as IVF does, by expanding its own
+     * Variant that decouples {@link #candidatePoolSize()} from {@link #k()} (as IVF does, by expanding its own
      * pool) and can opt out of retry seeding (as IVF does, having no graph to seed).
      */
     AssertingKnnQuery(
@@ -301,7 +301,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     @Override
-    public int candidatePoolK() {
+    public int candidatePoolSize() {
         return Math.max(kParam, (int) Math.ceil(kParam * poolScale));
     }
 

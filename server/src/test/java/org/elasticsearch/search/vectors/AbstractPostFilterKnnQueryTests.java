@@ -388,10 +388,10 @@ abstract class AbstractPostFilterKnnQueryTests extends ESTestCase {
     }
 
     /**
-     * The retry round must aim for {@link PostFilterableKnnQuery#candidatePoolK()}, not the user's {@code k}:
+     * The retry round must aim for {@link PostFilterableKnnQuery#candidatePoolSize()}, not the user's {@code k}:
      * the pool is what the final scoring pass consumes, so stopping at {@code k} survivors starves it.
      * <p>
-     * 8 docs all passing, vectors 0..7. k=2 with poolScale=3 makes poolK=6; numCands=4 caps round 0 at 4
+     * 8 docs all passing, vectors 0..7. k=2 with poolScale=3 makes the candidate pool 6; numCands=4 caps round 0 at 4
      * candidates. 4 &ge; k, so a k-based retry decision would fire nothing at all - the discriminating
      * assertion here is that a retry fires, asking for the missing 6-4=2.
      */

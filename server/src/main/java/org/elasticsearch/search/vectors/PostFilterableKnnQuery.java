@@ -30,7 +30,7 @@ import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
  * {@link AbstractIVFKnnVectorQuery} (and its float/byte/sliced/diversifying subtypes).
  * <p>
  * Implementations differ in what {@link #k()} means, so the orchestrator never infers the candidate
- * pool from it: see {@link #candidatePoolK()} for the pool the orchestrator must fill and
+ * pool from it: see {@link #candidatePoolSize()} for the pool the orchestrator must fill and
  * {@link #finalizeTopK} for who owns the final (exact) scoring pass.
  */
 public interface PostFilterableKnnQuery {
@@ -166,7 +166,7 @@ public interface PostFilterableKnnQuery {
      * {@link #computeScaledK} to survive the filter, and - for engines that oversample internally - back down
      * so their own expansion lands on that number rather than multiplying it again. It already accounts for
      * the parent collapse on nested fields, so implementations must not re-derive it from {@link #k()} or
-     * {@link #candidatePoolK()}.
+     * {@link #candidatePoolSize()}.
      * <p>
      * A delegate over a nested field must <b>not</b> diversify by parent. Diversification keeps only the
      * best-scoring child per parent, and doing that before the filter runs discards a parent whose best child
@@ -216,7 +216,7 @@ public interface PostFilterableKnnQuery {
      * {@code rewrite} resolves each leaf, so the IVF value is a <em>target</em>, not a guarantee; it sizes
      * retention and the rescore input only, never correctness.
      */
-    default int candidatePoolK() {
+    default int candidatePoolSize() {
         return k();
     }
 

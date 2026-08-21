@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Contract tests for the {@link PostFilterableKnnQuery} factory methods on the IVF query tree
- * ({@code createPostFilterDelegate}, {@code createRetryQuery}, {@code candidatePoolK}), exercising the
+ * ({@code createPostFilterDelegate}, {@code createRetryQuery}, {@code candidatePoolSize}), exercising the
  * {@code withParams} respawn wiring directly without a diskbbq index so they pin the per-subtype
  * reconstruction (type, filter, scaled k/numCands, slice range, parents filter) independently of codec
  * behavior. End-to-end search behavior is covered by the diskbbq integration suite.
@@ -51,12 +51,12 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     private static final BytesRef SLICE_ID = new BytesRef("s1");
     // parentsFilter is only stored (never invoked) by these factory paths.
     private static final BitSetProducer PARENTS = context -> null;
-    // Non-calibrating resolver, mapping oversample 1.0 -> candidatePoolK() == k, so the delegate's k is the
+    // Non-calibrating resolver, mapping oversample 1.0 -> candidatePoolSize() == k, so the delegate's k is the
     // binomial target itself. testDelegateUndoesInternalOversampleExpansion covers oversample > 1.
     private static final IvfQueryConfigResolver RESOLVER = IvfQueryConfigResolver.from(false, false, 4, 1.0f, null);
 
     // Derivation for selectivity=0.5, k=10, numCands=20, oversample=1.0:
-    // candidatePoolK = shardMergeBudget(10, 1.0) = 10
+    // candidatePoolSize = shardMergeBudget(10, 1.0) = 10
     // zMargin = 2.5 * sqrt(10 * (1-0.5)/0.5) = 7.905
     // targetPool = clamp(ceil((10 + 7.905)/0.5)=36, ceil(10*1.2)=12, NUM_CANDS_LIMIT) = 36
     // delegateK = ceil(36 / 1.0) = 36
@@ -141,10 +141,10 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
     /**
      * Sizes the delegate the way {@link PostFilterKnnQuery} does for a flat field: the target pool is the
-     * query's own {@link AbstractIVFKnnVectorQuery#candidatePoolK()}, with no nested fanout applied.
+     * query's own {@link AbstractIVFKnnVectorQuery#candidatePoolSize()}, with no nested fanout applied.
      */
     private static Query delegateOf(AbstractIVFKnnVectorQuery original, float selectivity) {
-        return original.createPostFilterDelegate(selectivity, original.candidatePoolK());
+        return original.createPostFilterDelegate(selectivity, original.candidatePoolSize());
     }
 
     public void testCreatePostFilterDelegateIsFilterlessAndScaled() {
@@ -175,15 +175,15 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     }
 
     /**
-     * {@code candidatePoolK} reports the pool the query expands to internally, so the orchestrator can
+     * {@code candidatePoolSize} reports the pool the query expands to internally, so the orchestrator can
      * target it instead of guessing from {@code k}.
      */
     public void testCandidatePoolKReflectsDeclaredOversample() {
-        assertEquals("oversample 1.0 -> pool is k", K, plain().candidatePoolK());
+        assertEquals("oversample 1.0 -> pool is k", K, plain().candidatePoolSize());
 
         IvfQueryConfigResolver oversampling = IvfQueryConfigResolver.from(false, false, 1, 3.0f, null);
         IVFKnnFloatVectorQuery q = new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, oversampling);
-        assertEquals("oversample 3.0 -> pool is ceil(k*3)", 30, q.candidatePoolK());
+        assertEquals("oversample 3.0 -> pool is ceil(k*3)", 30, q.candidatePoolSize());
 
         IvfQueryConfigResolver queryOverride = IvfQueryConfigResolver.from(false, false, 1, 3.0f, 2.0f);
         IVFKnnFloatVectorQuery overridden = new IVFKnnFloatVectorQuery(
@@ -195,7 +195,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             VISIT_RATIO,
             queryOverride
         );
-        assertEquals("query-time oversample wins", 20, overridden.candidatePoolK());
+        assertEquals("query-time oversample wins", 20, overridden.candidatePoolSize());
     }
 
     /**

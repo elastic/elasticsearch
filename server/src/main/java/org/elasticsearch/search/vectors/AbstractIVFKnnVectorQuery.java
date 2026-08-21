@@ -49,7 +49,7 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
  * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
  * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}. The pool that
- * expansion produces is reported by {@link #candidatePoolK()}.
+ * expansion produces is reported by {@link #candidatePoolSize()}.
  */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
@@ -309,7 +309,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate);
 
     @Override
-    public int candidatePoolK() {
+    public int candidatePoolSize() {
         return IvfSegmentConfig.shardMergeBudget(k, ivfQueryConfigResolver.declaredRescoreOversample());
     }
 
@@ -335,29 +335,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity, int targetPool) {
-        // Two conversions: how many candidates to collect so that targetPool of them survive the filter, and
-        // then what k produces that many candidates.
+        // How many candidates to collect so that targetPool of them survive the filter.
         int poolToCollect = PostFilterableKnnQuery.computeScaledK(targetPool, filterSelectivity);
-        int delegateK = kProducingPoolOf(poolToCollect);
-        return withParams(null, delegateK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, delegateK), true);
-    }
-
-    /**
-     * The {@code k} to build a query with so that it ends up collecting about {@code poolSize} candidates.
-     * <p>
-     * An IVF query does not collect {@code k} candidates: it is constructed with the user's final {@code k}
-     * and grows its own pool from the segment's rescore oversample, so {@link #rewrite} collects
-     * {@code shardMergeBudget(k, oversample)} of them. Callers who know the pool size they want therefore
-     * cannot pass it as {@code k} - that would apply the oversample a second time. Dividing it out here is
-     * the inverse of {@link IvfSegmentConfig#shardMergeBudget}, so the expansion lands on {@code poolSize}.
-     */
-    private int kProducingPoolOf(int poolSize) {
-        // Floored at 1 exactly as shardMergeBudget floors it, so the two stay inverses of each other: an
-        // oversample below 1 never shrinks the pool below k, and so must not inflate k here either.
+        // Then back to a k. rewrite() does not collect k candidates: it expands k by the segment's rescore
+        // oversample first (IvfSegmentConfig#shardMergeBudget), because an IVF query is built with the user's
+        // final k and grows its own pool. So passing poolToCollect as k would apply the oversample a second
+        // time; dividing it out here makes that expansion land on poolToCollect. The oversample is floored at
+        // 1 exactly as shardMergeBudget floors it, so the two stay inverses of each other, and the result at
+        // 1 because the constructor rejects k < 1.
         float oversample = Math.max(1f, ivfQueryConfigResolver.declaredRescoreOversample());
-        int kBeforeExpansion = (int) Math.ceil(poolSize / oversample);
-        // The constructor rejects k < 1.
-        return Math.max(1, kBeforeExpansion);
+        int delegateK = Math.max(1, (int) Math.ceil(poolToCollect / oversample));
+        return withParams(null, delegateK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, delegateK), true);
     }
 
     @Override

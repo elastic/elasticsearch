@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
@@ -152,6 +153,128 @@ public class ColumnarStringBinaryDocValuesTests extends ColumnarStringTestCase {
 
     private interface SurfaceCheck {
         void check(ColumnarStringBinaryDocValues dv) throws IOException;
+    }
+
+    /**
+     * The ingest cursor over a foreign binary field: one value per document, the value being the bytes
+     * themselves, and every position it is asked for handed to the field it wraps.
+     */
+    public void testSingleValuesReadsTheBytesItIsGiven() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(20, 300)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = randomBoolean() ? null : new BytesRef(randomAlphaOfLengthBetween(0, 40));
+        }
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.singleValues(binaryOver(docValues));
+        assertEquals("cost", present(docValues), cursor.cost());
+        int seen = 0;
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            assertEquals("docID follows the field", doc, cursor.docID());
+            assertEquals("one value per document", 1, cursor.valueCount());
+            assertEquals("value at doc " + doc, docValues[doc], cursor.nextValue());
+            seen++;
+        }
+        assertEquals("documents with a value", present(docValues), seen);
+    }
+
+    /** The same cursor driven by {@code advance}, which ingest and merge never use. */
+    public void testSingleValuesAdvances() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(50, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = randomBoolean() ? null : new BytesRef("v" + d);
+        }
+        final StringColumnValues cursor = ColumnarStringBinaryDocValues.singleValues(binaryOver(docValues));
+        int target = 0;
+        while (target < docValues.length) {
+            final int expected = nextPresent(docValues, target);
+            final int landed = cursor.advance(target);
+            if (expected == DocIdSetIterator.NO_MORE_DOCS) {
+                assertEquals("past the last value", DocIdSetIterator.NO_MORE_DOCS, landed);
+                break;
+            }
+            assertEquals("advance(" + target + ")", expected, landed);
+            assertEquals("value at doc " + landed, docValues[landed], cursor.nextValue());
+            target = landed + 1;
+        }
+        assertEquals("past the end", DocIdSetIterator.NO_MORE_DOCS, cursor.advance(docValues.length));
+    }
+
+    /** The merge cursor over a written column, driven by {@code advance} rather than a walk. */
+    public void testDirectValuesAdvances() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(50, 400)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = randomBoolean() ? null : new BytesRef("v" + d);
+        }
+        withSurface(docValues, dv -> {
+            final StringColumnValues cursor = dv.directValues();
+            int target = 0;
+            while (target < docValues.length) {
+                final int expected = nextPresent(docValues, target);
+                final int landed = cursor.advance(target);
+                if (expected == DocIdSetIterator.NO_MORE_DOCS) {
+                    assertEquals("past the last value", DocIdSetIterator.NO_MORE_DOCS, landed);
+                    return;
+                }
+                assertEquals("advance(" + target + ")", expected, landed);
+                assertEquals("value count", 1, cursor.valueCount());
+                assertEquals("value at doc " + landed, docValues[landed], cursor.nextValue());
+                target = landed + 1;
+            }
+        });
+    }
+
+    /** Documents that have a value, which is what a cursor over the column walks. */
+    private static int present(BytesRef[] docValues) {
+        int count = 0;
+        for (BytesRef value : docValues) {
+            if (value != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** An in-memory binary field over {@code docValues}, standing in for one another format wrote. */
+    private static BinaryDocValues binaryOver(BytesRef[] docValues) {
+        return new BinaryDocValues() {
+            private int doc = -1;
+
+            @Override
+            public BytesRef binaryValue() {
+                return docValues[doc];
+            }
+
+            @Override
+            public boolean advanceExact(int target) {
+                doc = target;
+                return docValues[target] != null;
+            }
+
+            @Override
+            public int docID() {
+                return doc >= docValues.length ? NO_MORE_DOCS : doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                return advance(doc + 1);
+            }
+
+            @Override
+            public int advance(int target) {
+                for (doc = target; doc < docValues.length; doc++) {
+                    if (docValues[doc] != null) {
+                        return doc;
+                    }
+                }
+                doc = NO_MORE_DOCS;
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return present(docValues);
+            }
+        };
     }
 
     /** Writes {@code docValues} as a column, opens it at the binary surface, and runs {@code check} over it. */

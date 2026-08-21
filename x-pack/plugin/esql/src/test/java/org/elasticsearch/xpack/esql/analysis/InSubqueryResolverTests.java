@@ -1527,8 +1527,10 @@ public class InSubqueryResolverTests extends ESTestCase {
             VerificationException.class,
             () -> resolve("FROM main | WHERE CASE(abs(x) IN (FROM sub), true, false) == true")
         );
-        assertThat(e.getMessage(), containsString(
-            "Complicated IN subquery is not yet supported in Filter [WHERE CASE(abs(x) IN (FROM sub), true, false) == true]"));
+        assertThat(
+            e.getMessage(),
+            containsString("Complicated IN subquery is not yet supported in Filter [WHERE CASE(abs(x) IN (FROM sub), true, false) == true]")
+        );
     }
 
     public void testRejectsInSubqueryNestedInsideLambda() {
@@ -1993,8 +1995,10 @@ public class InSubqueryResolverTests extends ESTestCase {
             VerificationException.class,
             () -> resolve("FROM main | WHERE ((f1, f2) IN (FROM sub | KEEP f1, f2)) == true")
         );
-        assertThat(e.getMessage(), containsString(
-            "IN subquery is not supported within expression [((f1, f2) IN (FROM sub | KEEP f1, f2)) == true]"));
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not supported within expression [((f1, f2) IN (FROM sub | KEEP f1, f2)) == true]")
+        );
     }
 
     // ---- positive: synthetic constant aliases stay unique within one WHERE rewrite ----

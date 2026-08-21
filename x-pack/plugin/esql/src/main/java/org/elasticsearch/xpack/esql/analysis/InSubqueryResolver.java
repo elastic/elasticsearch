@@ -590,8 +590,7 @@ public class InSubqueryResolver {
         for (NamedExpression ne : aggregate.aggregates()) {
             if (ne instanceof Alias alias && alias.child() instanceof FilteredExpression filteredExpression) {
                 filteredExpression.delegate().forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
-                checkInSubqueryExpression(
-                    aggregate, filteredExpression.filter(), true, false, null, failures);
+                checkInSubqueryExpression(aggregate, filteredExpression.filter(), true, false, null, failures);
             } else {
                 ne.forEachDown(Expression.class, e -> rejectInSubquery(e, aggregate, failures));
             }
@@ -623,7 +622,8 @@ public class InSubqueryResolver {
         boolean rewriteCurrentInSubquery,
         boolean insideRewriteBoundary,
         Expression outerExpr,
-        Failures failures) {
+        Failures failures
+    ) {
         if (expr instanceof InSubquery || expr instanceof MultiColumnInSubquery) {
             if (rewriteCurrentInSubquery && insideRewriteBoundary == false) {
                 failures.add(fail(expr, "Complicated IN subquery is not yet supported in {} [{}]", plan.nodeName(), plan.sourceText()));

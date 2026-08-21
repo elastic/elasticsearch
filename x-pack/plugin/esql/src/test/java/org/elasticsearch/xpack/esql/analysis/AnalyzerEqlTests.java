@@ -107,6 +107,22 @@ public class AnalyzerEqlTests extends ESTestCase {
             .error("EQL missing_index \"process where true\"", containsString("Unknown index [missing_index]"));
     }
 
+    public void testMappedFieldCollidingWithSequenceSyntheticFails() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // A mapped field literally named _sequence collides with the sequence synthetic column; fail loud at analysis
+        // rather than emit two output columns of the same name (which a downstream KEEP/SORT could not disambiguate).
+        IndexResolution resolution = indexWith(
+            "eql_collide",
+            Map.of("_sequence", field("_sequence", KEYWORD), "name", field("name", KEYWORD))
+        );
+        analyzer().addIndex("eql_collide", resolution)
+            .error(
+                "EQL eql_collide \"sequence [process where true] [network where true]\"",
+                containsString("[_sequence] collides with the EQL command's reserved column")
+            );
+    }
+
     public void testUnconvertibleTypeBecomesUnsupportedColumn() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 

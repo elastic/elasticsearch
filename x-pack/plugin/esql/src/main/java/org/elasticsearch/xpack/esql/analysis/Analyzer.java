@@ -906,8 +906,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
-            List<Attribute> output = new ArrayList<>(mapped.size() + 3 + plan.metadataFields().size());
-            output.addAll(EqlRelation.syntheticColumns(plan.source(), mode));
+            List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), mode);
+            // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
+            // metadata column would produce two output columns of the same name. Values stay correct (the converter
+            // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
+            // loud here instead of emitting an ambiguous schema.
+            Set<String> reserved = new HashSet<>();
+            for (Attribute synthetic : synthetics) {
+                reserved.add(synthetic.name());
+            }
+            for (NamedExpression metadata : plan.metadataFields()) {
+                reserved.add(metadata.name());
+            }
+            for (Attribute attr : mapped) {
+                if (reserved.contains(attr.name())) {
+                    return unresolvedWith(
+                        plan,
+                        "mapped field [" + attr.name() + "] collides with the EQL command's reserved column of the same name"
+                    );
+                }
+            }
+            List<Attribute> output = new ArrayList<>(mapped.size() + synthetics.size() + plan.metadataFields().size());
+            output.addAll(synthetics);
             for (Attribute attr : mapped) {
                 output.add(gateUnconvertibleType(plan.source(), attr));
             }

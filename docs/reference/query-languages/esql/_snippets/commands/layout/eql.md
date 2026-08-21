@@ -56,8 +56,9 @@ mapped fields to identify the match each row belongs to:
 | `_sequence_stage` | `integer` | The stage index of this event within the match (`0`-based). |
 | `join_keys` | `keyword` | The join-key values shared by the match (multivalued). |
 
-Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. A field literally named
-`_sequence`, `_sequence_stage` or `join_keys` keeps its own value and does not collide with a synthetic.
+Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. A mapped field literally named
+`_sequence`, `_sequence_stage` or `join_keys` is rejected for a `sequence`/`sample` query, because it would
+collide with the synthetic column of the same name and make the output schema ambiguous.
 
 ### Coordinator-only execution
 

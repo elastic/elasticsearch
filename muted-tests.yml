@@ -492,3 +492,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testUnreferencedCommitsAreReleasedAfterRecovery
   issue: https://github.com/elastic/elasticsearch/issues/157299
+- class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
+  method: testFailedDeploymentStats
+  issue: https://github.com/elastic/elasticsearch/issues/157341

@@ -789,6 +789,12 @@ tests:
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
+  method: testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/157326
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
+  method: testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/157326
+- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
   method: testFromDatasetDeniedWithoutReadOnName
   issue: https://github.com/elastic/elasticsearch/issues/157335
 - class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT

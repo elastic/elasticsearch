@@ -408,6 +408,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preColumnarParse(BatchMappingContext context) {
+        // In TSDB mode, DocumentParserContext#routing() returns null so RoutingFieldMapper#preParse
+        // never adds the _routing field.
+        if (context.indexSettings().getMode().isTsdb()) {
+            return;
+        }
         final BytesRef[] routings = context.routings();
         if (routings == null) {
             return;

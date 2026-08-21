@@ -67,7 +67,7 @@ public class InvalidMappedField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) {
-        throw new UnsupportedOperationException("InvalidMappedField must never leave the coordinator");
+        throw new UnsupportedOperationException("InvalidMappedField [" + getName() + "] must never leave the coordinator");
     }
 
     public Set<DataType> types() {

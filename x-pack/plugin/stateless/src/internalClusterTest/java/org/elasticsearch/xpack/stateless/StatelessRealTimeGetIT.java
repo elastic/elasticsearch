@@ -434,8 +434,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
             }
         } finally {
             assertThat(finalRefreshFuture.actionGet(), nullValue()); // ensure all refreshes completed with no exception
-            // TODO: Actively deleting the index until ES-8407 is resolved
-            assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
         }
     }
 
@@ -551,8 +549,6 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         for (Thread thread : threads) {
             thread.join();
         }
-        // TODO: Actively deleting the index until ES-8407 is resolved
-        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testLiveVersionMapMemoryBytesUsed() throws Exception {

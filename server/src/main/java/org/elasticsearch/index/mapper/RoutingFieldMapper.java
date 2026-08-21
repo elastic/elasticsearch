@@ -27,7 +27,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -56,9 +55,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_routing";
     public static final String CONTENT_TYPE = "_routing";
-
-    public static final NodeFeature ROUTING_AS_DOC_VALUES = new NodeFeature("mapper.routing_as_doc_values");
-    public static final NodeFeature ROUTING_AS_DOC_VALUES_BY_DEFAULT = new NodeFeature("mapper.routing_as_doc_values_by_default");
 
     private static RoutingFieldMapper toType(FieldMapper in) {
         return (RoutingFieldMapper) in;
@@ -412,6 +408,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preColumnarParse(BatchMappingContext context) {
+        // In TSDB mode, DocumentParserContext#routing() returns null so RoutingFieldMapper#preParse
+        // never adds the _routing field.
+        if (context.indexSettings().getMode().isTsdb()) {
+            return;
+        }
         final BytesRef[] routings = context.routings();
         if (routings == null) {
             return;

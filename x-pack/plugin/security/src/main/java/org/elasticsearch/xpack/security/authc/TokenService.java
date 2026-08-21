@@ -339,7 +339,8 @@ public class TokenService {
      *                                for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
      *                              </ul>
      * @param tokenVersion          The version of the nodes with which these tokens will be compatible.
-     * @param authentication        The authentication object representing the user for which the tokens are created
+     * @param authentication        The authentication object representing the user for which the tokens are created.
+     *                              Service-account subjects are stored as-is (same as API keys).
      * @param originatingClientAuth The authentication object representing the client that called the related API
      * @param metadata              A map with metadata to be stored in the token document
      * @param listener              The listener to call upon completion with a {@link CreateTokenResult} containing the

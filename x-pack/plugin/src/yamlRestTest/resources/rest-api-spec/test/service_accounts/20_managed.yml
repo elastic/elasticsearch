@@ -31,6 +31,14 @@ setup:
             "cluster": ["manage_own_api_key"]
           }
 
+  - do:
+      security.put_role:
+        name: "managed_yaml_manage_token"
+        body: >
+          {
+            "cluster": ["manage_token", "monitor"]
+          }
+
 ---
 teardown:
   - do:
@@ -48,6 +56,20 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: worker_oauth
+        name: token-oauth
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_oauth
+        force: true
+        ignore: 404
+
+  - do:
       security.delete_managed_service_account:
         namespace: yaml_poc
         service: worker_1
@@ -62,6 +84,11 @@ teardown:
   - do:
       security.delete_role:
         name: "managed_yaml_api_key"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_manage_token"
         ignore: 404
 
 ---
@@ -225,3 +252,49 @@ teardown:
         Authorization: Bearer ${managed_service_token_recreated}
       security.authenticate: {}
   - match: { username: "yaml_poc/worker_1" }
+
+---
+"Test managed service account can mint an OAuth access token":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_oauth
+        body: >
+          {
+            "roles": ["managed_yaml_manage_token"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: worker_oauth
+        name: token-oauth
+  - is_true: created
+  - set: { "token.value": managed_oauth_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_oauth_service_token}
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: managed_oauth_access_token }
+  - match: { expires_in: 1200 }
+  - is_false: refresh_token
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_oauth_access_token}
+      security.authenticate: {}
+
+  - match: { username: "yaml_poc/worker_oauth" }
+  - match: { authentication_type: "token" }
+  - match: { roles: ["managed_yaml_manage_token"] }
+  - match: { metadata._managed_service_account: true }
+  - match: { "token.name": "token-oauth" }
+  - match: { "token.type": "_service_account_index" }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
@@ -25,10 +27,13 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
@@ -37,8 +42,12 @@ import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
@@ -153,6 +162,53 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest2, future2);
         assertThat(future2.actionGet().failures().isEmpty(), is(true));
         assertThat(cache.count(), equalTo(1));
+    }
+
+    public void testKibanaServiceAccountCanMintOAuthAccessToken() {
+        final CreateServiceAccountTokenRequest createServiceTokenRequest = new CreateServiceAccountTokenRequest(
+            "elastic",
+            "kibana",
+            "oauth-token-1"
+        );
+        final CreateServiceAccountTokenResponse createServiceTokenResponse = createServiceAccountManagerClient().execute(
+            CreateServiceAccountTokenAction.INSTANCE,
+            createServiceTokenRequest
+        ).actionGet();
+        final String serviceToken = createServiceTokenResponse.getValue().toString();
+
+        final CreateTokenResponse createTokenResponse = new CreateTokenRequestBuilder(createServiceAccountClient(serviceToken))
+            .setGrantType("client_credentials")
+            .get();
+        assertThat(createTokenResponse.getTokenString(), notNullValue());
+        assertThat(createTokenResponse.getExpiresIn(), notNullValue());
+        assertThat(createTokenResponse.getRefreshToken(), nullValue());
+
+        final AuthenticateResponse authenticateResponse = createServiceAccountClient(createTokenResponse.getTokenString()).execute(
+            AuthenticateAction.INSTANCE,
+            AuthenticateRequest.INSTANCE
+        ).actionGet();
+        final Authentication authentication = authenticateResponse.authentication();
+        assertThat(authentication.isServiceAccount(), is(true));
+        assertThat(authentication.isBuiltInServiceAccount(), is(true));
+        assertThat(authentication.getEffectiveSubject().getUser().principal(), equalTo("elastic/kibana"));
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD),
+            equalTo("oauth-token-1")
+        );
+        assertThat(
+            authentication.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD),
+            equalTo("index")
+        );
+    }
+
+    public void testFleetServerServiceAccountCannotMintOAuthAccessToken() {
+        final ElasticsearchSecurityException exception = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> new CreateTokenRequestBuilder(createServiceAccountClient()).setGrantType("client_credentials").get()
+        );
+        assertThat(exception.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(exception.getMessage(), containsString("unauthorized"));
+        assertThat(exception.getMessage(), not(containsString("OAuth2 token creation is not supported for service accounts")));
     }
 
     private Client createServiceAccountManagerClient() {

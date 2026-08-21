@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -336,6 +337,51 @@ public class TokenServiceTests extends ESTestCase {
             anotherService.tryAuthenticateToken(bearerToken, future);
             UserToken fromOtherService = future.get();
             assertAuthentication(authentication, fromOtherService.getAuthentication());
+        }
+    }
+
+    public void testCreateAndAuthenticateServiceAccountOAuth2Token() throws Exception {
+        TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
+        Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build(false);
+        assertThat(authentication.isServiceAccount(), is(true));
+        PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
+        Tuple<byte[], byte[]> newTokenBytes = tokenService.getRandomTokenBytes(false);
+        tokenService.createOAuth2Tokens(
+            newTokenBytes.v1(),
+            newTokenBytes.v2(),
+            authentication,
+            authentication,
+            Collections.emptyMap(),
+            tokenFuture
+        );
+        final String accessToken = tokenFuture.get().getAccessToken();
+        assertNotNull(accessToken);
+        assertNull(tokenFuture.get().getRefreshToken());
+        mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, false, null);
+
+        ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
+        requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + accessToken);
+
+        try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
+            PlainActionFuture<UserToken> future = new PlainActionFuture<>();
+            final SecureString bearerToken = Authenticator.extractBearerTokenFromHeader(requestContext);
+            tokenService.tryAuthenticateToken(bearerToken, future);
+            UserToken serialized = future.get();
+            Authentication recovered = serialized.getAuthentication();
+            assertThat(recovered.isServiceAccount(), is(true));
+            assertThat(
+                recovered.getEffectiveSubject().getUser().principal(),
+                equalTo(authentication.getEffectiveSubject().getUser().principal())
+            );
+            assertThat(
+                recovered.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD),
+                equalTo(authentication.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD))
+            );
+            assertThat(
+                recovered.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD),
+                equalTo(authentication.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD))
+            );
+            assertAuthentication(authentication, recovered);
         }
     }
 

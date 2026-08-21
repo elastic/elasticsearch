@@ -424,12 +424,13 @@ public final class Authentication implements ToXContentObject {
         );
     }
 
-    /** Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
-     * authenticating using the token credential.
+    /**
+     * Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
+     * authenticating using the token credential. Service-account and API key subjects are preserved as-is
+     * ({@link #isServiceAccount()} and {@link #isApiKey()} remain true).
      */
     public Authentication token() {
         assert false == isAuthenticatedInternally();
-        assert false == isServiceAccount();
         assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;

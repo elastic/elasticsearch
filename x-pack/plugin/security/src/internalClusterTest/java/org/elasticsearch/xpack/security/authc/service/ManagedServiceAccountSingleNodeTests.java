@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAcc
 import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -62,7 +64,9 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
@@ -71,6 +75,7 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
     private static final String MONITOR_ROLE = "managed_sa_monitor_role";
     private static final String API_KEY_ROLE = "managed_sa_api_key_role";
     private static final String GRANT_API_KEY_ROLE = "managed_sa_grant_api_key_role";
+    private static final String MANAGE_TOKEN_ROLE = "managed_sa_manage_token_role";
 
     private String serviceName;
     private String principal;
@@ -105,7 +110,12 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
             + GRANT_API_KEY_ROLE
             + ":\n"
             + "  cluster:\n"
-            + "    - 'grant_api_key'\n";
+            + "    - 'grant_api_key'\n"
+            + MANAGE_TOKEN_ROLE
+            + ":\n"
+            + "  cluster:\n"
+            + "    - 'manage_token'\n"
+            + "    - 'monitor'\n";
     }
 
     @Override
@@ -292,6 +302,38 @@ public class ManagedServiceAccountSingleNodeTests extends SecuritySingleNodeTest
 
         final SecureString newBearer = createManagedToken("token-after-recreate");
         authenticate(newBearer.toString());
+    }
+
+    public void testMintOAuthAccessTokenWithManageTokenPrivilege() {
+        putManagedAccount(MANAGE_TOKEN_ROLE);
+        final SecureString serviceToken = createManagedToken("token-oauth");
+
+        final CreateTokenResponse createTokenResponse = new CreateTokenRequestBuilder(bearerClient(serviceToken.toString())).setGrantType(
+            "client_credentials"
+        ).get();
+        assertThat(createTokenResponse.getTokenString(), notNullValue());
+        assertThat(createTokenResponse.getExpiresIn(), notNullValue());
+        assertThat(createTokenResponse.getRefreshToken(), nullValue());
+
+        final Authentication oauthAuthentication = authenticate(createTokenResponse.getTokenString());
+        assertThat(oauthAuthentication.isServiceAccount(), is(true));
+        assertThat(oauthAuthentication.isManagedServiceAccount(), is(true));
+        assertThat(oauthAuthentication.getEffectiveSubject().getUser().principal(), equalTo(principal));
+        assertThat(oauthAuthentication.getEffectiveSubject().getUser().roles(), arrayContainingInAnyOrder(MANAGE_TOKEN_ROLE));
+        assertHasClusterPrivilege(createTokenResponse.getTokenString(), "monitor", true);
+    }
+
+    public void testMintOAuthAccessTokenRequiresManageTokenPrivilege() {
+        putManagedAccount(MONITOR_ROLE);
+        final SecureString serviceToken = createManagedToken("token-no-oauth");
+
+        final ElasticsearchSecurityException exception = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> new CreateTokenRequestBuilder(bearerClient(serviceToken.toString())).setGrantType("client_credentials").get()
+        );
+        assertThat(exception.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(exception.getMessage(), containsString("unauthorized"));
+        assertThat(exception.getMessage(), not(containsString("OAuth2 token creation is not supported for service accounts")));
     }
 
     private Client securityAdminClient() {

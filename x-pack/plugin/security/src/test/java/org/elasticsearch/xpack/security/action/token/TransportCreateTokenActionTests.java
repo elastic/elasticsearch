@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.token;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -394,7 +393,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(authenticationService);
     }
 
-    public void testServiceAccountCannotCreateOAuthToken() throws Exception {
+    public void testServiceAccountCreatesOAuthTokenWithoutRefreshToken() throws Exception {
         final TokenService tokenService = new TokenService(
             SETTINGS,
             Clock.systemUTC(),
@@ -420,10 +419,17 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("client_credentials");
 
-        PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
-        action.doExecute(null, createTokenRequest, future);
-        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("OAuth2 token creation is not supported for service accounts"));
+        PlainActionFuture<CreateTokenResponse> tokenResponseFuture = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, tokenResponseFuture);
+        CreateTokenResponse createTokenResponse = tokenResponseFuture.get();
+        assertNull(createTokenResponse.getRefreshToken());
+        assertNotNull(createTokenResponse.getTokenString());
+
+        assertNotNull(idxReqReference.get());
+        Map<String, Object> sourceMap = idxReqReference.get().sourceAsMap();
+        assertNotNull(sourceMap);
+        assertNotNull(sourceMap.get("access_token"));
+        assertNull(sourceMap.get("refresh_token"));
     }
 
     private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {

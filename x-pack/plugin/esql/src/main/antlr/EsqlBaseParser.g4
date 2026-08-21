@@ -81,7 +81,7 @@ processingCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? dedupCommand
+    | dedupCommand
     | {this.isDevVersion()}? highlightCommand
     ;
 
@@ -398,7 +398,7 @@ lookupCommand
     ;
 
 dedupCommand
-    : DEV_DEDUP
+    : DEDUP
     ;
 
 highlightCommand

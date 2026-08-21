@@ -997,6 +997,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
   /**
+   * Enter a parse tree produced by the {@code logicalInMultiColumnSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code logicalInMultiColumnSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
+  /**
    * Enter a parse tree produced by the {@code isNull}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

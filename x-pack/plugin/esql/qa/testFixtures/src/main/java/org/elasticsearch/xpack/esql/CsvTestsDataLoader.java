@@ -342,6 +342,7 @@ public class CsvTestsDataLoader {
         new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
+        new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
         new TestDataset("flattened_keyed"),
@@ -360,6 +361,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json").withIndex("ts_window_nanos")
             .withTypeMapping(Map.of("@timestamp", "date_nanos")),
         new TestDataset("date_extract_fields", "mapping-date_extract_fields.json", "date_extract_fields.csv"),
+        new TestDataset("date_fn_fields", "mapping-date_fn_fields.json", "date_fn_fields.csv"),
         new TestDataset("trim_test")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 

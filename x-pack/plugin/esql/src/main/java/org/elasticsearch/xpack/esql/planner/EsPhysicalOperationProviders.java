@@ -14,7 +14,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -728,22 +727,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context,
         int maxPageSize
     ) {
-        Rounding.Prepared outputRounding = ts.outputTimeBucketRounding(context.foldCtx());
-        Rounding.Prepared internalRounding = ts.timeBucketRounding(context.foldCtx());
-        boolean needsOutputFiltering = aggregatorMode.isOutputPartial() == false
-            && outputRounding != null
-            && internalRounding != null
-            && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         var pragmas = context.queryPragmas();
         int targetChunkRows = pragmas.timeSeriesTargetChunkRows(plannerSettings.timeSeriesTargetChunkRows());
         return new TimeSeriesAggregationOperator.Factory(
-            internalRounding,
+            ts.timeBucketRounding(context.foldCtx()),
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            needsOutputFiltering ? outputRounding : null,
             targetChunkRows
         );
     }

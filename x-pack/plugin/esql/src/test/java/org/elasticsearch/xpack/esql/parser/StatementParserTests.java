@@ -1217,7 +1217,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedup() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
@@ -1225,33 +1224,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testDedupAfterProcessingCommands() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
         Dedup dedup = as(plan, Dedup.class);
         as(dedup.child(), Filter.class);
     }
 
     public void testDedupChained() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
         Limit limit = as(plan, Limit.class);
         as(limit.child(), Dedup.class);
     }
 
     public void testDedupOnRow() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
     }
 
     public void testDedupRejectsArguments() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
         expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
-    }
-
-    public void testDedupNotInReleaseBuild() {
-        assumeFalse("only runs on release build", Build.current().isSnapshot());
-        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
     }
 
     public void testHighlightOnFields() {
@@ -1340,9 +1330,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
               "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
-              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
-              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
-              "analyzer": "standard", "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US", "order": "score",
+              "analyzer": "standard", "max_analyzed_offset": 500 }""");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
     }
@@ -1353,6 +1342,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
             () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"bogus\": 1 }")
+        );
+    }
+
+    public void testHighlightRejectsMapOptionValue() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid value for option [pre_tags] in HIGHLIGHT, expected a constant, found [{ \"tag\": \"<b>\" }]"),
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"pre_tags\": { \"tag\": \"<b>\" } }")
         );
     }
 

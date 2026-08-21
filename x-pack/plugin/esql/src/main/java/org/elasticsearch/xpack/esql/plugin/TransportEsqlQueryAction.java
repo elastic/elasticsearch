@@ -565,7 +565,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             services.blockFactoryProvider().blockFactory(),
             services.plannerSettings().get()
         );
-        // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer
+        // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
         // (coordinator-only, distributed, subplan/fork) is covered uniformly. External-only queries carry no

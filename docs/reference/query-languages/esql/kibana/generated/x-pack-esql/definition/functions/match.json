@@ -16,7 +16,10 @@
           "name" : "query",
           "type" : "boolean",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -41,7 +44,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -66,7 +72,10 @@
           "name" : "query",
           "type" : "date",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -91,7 +100,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -116,7 +128,10 @@
           "name" : "query",
           "type" : "date_nanos",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -141,7 +156,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -166,7 +184,10 @@
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -191,7 +212,10 @@
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -216,7 +240,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -241,7 +268,10 @@
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -266,7 +296,10 @@
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -291,7 +324,10 @@
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -316,7 +352,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -341,7 +380,10 @@
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -366,7 +408,10 @@
           "name" : "query",
           "type" : "ip",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -391,7 +436,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -416,7 +464,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -441,7 +492,10 @@
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -466,7 +520,10 @@
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -491,7 +548,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -516,7 +576,10 @@
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -541,7 +604,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -566,7 +632,10 @@
           "name" : "query",
           "type" : "double",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -591,7 +660,10 @@
           "name" : "query",
           "type" : "integer",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -616,7 +688,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -641,7 +716,10 @@
           "name" : "query",
           "type" : "long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -666,7 +744,10 @@
           "name" : "query",
           "type" : "unsigned_long",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -691,7 +772,10 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",
@@ -716,7 +800,10 @@
           "name" : "query",
           "type" : "version",
           "optional" : false,
-          "description" : "Value to find in the provided field or expression."
+          "description" : "Value to find in the provided field or expression.",
+          "hint" : {
+            "kind" : "constant"
+          }
         },
         {
           "name" : "options",

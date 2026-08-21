@@ -1166,6 +1166,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterIsNull(EsqlBaseParser.IsNullContext ctx) { }
   /**
    * {@inheritDoc}

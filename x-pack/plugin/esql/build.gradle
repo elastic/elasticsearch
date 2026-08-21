@@ -67,6 +67,7 @@ dependencies {
   api project(":libs:h3")
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'com.google.re2j:re2j:1.8'
 
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")

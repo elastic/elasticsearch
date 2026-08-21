@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.shouldAddUnmappedFieldWithProbabilityIncrease;
 
@@ -74,10 +75,12 @@ public class DualModeFromGenerator extends FromGenerator {
         // cross-mode baseline, so canHaveSubquery in appendFromCommand will already be false.
         appendFromCommand(result, schema, executor, context, commandContext);
         String refCommand = result.toString();
-        // Derive the candidate command by replacing the reference prefix with the candidate
-        // prefix. This is safe because indexPattern() guarantees every index token in refCommand
-        // starts with refPrefix.
-        String candCommand = refCommand.replace(refPrefix, candPrefix);
+        // Derive the candidate command by replacing refPrefix with candPrefix only at the start
+        // of each index token (preceded by a comma or whitespace). This avoids incorrectly
+        // replacing a refPrefix that appears as a substring within a future dataset name
+        // (e.g. a dataset named "ref_data" would create a ref index "ref_ref_data", and a blanket
+        // replace would turn "ref_ref_data*" into "cand_cand_data*" instead of "cand_ref_data*").
+        String candCommand = refCommand.replaceAll("(?<=[,\\s])" + Pattern.quote(refPrefix), candPrefix);
         commandContext.put(MIRROR_COMMAND, candCommand);
         return new CommandDescription("from", this, refCommand, commandContext);
     }

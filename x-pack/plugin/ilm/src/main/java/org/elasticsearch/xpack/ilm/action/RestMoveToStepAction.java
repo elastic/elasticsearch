@@ -37,7 +37,7 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of("ilm_lookup_index_rejection");
+        return Set.of("lookup_index_not_managed");
     }
 
     @Override

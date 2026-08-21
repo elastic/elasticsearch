@@ -115,7 +115,7 @@ teardown:
       capabilities:
         - method: POST
           path: /_ilm/move/{name}
-          capabilities: [ ilm_lookup_index_rejection ]
+          capabilities: [ lookup_index_not_managed ]
       reason: "Lookup index rejection for ILM move_to_step was added in a later version"
 
   - do:

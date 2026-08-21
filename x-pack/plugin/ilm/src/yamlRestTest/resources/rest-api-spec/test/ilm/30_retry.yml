@@ -94,7 +94,7 @@ teardown:
       capabilities:
         - method: POST
           path: /{index}/_ilm/retry
-          capabilities: [ ilm_lookup_index_rejection ]
+          capabilities: [ lookup_index_not_managed ]
       reason: "Lookup index rejection for ILM retry was added in a later version"
 
   - do:

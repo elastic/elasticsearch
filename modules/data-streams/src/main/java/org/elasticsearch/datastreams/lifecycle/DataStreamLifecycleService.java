@@ -450,7 +450,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             // These are the pre-rollover write indices. They may or may not be the write index after maybeExecuteRollover has executed,
             // depending on rollover criteria, for this reason we exclude them for the remaining run.
-            // Lookup data streams are not rolled over — their write index is still excluded so lifecycle steps don't touch it either.
+            // Note: rollover is applied on data stream level, this is why we still need to check the index mode of the data stream
+            // and skip it if the mode is lookup.
             if (dataStream.getIndexMode() != IndexMode.LOOKUP) {
                 indicesToExcludeForRemainingRun.add(maybeExecuteRollover(project, dataStream, dataRetention, false));
             }

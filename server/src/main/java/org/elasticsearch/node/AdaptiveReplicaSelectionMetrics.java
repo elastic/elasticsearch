@@ -49,27 +49,21 @@ public class AdaptiveReplicaSelectionMetrics {
         );
     }
 
-    private static Collection<LongWithAttributes> toQueueSizeMetrics(
-        Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats
-    ) {
+    private static Collection<LongWithAttributes> toQueueSizeMetrics(Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats) {
         return nodeStats.entrySet()
             .stream()
             .map(e -> new LongWithAttributes(e.getValue().queueSize, Map.of(NODE_ID_ATTRIBUTE, e.getKey())))
             .toList();
     }
 
-    private static Collection<LongWithAttributes> toServiceTimeMetrics(
-        Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats
-    ) {
+    private static Collection<LongWithAttributes> toServiceTimeMetrics(Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats) {
         return nodeStats.entrySet()
             .stream()
             .map(e -> new LongWithAttributes((long) e.getValue().serviceTime, Map.of(NODE_ID_ATTRIBUTE, e.getKey())))
             .toList();
     }
 
-    private static Collection<LongWithAttributes> toResponseTimeMetrics(
-        Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats
-    ) {
+    private static Collection<LongWithAttributes> toResponseTimeMetrics(Map<String, ResponseCollectorService.ComputedNodeStats> nodeStats) {
         return nodeStats.entrySet()
             .stream()
             .map(e -> new LongWithAttributes((long) e.getValue().responseTime, Map.of(NODE_ID_ATTRIBUTE, e.getKey())))

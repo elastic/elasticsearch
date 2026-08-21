@@ -15,6 +15,7 @@ apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
 
 dependencies {
+  implementation project(':libs:lucene-store')
   implementation project(':libs:native')
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"

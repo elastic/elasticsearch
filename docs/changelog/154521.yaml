@@ -1,6 +1,0 @@
-area: Infra/Plugins
-issues: []
-pr: 154521
-summary: "[Fleet] Add `policy_base_id` field to fleet-agents and fleet-policies index\
-  \ templates"
-type: enhancement

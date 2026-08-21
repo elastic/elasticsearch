@@ -77,13 +77,27 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            // increase the socket timeout so it doesn't fire before the increased ensureGreen timeout below;
+            // waiting on cluster health after restoring/recovering the archived index can take longer than
+            // the default 30s/60s on busy/contended CI hosts (see ParameterizedRollingUpgradeTestCase).
+            .put(CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
     }
 
     @Override
     protected boolean skipSetupSections() {
         // setup in the YAML file is replaced by the method below
         return true;
+    }
+
+    @Override
+    protected String getEnsureGreenTimeout() {
+        // restoring a snapshot into a fresh cluster (and, after a restart, recovering it from disk) can take
+        // longer than the default 30s on busy/contended CI hosts; align with the timeout used by other
+        // BWC-style tests that wait on cluster health (see ParameterizedRollingUpgradeTestCase).
+        return "70s";
     }
 
     @Before

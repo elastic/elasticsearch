@@ -1628,7 +1628,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDoubleRangeUnsupportedOperations() {
-        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V5.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
@@ -4653,8 +4652,6 @@ public class VerifierTests extends ESTestCase {
             "123",
             containsString("Option [boundary_scanner_locale] must be a string")
         );
-        assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Option [boundary_chars] must be a string"));
-        assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Option [boundary_max_scan] must be numeric"));
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4669,7 +4666,6 @@ public class VerifierTests extends ESTestCase {
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));
-        assertInvalidHighlightOptionValue("boundary_max_scan", "-1", containsString("Option [boundary_max_scan] must be >= 0"));
         assertInvalidHighlightOptionValue(
             "max_analyzed_offset",
             "0",
@@ -4708,6 +4704,11 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT MATCH_PHRASE(title, \"quick fox\", {\"analyzer\": \"whitespace\"}) ON title"
                 + " WITH { \"analyzer\": \"whitespace\" }"
         );
+        // The default analyzer is registered as "standard", so nested full-text functions can select it by name.
+        fullText().query("FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title");
+        fullText().query(
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title WITH { \"analyzer\": \"standard\" }"
+        );
     }
 
     public void testHighlightAnalyzerOption() {
@@ -4724,6 +4725,13 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
+        );
+        // A non-string analyzer value is reported by option validation, and the query is still validated against the
+        // default analyzer so its error surfaces alongside it. Contrast with the unknown-but-valid-string analyzer case
+        // above, which returns early and suppresses the query error.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
+            allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
         );
     }
 
@@ -4753,11 +4761,10 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT category > 5 ON title",
             containsString("HIGHLIGHT query must be a full-text function (MATCH, MATCH_PHRASE, QSTR, KQL) or a boolean combination of them")
         );
-        // The runtime context registers only the highlight analyzer (under "default" and its own name), so a
-        // full-text function's analyzer option must name that analyzer; anything else is not resolvable.
+        // A nested full-text function must use the same analyzer as HIGHLIGHT.
         fullText().error(
-            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"standard\"}) ON title",
-            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [standard] not found"))
+            "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("[match] analyzer [whitespace] not found"))
         );
         fullText().error(
             "FROM test | HIGHLIGHT MATCH(title, \"fox\", {\"analyzer\": \"whitespace\"}) ON title WITH { \"analyzer\": \"keyword\" }",
@@ -4774,6 +4781,28 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // Reject field references outside ON while translating the query.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"title:fox\" ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"title:fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        // Report the first field outside ON.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));

@@ -27,7 +27,6 @@ import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCa
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 
 import java.io.IOException;
 
@@ -52,16 +51,12 @@ public class ES94ScalarQuantizedVectorsFormatTests extends BaseQuantizedKnnVecto
 
     private KnnVectorsFormat format;
 
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        int bits = randomFrom(1, 2, 4, 7);
-        format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
-        super.setUp();
-    }
-
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            int bits = randomFrom(1, 2, 4, 7);
+            format = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, bits, false);
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

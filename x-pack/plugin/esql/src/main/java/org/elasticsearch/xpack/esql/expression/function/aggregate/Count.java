@@ -120,6 +120,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "geo_point",
                 "geo_shape",
                 "geohash",

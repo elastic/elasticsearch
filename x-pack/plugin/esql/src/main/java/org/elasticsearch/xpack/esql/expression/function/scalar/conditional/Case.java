@@ -79,6 +79,7 @@ public final class Case extends EsqlScalarFunction {
             "date_range",
             "dense_vector",
             "double",
+            "double_range",
             "flattened",
             "geo_point",
             "geo_shape",
@@ -94,6 +95,8 @@ public final class Case extends EsqlScalarFunction {
             "unsigned_long",
             "version",
             "exponential_histogram" },
+        // Identity-return overloads omitted: the return type follows the first non-null value
+        // branch, so a fixed $N return reference cannot express it.
         briefSummary = "Returns the value for the first condition that evaluates to true.",
         description = """
             Accepts pairs of conditions and values. The function returns the value that
@@ -136,6 +139,7 @@ public final class Case extends EsqlScalarFunction {
                 "date_range",
                 "dense_vector",
                 "double",
+                "double_range",
                 "flattened",
                 "geo_point",
                 "geo_shape",
@@ -419,7 +423,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
+                driverContext.createWarningsTreatedAsFalse(conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

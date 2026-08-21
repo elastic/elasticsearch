@@ -1,5 +1,0 @@
-area: Distributed
-issues: []
-pr: 145628
-summary: '`IndicesClusterStateService#failedShardsCache` tracks primary term'
-type: bug

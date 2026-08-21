@@ -425,6 +425,44 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
+# Keep HIGHLIGHT before an EVAL that replaces the generated column.
+highlightEvalShadowsGeneratedColumn
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| EVAL highlight_title = CONCAT(book_no, "-shadowed")
+| SORT highlight_title ASC
+| LIMIT 10
+| KEEP book_no, highlight_title
+;
+
+book_no:keyword | highlight_title:keyword
+2714            | 2714-shadowed
+7350            | 7350-shadowed
+;
+
+
+# Keep HIGHLIGHT before an EVAL that replaces its ON field.
+highlightEvalShadowsOnField
+required_capability: highlight_v6
+
+FROM books
+| WHERE MATCH(title, "Return")
+| HIGHLIGHT "return" ON title
+| EVAL title = CONCAT("!", title)
+| SORT title ASC
+| LIMIT 10
+| KEEP book_no, title, highlight_title
+;
+
+book_no:keyword | title:keyword                                                      | highlight_title:keyword
+2714            | !Return of the King Being the Third Part of The Lord of the Rings | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+7350            | !Return of the Shadow                                              | <em>Return</em> of the Shadow
+;
+
+
 # The original field is preserved alongside the appended highlight_<field> column.
 highlightKeepsOriginalColumn
 required_capability: highlight_v6
@@ -565,20 +603,6 @@ null
 ;
 
 
-# boundary_chars, boundary_max_scan and phrase_limit are FastVectorHighlighter-only, so they are accepted but no-ops.
-highlightUnifiedNoOpOptions
-required_capability: highlight_v6
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "ring" ON content WITH { "boundary_chars": ".,!?", "boundary_max_scan": 10, "phrase_limit": 64 }
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-The One <em>Ring</em> was forged by Sauron.
-;
-
-
 # Unquoted adjacent terms wrap independently; use a quoted phrase for a single span.
 highlightAdjacentMatchesWrappedIndependently
 required_capability: highlight_v6
@@ -604,6 +628,34 @@ ROW content = "The quick brown fox jumps over the lazy dog."
 
 highlight_content:keyword
 The <em>quick brown fox</em> jumps over the lazy dog.
+;
+
+
+# A phrase must not match across a multi-value boundary.
+highlightPhraseDoesNotCrossMultiValueBoundary
+required_capability: highlight_v6
+
+ROW positions = ["Senior Team Lead", "Lead Architect"]
+| HIGHLIGHT "\"lead lead\"" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+null
+;
+
+
+# A phrase contained in one value still matches.
+highlightPhraseMatchesWithinSingleMultiValue
+required_capability: highlight_v6
+
+ROW positions = ["Senior Team Lead", "Principal Architect"]
+| HIGHLIGHT "\"team lead\"" ON positions
+| KEEP highlight_positions
+;
+
+highlight_positions:keyword
+Senior <em>Team Lead</em>
 ;
 
 
@@ -924,20 +976,6 @@ The One Ring was forged by Sauron in the fires of <em>Mount</em> Doom.
 ;
 
 
-# A term qualified on a different field parses but never highlights (require_field_match: true), yielding null.
-highlightFieldQualifiedTermYieldsNull
-required_capability: highlight_v6
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT "title:ring" ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-null
-;
-
-
 # Grouping with parentheses combines a disjunction and a required term; both matched terms are wrapped.
 highlightGrouping
 required_capability: highlight_v6
@@ -989,6 +1027,7 @@ book_no:keyword | highlight_title:keyword
 # query matches literal terms in the returned text. Only the row containing the literal term "prosper" is highlighted.
 highlightMatchOnSemanticText
 required_capability: highlight_v6
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE match(semantic_text_field, "prosper")
@@ -1007,6 +1046,7 @@ live long and prosper                                                 | live lon
 # MATCH_PHRASE on a semantic_text field also matches literal terms, wrapping the whole phrase in a single span.
 highlightMatchPhraseOnSemanticText
 required_capability: highlight_v6
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE match(semantic_text_field, "prosper")
@@ -1166,23 +1206,6 @@ book_no:keyword | highlight_title:keyword
 ;
 
 
-# A required KQL field outside ON prevents a highlight even when the ON field clause matches.
-highlightKqlRequiredFieldOutsideOnIsNull
-required_capability: highlight_v6
-
-FROM books
-| WHERE MATCH(title, "Return")
-| HIGHLIGHT KQL("title: return AND author: tolkien") ON title
-| KEEP book_no, highlight_title
-| SORT book_no
-;
-
-book_no:keyword | highlight_title:keyword
-2714            | null
-7350            | null
-;
-
-
 # QSTR default_field restricts an unqualified term to one ON field; the other ON field is left un-highlighted (null).
 highlightQueryStringDefaultField
 required_capability: highlight_v6
@@ -1243,21 +1266,6 @@ null                    | A wise <em>king</em> ruled
 ;
 
 
-# A term qualified on a field outside ON can never highlight (require_field_match parity), so the row is null.
-highlightQueryStringFieldQualifiedOutsideOnYieldsNull
-required_capability: highlight_v6
-required_capability: qstr_function
-
-ROW content = "The One Ring was forged by Sauron."
-| HIGHLIGHT QSTR("title:ring") ON content
-| KEEP highlight_content
-;
-
-highlight_content:keyword
-null
-;
-
-
 # A quoted phrase inside QSTR wraps the exact word sequence in a single span, like the literal-string phrase form.
 highlightQueryStringPhrase
 required_capability: highlight_v6
@@ -1285,6 +1293,20 @@ ROW content = "The One Ring was forged by Sauron."
 
 highlight_content:keyword
 <em>The</em> <em>One</em> <em>Ring</em> <em>was</em> <em>forged</em> <em>by</em> <em>Sauron</em>.
+;
+
+
+# KQL "f:*" is a FieldExistsQuery; it matches on FieldInfos, so the memory-index reader must see the row's fields.
+highlightKqlExistsClause
+required_capability: highlight_v6
+
+ROW content = "The quick brown fox jumps over the lazy dog."
+| HIGHLIGHT KQL("content:* AND content:fox") ON content
+| KEEP highlight_content
+;
+
+highlight_content:keyword
+The quick brown <em>fox</em> jumps over the lazy dog.
 ;
 
 
@@ -1822,4 +1844,19 @@ ROW title = to_text("A fox-like creature")
 
 highlight_title:keyword
 A <em>fox-like creature</em>
+;
+
+
+# The default analyzer is registered as "standard", so MATCH can select it by name.
+highlightAnalyzerMatchQueryWithDefaultStandardAnalyzer
+required_capability: highlight_v6
+required_capability: fn_match_runtime_analyzer
+
+ROW title = to_text("The Lord of the Rings")
+| HIGHLIGHT MATCH(title, "rings", { "analyzer": "standard" }) ON title
+| KEEP highlight_title
+;
+
+highlight_title:keyword
+The Lord of the <em>Rings</em>
 ;

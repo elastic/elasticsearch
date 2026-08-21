@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -51,7 +52,9 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
     private final Expression window, bucket, timestamp;
 
     public WindowFilter(Source source, Expression window, Expression bucket, Expression timestamp) {
-        super(source, List.of(window, bucket, timestamp));
+        // bucket is intentionally excluded from the children list so that optimizer rewrites on children
+        // cannot replace it with an Attribute, preserving the Bucket instance that toEvaluator() casts.
+        super(source, List.of(window, timestamp));
         this.window = window;
         this.bucket = bucket;
         this.timestamp = timestamp;
@@ -101,7 +104,7 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new WindowFilter(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new WindowFilter(source(), newChildren.get(0), bucket, newChildren.get(1));
     }
 
     @Override
@@ -134,6 +137,20 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
             driverContext -> new LongLongHashMap(),
             timestampFactory
         );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), bucket);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        WindowFilter other = (WindowFilter) obj;
+        return Objects.equals(bucket, other.bucket);
     }
 
     @Override

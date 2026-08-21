@@ -39,14 +39,14 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
     /**
      * Creates a dense {@link LuceneLongColumn}: every document from {@code 0} to
-     * {@code values.length / 8 - 1} has a value. The byte array is interpreted as little-endian
+     * {@code values.length / 8 - 1} has a value. The buffer is interpreted as little-endian
      * 64-bit longs, one per document.
      */
-    public static LuceneLongColumn longColumn(byte[] values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
+    public static LuceneLongColumn longColumn(BytesRef values, String name, IndexableFieldType fieldType, LongColumn.NumericKind kind) {
         assert values.length % 8 == 0;
         int rowCount = values.length / 8;
-        EscfLongColumn column = new EscfLongColumn(rowCount, null, new BytesArray(values));
-        return new LuceneLongColumn(column, name, fieldType, Density.DENSE, kind);  // always dense: no validity
+        EscfLongColumn column = new EscfLongColumn(rowCount, null, new BytesArray(values.bytes, values.offset, values.length));
+        return new LuceneLongColumn(column, name, fieldType, Density.DENSE, kind);
     }
 
     /**

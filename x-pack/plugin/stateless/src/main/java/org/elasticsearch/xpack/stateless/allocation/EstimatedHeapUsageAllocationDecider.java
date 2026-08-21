@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.allocation;
 
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeHeapMetrics;
 import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 
 /**
  * An allocation decider that prevents shard allocation to index nodes where the estimated total JVM heap usage
@@ -54,49 +54,31 @@ public class EstimatedHeapUsageAllocationDecider extends AbstractEstimatedHeapAl
         Setting.Property.NodeScope
     );
 
-    private volatile boolean enabled;
-    private volatile boolean highWatermarkEnabled;
-    private volatile RatioValue estimatedHeapLowWatermark;
-    private volatile RatioValue estimatedHeapHighWatermark;
+    private final EstimatedHeapSettings estimatedHeapSettings;
 
-    public EstimatedHeapUsageAllocationDecider(ClusterSettings clusterSettings) {
+    public EstimatedHeapUsageAllocationDecider(EstimatedHeapSettings estimatedHeapSettings, ClusterSettings clusterSettings) {
         super(NAME, DESCRIPTION, clusterSettings);
-        clusterSettings.initializeAndWatch(
-            InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED,
-            value -> enabled = value
-        );
-        clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
-            value -> highWatermarkEnabled = value
-        );
-        clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_LOW_WATERMARK,
-            value -> estimatedHeapLowWatermark = value
-        );
-        clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK,
-            value -> estimatedHeapHighWatermark = value
-        );
+        this.estimatedHeapSettings = estimatedHeapSettings;
     }
 
     @Override
     protected boolean isEnabled() {
-        return enabled;
+        return estimatedHeapSettings.enabled();
     }
 
     @Override
     protected double getLowWatermarkPercent() {
-        return estimatedHeapLowWatermark.getAsPercent();
+        return estimatedHeapSettings.lowWatermarkPercent();
     }
 
     @Override
     protected double getHighWatermarkPercent() {
-        return estimatedHeapHighWatermark.getAsPercent();
+        return estimatedHeapSettings.highWatermarkPercent();
     }
 
     @Override
     protected boolean isHighWatermarkEnabled() {
-        return highWatermarkEnabled;
+        return estimatedHeapSettings.highWatermarkEnabled();
     }
 
     @Override

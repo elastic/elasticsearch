@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.logging.activity.QueryLogger;
@@ -555,8 +556,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        var result = versionedResult.inner();
-        // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer
+        var rawResult = versionedResult.inner();
+        // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e., unmapped_fields="LOAD_ALL").
+        // expand() preserves completionInfo/executionInfo, so the partial-marking below applies to the expanded result.
+        var result = ExpandUnmappedFieldsPostProcessor.expand(
+            rawResult,
+            services.blockFactoryProvider().blockFactory(),
+            services.plannerSettings().get()
+        );
+        // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
         // (coordinator-only, distributed, subplan/fork) is covered uniformly. External-only queries carry no
@@ -566,6 +574,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             if (result.executionInfo() != null) {
                 result.executionInfo().markPartial();
             }
+        }
+        /*
+         * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
+         * for render.
+         */
+        for (String warning : result.completionInfo().warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;

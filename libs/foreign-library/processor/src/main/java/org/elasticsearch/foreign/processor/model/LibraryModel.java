@@ -13,9 +13,12 @@ import org.elasticsearch.foreign.DefaultMethodHandleResolver;
 import org.elasticsearch.foreign.DefaultSymbolResolver;
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.MethodHandleResolver;
+import org.elasticsearch.foreign.Platform;
 import org.elasticsearch.foreign.SymbolResolver;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -47,7 +50,7 @@ import javax.tools.Diagnostic.Kind;
  * @param libraryName the native library name from {@code @LibrarySpecification.name()} (may be empty)
  * @param methods all native methods in declaration order
  * @param unavailableOn enum constant names of platforms where this library is unavailable (empty means available everywhere)
- * @param structs all {@code @StructSpecification} types enclosed in this interface, in declaration order
+ * @param structs every {@code @StructSpecification} type enclosed in this interface, in declaration order
  * @param symbolResolverClassName fully-qualified name of the {@link SymbolResolver} implementation
  *        (defaults to {@code org.elasticsearch.foreign.DefaultSymbolResolver})
  * @param methodHandleResolverClassName fully-qualified name of the {@link MethodHandleResolver} implementation
@@ -67,14 +70,12 @@ public record LibraryModel(
     boolean isAbstractClass
 ) {
 
-    /** All known platform names — used to detect a library that can never be natively loaded. */
-    private static final Set<String> ALL_PLATFORM_NAMES = Set.of(
-        "LINUX_X64",
-        "LINUX_AARCH64",
-        "DARWIN_X64",
-        "DARWIN_AARCH64",
-        "WINDOWS_X64"
-    );
+    /**
+     * All known platform names in {@link Platform} enum (ordinal) order — used to detect a library
+     * that can never be natively loaded, and as the canonical iteration order for the supported
+     * platform set so generated output is deterministic. Derived from the enum so it stays in sync.
+     */
+    private static final List<String> ALL_PLATFORM_NAMES = Arrays.stream(Platform.values()).map(Enum::name).toList();
 
     public static final String SYMBOL_RESOLVER_INTERFACE_FQN = SymbolResolver.class.getName();
     public static final String DEFAULT_SYMBOL_RESOLVER_FQN = DefaultSymbolResolver.class.getName();
@@ -124,13 +125,16 @@ public record LibraryModel(
 
         boolean hasError = false;
         if (unavailableOn.containsAll(ALL_PLATFORM_NAMES)) {
+            // No supported platforms means no layout can be resolved, so bail out before parsing
+            // structs (which would otherwise operate over an empty platform set). This is an
+            // invalid specification, not a degraded-but-usable one.
             messager.printMessage(
                 Kind.ERROR,
                 "@LibrarySpecification.unavailableOn lists all known platforms; the library will never be natively loaded",
                 element,
                 specMirror
             );
-            hasError = true;
+            return null;
         }
 
         String symbolResolverClassName = resolveAndValidateSymbolResolver(element, messager, env.getTypeUtils(), packageName);
@@ -147,6 +151,10 @@ public record LibraryModel(
             messager.printMessage(Kind.ERROR, "@LibrarySpecification abstract class must have a callable no-arg constructor", element);
             hasError = true;
         }
+
+        // Compute the set of platforms this library is available on.
+        Set<String> supportedPlatforms = new LinkedHashSet<>(ALL_PLATFORM_NAMES);
+        supportedPlatforms.removeAll(unavailableOn);
 
         // First pass: collect struct specifications in declaration order
         List<StructModel> structs = new ArrayList<>();
@@ -178,8 +186,8 @@ public record LibraryModel(
             }
 
             StructModel structModel = kind == ElementKind.RECORD
-                ? StructSpecParser.fromRecord(typeElement, messager)
-                : StructSpecParser.fromInterface(typeElement, structSimpleNames, env, messager);
+                ? StructSpecParser.fromRecord(typeElement, supportedPlatforms, messager)
+                : StructSpecParser.fromInterface(typeElement, structSimpleNames, supportedPlatforms, unavailableOn, env, messager);
             if (structModel == null) {
                 hasError = true;
             } else {
@@ -207,7 +215,7 @@ public record LibraryModel(
                 }
             }
 
-            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames);
+            MethodModel methodModel = MethodModel.from(method, env, structSimpleNames, unavailableOn);
             if (methodModel == null) {
                 hasError = true;
             } else {

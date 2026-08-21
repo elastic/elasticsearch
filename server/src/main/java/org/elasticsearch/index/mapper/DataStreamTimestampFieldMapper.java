@@ -285,16 +285,14 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // postParse is a no-op when disabled (the common case for non-data-stream indices).
-        // The enabled case validates @timestamp against the index's time bounds, which requires
-        // reading the value a columnar @timestamp field mapper recorded — not yet supported.
-        return enabled == false;
+        return true;
     }
 
     @Override
     public void postColumnarParse(BatchMappingContext context) throws IOException {
         super.postColumnarParse(context);
-        // TODO: Implement validation and enable this mapper once we can map timetstamps
+        // TODO(columnar): validate timestamp bounds and missing-@timestamp here once
+        // BatchMappingContext exposes the mapped timestamp column.
     }
 
     @Override

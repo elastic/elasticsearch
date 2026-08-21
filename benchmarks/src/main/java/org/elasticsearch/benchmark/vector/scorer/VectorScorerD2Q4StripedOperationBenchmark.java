@@ -76,7 +76,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
 
     // dataset: numVectors * docBytes laid out contiguously in native memory
     private MemorySegment dataset;
-    // query: queryBytes (4 bit-planes back-to-back, produced by transposeHalfByte-style packing)
+    // query: queryBytes (4 bit-planes back-to-back, produced by strided bit packing)
     private MemorySegment query;
     // shuffled ordinals for the random-access offsets path
     private int[] ordinals;
@@ -95,7 +95,7 @@ public class VectorScorerD2Q4StripedOperationBenchmark {
         private final byte[] packedQuery;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
             packedDocs = new byte[numVectors][];
             byte[] unpackedDoc = new byte[dims];
             for (int v = 0; v < numVectors; v++) {

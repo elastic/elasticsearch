@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
@@ -31,7 +32,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -62,8 +62,7 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private ClusterSettings clusterSettings;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initTaskQueueAndClusterService() throws Exception {
         taskQueue = new DeterministicTaskQueue();
         taskQueue.runTasksUpToTimeInOrder(System.currentTimeMillis());
         clusterSettings = createClusterSettings(Settings.EMPTY);
@@ -71,9 +70,8 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeClusterService() throws Exception {
         clusterService.close();
-        super.tearDown();
     }
 
     public void testDurationBelowMinimumRejected() {
@@ -254,7 +252,11 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
 
     private PinnedWindowEvictionPolicy fixedTimePolicy(long now, TimeValue pinnedWindowDuration, ShardId... presentShardIds) {
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
-        return new FixedTimePinnedWindowEvictionPolicy(clusterService.threadPool(), hasShardPredicate, now, pinnedWindowDuration);
+        return new PinnedWindowEvictionPolicy(
+            createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration),
+            TimeProviderUtils.create(() -> now),
+            hasShardPredicate
+        );
     }
 
     private static boolean canEvict(PinnedWindowEvictionPolicy policy, CacheRegion<FileCacheKey> region) {
@@ -270,25 +272,6 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     private static IndicesService mockIndicesService(ClusterService clusterService, ShardId... presentShardIds) {
         final Predicate<ShardId> hasShardPredicate = Set.copyOf(Arrays.asList(presentShardIds))::contains;
         return TestUtils.mockIndicesService(clusterService, hasShardPredicate);
-    }
-
-    private static final class FixedTimePinnedWindowEvictionPolicy extends PinnedWindowEvictionPolicy {
-        private final long fixedCurrentTimeMillis;
-
-        FixedTimePinnedWindowEvictionPolicy(
-            ThreadPool threadPool,
-            Predicate<ShardId> hasShardPredicate,
-            long fixedCurrentTimeMillis,
-            TimeValue pinnedWindowDuration
-        ) {
-            super(createClusterSettingsWithPinnedWindowDuration(pinnedWindowDuration), threadPool, hasShardPredicate);
-            this.fixedCurrentTimeMillis = fixedCurrentTimeMillis;
-        }
-
-        @Override
-        protected long currentTimeMillis() {
-            return fixedCurrentTimeMillis;
-        }
     }
 
     private static ClusterSettings createClusterSettingsWithPinnedWindowDuration(TimeValue pinnedWindowDuration) {
@@ -322,8 +305,10 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
         Set<Setting<?>> settingsSet = Sets.newHashSet(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsSet.add(PINNED_WINDOW_DURATION_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING);
+        settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING);
         settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING);
+        settingsSet.add(StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING);
         return new ClusterSettings(settings, settingsSet);
     }
 
@@ -363,11 +348,13 @@ public class PinnedWindowEvictionPolicyTests extends ESTestCase {
     ) {
         var key = new FileCacheKey(shardId, 1L, fileName);
         long fileLength = randomLongBetween(1, regionSizeInBytes - 1L);
-        if (timestampMillis == null) {
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, fileLength, 0);
-        } else {
-            SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, fileLength, 0, timestampMillis);
-        }
+        SharedBlobCacheServiceTestUtils.cacheRegion(
+            cacheService,
+            key,
+            fileLength,
+            0,
+            timestampMillis == null ? SharedBlobCacheService.UNKNOWN_TIMESTAMP : timestampMillis
+        );
     }
 
     private static long countCachedRegionsWithFilePrefix(

@@ -345,7 +345,14 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         // Relocate the shard
         final RoutingNodes routingNodes = startedState.getRoutingNodes().mutableCopy();
-        routingNodes.relocateShard(onlyShard, otherNode.getId(), randomNegativeLong(), "relocate", RoutingChangesObserver.NOOP);
+        routingNodes.relocateShard(
+            onlyShard,
+            otherNode.getId(),
+            randomNegativeLong(),
+            "relocate",
+            RoutingChangesObserver.NOOP,
+            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+        );
         final GlobalRoutingTable globalRoutingTable = startedState.globalRoutingTable().rebuild(routingNodes, startedState.metadata());
         final ClusterState relocatingState = ClusterState.builder(startedState).routingTable(globalRoutingTable).incrementVersion().build();
 
@@ -525,6 +532,76 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(perNodeMemoryMetrics.get(node0.getId()).hostedShardsHeapUsage(), equalTo(node0HostedShardsAfterBothUpdates));
             assertThat(perNodeMemoryMetrics.get(node1.getId()).hostedShardsHeapUsage(), equalTo(node1HostedShardsAfterBothUpdates));
         }
+    }
+
+    /**
+     * Parity guard for {@link StatelessMemoryMetricsService#estimateNodeHeapUsage}, which the recovery gate uses for a node's
+     * self-estimate. For a single index node with no master-only publications, the master's per-node estimate reduces to the same
+     * terms (the cross-node max postings equals the node's own postings), so the two must agree to the byte
+     */
+    public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimate() {
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(false);
+    }
+
+    /**
+     * Same parity with the adaptive per-shard estimate (segments, fields, live docs, points), which is what serverless configures
+     * instead of the fixed default.
+     */
+    public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimateAdaptiveOverhead() {
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true);
+    }
+
+    private void runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(boolean adaptiveShardOverhead) {
+        if (adaptiveShardOverhead) {
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                    .put(
+                        StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(),
+                        randomBoolean()
+                    )
+                    .build()
+            );
+        }
+
+        final ClusterState clusterState = randomInitialSingleNodeClusterState(between(1, 4));
+        final DiscoveryNode node0 = clusterState.nodes().get("node_0");
+        service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
+        final Map<ShardId, ShardMappingSize> shardMappingSizes = randomMemoryMetrics(node0, clusterState);
+        service.updateShardsMappingSize(new HeapMemoryUsage(1, shardMappingSizes));
+
+        final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
+        final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
+        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(totalIndices, 0L, 0L, shardMappingSizes);
+        assertThat(localEstimate, equalTo(masterEstimate));
+
+        // The node-level signals are additive on the total only and do not leak into the hosted-shards estimate
+        final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
+        final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
+        final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
+            totalIndices,
+            largeIndexingOpsHeap,
+            mergeMemoryEstimate,
+            shardMappingSizes
+        );
+        assertThat(withNodeSignals.totalHeapUsage(), equalTo(localEstimate.totalHeapUsage() + largeIndexingOpsHeap + mergeMemoryEstimate));
+        assertThat(withNodeSignals.hostedShardsHeapUsage(), equalTo(localEstimate.hostedShardsHeapUsage()));
+    }
+
+    private ClusterState randomInitialSingleNodeClusterState(int numberOfIndices) {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node_0"))
+            .localNodeId("node_0")
+            .masterNodeId("node_0")
+            .build();
+        String[] indices = IntStream.range(0, numberOfIndices).mapToObj(i -> randomIdentifier()).toArray(String[]::new);
+        Tuple<ProjectMetadata.Builder, RoutingTable.Builder> projectAndRt = ClusterStateCreationUtils
+            .projectWithAssignedPrimariesAndReplicas(ProjectId.DEFAULT, indices, between(1, 3), 0, discoveryNodes);
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(discoveryNodes)
+            .routingTable(GlobalRoutingTable.builder().put(ProjectId.DEFAULT, projectAndRt.v2()).build())
+            .metadata(Metadata.builder().put(projectAndRt.v1()))
+            .build();
     }
 
     private ClusterState randomInitialTwoNodeClusterState(int numberOfIndices) {

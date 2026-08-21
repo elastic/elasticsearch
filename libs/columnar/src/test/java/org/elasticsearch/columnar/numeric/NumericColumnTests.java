@@ -12,17 +12,23 @@ package org.elasticsearch.columnar.numeric;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
+import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
 
 /**
  * End-to-end round-trip of numeric columns through a {@link Directory}, single- and multi-valued in
@@ -102,6 +108,49 @@ public class NumericColumnTests extends ESTestCase {
         }
     }
 
+    public void testLargeNumValuesMetadataRoundTrips() throws IOException {
+        final long numValues = randomLongBetween((long) Integer.MAX_VALUE + 1, (long) Integer.MAX_VALUE * 2);
+        final int blockSize = randomValidBlockSize();
+        final int numDocsWithField = between(1, 10);
+
+        // NOTE: OFFSET_DENSE avoids writing a sparse-iterator data structure; OFFSET_EMPTY would
+        // trigger an early return in writeTo that skips numValues encoding entirely.
+        final ColumnIteratorMetadata iteratorMeta = new ColumnIteratorMetadata(
+            ColumnIteratorMetadata.OFFSET_DENSE,
+            0L,
+            (short) -1,
+            (byte) -1,
+            numDocsWithField,
+            numDocsWithField
+        );
+        final NumericColumnMetadata meta = new NumericColumnMetadata(
+            iteratorMeta,
+            numDocsWithField,
+            numValues,
+            blockSize,
+            BlockBytesCodec.IDENTITY_ID,
+            ForTerminal.ID,
+            new byte[] { DeltaTransform.ID },
+            0L,
+            0L,
+            0L,
+            new byte[0],
+            0L,
+            0L,
+            new byte[0],
+            null
+        );
+
+        final byte[] buf = new byte[256];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buf);
+        meta.writeTo(out);
+        final ByteArrayDataInput in = new ByteArrayDataInput(buf, 0, out.getPosition());
+        final NumericColumnMetadata roundTripped = NumericColumnMetadata.readFrom(in, numDocsWithField, FormatVersion.CURRENT);
+
+        assertEquals(numValues, roundTripped.numValues());
+        assertEquals((numValues + blockSize - 1) / blockSize, roundTripped.numBlocks());
+    }
+
     private void assertColumn(long[][] docValues) throws IOException {
         int numDocsWithField = 0;
         int numValues = 0;
@@ -118,13 +167,13 @@ public class NumericColumnTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             NumericColumnMetadata written;
             try (IndexOutput out = dir.createOutput("num.cnd", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(out, "ColumnarNumericData", segmentId, "");
+                ColumnarCodecUtil.writeHeader(out, "ColumNARData", FormatVersion.CURRENT, segmentId, "");
                 written = NumericColumnWriter.write(
                     maxDoc,
                     numDocsWithField,
                     numValues,
                     () -> cursor(docValues),
-                    NumericPipeline.defaultPipeline(NumericColumnWriter.BLOCK_SIZE),
+                    NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
                     dir,
@@ -135,29 +184,24 @@ public class NumericColumnTests extends ESTestCase {
             }
 
             try (IndexOutput meta = dir.createOutput("num.cnm", IOContext.DEFAULT)) {
-                ColumnarCodecUtil.writeHeader(meta, "ColumnarNumericMeta", segmentId, "");
+                ColumnarCodecUtil.writeHeader(meta, "ColumNARMeta", FormatVersion.CURRENT, segmentId, "");
                 written.writeTo(meta);
                 ColumnarCodecUtil.writeFooter(meta);
             }
 
-            NumericColumnMetadata read;
-            try (ChecksumIndexInput meta = dir.openChecksumInput("num.cnm")) {
-                ColumnarCodecUtil.checkHeader(meta, "ColumnarNumericMeta", segmentId, "");
-                read = NumericColumnMetadata.readFrom(meta, maxDoc);
-                ColumnarCodecUtil.checkFooter(meta);
-            }
+            final NumericColumnMetadata read = readNumericMeta(dir, "num.cnm", segmentId, maxDoc);
             assertEquals(numValues > numDocsWithField, read.multiValued());
 
             try (IndexInput data = dir.openInput("num.cnd", IOContext.DEFAULT)) {
                 CodecUtil.checksumEntireFile(data);
-                ColumnarCodecUtil.checkHeader(data, "ColumnarNumericData", segmentId, "");
+                ColumnarCodecUtil.checkHeader(data, "ColumNARData", segmentId, "");
                 NumericColumnReader reader = new NumericColumnReader(read, data);
 
                 ColumnIterator iterator = reader.iterator();
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
                     int rank = iterator.index();
-                    int first = reader.firstOrdinal(rank);
-                    int count = reader.valueCount(rank);
+                    long first = reader.firstOrdinal(rank);
+                    long count = reader.valueCount(rank);
                     assertEquals("value count at doc " + doc, docValues[doc].length, count);
                     for (int i = 0; i < count; i++) {
                         // exact written order, never sorted
@@ -211,4 +255,5 @@ public class NumericColumnTests extends ESTestCase {
             }
         };
     }
+
 }

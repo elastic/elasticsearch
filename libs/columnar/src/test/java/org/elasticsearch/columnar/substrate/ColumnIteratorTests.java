@@ -70,6 +70,28 @@ public class ColumnIteratorTests extends ESTestCase {
         assertRoundTrip(10000, randomBits(10000, 0.9));
     }
 
+    /**
+     * Spans several {@link org.apache.lucene.codecs.lucene90.IndexedDISI} blocks, which hold 65536
+     * documents each, so that positions resolved across a block boundary are covered.
+     */
+    public void testAcrossIndexedDisiBlocks() throws IOException {
+        final int maxDoc = 65536 * 3 + between(1, 1000);
+        assertRoundTrip(maxDoc, randomBits(maxDoc, 0.9));
+    }
+
+    /** A wholly present block next to a partial one, so both block encodings appear in the same column. */
+    public void testFullIndexedDisiBlock() throws IOException {
+        final int maxDoc = 65536 * 2 + between(1000, 5000);
+        final FixedBitSet bits = new FixedBitSet(maxDoc);
+        bits.set(0, 65536);
+        for (int doc = 65536; doc < maxDoc; doc++) {
+            if (random().nextBoolean()) {
+                bits.set(doc);
+            }
+        }
+        assertRoundTrip(maxDoc, bits);
+    }
+
     public void testRandom() throws IOException {
         for (int iter = 0; iter < 20; iter++) {
             int maxDoc = between(1, 8000);
@@ -123,6 +145,8 @@ public class ColumnIteratorTests extends ESTestCase {
                 ColumnIteratorReader reader = new ColumnIteratorReader(read, data);
                 assertIteration(reader, expected, cardinality);
                 assertAdvanceExact(reader, expected, maxDoc);
+                assertAdvanceExactSkipping(reader, expected, maxDoc);
+                assertRanks(reader, expected, maxDoc);
                 assertIntoBitSet(reader, expected, maxDoc);
                 assertIntoBitSetResumes(reader, expected, maxDoc);
             }
@@ -152,6 +176,59 @@ public class ColumnIteratorTests extends ESTestCase {
             if (present) {
                 assertEquals("value ordinal at doc " + doc, seen, iterator.index());
                 seen++;
+            }
+        }
+    }
+
+    /**
+     * Bulk {@link ColumnIterator#ranks} agrees with the per-document {@code advanceExact}/{@code index()}
+     * pair it replaces, over batches that mix present and absent documents. The sparse shape is the one
+     * that can disagree: it resolves whole runs arithmetically from {@code docIDRunEnd()} rather than
+     * advancing to each document, so a run reported too long would silently hand back wrong ordinals.
+     */
+    private void assertRanks(ColumnIteratorReader reader, FixedBitSet expected, int maxDoc) throws IOException {
+        final int[] expectedRank = new int[maxDoc];
+        int seen = 0;
+        for (int doc = 0; doc < maxDoc; doc++) {
+            expectedRank[doc] = expected.get(doc) ? seen++ : ColumnIterator.NO_RANK;
+        }
+
+        for (int iter = 0; iter < 5; iter++) {
+            // Ascending and duplicate-free, per the contract; sometimes every document, sometimes a sample,
+            // so batches straddle present/absent boundaries as well as IndexedDISI block boundaries.
+            final double keep = randomFrom(1.0, 0.5, 0.1);
+            final int[] docs = new int[maxDoc];
+            int count = 0;
+            for (int doc = 0; doc < maxDoc; doc++) {
+                if (keep == 1.0 || random().nextDouble() < keep) {
+                    docs[count++] = doc;
+                }
+            }
+            if (count == 0) {
+                continue;
+            }
+            final int offset = between(0, count - 1);
+            final int length = between(1, count - offset);
+            final int[] ranks = new int[length];
+            reader.iterator().ranks(docs, offset, length, ranks);
+            for (int i = 0; i < length; i++) {
+                assertEquals("ordinal of doc " + docs[offset + i], expectedRank[docs[offset + i]], ranks[i]);
+            }
+        }
+    }
+
+    /**
+     * {@code advanceExact} called only on the documents that have a value, so each call jumps over the
+     * documents in between rather than stepping to the next one.
+     */
+    private void assertAdvanceExactSkipping(ColumnIteratorReader reader, FixedBitSet expected, int maxDoc) throws IOException {
+        final ColumnIterator iterator = reader.iterator();
+        int rank = 0;
+        for (int doc = 0; doc < maxDoc; doc++) {
+            if (expected.get(doc)) {
+                assertTrue("doc " + doc + " has a value but advanceExact says otherwise", iterator.advanceExact(doc));
+                assertEquals("ordinal at doc " + doc, rank, iterator.index());
+                rank++;
             }
         }
     }

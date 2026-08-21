@@ -1,14 +1,16 @@
 import { isMap, isSeq, parseDocument } from "yaml";
 
-/**
- * A single entry in muted-tests.yml. `issue` is incidental metadata and is
- * deliberately excluded from an entry's identity — the same mute is often
- * filed against different issue links across branches.
- */
 export interface MutedTestEntry {
   class: string;
   method?: string;
+  issue?: string;
 }
+
+/**
+ * Identity key for diffing: class+method only. Issue is intentionally omitted
+ * so that a changed issue link across branches doesn't look like an add+remove.
+ * Issue equality is validated separately during removal.
+ */
 
 /** Identity of a mute: the class/method pair it silences. */
 export function entryKey(entry: MutedTestEntry): string {
@@ -39,6 +41,7 @@ export function parseMutedTests(content: string): MutedTestEntry[] {
     return {
       class: entry.class,
       method: typeof entry.method === "string" ? entry.method : undefined,
+      issue: typeof entry.issue === "string" ? entry.issue : undefined,
     };
   });
 }
@@ -108,7 +111,8 @@ export function removeEntries(
     offset += line.length + eol.length;
   }
 
-  const targetKeys = new Set(entries.map(entryKey));
+  // Map from identity key to the full entry so we can validate the issue link.
+  const targetEntries = new Map(entries.map((e) => [entryKey(e), e]));
   const linesToRemove = new Set<number>();
 
   for (const item of tests.items) {
@@ -120,7 +124,19 @@ export function removeEntries(
       class: json.class,
       method: typeof json.method === "string" ? json.method : undefined,
     });
-    if (!targetKeys.has(key)) continue;
+    const wanted = targetEntries.get(key);
+    if (!wanted) continue;
+
+    // If the issue link differs between branches the mute may have a different
+    // meaning; surface the conflict rather than silently removing the wrong one.
+    const targetIssue = typeof json.issue === "string" ? json.issue : undefined;
+    if (wanted.issue !== undefined && targetIssue !== undefined && wanted.issue !== targetIssue) {
+      throw new Error(
+        `issue mismatch for ${json.class}` +
+          (wanted.method ? `#${wanted.method}` : "") +
+          `: cherry-pick has ${wanted.issue}, target branch has ${targetIssue}`,
+      );
+    }
 
     if (!item.range) throw new Error("mute entry has no source range");
     const [start, valueEnd] = item.range;

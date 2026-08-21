@@ -19,11 +19,23 @@ const FILE = `tests:
 `;
 
 describe("parseMutedTests", () => {
-  it("parses class and method, ignoring issue", () => {
+  it("parses class, method, and issue", () => {
     expect(parseMutedTests(FILE)).toEqual([
-      { class: "org.elasticsearch.Foo", method: "testA" },
-      { class: "org.elasticsearch.Bar", method: "testB" },
-      { class: "org.elasticsearch.Baz", method: "testC" },
+      {
+        class: "org.elasticsearch.Foo",
+        method: "testA",
+        issue: "https://github.com/elastic/elasticsearch/issues/1",
+      },
+      {
+        class: "org.elasticsearch.Bar",
+        method: "testB",
+        issue: "https://github.com/elastic/elasticsearch/issues/2",
+      },
+      {
+        class: "org.elasticsearch.Baz",
+        method: "testC",
+        issue: "https://github.com/elastic/elasticsearch/issues/3",
+      },
     ]);
   });
 
@@ -33,7 +45,11 @@ describe("parseMutedTests", () => {
   issue: https://github.com/elastic/elasticsearch/issues/1
 `;
     expect(parseMutedTests(src)).toEqual([
-      { class: "org.elasticsearch.Foo", method: undefined },
+      {
+        class: "org.elasticsearch.Foo",
+        method: undefined,
+        issue: "https://github.com/elastic/elasticsearch/issues/1",
+      },
     ]);
   });
 
@@ -48,6 +64,7 @@ describe("parseMutedTests", () => {
         class: "org.elasticsearch.MvPercentileTests",
         method:
           "testEvaluate {TestCase=field: <random mv doubles>, percentile: <int>}",
+        issue: "https://github.com/elastic/elasticsearch/issues/145886",
       },
     ]);
   });
@@ -78,7 +95,11 @@ describe("diffRemovedEntries", () => {
   issue: https://github.com/elastic/elasticsearch/issues/3
 `;
     expect(diffRemovedEntries(FILE, after)).toEqual([
-      { class: "org.elasticsearch.Bar", method: "testB" },
+      {
+        class: "org.elasticsearch.Bar",
+        method: "testB",
+        issue: "https://github.com/elastic/elasticsearch/issues/2",
+      },
     ]);
   });
 
@@ -89,8 +110,16 @@ describe("diffRemovedEntries", () => {
   issue: https://github.com/elastic/elasticsearch/issues/2
 `;
     expect(diffRemovedEntries(FILE, after)).toEqual([
-      { class: "org.elasticsearch.Foo", method: "testA" },
-      { class: "org.elasticsearch.Baz", method: "testC" },
+      {
+        class: "org.elasticsearch.Foo",
+        method: "testA",
+        issue: "https://github.com/elastic/elasticsearch/issues/1",
+      },
+      {
+        class: "org.elasticsearch.Baz",
+        method: "testC",
+        issue: "https://github.com/elastic/elasticsearch/issues/3",
+      },
     ]);
   });
 
@@ -133,7 +162,11 @@ describe("diffRemovedEntries", () => {
   issue: https://github.com/elastic/elasticsearch/issues/1
 `;
     expect(diffRemovedEntries(FILE, after)).toEqual([
-      { class: "org.elasticsearch.Bar", method: "testB" },
+      {
+        class: "org.elasticsearch.Bar",
+        method: "testB",
+        issue: "https://github.com/elastic/elasticsearch/issues/2",
+      },
     ]);
   });
 });
@@ -145,7 +178,7 @@ describe("removeEntries", () => {
     ]);
     expect(result).toBe(`tests:
 - class: org.elasticsearch.Foo
-  method: testA
+  method: "testA"
   issue: https://github.com/elastic/elasticsearch/issues/1
 - class: org.elasticsearch.Baz
   method: testC
@@ -159,16 +192,32 @@ describe("removeEntries", () => {
       { class: "org.elasticsearch.Baz", method: "testC" },
     ]);
     expect(result).toBe(`tests:
-- class: org.elasticsearch.Bar
+- class: "org.elasticsearch.Bar"
   method: testB
   issue: https://github.com/elastic/elasticsearch/issues/2
 `);
   });
 
-  it("matches on class/method even when the issue link differs", () => {
+  it("throws when the issue link differs between the cherry-pick and target branch", () => {
     const target = FILE.replace("issues/2", "issues/12345");
-    const result = removeEntries(target, [
-      { class: "org.elasticsearch.Bar", method: "testB" },
+    expect(() =>
+      removeEntries(target, [
+        {
+          class: "org.elasticsearch.Bar",
+          method: "testB",
+          issue: "https://github.com/elastic/elasticsearch/issues/2",
+        },
+      ]),
+    ).toThrow(/issue mismatch/);
+  });
+
+  it("removes the entry when the issue link matches", () => {
+    const result = removeEntries(FILE, [
+      {
+        class: "org.elasticsearch.Bar",
+        method: "testB",
+        issue: "https://github.com/elastic/elasticsearch/issues/2",
+      },
     ]);
     expect(result).not.toContain("org.elasticsearch.Bar");
     expect(result).toContain("org.elasticsearch.Foo");
@@ -258,7 +307,7 @@ tests:
     expect(result).toBe(
       `tests:
 - class: org.elasticsearch.Foo
-  method: testA
+  method: "testA"
   issue: https://github.com/elastic/elasticsearch/issues/1
 - class: org.elasticsearch.Baz
   method: testC

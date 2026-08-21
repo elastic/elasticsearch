@@ -67,6 +67,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -128,9 +129,7 @@ import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.hamcrest.Matcher;
@@ -138,7 +137,6 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -195,10 +193,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertFalse;
@@ -5234,171 +5234,103 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         };
     }
 
-    /**
-     * Verifies that deleting an index mid-reshard leaves no dangling cluster state and no orphaned
-     * commit blobs for either the source or target shard (as tracked by
-     * {@link org.elasticsearch.xpack.stateless.commits.StatelessCommitService}).
-     * <p>
-     * Three interception points are covered randomly per run. Run the test repeatedly (or in CI
-     * where seeds vary) to exercise all three:
-     * <ul>
-     *   <li><b>CLONE mid-copy</b> — the index is deleted while {@code copyShard()} is actively
-     *       writing a blob to the target shard's location in the object store. This is the critical
-     *       case: blobs written by {@code copyShard()}/{@code copyCommit()} bypass
-     *       {@code ShardCommitState} tracking and are only cleaned up if the production path
-     *       handles them explicitly.</li>
-     *   <li><b>HANDOFF</b> — the index is deleted while the target shard state machine is
-     *       transitioning to HANDOFF (CLONE phase is complete, target shard blobs exist).</li>
-     *   <li><b>SPLIT</b> — same as HANDOFF but at the SPLIT transition.</li>
-     * </ul>
-     */
-    public void testDeleteIndexDuringReshard() throws Exception {
-        // Master and index nodes must be separate: TransportUpdateSplitTargetShardStateAction is a
-        // MasterNodeAction sent index→master; addSendBehavior never fires when roles share a node.
-        // 100ms consistency interval speeds up tracked-blob cleanup vs. the default 5s tick.
-        // Stale-index GC is disabled so it cannot delete orphaned blobs before the test observes them.
-        final Settings fastConsistency = Settings.builder()
-            .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
-            .put(ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING.getKey(), false)
-            .build();
-        final Settings indexNodeSettings = Settings.builder()
-            .put(SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT.getKey(), "200ms")
-            .put(fastConsistency)
-            // MOCK type is required so that setNodeRepositoryStrategy() can install the copy hook.
-            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
-            .build();
-        final String masterNode = startMasterOnlyNode(fastConsistency);
-        final String indexNode = startIndexNode(indexNodeSettings);
-        startSearchNode(fastConsistency);
+    /// Races index deletion and re-creation against an in-flight reshard.
+    ///
+    /// An interrupted reshard can leave blobs behind for the target shard. That is accepted, provided they are eventually reclaimed by
+    /// the periodic stale-index GC, so this test asserts only the properties that have to hold: the delete is acknowledged, the index
+    /// name is immediately reusable, and the deleted index's whole `indices/<uuid>` prefix eventually disappears from the object store.
+    ///
+    /// Each index races its own delete against its own reshard after a random delay, so that across seeds the deletes land in different
+    /// phases of the split. The phase seen just before each delete is logged, so a run reports which ones it actually covered.
+    public void testDeleteAndRecreateIndexDuringReshard() throws Exception {
+        // The stale-index GC runs only on an index-role node, and reads its interval once when its persistent task starts, so the
+        // interval has to be set in that node's own settings. 1s is the lowest value the setting accepts.
+        startMasterOnlyNode();
+        startIndexNode(Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build());
+        startSearchNode();
         ensureStableCluster(3);
 
-        final String indexName = randomIndexName();
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
-        indexDocs(indexName, 100);
-
-        final Index index = resolveIndex(indexName);
-        final ShardId sourceShardId = new ShardId(index, 0);
-        final ShardId targetShardId = new ShardId(index, 1);
-        final CountDownLatch deleteCompleted = new CountDownLatch(1);
-
-        final IndexReshardingState.Split.TargetShardState stateIntercept = randomFrom(
-            IndexReshardingState.Split.TargetShardState.CLONE,
-            IndexReshardingState.Split.TargetShardState.HANDOFF,
-            IndexReshardingState.Split.TargetShardState.SPLIT
-        );
-        final boolean cloneMidCopy = stateIntercept == IndexReshardingState.Split.TargetShardState.CLONE;
-        logger.info("testDeleteIndexDuringReshard: intercept=[{}]", cloneMidCopy ? "CLONE_MID_COPY" : stateIntercept);
-
-        if (cloneMidCopy) {
-            // Filter by OperationPurpose.RESHARDING: copyShard/copyCommit use this purpose exclusively,
-            // so unrelated background copies cannot trigger the latch prematurely.
-            final CountDownLatch copyBlocked = new CountDownLatch(1);
-            final CountDownLatch copyWritten = new CountDownLatch(1);
-            // blobObserved keeps the hook thread inside copyBlob() until the blob-existence assertion
-            // below completes. Without it the reshard loop advances to ensureNotCancelled() and
-            // triggers cleanup concurrently, making the assertion vacuous.
-            final CountDownLatch blobObserved = new CountDownLatch(1);
-            final AtomicBoolean firstReshard = new AtomicBoolean(true);
-            setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
-                @Override
-                public void blobContainerCopyBlob(
-                    CheckedRunnable<IOException> originalRunnable,
-                    OperationPurpose purpose,
-                    BlobContainer sourceBlobContainer,
-                    String sourceBlobName,
-                    String blobName,
-                    long blobSize
-                ) throws IOException {
-                    if (purpose == OperationPurpose.RESHARDING
-                        && StatelessCompoundCommit.startsWithBlobPrefix(blobName)
-                        && firstReshard.compareAndSet(true, false)) {
-                        copyBlocked.countDown();
-                        safeAwait(deleteCompleted); // Intentionally blocks until the delete is ACK'd
-                        try {
-                            super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
-                        } finally {
-                            copyWritten.countDown();
-                        }
-                        safeAwait(blobObserved); // hold until the test has observed the blob
-                    } else {
-                        super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
-                    }
-                }
-            });
-            // ReshardIndexRequest is acknowledged immediately; resharding proceeds asynchronously.
-            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
-            safeAwait(copyBlocked);
-
-            try {
-                try {
-                    assertAcked(client(masterNode).admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
-                } finally {
-                    deleteCompleted.countDown(); // always unblock the reshard thread
-                }
-                // The blob is untracked by ShardCommitState (recovery never completed); without
-                // explicit cleanup it would remain until stale-index GC runs (8h, disabled here).
-                safeAwait(copyWritten);
-                assertThat(
-                    "Expected at least one commit blob for target shard [" + targetShardId + "] after mid-copy write",
-                    listBlobsTermAndGenerations(targetShardId),
-                    org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())
-                );
-            } finally {
-                blobObserved.countDown(); // always release the reshard thread
-            }
-        } else {
-            // Block the HANDOFF or SPLIT state transition (index→master) so we can delete while
-            // CLONE-phase blobs are written but the state advance is still pending.
-            final CountDownLatch stateReached = new CountDownLatch(1);
-            final AtomicBoolean firstStateTransition = new AtomicBoolean(true);
-            MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
-                if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)) {
-                    var actual = MasterNodeRequestHelper.unwrapTermOverride(request);
-                    if (actual instanceof SplitStateRequest r
-                        && r.getNewTargetShardState() == stateIntercept
-                        && firstStateTransition.compareAndSet(true, false)) {
-                        stateReached.countDown();
-                        safeAwait(deleteCompleted); // Intentionally blocks the transport send
-                    }
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-            // ReshardIndexRequest is acknowledged immediately; resharding proceeds asynchronously.
-            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
-            safeAwait(stateReached);
-
-            // CLONE is complete: the state machine writes blobs before sending the state-transition
-            // message we are blocking, so they must be present now.
-            try {
-                assertThat(
-                    "Expected commit blobs for target shard [" + targetShardId + "] at " + stateIntercept + " interception",
-                    listBlobsTermAndGenerations(targetShardId),
-                    org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty())
-                );
-                assertAcked(client(masterNode).admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
-            } finally {
-                deleteCompleted.countDown(); // always unblock the transport hook
-            }
+        final int indexCount = randomIntBetween(2, 5);
+        final String indexNamePrefix = randomIndexName();
+        // A split of an index this size lasts roughly 200ms, so the delays are drawn from that window to spread the deletes across its
+        // phases; a wider window would mostly delete after the split had already finished. They are drawn here rather than inside the
+        // parallel tasks because the threads those run on share a cloned seed, and would draw identical delays.
+        final int[] delaysMillis = new int[indexCount];
+        for (int i = 1; i < indexCount; i++) {
+            delaysMillis[i] = randomIntBetween(0, 200);
         }
+        // Index 0 keeps a zero delay: the reshard request returns as soon as the resharding metadata is installed and the split then runs
+        // in the background, so deleting straight away always catches a live split, however fast the machine.
 
-        // Neither shard should have orphaned commit blobs after the index is deleted.
-        // Both are checked in one assertBusy to avoid two independent retry loops.
-        assertBusy(() -> {
-            for (ShardId shardId : new ShardId[] { targetShardId, sourceShardId }) {
-                Set<PrimaryTermAndGeneration> blobs;
-                try {
-                    blobs = listBlobsTermAndGenerations(shardId);
-                } catch (NoSuchFileException e) {
-                    continue; // shard directory removed — no commit blobs remain
-                }
-                assertTrue("Orphaned commit blobs for shard [" + shardId + "]: " + blobs, blobs.isEmpty());
-            }
+        // A split doubles the shard count, so each one-shard index below gains a single target shard, with id 1.
+        final int targetShardId = 1;
+        final Set<String> deletedIndexUUIDs = ConcurrentHashMap.newKeySet();
+        final Set<String> observedSplitStates = ConcurrentHashMap.newKeySet();
+
+        runInParallel(indexCount, i -> {
+            final String indexName = indexNamePrefix + "-" + i;
+            createIndex(indexName, indexSettings(1, 1).build());
+            ensureGreen(indexName);
+            indexDocs(indexName, 100);
+            // Force a commit into the object store, so a deleted index always has something for the GC to reclaim. Flush only this
+            // index: the ESIntegTestCase#flush helper waits for the whole cluster to go quiet, which takes a while when the other
+            // threads are still working.
+            indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get(SAFE_AWAIT_TIMEOUT);
+
+            final Index index = resolveIndex(indexName);
+            assertThat(
+                "Expected [" + indexName + "] in the object store before deleting it",
+                getIndexUUIDsInObjectStore(),
+                hasItem(index.getUUID())
+            );
+
+            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+            safeSleep(delaysMillis[i]);
+
+            final var splitStateAtDelete = getSplitTargetShardState(index, targetShardId);
+            assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
+            deletedIndexUUIDs.add(index.getUUID());
+            observedSplitStates.add(String.valueOf(splitStateAtDelete));
+            logger.info("Deleted [{}] after [{}ms], split target state was [{}]", indexName, delaysMillis[i], splitStateAtDelete);
+
+            // The name has to be reusable straight away: object store paths are keyed by index UUID and a new index always gets a fresh
+            // one, so whatever the abandoned reshard left behind cannot collide with the replacement.
+            createIndex(indexName, indexSettings(1, 1).build());
+            ensureGreen(indexName);
         });
 
-        // Re-create with the same name to verify no stale state from the deleted index interferes.
-        createIndex(indexName, indexSettings(1, 0).build());
-        ensureGreen(indexName);
+        logger.info("Split target states observed at delete time: {}", observedSplitStates);
+
+        // Nothing reclaims an abandoned reshard's target blobs eagerly, so the stale-index GC has to remove the whole per-index prefix.
+        assertBusy(() -> assertThat(getIndexUUIDsInObjectStore(), everyItem(not(in(deletedIndexUUIDs)))), 30, TimeUnit.SECONDS);
+    }
+
+    private static Set<String> getIndexUUIDsInObjectStore() {
+        try {
+            return getCurrentMasterObjectStoreService().getIndicesBlobContainer(ProjectId.DEFAULT).children(INDICES).keySet();
+        } catch (IOException e) {
+            throw new AssertionError("Failed to list indices in the object store", e);
+        }
+    }
+
+    /// How far the split has got, reported as the state of the given target shard: {@code CLONE}, {@code HANDOFF}, {@code SPLIT} or
+    /// {@code DONE}.
+    ///
+    /// Returns {@code null} when the index is not being resharded at all, which covers both the case where the split has finished and
+    /// its metadata has been removed again, and the case where the index itself is already gone.
+    @Nullable
+    private static IndexReshardingState.Split.TargetShardState getSplitTargetShardState(Index index, int targetShardId) {
+        return client().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .setMetadata(true)
+            .get(SAFE_AWAIT_TIMEOUT)
+            .getState()
+            .getMetadata()
+            .findIndex(index)
+            .map(IndexMetadata::getReshardingMetadata)
+            .map(reshardingMetadata -> reshardingMetadata.getSplit().getTargetShardState(targetShardId))
+            .orElse(null);
     }
 
     private void waitForReshardCompletion(String indexName) {

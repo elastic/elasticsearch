@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.eql;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -162,7 +162,9 @@ public final class EqlRequests {
             throw new EsqlIllegalArgumentException("EQL command requires a non-empty index pattern");
         }
         EqlSearchRequest request = new EqlSearchRequest();
-        request.indices(Arrays.stream(indices.split(",")).map(String::trim).filter(s -> s.isEmpty() == false).toArray(String[]::new));
+        // Split as RestEqlSearchAction and ES|QL's own field-caps request (IndexResolver) do, so schema resolution
+        // and the delegated search see the identical index set. The leading blank-pattern guard above rejects empties.
+        request.indices(Strings.splitStringByCommaToArray(indices));
         // Resolve and execute over the same index set: ES|QL resolved the schema under IndexResolver.DEFAULT_OPTIONS, so
         // pin the same options here (the command surface differs from standalone _eql/search defaults). This is also the
         // prerequisite that makes reusing the resolved field-caps sound.

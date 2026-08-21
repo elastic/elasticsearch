@@ -66,8 +66,10 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(request.query(), equalTo("process where true"));
     }
 
-    public void testCommaSeparatedIndicesAreSplitAndTrimmed() {
-        EqlSearchRequest request = build("process where true", "logs-a, logs-b ,logs-c", NO_SCHEMA, Map.of());
+    public void testCommaSeparatedIndicesAreSplit() {
+        // The parser rejects blank or space-containing components before an EqlRelation is built, so the split
+        // matches RestEqlSearchAction / IndexResolver exactly (no trimming needed).
+        EqlSearchRequest request = build("process where true", "logs-a,logs-b,logs-c", NO_SCHEMA, Map.of());
         assertThat(request.indices(), arrayContaining("logs-a", "logs-b", "logs-c"));
     }
 

@@ -78,6 +78,51 @@ public final class ColumnarTestUtils {
     }
 
     /**
+     * Returns a single-valued cursor over {@code values} where a {@code null} entry means the document
+     * has no value, producing a sparse column. Documents that do have one hold exactly one.
+     */
+    public static NumericColumnValues sparseSingleValuedCursor(final Long[] values) {
+        return new NumericColumnValues() {
+            private int doc = -1;
+
+            @Override
+            public int valueCount() {
+                return 1;
+            }
+
+            @Override
+            public long nextValue() {
+                return values[doc];
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                return advance(doc + 1);
+            }
+
+            @Override
+            public int advance(int target) {
+                for (doc = target; doc < values.length; doc++) {
+                    if (values[doc] != null) {
+                        return doc;
+                    }
+                }
+                return doc = DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                return values.length;
+            }
+        };
+    }
+
+    /**
      * Returns a {@link Codec} that routes all doc-values fields through a default
      * {@link ColumNARDocValuesFormat}.
      */

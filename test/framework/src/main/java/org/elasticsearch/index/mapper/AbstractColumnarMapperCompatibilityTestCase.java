@@ -18,6 +18,7 @@ import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.document.column.TokenStreamColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -43,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract base for compatibility tests that verify the columnar batch-mapping path produces the
@@ -64,7 +66,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * A single document input for a compatibility scenario.
      */
     // We can add an x-content builder variant of this if String is too simple for complex scenarios.
-    protected record Doc(String id, @Nullable String routing, long seqNo, long version, String source) {}
+    protected record Doc(String id, @Nullable String routing, long seqNo, long version, String source, @Nullable BytesRef tsid) {}
 
     /**
      * A named batch of documents that are mapped together in a single columnar pass, then
@@ -130,17 +132,21 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
 
     /** Creates a {@link Doc} with no routing and version {@code 1}. */
     protected static Doc doc(String id, long seqNo, String source) {
-        return new Doc(id, null, seqNo, 1L, source);
+        return new Doc(id, null, seqNo, 1L, source, null);
     }
 
     /** Creates a {@link Doc} with a routing value and version {@code 1}. */
     protected static Doc doc(String id, @Nullable String routing, long seqNo, String source) {
-        return new Doc(id, routing, seqNo, 1L, source);
+        return new Doc(id, routing, seqNo, 1L, source, null);
     }
 
     /** Creates a {@link Doc} with explicit routing, seqNo, and version. */
     protected static Doc doc(String id, @Nullable String routing, long seqNo, long version, String source) {
-        return new Doc(id, routing, seqNo, version, source);
+        return new Doc(id, routing, seqNo, version, source, null);
+    }
+
+    protected static Doc doc(String id, @Nullable String routing, @Nullable BytesRef tsid, long seqNo, String source) {
+        return new Doc(id, routing, seqNo, 1L, source, tsid);
     }
 
     /** Creates a {@link Batch} with an explicit primary term from a varargs array of {@link Doc}s. */
@@ -236,7 +242,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             final List<List<FieldDescriptor>> xcDescsPerDoc = new ArrayList<>(docCount);
             for (int i = 0; i < docCount; i++) {
                 final Doc doc = docs.get(i);
-                final SourceToParse sourceToParse = new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
+                // When the doc carries a coordinator-computed tsid (time-series path), pass it to
+                // SourceToParse so the row-path DocumentParser reads the same tsid bytes via
+                // SourceToParse#tsid() rather than re-building it from source dimensions.
+                final SourceToParse sourceToParse = doc.tsid() != null
+                    ? new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing(), Map.of(), doc.tsid())
+                    : new SourceToParse(doc.id(), sourceBytesArray[i], XContentType.JSON, doc.routing());
                 final ParsedDocument pd = mapperService.documentMapper().parse(sourceToParse);
                 // Apply the same engine values as the columnar path (mirrors InternalEngine lines 1910-1911).
                 pd.updateSeqID(doc.seqNo(), scenario.primaryTerm());
@@ -343,6 +354,8 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                         perDoc.get(doc).add(new FieldDescriptor(name, ft, null, BytesRef.deepCopyOf(cursor.nextValue())));
                     }
                 }
+            } else if (column instanceof TokenStreamColumn) {
+                // inverted-index-only; no doc values to compare
             } else {
                 throw new AssertionError("unsupported column type in test harness: " + column.getClass());
             }
@@ -371,7 +384,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
      * String values are normalized to {@link BytesRef} so string and binary representations of the
      * same data compare equal.
      */
-    private record FieldDescriptor(String name, FieldType fieldType, @Nullable Long longValue, @Nullable BytesRef bytesValue)
+    protected record FieldDescriptor(String name, FieldType fieldType, @Nullable Long longValue, @Nullable BytesRef bytesValue)
         implements
             Comparable<FieldDescriptor> {
 
@@ -399,7 +412,11 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         final FieldType ft = new FieldType(field.fieldType());
         ft.freeze();
 
-        final Number numeric = field.numericValue();
+        // For 2-byte point fields (e.g. HalfFloatPoint), numericValue() returns a float whose longValue()
+        // is lossy: multiple half-float values can share the same truncated long. Use binaryValue() instead
+        // so the raw 2-byte sortable encoding is compared, which the BinaryColumn columnar path also emits.
+        final boolean useBinary = ft.pointDimensionCount() == 1 && ft.pointNumBytes() == 2;
+        final Number numeric = useBinary ? null : field.numericValue();
         final Long longValue = numeric != null ? numeric.longValue() : null;
         BytesRef bytesValue = null;
         if (longValue == null) {
@@ -420,6 +437,9 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             final IndexRequest req = new IndexRequest("test-index").id(doc.id()).source(sourceBytes[i], XContentType.JSON);
             if (doc.routing() != null) {
                 req.routing(doc.routing());
+            }
+            if (doc.tsid() != null) {
+                req.tsid(doc.tsid());
             }
             requests[i] = req;
         }

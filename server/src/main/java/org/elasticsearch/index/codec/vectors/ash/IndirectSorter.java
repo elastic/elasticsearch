@@ -12,41 +12,15 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.util.IntroSorter;
 
 /**
- * Indirect sorter that reorders an {@code int[]} index array based on float or double key arrays.
+ * Indirect sorter that reorders an {@code int[]} index array based on double key arrays.
  * Uses Lucene's {@link IntroSorter} for O(n log n) worst-case performance.
  * <p>
  * Similar to {@link org.elasticsearch.index.codec.vectors.diskbbq.IntSorter} but supports
- * float and double key arrays with configurable sort direction.
+ * double key arrays with configurable sort direction.
  */
 final class IndirectSorter {
 
     private IndirectSorter() {}
-
-    /**
-     * Sorts {@code indices[0..count)} in descending order by {@code keys[indices[i]]}.
-     */
-    static void sortDescendingByFloat(int[] indices, float[] keys, int count) {
-        new IntroSorter() {
-            int pivotIdx;
-
-            @Override
-            protected void swap(int i, int j) {
-                int tmp = indices[i];
-                indices[i] = indices[j];
-                indices[j] = tmp;
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Float.compare(keys[indices[j]], keys[pivotIdx]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivotIdx = indices[i];
-            }
-        }.sort(0, count);
-    }
 
     /**
      * Sorts {@code indices[0..count)} in ascending order by {@code keys[indices[i]]}.

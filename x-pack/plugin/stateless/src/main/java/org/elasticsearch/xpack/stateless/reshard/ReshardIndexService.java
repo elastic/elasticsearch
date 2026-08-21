@@ -78,22 +78,22 @@ public class ReshardIndexService {
     private final MasterServiceTaskQueue<TransitionSourceStateTask> transitionSourceStateQueue;
 
     public ReshardIndexService(
-        final ClusterService clusterService,
-        final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        final RerouteService rerouteService,
         final IndicesService indicesService,
         final NodeClient client,
-        final ReshardMetrics reshardMetrics
+        final ReshardMetrics reshardMetrics,
+        final ClusterService clusterService,
+        final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+        final RerouteService rerouteService
     ) {
         this.indicesService = indicesService;
         this.client = client;
         this.reshardMetrics = reshardMetrics;
-        splitCompletionTracker = new SplitCompletionTracker();
+        this.splitCompletionTracker = new SplitCompletionTracker();
 
         this.reshardQueue = clusterService.createTaskQueue(
             "reshard-index",
             Priority.NORMAL,
-            new ReshardIndexExecutor(shardRoutingRoleStrategy, rerouteService)
+            new ReshardIndexExecutor(indicesService.getIndexScopedSettings(), shardRoutingRoleStrategy, rerouteService)
         );
         this.transitionTargetToHandOffStateQueue = clusterService.createTaskQueue(
             "transition-split-target-state-to-handoff",
@@ -419,9 +419,10 @@ public class ReshardIndexService {
      * @param index               Index whose shard count is being modified
      * @return project metadata builder for chaining
      */
-    public static ProjectMetadata.Builder metadataUpdateNumberOfShards(
+    static ProjectMetadata.Builder metadataUpdateNumberOfShards(
         final ProjectState projectState,
         final IndexReshardingMetadata reshardingMetadata,
+        final IndexScopedSettings indexScopedSettings,
         final Index index
     ) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
@@ -435,7 +436,7 @@ public class ReshardIndexService {
         // For Reasons, IndexMetadataBuilder does not validate settings at build time, so we do it here to make sure that
         // the changed shard count doesn't conflict with existing settings. For example, if MODE is lookup then
         // the shard count must be 1.
-        IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(
+        indexScopedSettings.validate(
             newIndexMetadata.getSettings(),
             /* validateValues */ true,
             /* ignorePrivateSettings */ true,
@@ -540,10 +541,16 @@ public class ReshardIndexService {
     }
 
     private static class ReshardIndexExecutor extends SimpleBatchedExecutor<ReshardTask, Void> {
+        private final IndexScopedSettings indexScopedSettings;
         private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
         private final RerouteService rerouteService;
 
-        private ReshardIndexExecutor(ShardRoutingRoleStrategy shardRoutingRoleStrategy, RerouteService rerouteService) {
+        private ReshardIndexExecutor(
+            IndexScopedSettings indexScopedSettings,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+            RerouteService rerouteService
+        ) {
+            this.indexScopedSettings = indexScopedSettings;
             this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
             this.rerouteService = rerouteService;
         }
@@ -599,7 +606,8 @@ public class ReshardIndexService {
                 reshardingMetadata
             );
 
-            ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
+            ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, indexScopedSettings, index)
+                .build();
             // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)
             final ClusterState updated = ClusterState.builder(clusterState)
                 .putProjectMetadata(projectMetadata)

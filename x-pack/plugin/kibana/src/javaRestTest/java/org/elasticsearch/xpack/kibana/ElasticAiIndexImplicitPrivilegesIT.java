@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.kibana;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -67,13 +68,22 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String ELASTIC_AI_INDEX_ALIAS = "ai-index-idx-sml-data";
     private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX_ALIAS + "-000001";
 
-    // Shared between the _search and ES|QL assertions: both engines must resolve the DLS filter to
-    // exactly this set.
-    private static final List<String> EXPECTED_VISIBLE_DOC_IDS = List.of(
+    // Shared between the _search and ES|QL assertions: both engines must resolve each role's DLS
+    // filter to exactly these sets.
+    private static final List<String> SPACE_SCOPED_VISIBLE_DOC_IDS = List.of(
         "all-spaces-dashboard",
         "global-no-perms",
         "marketing-dashboard",
         "mixed-counts",
+        "shared-dashboard"
+    );
+    // The wildcard-resource grant reaches finance-dashboard (no space restriction), but it holds
+    // only dashboard/read, so mixed-counts (satisfiable only with workflow/read) drops out.
+    private static final List<String> WILDCARD_GRANT_VISIBLE_DOC_IDS = List.of(
+        "all-spaces-dashboard",
+        "finance-dashboard",
+        "global-no-perms",
+        "marketing-dashboard",
         "shared-dashboard"
     );
 
@@ -117,7 +127,53 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // 6. The user can read the Elastic AI Index without any explicit index privilege, and DLS restricts the
         // visible documents to exactly those that satisfy a whole nested element — through both
         // the _search path and ES|QL, which executes on its own engine.
-        assertUserSeesOnlyAuthorizedDocs();
+        assertUserSeesOnlyAuthorizedDocs(SPACE_SCOPED_VISIBLE_DOC_IDS);
+    }
+
+    /**
+     * A role granted on {@code resources: ["*"]} reads documents in every space — including spaces
+     * the user holds no explicit grant in — but the wildcard is not a bypass: only documents
+     * satisfiable with the actions actually held become visible.
+     */
+    public void testWildcardResourceRoleImplicitlyReadsAllSpacesWithDls() throws Exception {
+        putKibanaPrivileges();
+        putAllSpacesReaderRole("ai_all_spaces_reader");
+        putUser(SML_USER, SML_USER_PASSWORD, "ai_all_spaces_reader");
+        createAiIndexWithDocs();
+
+        assertUserSeesOnlyAuthorizedDocs(WILDCARD_GRANT_VISIBLE_DOC_IDS);
+    }
+
+    /**
+     * The DLS filter deliberately leaves the nested query's {@code ignore_unmapped} at {@code false}:
+     * when the permissions field is not mapped as {@code nested} (here: left to dynamic mapping,
+     * which produces {@code object}), searches must fail loudly rather than silently hiding or
+     * exposing documents.
+     */
+    public void testNonNestedPermissionsMappingFailsSearchLoudly() throws Exception {
+        putKibanaPrivileges();
+        putAiIndexReaderRole(AI_INDEX_READER_ROLE);
+        putUser(SML_USER, SML_USER_PASSWORD, AI_INDEX_READER_ROLE);
+
+        final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX_BACKING);
+        create.setJsonEntity(Strings.format("""
+            { "aliases": { "%s": { "is_write_index": true } } }
+            """, ELASTIC_AI_INDEX_ALIAS));
+        assertOK(client().performRequest(create));
+        indexDoc("marketing-dashboard", """
+            {
+              "type": "dashboard",
+              "permissions": { "kibana": { "privileges": [
+                { "space": "marketing", "name": ["ai_index:dashboard/read"], "count": 1 }
+              ]}}
+            }
+            """);
+
+        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
+        search.setOptions(getRequestOptions());
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(search));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("failed to find nested object under path"));
     }
 
     private void putKibanaPrivileges() throws Exception {
@@ -176,6 +232,24 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
+    /** Grants dashboard/read in every space via the wildcard resource. */
+    private void putAllSpacesReaderRole(String roleName) throws Exception {
+        final Request request = new Request("PUT", "/_security/role/" + roleName);
+        request.setJsonEntity(Strings.format("""
+            {
+              "cluster": [],
+              "applications": [
+                {
+                  "application": "%s",
+                  "privileges": ["%s"],
+                  "resources": ["*"]
+                }
+              ]
+            }
+            """, KIBANA_APPLICATION, DASHBOARDS_PRIVILEGE));
+        assertOK(client().performRequest(request));
+    }
+
     private void putUser(String username, String password, String role) throws Exception {
         final Request request = new Request("PUT", "/_security/user/" + username);
         request.setJsonEntity(Strings.format("""
@@ -229,7 +303,8 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
         // sub-field on each of those, and populating one would require an inference-capable license.
-        // This test is about the DLS filter, and its assertions run off document ids only.
+        // The assertions run off document ids only. The VISIBLE/HIDDEN notes below describe the
+        // space-scoped role; the wildcard-resource test pins its own set in WILDCARD_GRANT_VISIBLE_DOC_IDS.
 
         // VISIBLE: user holds ai_index:dashboard/read in marketing.
         indexDoc("marketing-dashboard", """
@@ -376,16 +451,12 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
      * Asserts the DLS-visible set through both query engines — _search endpoint and ES|QL
      * Pinning the identical positive set catches DLS regressions where the two engines drift apart.
      */
-    private void assertUserSeesOnlyAuthorizedDocs() throws Exception {
-        final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD))
-            .build();
-
+    private void assertUserSeesOnlyAuthorizedDocs(List<String> expectedIds) throws Exception {
         final Request searchRequest = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
-        searchRequest.setOptions(requestOptions);
+        searchRequest.setOptions(getRequestOptions());
 
         final Request esqlRequest = new Request("POST", "/_query");
-        esqlRequest.setOptions(requestOptions);
+        esqlRequest.setOptions(getRequestOptions());
         // The explicit LIMIT avoids the "no limit defined" warning header, which the test REST client treats as a failure.
         esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", ELASTIC_AI_INDEX_ALIAS));
 
@@ -395,17 +466,21 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         // Assert: both engines must resolve the DLS filter to the same visible set.
         assertOK(searchResponse);
         final List<Map<String, Object>> searchHits = ObjectPath.createFromResponse(searchResponse).evaluate("hits.hits");
-        assertVisibleIds("_search", searchHits.stream().map(hit -> (String) hit.get("_id")).toList());
+        assertVisibleIds("_search", searchHits.stream().map(hit -> (String) hit.get("_id")).toList(), expectedIds);
 
         assertOK(esqlResponse);
         final List<List<Object>> esqlRows = ObjectPath.createFromResponse(esqlResponse).evaluate("values");
-        assertVisibleIds("ES|QL", esqlRows.stream().map(row -> (String) row.get(0)).toList());
+        assertVisibleIds("ES|QL", esqlRows.stream().map(row -> (String) row.get(0)).toList(), expectedIds);
     }
 
-    private static void assertVisibleIds(String engine, List<String> ids) {
+    private static void assertVisibleIds(String engine, List<String> ids, List<String> expectedIds) {
         final List<String> visibleIds = ids.stream().sorted().toList();
-        assertThat("expected five visible docs via " + engine, visibleIds, hasSize(EXPECTED_VISIBLE_DOC_IDS.size()));
-        assertThat("via " + engine, visibleIds, equalTo(EXPECTED_VISIBLE_DOC_IDS));
+        assertThat("unexpected number of visible docs via " + engine, visibleIds, hasSize(expectedIds.size()));
+        assertThat("via " + engine, visibleIds, equalTo(expectedIds));
+    }
+
+    private static RequestOptions getRequestOptions() {
+        return RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuth(SML_USER, SML_USER_PASSWORD)).build();
     }
 
     private static String basicAuth(String username, String password) {

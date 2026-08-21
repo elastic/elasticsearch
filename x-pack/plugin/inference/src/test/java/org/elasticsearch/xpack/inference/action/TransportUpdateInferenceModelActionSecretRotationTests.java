@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -141,13 +140,7 @@ public class TransportUpdateInferenceModelActionSecretRotationTests extends ESTe
     public void startHttpClient() throws Exception {
         super.setUp();
         threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(
-            Settings.EMPTY,
-            threadPool,
-            mockClusterServiceEmpty(),
-            mock(ThrottlerManager.class),
-            new TestCircuitBreaker()
-        );
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
     @After

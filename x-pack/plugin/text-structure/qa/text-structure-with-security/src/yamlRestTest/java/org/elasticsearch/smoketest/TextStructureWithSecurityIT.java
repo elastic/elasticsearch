@@ -27,7 +27,7 @@ public class TextStructureWithSecurityIT extends AbstractXPackRestTest {
     private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.create();
+    public static final ElasticsearchCluster cluster = Clusters.create();
 
     public TextStructureWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

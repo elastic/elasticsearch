@@ -10,17 +10,23 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_SIZE;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlWorkerThreadPoolTests extends ESTestCase {
 
@@ -125,6 +131,44 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
                 int size = EsqlPlugin.workerQueueSize(heapMb * 1024 * 1024, cpus);
                 assertTrue("queue size must be >= 1000, got " + size + " for " + heapMb + "MB heap, " + cpus + " CPUs", size >= 1000);
             }
+        }
+    }
+
+    public void testEsqlWorkerTracksOngoingTasks() throws Exception {
+        EsqlPlugin plugin = new EsqlPlugin();
+        var builders = plugin.getExecutorBuilders(Settings.EMPTY);
+        var workerBuilder = builders.get(0);
+
+        var threadPool = new TestThreadPool(getTestName(), workerBuilder);
+        try {
+            assertThat(
+                "esql_worker must be a TaskExecutionTimeTrackingEsThreadPoolExecutor so the search-load sampler can read it",
+                threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
+            var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+
+            // While there are no running tasks the ongoing map must be empty.
+            assertThat("no tasks running yet", executor.getOngoingTasks().size(), equalTo(0));
+
+            var started = new CountDownLatch(1);
+            var release = new CountDownLatch(1);
+            executor.execute(() -> {
+                started.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+
+            started.await();
+            // The task is running but has not completed, so it must appear in ongoing tasks.
+            assertThat("in-flight driver must be visible as an ongoing task", executor.getOngoingTasks().size(), greaterThan(0));
+
+            release.countDown();
+        } finally {
+            terminate(threadPool);
         }
     }
 

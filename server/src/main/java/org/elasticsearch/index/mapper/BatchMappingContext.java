@@ -83,14 +83,10 @@ public final class BatchMappingContext {
         return indexSettings;
     }
 
-    /** Returns the mapping lookup for this batch's index, for inspecting mapper configuration during post-parse. */
-    public MappingLookup mappingLookup() {
-        return mappingLookup;
-    }
-
     /**
      * Records the mapped {@code @timestamp} ESCF column so that {@code postColumnarParse} hooks
-     * can read per-document timestamp values via {@link #timestamps()} without re-scanning
+     * (e.g. {@link DataStreamTimestampFieldMapper} and {@link TimeSeriesIdFieldMapper}) can read
+     * per-document timestamp values via {@link #timestamps()} without re-scanning
      * the Lucene column list. Mirrors the row-path side channel
      * ({@code DataStreamTimestampFieldMapper.storeTimestampValueForReuse}). The data is the same
      * {@link EscfColumnData} that {@code DateFieldMapper.mapColumnBatch} already built; no copy
@@ -114,20 +110,19 @@ public final class BatchMappingContext {
     }
 
     /**
-     * Returns the mapped {@code @timestamp} column, or {@code null} if no column has been recorded
-     * yet. Callers are responsible for density and size validation before iterating values.
+     * Returns the {@code @timestamp} column for direct access.
+     *
+     * @throws IllegalArgumentException if no timestamp column was recorded (mirrors the row path's
+     *     "data stream timestamp field [@timestamp] is missing" error from
+     *     {@link DataStreamTimestampFieldMapper#extractTimestampValue})
      */
     public EscfLongColumn timestamps() {
+        if (timestamps == null) {
+            throw new IllegalArgumentException(
+                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
+            );
+        }
         return timestamps;
-    }
-
-    /**
-     * Whether {@code _data_stream_timestamp} is present and enabled for this index. Mirrors
-     * {@link MappingLookup#isDataStreamTimestampFieldEnabled()} which is the row-path equivalent
-     * used by {@code DateFieldMapper.indexValue}.
-     */
-    public boolean isDataStreamTimestampFieldEnabled() {
-        return mappingLookup.isDataStreamTimestampFieldEnabled();
     }
 
     // TODO: nothing allocates through this yet — the columns it would produce have no owner to release them.
@@ -198,12 +193,49 @@ public final class BatchMappingContext {
 
     /**
      * Returns the {@code _id} (Uid-encoded) array.
-     *
-     * @throws IllegalStateException if any document in the batch has a null {@code _id} (synthetic
-     *     id is not yet supported in the columnar path)
      */
     public BytesRef[] uids() {
         return batch.uids();
+    }
+
+    /**
+     * Returns the plain-text id for document {@code doc}, or {@code null} if not yet assigned.
+     * For time-series indices the id is derived during mapping and set via {@link #setSyntheticId}.
+     */
+    public String id(int doc) {
+        return batch.id(doc);
+    }
+
+    /**
+     * Sets the synthetic {@code _id} and uid for document {@code doc}. Called by the time-series
+     * columnar {@code _id} mapper during {@code postColumnarParse}.
+     */
+    public void setSyntheticId(int doc, String id, BytesRef uid) {
+        assert frozen == false;
+        batch.setSyntheticId(doc, id, uid);
+    }
+
+    /**
+     * Returns the coordinator-computed tsid array, or {@code null} if no document in the batch
+     * carries a tsid (the common case for non-time-series indices).
+     */
+    public BytesRef[] tsids() {
+        return batch.tsids();
+    }
+
+    /**
+     * Whether {@code _data_stream_timestamp} is present and enabled for this index..
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        return mappingLookup.isDataStreamTimestampFieldEnabled();
+    }
+
+    /**
+     * Returns the {@link MappingLookup} for this index. Used by metadata mappers that need to
+     * inspect the mapping during {@code postColumnarParse} (e.g. timestamp resolution detection).
+     */
+    public MappingLookup mappingLookup() {
+        return mappingLookup;
     }
 
     /**

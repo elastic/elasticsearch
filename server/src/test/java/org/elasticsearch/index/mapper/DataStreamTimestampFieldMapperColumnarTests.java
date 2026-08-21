@@ -101,13 +101,14 @@ public class DataStreamTimestampFieldMapperColumnarTests extends MapperServiceTe
 
     // ---- tests ---------------------------------------------------------------------------------
 
-    public void testTimestampsNullBeforeSet() throws IOException {
+    public void testTimestampsThrowsBeforeSet() throws IOException {
         MapperService mapperService = createMapperService(
             columnarSettings(),
             mapping(b -> b.startObject(DEFAULT_PATH).field("type", "date").endObject())
         );
         BatchMappingContext context = contextWithNDocs(mapperService, 1);
-        assertNull(context.timestamps());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, context::timestamps);
+        assertThat(ex.getMessage(), equalTo("data stream timestamp field [" + DEFAULT_PATH + "] is missing"));
     }
 
     public void testTimestampsNotNullAfterSet() throws IOException {

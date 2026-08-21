@@ -1272,10 +1272,11 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        // Columnar support requires strict-columnar index mode and a doc-values date field.
-        // doc_values.multi_value and ignore_malformed are not implemented by mapColumnBatch
-        // but are deliberately not rejected here instead rejected at parse time.
-        return indexSettings.getMode().isStrictColumnar()
+        // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
+        // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
+        // implemented by mapColumnBatch but are deliberately not rejected here — rejected at parse
+        // time instead.
+        return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
             && store == false
             && hasScript() == false
@@ -1306,6 +1307,10 @@ public final class DateFieldMapper extends FieldMapper {
             columnFieldType = SORTED_NUMERIC_DV_FIELD_TYPE;
         }
         ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, LongColumn.NumericKind.LONG));
+        // Publish the timestamp ESCF column on the context so that postColumnarParse hooks
+        // (DataStreamTimestampFieldMapper, TsidExtractingIdFieldMapper) can read per-document
+        // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's
+        // DataStreamTimestampFieldMapper.storeTimestampValueForReuse call on the row path.
         if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
             ctx.setTimestamps(outData);
         }

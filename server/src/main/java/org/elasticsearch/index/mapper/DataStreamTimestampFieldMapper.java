@@ -299,6 +299,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     @Override
     public void postColumnarParse(BatchMappingContext context) throws IOException {
         if (enabled == false) {
+            // not configured, so skip
             return;
         }
 
@@ -306,8 +307,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         // Unlike the row-based postParse (called per-document, failures isolated by the engine's
         // bulk loop), this method runs once for the entire batch. Any violation rejects the whole
         // batch. This is intentional: the columnar write path has no partial-commit mechanism.
-        EscfLongColumn timestamps = context.timestamps();
-        if (timestamps == null || timestamps.isDense() == false || timestamps.docCount() != context.docCount()) {
+        EscfLongColumn timestamps = context.timestamps(); // n.b. throws if not set
+        if (timestamps.isDense() == false || timestamps.docCount() != context.docCount()) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
 

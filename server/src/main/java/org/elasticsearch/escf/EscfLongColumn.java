@@ -35,6 +35,10 @@ public final class EscfLongColumn extends AbstractFixed64Column {
         return rawLong(row);
     }
 
+    public long longValueAt(int row) {
+        return rawLong(row);
+    }
+
     @Override
     public DenseLongValuesCursor longValuesCursor() {
         return super.longValuesCursor();

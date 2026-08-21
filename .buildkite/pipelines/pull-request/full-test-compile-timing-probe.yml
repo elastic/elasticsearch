@@ -1,0 +1,36 @@
+# Temporary timing probe - DO NOT MERGE.
+# Measures full test-source-set compile time on CI with and without
+# the remote Gradle build cache. Delete this file once measurements
+# are collected.
+config:
+  auto-retry: false
+  allow-labels: "compile-timing-probe"
+steps:
+  - label: part-compile-all-tests-cache-on
+    command: |
+      .ci/scripts/run-gradle.sh \
+        compileTestJava \
+        compileInternalClusterTestJava \
+        compileJavaRestTestJava \
+        compileYamlRestTestJava
+    timeout_in_minutes: 45
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+  - label: part-compile-all-tests-cache-off
+    command: |
+      .ci/scripts/run-gradle.sh --no-build-cache \
+        compileTestJava \
+        compileInternalClusterTestJava \
+        compileJavaRestTestJava \
+        compileYamlRestTestJava
+    timeout_in_minutes: 45
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

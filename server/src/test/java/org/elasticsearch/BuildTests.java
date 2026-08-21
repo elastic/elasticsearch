@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+// compile-timing-probe: cache-invalidation marker (no behaviour change)
 package org.elasticsearch;
 
 import org.elasticsearch.common.io.FileSystemUtils;

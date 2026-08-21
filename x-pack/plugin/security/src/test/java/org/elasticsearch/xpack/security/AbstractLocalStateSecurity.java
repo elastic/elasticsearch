@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+// compile-timing-probe: cache-invalidation marker (no behaviour change)
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.common.settings.Settings;

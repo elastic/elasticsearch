@@ -25,14 +25,23 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Integration tests for KNN function operating on runtime expressions (non-indexed dense_vector fields).
+ * Integration tests for KNN function operating on runtime expressions derived from plain float fields.
  *
- * <p>Unlike {@link KnnFunctionIT}, these tests do not require indexed dense_vector fields with a
- * specific index type. Runtime KNN computes vector similarity row-by-row in the
- * ES|QL engine, enabled via the {@code runtime_knn_search} query pragma (snapshot builds only).
+ * <p>Unlike {@link KnnFunctionIT}, no {@code dense_vector} mapping is used. The test index stores
+ * each vector as a multi-valued {@code float} field. Queries convert that field to a
+ * {@code dense_vector} at runtime with {@code to_dense_vector(floats)}, which forces the KNN
+ * function into runtime mode enabled via {@code runtime_knn_search} query pragma (snapshot builds only).
  *
- * <p>The test index contains six 3-dim unit vectors ({@code VECTORS}) chosen so that their cosine similarity to the
- * query vector {@code [1.0, 0.0, 0.0]} is deterministic and easy to reason about.
+ * <p>The test index contains six 3-dim unit vectors ({@code VECTORS}) whose cosine similarity to the
+ * query vector {@code [1.0, 0.0, 0.0]} is deterministic and easy to reason about:
+ * <ul>
+ *   <li>id=0  [1.0000, 0.0000, 0.0000] – similarity 1.0000 (perfect match)</li>
+ *   <li>id=1  [0.0000, 1.0000, 0.0000] – similarity 0.0000</li>
+ *   <li>id=2  [0.0000, 0.0000, 1.0000] – similarity 0.0000</li>
+ *   <li>id=3  [0.7071, 0.7071, 0.0000] – similarity ≈ 0.7071</li>
+ *   <li>id=4  [0.8944, 0.4472, 0.0000] – similarity ≈ 0.8944</li>
+ *   <li>id=5  [0.5000, 0.5000, 0.7071] – similarity 0.5000</li>
+ * </ul>
  */
 public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
 
@@ -55,16 +64,16 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        // Create test index to provide baseline rows; the tests will use runtime fields derived from the mapped dense_vector field.
+        // The vector field is a plain multi-valued float field, not a dense_vector.
+        // Tests convert it to dense_vector at query time with to_dense_vector(), exercising the runtime KNN path.
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject("id")
             .field("type", "integer")
             .endObject()
-            .startObject("vector")
-            .field("type", "dense_vector")
-            .field("dims", 3)
+            .startObject("floats")
+            .field("type", "float")
             .endObject()
             .endObject()
             .endObject();
@@ -72,7 +81,7 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
 
         IndexRequestBuilder[] docs = new IndexRequestBuilder[VECTORS.length];
         for (int i = 0; i < VECTORS.length; i++) {
-            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", i, "vector", floatListOf(VECTORS[i]));
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", i, "floats", floatListOf(VECTORS[i]));
         }
         indexRandom(true, docs);
     }
@@ -98,15 +107,16 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Tests KNN on a dense_vector derived from an indexed field via {@code to_dense_vector(vector)}.
+     * Tests KNN on a dense_vector derived from a plain multi-valued {@code float} field.
      *
-     * <p>Wrapping the indexed field in a function call produces a non-FieldAttribute expression,
-     * which forces runtime evaluation even though the underlying data is stored in the index.
+     * <p>{@code to_dense_vector(floats)} converts the stored floats into a dense_vector expression
+     * at query time; because this expression is not a {@code FieldAttribute}, the KNN function runs
+     * in runtime mode (row-by-row cosine similarity) rather than being pushed down to Lucene.
      */
     public void testKnnOnDerivedFromIndexed() {
         try (var resp = run("""
             FROM test
-            | EVAL dv = to_dense_vector(vector)
+            | EVAL dv = to_dense_vector(floats)
             | WHERE knn(dv, [1.0, 0.0, 0.0])
             | KEEP id
             | LIMIT 10
@@ -126,11 +136,11 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
     public void testKnnSortingAndLimit() {
         try (var resp = run("""
             FROM test METADATA _score
-            | EVAL dv = to_dense_vector(vector)
+            | EVAL dv = to_dense_vector(floats)
             | WHERE knn(dv, [1.0, 0.0, 0.0])
             | SORT _score DESC, id ASC
-            | KEEP id, _score
-            | LIMIT 3
+            | KEEP id, dv, _score
+            | LIMIT 10
             """)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
@@ -165,7 +175,7 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
         var ex = expectThrows(Exception.class, () -> {
             try (var resp = run("""
                 FROM test
-                | EVAL dv = to_dense_vector(vector)
+                | EVAL dv = to_dense_vector(floats)
                 | WHERE knn(dv, [1.0, 0.0, 0.0], {"similarity": 0.8})
                 | SORT id ASC
                 | KEEP id
@@ -194,7 +204,7 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> baseRows;
             try (var resp = run("""
                 FROM test METADATA _score
-                | EVAL dv = to_dense_vector(vector)
+                | EVAL dv = to_dense_vector(floats)
                 | WHERE knn(dv, [1.0, 0.0, 0.0])
                 | SORT id ASC
                 | KEEP id, _score
@@ -207,7 +217,7 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> boostedRows;
             try (var resp = run("""
                 FROM test METADATA _score
-                | EVAL dv = to_dense_vector(vector)
+                | EVAL dv = to_dense_vector(floats)
                 | WHERE knn(dv, [1.0, 0.0, 0.0], {"boost": 2.0})
                 | SORT id ASC
                 | KEEP id, _score
@@ -232,7 +242,7 @@ public class KnnRuntimeIT extends AbstractEsqlIntegTestCase {
     public void testKnnScoreIsPositive() {
         try (var resp = run("""
             FROM test METADATA _score
-            | EVAL dv = to_dense_vector(vector)
+            | EVAL dv = to_dense_vector(floats)
             | WHERE knn(dv, [1.0, 0.0, 0.0])
             | KEEP id, _score
             | LIMIT 10

@@ -152,6 +152,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=indices.create/30_dynamic_template/Create index with dynamic_mappings, match is single-valued}
   issue: https://github.com/elastic/elasticsearch/issues/157333
+- class: org.elasticsearch.xpack.ml.integration.ForecastIT
+  method: testOverflowToDisk
+  issue: https://github.com/elastic/elasticsearch/issues/157223
 
 # Examples:
 #

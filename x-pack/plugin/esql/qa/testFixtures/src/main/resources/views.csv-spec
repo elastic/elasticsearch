@@ -2319,3 +2319,42 @@ emp_no:integer | first_name:keyword
 10002          | Bezalel
 10005          | Kyoichi
 ;
+
+inSubqueryInEvalReferencingView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no IN (FROM employees_all | SORT emp_no | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10004
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+;
+
+inSubqueryInEvalInsideViewDefinition
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+required_capability: eval_in_subquery
+
+FROM employees_in_eval_subquery
+| WHERE emp_no <= 10004
+| SORT emp_no
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+;

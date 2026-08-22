@@ -1631,7 +1631,7 @@ public class StatelessPlugin extends Plugin
                     translogConfig.getBigArrays(),
                     translogConfig.getBufferSize(),
                     translogConfig.getDiskIoBufferPool(),
-                    (operation, seqNo, location) -> replicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                    replicator.listenerFor(translogConfig.getShardId()),
                     false // translog is replicated to the object store, no need fsync that
                 );
 

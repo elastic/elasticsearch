@@ -28,15 +28,14 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Pins two contracts on {@link PrefetchedPageReader}: live native memory stays O(high-water-mark
- * page), not O(uncompressed column chunk); and equal-sized direct pages malloc the decompress
- * buffer once, not once per page. The reader reuses one buffer (grown only when a later page
- * needs more capacity) and returns it to {@link DirectBufferPool} on
- * {@link PrefetchedPageReader#close()} so the next reader/query does not malloc.
+ * Pins two contracts on {@link PrefetchedPageReader}: equal-sized direct pages malloc the
+ * decompress buffer once, not once per page; grow parks the previous buffer in
+ * {@link DirectBufferPool} (glibc: do not close until eviction) and borrows a larger one.
+ * The in-use buffer is returned to the pool on {@link PrefetchedPageReader#close()} so the
+ * next reader/query does not malloc.
  *
  * <p>Before per-page bounding, every {@code decompressToDirectBuffer} output was parked until
  * {@link PrefetchedPageReader#close()} at row-group rollover. The live-bound tests FAIL on that
@@ -113,8 +112,9 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
     }
 
     /**
-     * Growing pages realloc and free the previous buffer; a later smaller page reuses the large
-     * buffer. Live memory never becomes the sum of grown sizes.
+     * Growing pages park the previous buffer in the pool and borrow a larger one. A later
+     * smaller page reuses the large in-use buffer. Parked undersized bufs stay charged until
+     * eviction; live memory may be the sum of distinct grow sizes while under the idle cap.
      */
     public void testBufferReuseHandlesVaryingPageSizes() throws IOException {
         int[] sizes = { 32 * 1024, 64 * 1024, 128 * 1024, 64 * 1024 };
@@ -146,8 +146,7 @@ public class PrefetchedPageReaderPerPageReleaseTests extends ESTestCase {
                             greaterThan(allocationsBefore)
                         );
                         if (liveBefore > 0L) {
-                            // Leak-on-grow would keep the old buf: live ≈ liveBefore + sizes[i].
-                            assertThat("grow must free the previous decompress buffer", live, lessThan(liveBefore + sizes[i]));
+                            assertThat("grow parks the old buf instead of closing it", live, greaterThanOrEqualTo(liveBefore + sizes[i]));
                         }
                         cap = sizes[i];
                     } else {

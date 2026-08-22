@@ -44,12 +44,77 @@ public class DirectBufferPoolTests extends ESTestCase {
         try (var allocator = DirectBufferAllocationManager.createRootAllocator(AllocationListener.NOOP, Long.MAX_VALUE)) {
             try {
                 ArrowBuf small = pool.borrow(allocator, 64);
+                long smallCap = small.capacity();
                 pool.returnBuf(small);
                 ArrowBuf large = pool.borrow(allocator, 256);
                 assertThat(large.capacity(), greaterThanOrEqualTo(256L));
-                // Undersized idle buffer was closed; only the replacement is live.
-                assertEquals(large.capacity(), allocator.getAllocatedMemory());
+                // Undersized idle stays parked; closing it would hand pages back to glibc.
+                assertEquals(smallCap + large.capacity(), allocator.getAllocatedMemory());
                 pool.returnBuf(large);
+            } finally {
+                pool.close();
+            }
+        }
+    }
+
+    public void testBorrowFindsBuriedLargeWithoutClosingSmalls() {
+        DirectBufferPool pool = new DirectBufferPool();
+        try (var allocator = DirectBufferAllocationManager.createRootAllocator(AllocationListener.NOOP, Long.MAX_VALUE)) {
+            try {
+                ArrowBuf small1 = pool.borrow(allocator, 64);
+                ArrowBuf large = pool.borrow(allocator, 1024);
+                ArrowBuf small2 = pool.borrow(allocator, 64);
+                long live = allocator.getAllocatedMemory();
+                pool.returnBuf(small1);
+                pool.returnBuf(large);
+                pool.returnBuf(small2);
+                ArrowBuf got = pool.borrow(allocator, 1024);
+                assertThat(got, sameInstance(large));
+                assertEquals("undersized idle must stay parked", live, allocator.getAllocatedMemory());
+                pool.returnBuf(got);
+            } finally {
+                pool.close();
+            }
+        }
+    }
+
+    public void testBorrowMissDoesNotCloseUndersized() {
+        DirectBufferPool pool = new DirectBufferPool();
+        try (var allocator = DirectBufferAllocationManager.createRootAllocator(AllocationListener.NOOP, Long.MAX_VALUE)) {
+            try {
+                for (int cap : new int[] { 64, 128, 256 }) {
+                    ArrowBuf buf = pool.borrow(allocator, cap);
+                    pool.returnBuf(buf);
+                }
+                long smalls = allocator.getAllocatedMemory();
+                ArrowBuf large = pool.borrow(allocator, 1024);
+                assertThat(large.capacity(), greaterThanOrEqualTo(1024L));
+                assertEquals(smalls + large.capacity(), allocator.getAllocatedMemory());
+                pool.returnBuf(large);
+            } finally {
+                pool.close();
+            }
+        }
+    }
+
+    public void testEvictSmallToParkLargeWhenFull() {
+        DirectBufferPool pool = new DirectBufferPool();
+        try (var allocator = DirectBufferAllocationManager.createRootAllocator(AllocationListener.NOOP, Long.MAX_VALUE)) {
+            try {
+                List<ArrowBuf> held = new ArrayList<>(DirectBufferPool.MAX_POOLED);
+                for (int i = 0; i < DirectBufferPool.MAX_POOLED; i++) {
+                    held.add(pool.borrow(allocator, 64));
+                }
+                for (ArrowBuf buf : held) {
+                    pool.returnBuf(buf);
+                }
+                long fullOfSmall = allocator.getAllocatedMemory();
+                long smallCap = held.getFirst().capacity();
+                ArrowBuf large = pool.borrow(allocator, 1024);
+                assertThat(large.capacity(), greaterThanOrEqualTo(1024L));
+                pool.returnBuf(large);
+                long after = allocator.getAllocatedMemory();
+                assertEquals("evict one small to park the large", fullOfSmall - smallCap + large.capacity(), after);
             } finally {
                 pool.close();
             }
@@ -130,6 +195,43 @@ public class DirectBufferPoolTests extends ESTestCase {
             assertThat(allocator.getAllocatedMemory(), lessThanOrEqualTo((long) DirectBufferPool.MAX_POOLED * 192));
             pool.close();
             assertEquals(0L, allocator.getAllocatedMemory());
+        }
+    }
+
+    /**
+     * Overlapping "queries": each thread holds several buffers at once (columns in a row
+     * group), mixed sizes, in-flight count above {@link DirectBufferPool#MAX_POOLED}. After
+     * join, idle occupancy is capped and a 1024-borrow reuses a parked large buffer (eviction
+     * prefers larger).
+     */
+    public void testConcurrentOverlappingQueriesMixedSizes() throws Exception {
+        int queries = 8;
+        int columns = 8;
+        int[] sizes = { 64, 256, 1024 };
+        DirectBufferPool pool = new DirectBufferPool();
+        try (var allocator = DirectBufferAllocationManager.createRootAllocator(AllocationListener.NOOP, Long.MAX_VALUE)) {
+            try {
+                startInParallel(queries, q -> {
+                    for (int iter = 0; iter < 25; iter++) {
+                        List<ArrowBuf> held = new ArrayList<>(columns);
+                        for (int c = 0; c < columns; c++) {
+                            held.add(pool.borrow(allocator, sizes[(q + c + iter) % sizes.length]));
+                        }
+                        for (ArrowBuf buf : held) {
+                            pool.returnBuf(buf);
+                        }
+                    }
+                });
+                long parked = allocator.getAllocatedMemory();
+                assertThat(parked, greaterThan(0L));
+                ArrowBuf sizeProbe = allocator.buffer(1024);
+                long largeCap = sizeProbe.capacity();
+                sizeProbe.close();
+                assertThat(parked, lessThanOrEqualTo((long) DirectBufferPool.MAX_POOLED * largeCap));
+            } finally {
+                pool.close();
+                assertEquals(0L, allocator.getAllocatedMemory());
+            }
         }
     }
 

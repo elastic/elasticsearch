@@ -318,10 +318,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         }
         reusableDecompBuf = null;
         if (current != null) {
-            // Known undersized: close it. Returning it then immediately borrowing a larger
-            // size would poll the same buf and free it anyway, and would also close other
-            // idle undersized buffers still useful to other columns.
-            current.close();
+            // Park the undersized buf. Closing it here is a glibc hand-back; the pool skips
+            // it on the larger borrow and only evicts when idle occupancy hits the cap.
+            buffers.returnBuf(current);
         }
         reusableDecompBuf = buffers.borrow(size);
         return reusableDecompBuf.nioBuffer(0, size);

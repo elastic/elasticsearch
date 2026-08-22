@@ -734,3 +734,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=3 p1=upgraded_cluster/10_basic/Component and composable templates can be retrieved and updated}
+  issue: https://github.com/elastic/elasticsearch/issues/157435

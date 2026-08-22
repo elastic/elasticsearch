@@ -5241,8 +5241,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     /// the periodic stale-index GC, so this test asserts only the properties that have to hold: the delete is acknowledged, the index
     /// name is immediately reusable, and the deleted index's whole `indices/<uuid>` prefix eventually disappears from the object store.
     ///
-    /// Each index races its own delete against its own reshard after a random delay, so that across seeds the deletes land in different
-    /// phases of the split. The phase seen just before each delete is logged, so a run reports which ones it actually covered.
+    /// Several indices do this concurrently, each deleting as soon as its split reaches a randomly chosen phase, so different seeds
+    /// exercise different points in the split.
     public void testDeleteAndRecreateIndexDuringReshard() throws Exception {
         // The stale-index GC runs only on an index-role node, and reads its interval once when its persistent task starts, so the
         // interval has to be set in that node's own settings. 1s is the lowest value the setting accepts.
@@ -5255,15 +5255,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         final int indexCount = randomIntBetween(2, 5);
         final String indexNamePrefix = randomIndexName();
-        // A split of an index this size lasts roughly 200ms, so the delays are drawn from that window to spread the deletes across its
-        // phases; a wider window would mostly delete after the split had already finished. They are drawn here rather than inside the
-        // parallel tasks because the threads those run on share a cloned seed, and would draw identical delays.
-        final int[] delaysMillis = new int[indexCount];
-        for (int i = 1; i < indexCount; i++) {
-            delaysMillis[i] = randomIntBetween(0, 200);
+        // Drawn here rather than inside the parallel tasks, because the threads those run on share a cloned seed and would all pick the
+        // same phase.
+        final var phases = new IndexReshardingState.Split.TargetShardState[indexCount];
+        for (int i = 0; i < indexCount; i++) {
+            phases[i] = randomFrom(IndexReshardingState.Split.TargetShardState.values());
         }
-        // Index 0 keeps a zero delay: the reshard request returns as soon as the resharding metadata is installed and the split then runs
-        // in the background, so deleting straight away always catches a live split, however fast the machine.
 
         // A split doubles the shard count, so each one-shard index below gains a single target shard, with id 1.
         final int targetShardId = 1;
@@ -5288,13 +5285,14 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             );
 
             client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
-            safeSleep(delaysMillis[i]);
-
+            // Anchoring the delete to the observed phase keeps coverage independent of how fast the host runs.
+            waitForClusterState(state -> splitReachedOrFinished(state, index, targetShardId, phases[i])).actionGet(SAFE_AWAIT_TIMEOUT);
+            // Fresh read, so the log shows where the split actually was and not just the phase we waited for.
             final var splitStateAtDelete = getSplitTargetShardState(index, targetShardId);
             assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
             deletedIndexUUIDs.add(index.getUUID());
             observedSplitStates.add(String.valueOf(splitStateAtDelete));
-            logger.info("Deleted [{}] after [{}ms], split target state was [{}]", indexName, delaysMillis[i], splitStateAtDelete);
+            logger.info("Deleted [{}] after waiting for [{}], split target state was [{}]", indexName, phases[i], splitStateAtDelete);
 
             // The name has to be reusable straight away: object store paths are keyed by index UUID and a new index always gets a fresh
             // one, so whatever the abandoned reshard left behind cannot collide with the replacement.
@@ -5323,11 +5321,26 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    /// Whether the split has reached {@code phase} on the given target shard. Also true once the index is no longer being resharded,
+    /// so that a split which finishes early does not leave the caller waiting for a phase it has already passed through.
+    private static boolean splitReachedOrFinished(
+        ClusterState state,
+        Index index,
+        int targetShardId,
+        IndexReshardingState.Split.TargetShardState phase
+    ) {
+        return state.getMetadata()
+            .findIndex(index)
+            .map(IndexMetadata::getReshardingMetadata)
+            .map(reshardingMetadata -> reshardingMetadata.getSplit().targetStateAtLeast(targetShardId, phase))
+            .orElse(true); // no split to wait for
+    }
+
     /// How far the split has got, reported as the state of the given target shard: {@code CLONE}, {@code HANDOFF}, {@code SPLIT} or
     /// {@code DONE}.
     ///
-    /// Returns {@code null} when the index is not being resharded at all, which covers both the case where the split has finished and
-    /// its metadata has been removed again, and the case where the index itself is already gone.
+    /// Returns {@code null} once the split has finished and its metadata has been removed, so a {@code null} in the log means that
+    /// index's delete missed the split entirely.
     @Nullable
     private static IndexReshardingState.Split.TargetShardState getSplitTargetShardState(Index index, int targetShardId) {
         return client().admin()

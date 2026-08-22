@@ -5286,9 +5286,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
             client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
             // Anchoring the delete to the observed phase keeps coverage independent of how fast the host runs.
-            waitForClusterState(state -> splitReachedOrFinished(state, index, targetShardId, phases[i])).actionGet(SAFE_AWAIT_TIMEOUT);
-            // Fresh read, so the log shows where the split actually was and not just the phase we waited for.
-            final var splitStateAtDelete = getSplitTargetShardState(index, targetShardId);
+            final var stateAtDelete = waitForClusterState(state -> splitReachedOrFinished(state, index, targetShardId, phases[i]))
+                .actionGet(SAFE_AWAIT_TIMEOUT);
+            // Read from the state the wait accepted. A separate request could land on a node a cluster state behind and report the
+            // previous phase.
+            final var splitStateAtDelete = getSplitTargetShardState(stateAtDelete, index, targetShardId);
             assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
             deletedIndexUUIDs.add(index.getUUID());
             observedSplitStates.add(String.valueOf(splitStateAtDelete));
@@ -5336,20 +5338,18 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .orElse(true); // no split to wait for
     }
 
-    /// How far the split has got, reported as the state of the given target shard: {@code CLONE}, {@code HANDOFF}, {@code SPLIT} or
-    /// {@code DONE}.
+    /// How far the split had got in {@code state}, reported as the state of the given target shard: {@code CLONE}, {@code HANDOFF},
+    /// {@code SPLIT} or {@code DONE}.
     ///
     /// Returns {@code null} once the split has finished and its metadata has been removed, so a {@code null} in the log means that
     /// index's delete missed the split entirely.
     @Nullable
-    private static IndexReshardingState.Split.TargetShardState getSplitTargetShardState(Index index, int targetShardId) {
-        return client().admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setMetadata(true)
-            .get(SAFE_AWAIT_TIMEOUT)
-            .getState()
-            .getMetadata()
+    private static IndexReshardingState.Split.TargetShardState getSplitTargetShardState(
+        ClusterState state,
+        Index index,
+        int targetShardId
+    ) {
+        return state.getMetadata()
             .findIndex(index)
             .map(IndexMetadata::getReshardingMetadata)
             .map(reshardingMetadata -> reshardingMetadata.getSplit().getTargetShardState(targetShardId))

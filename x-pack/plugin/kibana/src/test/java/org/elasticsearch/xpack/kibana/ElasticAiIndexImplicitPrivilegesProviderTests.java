@@ -211,6 +211,49 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result.iterator().next().getQuery(), is(notNullValue()));
     }
 
+    /** A wildcard application (not Kibana) must not trigger the provider. */
+    public void testNonMatchingWildcardApplicationReturnsEmpty() {
+        RoleDescriptor roleDescriptor = roleWithApplication("shield*", "ai_index:dashboard/read", "space:default");
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(resolve(roleDescriptor, List.of()));
+        assertThat(result, is(empty()));
+    }
+
+    /** Wildcard and concrete actions in the same grant each become their own literal term. */
+    public void testMixedWildcardAndConcreteActionsAllBecomeTerms() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(
+                KIBANA_APPLICATION,
+                "sml_mixed",
+                Set.of("ai_index:dashboard/*", "ai_index:workflow/read"),
+                Map.of()
+            )
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("sml_mixed", "space:marketing"), storedPrivileges)
+        );
+        assertThat(result, hasSize(1));
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(termsOfClauseForSpace(clauses, "marketing"), containsInAnyOrder("ai_index:dashboard/*", "ai_index:workflow/read"));
+    }
+
+    /**
+     * A bare {@code *} action matches every {@code ai_index:} action at authorization time, but it is
+     * not an {@code ai_index:}-prefixed string, so it contributes nothing here: an all-actions Kibana
+     * privilege does not implicitly unlock the Elastic AI Index.
+     */
+    public void testAllActionsWildcardDoesNotTriggerProvider() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "kibana_admin_like", Set.of("*"), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("kibana_admin_like", "space:marketing"), storedPrivileges)
+        );
+        assertThat(result, is(empty()));
+    }
+
     /** Privilege without login: still triggers the provider — holding an ai_index: action is what matters. */
     public void testNonLoginActionStillTriggersProvider() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(

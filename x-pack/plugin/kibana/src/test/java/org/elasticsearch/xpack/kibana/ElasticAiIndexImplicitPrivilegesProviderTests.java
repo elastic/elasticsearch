@@ -270,6 +270,25 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(termsOfClauseForSpace(clauses, "marketing"), contains("ai_index:dashboard/read"));
     }
 
+    /**
+     * A wildcard action pattern is never expanded: {@code terms_set} matches exact keyword values, so
+     * {@code ai_index:*} lands in the query verbatim and cannot match the concrete action names Kibana
+     * writes on documents. A wildcard grant thus fails closed.
+     */
+    public void testWildcardActionPatternIsNotExpanded() {
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(
+            new ApplicationPrivilegeDescriptor(KIBANA_APPLICATION, "sml_all", Set.of("ai_index:*"), Map.of())
+        );
+
+        Collection<RoleDescriptor.IndicesPrivileges> result = contributor.getImplicitIndicesPrivileges(
+            resolve(role("sml_all", "space:marketing"), storedPrivileges)
+        );
+        assertThat(result, hasSize(1));
+
+        List<Map<String, Object>> clauses = nestedSpaceClauses(parseQuery(result.iterator().next().getQuery()));
+        assertThat(termsOfClauseForSpace(clauses, "marketing"), contains("ai_index:*"));
+    }
+
     /** Resources without the "space:" prefix and not equal to "*" are ignored; if no valid resources remain → empty. */
     public void testResourcesWithoutSpacePrefixAreIgnored() {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges = List.of(

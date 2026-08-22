@@ -124,7 +124,9 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
             services.featureService()
         );
         templateRegistry.initialize();
-        snapshotHistoryStore.set(new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool));
+        snapshotHistoryStore.set(
+            new SnapshotHistoryStore(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService, threadPool)
+        );
         snapshotLifecycleService.set(
             new SnapshotLifecycleService(
                 settings,

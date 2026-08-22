@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.slm.history;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -22,14 +19,10 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -37,7 +30,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -46,7 +38,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.SLM_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
@@ -96,7 +88,7 @@ public class SnapshotHistoryStore implements Closeable {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SLM_HISTORY_INDEX_ENABLED_SETTING, this::setSlmHistoryEnabled);
 
         this.processor = BulkProcessor2.builder(
-            new OriginSettingClient(client, SLM_ORIGIN)::bulk,
+            new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk,
             new BulkProcessor2.Listener() {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
@@ -104,11 +96,7 @@ public class SnapshotHistoryStore implements Closeable {
                     if (metadata.getProject().dataStreams().containsKey(SLM_HISTORY_DATA_STREAM) == false
                         && metadata.getProject().templatesV2().containsKey(SLM_TEMPLATE_NAME) == false) {
                         ElasticsearchException e = new ElasticsearchException(
-                            format(
-                                "data stream [%s] and template [%s] don't exist",
-                                SLM_HISTORY_DATA_STREAM,
-                                SLM_TEMPLATE_NAME
-                            )
+                            format("data stream [%s] and template [%s] don't exist", SLM_HISTORY_DATA_STREAM, SLM_TEMPLATE_NAME)
                         );
                         logger.warn(
                             () -> format(

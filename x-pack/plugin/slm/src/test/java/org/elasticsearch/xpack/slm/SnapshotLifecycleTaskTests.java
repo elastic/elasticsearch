@@ -126,6 +126,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             SnapshotHistoryStore historyStore = new VerifyingHistoryStore(
                 null,
                 clusterService,
+                threadPool,
                 item -> fail("should not have tried to store an item")
             );
 
@@ -221,7 +222,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 }
             });
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, threadPool, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
                 final SnapshotLifecyclePolicy policy = slpm.getPolicy();
                 assertEquals(policy.getId(), item.getPolicyId());
@@ -311,7 +312,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             });
 
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, threadPool, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
                 final SnapshotLifecyclePolicy policy = slpm.getPolicy();
                 assertEquals(policy.getId(), item.getPolicyId());
@@ -1478,8 +1479,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         private final Consumer<SnapshotHistoryItem> verifier;
 
-        public VerifyingHistoryStore(Client client, ClusterService clusterService, Consumer<SnapshotHistoryItem> verifier) {
-            super(client, clusterService);
+        public VerifyingHistoryStore(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            Consumer<SnapshotHistoryItem> verifier
+        ) {
+            super(client, clusterService, threadPool);
             this.verifier = verifier;
         }
 

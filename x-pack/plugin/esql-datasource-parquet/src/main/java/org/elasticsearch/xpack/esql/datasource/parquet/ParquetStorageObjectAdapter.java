@@ -139,7 +139,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
         // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
         // pre-warm optimization would be silently bypassed.
-        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, allocator, this::currentPreWarmedChunks);
+        return new WindowedSeekableInputStream(
+            storageObject,
+            cacheKey,
+            length,
+            windowSize,
+            ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES,
+            allocator,
+            this::currentPreWarmedChunks
+        );
     }
 
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
@@ -183,6 +191,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final FooterByteCache.Key cacheKey;
         private final long length;
         private final int windowSize;
+        private final int footerTailBytes;
         private final ArrowBuf window;
         // ArrowBuf.getBytes(inputstream) internally allocates an 8 kB buffer. To avoid it,
         // use a staging buffer filled from the InputStream then copied into {@link #window}.
@@ -207,13 +216,26 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             FooterByteCache.Key cacheKey,
             long length,
             int windowSize,
+            int footerTailBytes,
             BufferAllocator allocator,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
         ) {
+            if (windowSize < footerTailBytes) {
+                throw new IllegalArgumentException(
+                    "windowSize ("
+                        + windowSize
+                        + ") must be >= footerTailBytes ("
+                        + footerTailBytes
+                        + "); "
+                        + "tail extension computes fetchStart = length - min(footerTailBytes, windowSize), "
+                        + "which exceeds pos when windowSize < footerTailBytes, leaving pos outside the window"
+                );
+            }
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
+            this.footerTailBytes = footerTailBytes;
             this.window = allocator.buffer(windowSize);
             this.preWarmedChunksSupplier = preWarmedChunksSupplier;
             this.windowStart = -1;
@@ -257,20 +279,41 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
 
+            // Pre-warmed chunks are keyed to the exact requested position, so consult them before any
+            // backward tail extension. This keeps the pre-warm fast path intact for a column chunk that
+            // happens to sit within a tail window of end-of-file.
             if (fillFromPreWarmedChunk(pos, (int) toRead)) {
                 return;
             }
 
+            // Near-end-of-file read: extend the window backward to cover the file tail in a single GET.
+            // parquet-mr reads a footer by first fetching the trailing 8-byte trailer (footer length int
+            // plus magic) at length-8, then seeking back to the footer body just before it. Fetching
+            // [length-TAIL, length) on this first near-EOF read puts both in one window, turning the
+            // footer-body read into a window hit instead of a second GET. The tail size matches the async
+            // metadata prefetch so both paths read and cache identically shaped tails.
+            long fetchStart = pos;
+            long fetchLen;
+            if (remaining <= footerTailBytes) {
+                long tail = Math.min(footerTailBytes, windowSize);
+                fetchStart = Math.max(0, length - tail);
+                fetchLen = length - fetchStart;
+            } else {
+                fetchLen = toRead;
+            }
+
             FooterByteCache tailCache = FooterByteCache.getInstance();
-            if (fillFromTailCache(tailCache, pos, (int) toRead)) {
+            if (fillFromTailCache(tailCache, fetchStart, (int) fetchLen)) {
                 return;
             }
 
-            boolean isTailRead = pos + toRead == length;
-            if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
+            boolean isTailRead = fetchStart + fetchLen == length;
+            if (isTailRead && fetchLen <= tailCache.maxEntryBytes()) {
+                final long loadStart = fetchStart;
+                final int loadLen = (int) fetchLen;
                 try {
-                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(pos, (int) toRead));
-                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, pos, (int) toRead)) {
+                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(loadStart, loadLen));
+                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, fetchStart, (int) fetchLen)) {
                         return;
                     }
                 } catch (ExecutionException e) {
@@ -281,15 +324,20 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             windowStart = -1;
             windowLength = 0;
 
-            int target = (int) toRead;
-            try (InputStream in = storageObject.newStream(pos, toRead)) {
+            int target = (int) fetchLen;
+            try (InputStream in = storageObject.newStream(fetchStart, fetchLen)) {
                 int totalRead = 0;
                 while (totalRead < target) {
                     int chunk = Math.min(STREAM_READ_CHUNK_SIZE, target - totalRead);
                     int n = in.read(streamReadBuf, 0, chunk);
                     if (n < 0) {
                         throw new IOException(
-                            "Unexpected end of stream while filling window at position " + pos + "; read " + totalRead + " of " + target
+                            "Unexpected end of stream while filling window at position "
+                                + fetchStart
+                                + "; read "
+                                + totalRead
+                                + " of "
+                                + target
                         );
                     }
                     if (n == 0 && chunk > 0) {
@@ -298,7 +346,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     window.setBytes(totalRead, streamReadBuf, 0, n);
                     totalRead += n;
                 }
-                windowStart = pos;
+                windowStart = fetchStart;
                 windowLength = totalRead;
             }
 
@@ -333,9 +381,9 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
         }
 
-        private boolean fillFromTailCache(FooterByteCache tailCache, long pos, int toRead) {
+        private boolean fillFromTailCache(FooterByteCache tailCache, long fetchStart, int fetchLen) {
             byte[] cached = tailCache.get(cacheKey);
-            return cached != null && fillFromCachedTail(cached, pos, toRead);
+            return cached != null && fillFromCachedTail(cached, fetchStart, fetchLen);
         }
 
         /**
@@ -382,15 +430,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             return true;
         }
 
-        private boolean fillFromCachedTail(byte[] cached, long pos, int toRead) {
+        private boolean fillFromCachedTail(byte[] cached, long fetchStart, int fetchLen) {
             long cachedStart = length - cached.length;
-            if (pos >= cachedStart && pos + toRead <= length) {
-                int from = (int) (pos - cachedStart);
+            if (fetchStart >= cachedStart && fetchStart + fetchLen <= length) {
+                int from = (int) (fetchStart - cachedStart);
                 windowStart = -1;
                 windowLength = 0;
-                window.setBytes(0L, cached, from, toRead);
-                windowStart = pos;
-                windowLength = toRead;
+                window.setBytes(0L, cached, from, fetchLen);
+                windowStart = fetchStart;
+                windowLength = fetchLen;
                 return true;
             }
             return false;

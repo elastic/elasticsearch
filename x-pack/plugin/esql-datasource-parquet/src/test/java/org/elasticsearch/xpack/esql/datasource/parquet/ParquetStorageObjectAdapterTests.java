@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -61,6 +62,23 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         allocator = blockFactory.arrowAllocator();
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    }
+
+    /**
+     * The tail-extension in fetchWindowAt computes fetchStart = length - min(footerTailBytes, windowSize).
+     * When windowSize &lt; footerTailBytes that makes fetchStart &gt; pos, leaving pos outside the window and
+     * causing an infinite ensureWindow loop. The default window size must therefore be at least as large
+     * as the footer-tail prefetch size; this test catches a bad change to either constant immediately.
+     */
+    public void testDefaultWindowSizeIsAtLeastFooterTailPrefetchBytes() {
+        assertTrue(
+            "DEFAULT_WINDOW_SIZE ("
+                + ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE
+                + ") must be >= FOOTER_TAIL_PREFETCH_BYTES ("
+                + ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+                + "); see fetchWindowAt tail-extension logic",
+            ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE >= ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+        );
     }
 
     public void testNullStorageObjectThrowsException() {
@@ -646,8 +664,109 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(read);
         }
         assertArrayEquals(data, read);
-        // Exactly 2: one full 4 MiB window, one for the remaining 123-byte tail.
+        // Exactly 2: one full 4 MiB window, then one backward-extending tail window covering the
+        // final bytes (the near-EOF read fetches the file tail rather than only the 123 residual bytes).
         assertEquals(2, rangeReadCount[0]);
+    }
+
+    /**
+     * Mimics parquet-mr's footer access on a file larger than the tail window: read the trailing 8-byte
+     * trailer at {@code length - 8}, then seek back to the footer body just before it. Both reads must be
+     * served by a single backward-extending tail GET so the footer costs one round trip, not two.
+     */
+    public void testNearEofReadFetchesTailInSingleGet() throws IOException {
+        int size = 512 * 1024;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        List<long[]> requests = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, requests);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, allocator);
+
+        int footerLength = 4096; // footerLength + 8 fits within the tail window
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(size - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8, size), trailer);
+
+            stream.seek(size - 8 - footerLength);
+            byte[] footer = new byte[footerLength];
+            stream.readFully(footer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
+        }
+        assertEquals("Trailer and footer body must come from a single GET", 1, requests.size());
+        // The single GET must be a backward-extending tail read, not a whole-file read: it starts within
+        // the tail window and covers to end-of-file.
+        long[] request = requests.get(0);
+        assertEquals("Tail read must reach end-of-file", size, request[0] + request[1]);
+        assertTrue(
+            "Expected a tail read starting within the tail window, got position " + request[0],
+            request[0] >= size - ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES
+        );
+    }
+
+    /**
+     * A file smaller than the tail window is read whole in a single GET on the first near-EOF read, so the
+     * trailer, the footer body, and any earlier bytes are all served from one window.
+     */
+    public void testSmallFileReadWholeInSingleGet() throws IOException {
+        int size = 5000; // smaller than the 64 KiB tail window
+        byte[] data = new byte[size];
+        randomBytes(data);
+        List<long[]> requests = new ArrayList<>();
+        StorageObject storage = createRecordingRangeReadStorageObject(data, requests);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, allocator);
+
+        int footerLength = 1000;
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(size - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8, size), trailer);
+
+            stream.seek(size - 8 - footerLength);
+            byte[] footer = new byte[footerLength];
+            stream.readFully(footer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
+
+            stream.seek(0);
+            byte[] head = new byte[64];
+            stream.readFully(head);
+            assertArrayEquals(Arrays.copyOfRange(data, 0, 64), head);
+        }
+        assertEquals("Small file must be read in a single GET", 1, requests.size());
+        long[] request = requests.get(0);
+        assertEquals("Small-file read must start at offset 0", 0, request[0]);
+        assertEquals("Small-file read must cover the whole file", size, request[1]);
+    }
+
+    /**
+     * A footer larger than the tail window keeps the two-GET fallback: the first near-EOF read fetches the
+     * tail, and the footer body that starts before the tail window triggers a second exact-range read.
+     * Correctness must hold regardless.
+     */
+    public void testLargeFooterBeyondTailUsesSecondGet() throws IOException {
+        int size = 512 * 1024;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage, allocator);
+
+        int footerLength = 100 * 1024; // footerLength + 8 exceeds the 64 KiB tail window
+        assertTrue(footerLength + 8 > ParquetFormatReader.FOOTER_TAIL_PREFETCH_BYTES);
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(size - 8);
+            byte[] trailer = new byte[8];
+            stream.readFully(trailer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8, size), trailer);
+
+            stream.seek(size - 8 - footerLength);
+            byte[] footer = new byte[footerLength];
+            stream.readFully(footer);
+            assertArrayEquals(Arrays.copyOfRange(data, size - 8 - footerLength, size - 8), footer);
+        }
+        assertEquals("A footer larger than the tail window needs a second GET for the body", 2, rangeReadCount.get());
     }
 
     // --- Adaptive window tests ---
@@ -1124,7 +1243,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         StorageObject obj2 = createCountingStorageObject(data, path, Instant.ofEpochMilli(500), rangeReadCount);
 
         int tailStart = data.length - 1024;
-        byte[] expected = java.util.Arrays.copyOfRange(data, tailStart, data.length);
+        byte[] expected = Arrays.copyOfRange(data, tailStart, data.length);
 
         ParquetStorageObjectAdapter first = new ParquetStorageObjectAdapter(obj1, allocator);
         try (SeekableInputStream s = first.newStream()) {
@@ -1198,7 +1317,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         };
 
         int tailStart = data.length - 1024;
-        byte[] expected = java.util.Arrays.copyOfRange(data, tailStart, data.length);
+        byte[] expected = Arrays.copyOfRange(data, tailStart, data.length);
         Thread[] threads = new Thread[8];
         AtomicReference<AssertionError> firstFailure = new AtomicReference<>();
 
@@ -1249,23 +1368,23 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             byte[] got = new byte[100];
             assertEquals(100, stream.read(got));
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 0, 100), got);
+            assertArrayEquals(Arrays.copyOfRange(data, 0, 100), got);
 
             stream.seek(1000);
             got = new byte[200];
             assertEquals(200, stream.read(got, 0, 200));
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 1000, 1200), got);
+            assertArrayEquals(Arrays.copyOfRange(data, 1000, 1200), got);
 
             stream.seek(500);
             got = new byte[300];
             assertEquals(300, stream.read(got, 0, 300));
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 500, 800), got);
+            assertArrayEquals(Arrays.copyOfRange(data, 500, 800), got);
 
             long endPos = data.length - 100L;
             stream.seek(endPos);
             got = new byte[100];
             stream.readFully(got);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, (int) endPos, data.length), got);
+            assertArrayEquals(Arrays.copyOfRange(data, (int) endPos, data.length), got);
 
             stream.seek(2048);
             ByteBuffer buf = ByteBuffer.allocate(64);
@@ -1273,7 +1392,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             buf.flip();
             byte[] bufBytes = new byte[64];
             buf.get(bufBytes);
-            assertArrayEquals(java.util.Arrays.copyOfRange(data, 2048, 2048 + 64), bufBytes);
+            assertArrayEquals(Arrays.copyOfRange(data, 2048, 2048 + 64), bufBytes);
         }
     }
 
@@ -1566,6 +1685,48 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.readFully(result);
         }
         assertEquals("Empty map must not enable the pre-warm fast path", 1, rangeReadCount.get());
+    }
+
+    /**
+     * A range-read storage object that records each requested {@code (position, length)} pair so a test can
+     * assert not only how many range GETs happened but also their shape (e.g. that a footer read is a
+     * backward-extending tail read rather than a whole-file read).
+     */
+    private StorageObject createRecordingRangeReadStorageObject(byte[] data, List<long[]> requests) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in recording harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                requests.add(new long[] { position, length });
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://recording-test.parquet");
+            }
+        };
     }
 
     private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {

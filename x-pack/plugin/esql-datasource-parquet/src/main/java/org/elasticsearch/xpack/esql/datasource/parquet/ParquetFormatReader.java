@@ -151,11 +151,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
     /**
-     * Bytes prefetched from the tail of a Parquet file by {@link #metadataAsync} to cover the footer
-     * in a single async read. The Parquet trailer is 8 bytes (4-byte little-endian footer length +
-     * 4-byte {@code PAR1} magic); footers for typical files fit comfortably within this window, so a
-     * single {@link StorageObject#readBytesAsync} suffices. When a footer exceeds this window a
-     * second exact-range read is issued (see {@link #metadataAsync}).
+     * Bytes prefetched from the tail of a Parquet file to cover the footer in a single read. Used by
+     * both the async metadata path ({@link #metadataAsync}) and the synchronous scan path, where
+     * {@link ParquetStorageObjectAdapter} fetches a backward-extending window of this size on a
+     * near-end-of-file read so the trailer and the footer body arrive in one GET. The Parquet trailer
+     * is 8 bytes (4-byte little-endian footer length + 4-byte {@code PAR1} magic); footers for typical
+     * files fit comfortably within this window. A footer larger than this window falls back to a
+     * second read for the remainder on both paths.
      */
     static final int FOOTER_TAIL_PREFETCH_BYTES = 64 * 1024;
 

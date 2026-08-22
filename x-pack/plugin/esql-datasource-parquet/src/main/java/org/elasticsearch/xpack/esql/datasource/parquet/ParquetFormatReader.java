@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.bytes.HeapByteBufferAllocator;
@@ -674,7 +673,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
@@ -740,8 +739,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         int tailLen = (int) Math.min(FOOTER_TAIL_PREFETCH_BYTES, length);
-        BufferAllocator allocator = blockFactory.arrowAllocator();
-        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(blockFactory.breaker());
 
         object.readBytesAsync(length - tailLen, tailLen, factory, executor, ActionListener.wrap(tail -> {
             final byte[] tailBytes;
@@ -1281,7 +1279,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // it emits any other column. Pushed filters, late materialization, page skipping, and
             // row-group skipping all stay on — each surviving row carries its identity, and the
             // matching extractor binds those identities back to the file's full footer.
-            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
             long footerStartNanos = System.nanoTime();
             ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
             counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
@@ -1355,7 +1353,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -1613,7 +1611,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(
                 object,
                 rangeEnd - rangeStart,
-                blockFactory.arrowAllocator()
+                blockFactory.breaker()
             );
             ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
             // Footer resolution order:
@@ -1890,7 +1888,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             predicateColumnPaths,
             indexColumnPaths.columnIndexPaths(),
             indexColumnPaths.offsetIndexPaths(),
-            blockFactory.arrowAllocator()
+            blockFactory.breaker()
         );
         boolean metadataHandedOff = false;
         try {

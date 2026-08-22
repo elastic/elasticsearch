@@ -172,16 +172,13 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
-    public void testUncompressedV1PageWithDirectInputSkipsAllocAndCopy() throws IOException {
-        // Regression coverage for elastic/esql-planning#804: when the codec is UNCOMPRESSED and
-        // the page slice is already direct (the prefetched path), decompressV1 must return a view
-        // over the input buffer rather than allocating a fresh direct buffer and memcopying into
-        // it.
+    public void testUncompressedV1PageWithHeapInputSkipsAllocAndCopy() throws IOException {
+        // When the codec is UNCOMPRESSED, decompressV1 must return a view over the input buffer
+        // rather than allocating a fresh buffer and copying.
         byte[] payload = randomBytesOfLength(64);
-        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
-        direct.put(payload).flip();
+        ByteBuffer heap = ByteBuffer.wrap(payload);
         DataPageV1 v1 = new DataPageV1(
-            BytesInput.from(direct.duplicate()),
+            BytesInput.from(heap.duplicate()),
             10,
             payload.length,
             intStats(),
@@ -206,25 +203,20 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(out.getRlEncoding(), equalTo(Encoding.RLE));
             assertThat(out.getDlEncoding(), equalTo(Encoding.RLE));
             ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
-            assertTrue("Uncompressed V1 page must be backed by a direct buffer", decompressedBuf.isDirect());
+            assertFalse("Uncompressed V1 page aliases the heap I/O buffer", decompressedBuf.isDirect());
             assertThat(out.getBytes().toByteArray(), equalTo(payload));
-            // Mutating the underlying direct buffer must show through the returned BytesInput — i.e.,
-            // the page reader handed back a view rather than a copy of the input. The buffer
-            // duplicate's position/limit are independent of the original, so writing through the
-            // original is safe.
             byte sentinel = (byte) (payload[0] ^ 0xFF);
-            direct.put(0, sentinel);
-            assertEquals("Returned BytesInput must alias the direct input slice, not a copy", sentinel, out.getBytes().toByteArray()[0]);
+            heap.put(0, sentinel);
+            assertEquals("Returned BytesInput must alias the heap input slice, not a copy", sentinel, out.getBytes().toByteArray()[0]);
         }
     }
 
     public void testUncompressedV1PageWithDirectInputRejectsSizeMismatch() {
         byte[] payload = randomBytesOfLength(64);
-        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
-        direct.put(payload).flip();
+        ByteBuffer heap = ByteBuffer.wrap(payload);
         int declaredSize = payload.length - 1;
         DataPageV1 v1 = new DataPageV1(
-            BytesInput.from(direct.duplicate()),
+            BytesInput.from(heap.duplicate()),
             10,
             declaredSize,
             intStats(),
@@ -246,12 +238,11 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
-    public void testUncompressedDictionaryPageWithDirectInputSkipsAllocAndCopy() throws IOException {
+    public void testUncompressedDictionaryPageWithHeapInputSkipsAllocAndCopy() throws IOException {
         // Same short-circuit, exercised through the dictionary-page path.
         byte[] payload = randomBytesOfLength(48);
-        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
-        direct.put(payload).flip();
-        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(direct.duplicate()), payload.length, 4, Encoding.PLAIN);
+        ByteBuffer heap = ByteBuffer.wrap(payload);
+        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(heap.duplicate()), payload.length, 4, Encoding.PLAIN);
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
@@ -264,11 +255,11 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             DictionaryPage out = reader.readDictionaryPage();
             assertThat(out, notNullValue());
             ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
-            assertTrue("Uncompressed dictionary page must be backed by a direct buffer", decompressedBuf.isDirect());
+            assertFalse("Uncompressed dictionary page aliases the heap I/O buffer", decompressedBuf.isDirect());
             byte sentinel = (byte) (payload[0] ^ 0xFF);
-            direct.put(0, sentinel);
+            heap.put(0, sentinel);
             assertEquals(
-                "Returned BytesInput must alias the direct dictionary input slice, not a copy",
+                "Returned BytesInput must alias the heap dictionary input slice, not a copy",
                 sentinel,
                 out.getBytes().toByteArray()[0]
             );

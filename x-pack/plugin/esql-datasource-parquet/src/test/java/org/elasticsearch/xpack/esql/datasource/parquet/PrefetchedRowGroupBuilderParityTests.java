@@ -223,7 +223,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                     schema,
                     projected,
                     rowRanges,
-                    PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.arrowAllocator()),
+                    PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.breaker()),
                     prefetched.chunks(),
                     storageObject,
                     codecFactory,
@@ -307,9 +307,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             long rowCount = block.getRowCount();
 
             // Confirm the file actually has multiple pages so the test is meaningful.
-            try (
-                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.arrowAllocator())
-            ) {
+            try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.breaker())) {
                 org.apache.parquet.internal.column.columnindex.OffsetIndex oi = metadata.getOffsetIndex(0, "id");
                 assertNotNull("offset index must be present (writer should emit it for sorted V1/V2 files)", oi);
                 assertTrue("expected multiple pages to exercise firstRowIndex; got " + oi.getPageCount(), oi.getPageCount() >= 4);
@@ -428,7 +426,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
     ) throws IOException {
         try (
             PreloadedRowGroupMetadata metadata = withOffsetIndex
-                ? PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.arrowAllocator())
+                ? PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.breaker())
                 : PreloadedRowGroupMetadata.empty()
         ) {
             Set<String> projected = Set.of("id");
@@ -515,14 +513,14 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             storageObject,
             block,
             projected,
-            blockFactory.arrowAllocator()
+            blockFactory.breaker()
         );
         return future.join();
     }
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), blockFactory.breaker()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

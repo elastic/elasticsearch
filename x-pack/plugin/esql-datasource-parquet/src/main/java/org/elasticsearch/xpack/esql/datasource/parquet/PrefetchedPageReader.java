@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code breaker} for the life of the current page (and the cached dictionary, if any) and
  * released before the next page or on {@link #close()}. Uncompressed pages alias the
  * prefetched I/O bytes and are not charged — those bytes are already accounted by the
- * prefetch allocator. Heap {@code byte[]}s remain valid after the next {@link #readPage()};
+ * prefetch circuit breaker. Heap {@code byte[]}s remain valid after the next {@link #readPage()};
  * the breaker tracks only the current page plus dictionary so peak residency is O(one page).
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
@@ -136,8 +136,8 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             // Heap decompressor path so the returned BytesInput is a plain byte[] rather than an
             // alias of the prefetched chunk. DictionaryPageReader (parquet-mr) caches this
             // DictionaryPage indefinitely in a ConcurrentHashMap; if the decompressed bytes
-            // aliased a prefetch ArrowBuf they would become dangling as soon as this reader is
-            // closed at row-group rollover. The compressed input is also heap-backed —
+            // aliased a prefetch buffer they would outlive this reader's close at row-group
+            // rollover. The compressed input is also heap-backed —
             // PrefetchedRowGroupBuilder.makeDictionaryPage eagerly copies it from the
             // PrefetchedChunk. Uncompressed dictionaries skip the breaker charge and alias that
             // heap copy.

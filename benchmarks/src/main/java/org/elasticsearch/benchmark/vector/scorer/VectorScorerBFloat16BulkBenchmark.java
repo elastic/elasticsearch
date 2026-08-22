@@ -105,8 +105,8 @@ public class VectorScorerBFloat16BulkBenchmark extends VectorScorerBulkBenchmark
         private final float[][] vectorData;
         private final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
+            super(numVectors, numVectorsToScore, random, accessMode);
 
             vectorData = new float[numVectors][];
             for (int v = 0; v < numVectors; v++) {
@@ -127,7 +127,7 @@ public class VectorScorerBFloat16BulkBenchmark extends VectorScorerBulkBenchmark
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current(), accessMode));
     }
 
     void setup(VectorData vectorData) throws IOException {

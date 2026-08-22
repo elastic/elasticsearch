@@ -27,6 +27,7 @@ import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantiz
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
 import java.io.IOException;
@@ -99,6 +100,11 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     @Override
     public FlatVectorsScorer newFlatVectorsScorer() {
         return new PanamaFlatVectorScorer();
+    }
+
+    @Override
+    public OptimizedScalarQuantization newOptimizedScalarQuantization() {
+        return new PanamaOptimizedScalarQuantization();
     }
 
     @Override

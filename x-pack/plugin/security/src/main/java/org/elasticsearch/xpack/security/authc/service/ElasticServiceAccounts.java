@@ -156,6 +156,11 @@ final class ElasticServiceAccounts {
                     .application("kibana-*")
                     .resources("*")
                     .privileges("reserved_fleet-setup")
+                    .build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("apm")
+                    .resources("*")
+                    .privileges("event:write")
                     .build() },
             null,
             null,

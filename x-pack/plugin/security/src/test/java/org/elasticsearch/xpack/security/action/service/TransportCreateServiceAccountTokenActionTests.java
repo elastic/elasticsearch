@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -47,7 +46,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             serviceAccountService,
             securityContext
         );

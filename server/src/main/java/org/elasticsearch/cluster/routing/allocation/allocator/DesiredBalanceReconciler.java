@@ -262,7 +262,7 @@ public class DesiredBalanceReconciler {
              * TODO: We could be smarter here and group the shards by index and then
              * use the sorter to save some iterations.
              */
-            final PriorityComparator indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
+            final Comparator<ShardRouting> indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> shardAllocationPriorityComparator = (o1, o2) -> {
                 // Prioritize assigning a primary shard copy, if one is a primary and the other is not.
                 if (o1.primary() ^ o2.primary()) {

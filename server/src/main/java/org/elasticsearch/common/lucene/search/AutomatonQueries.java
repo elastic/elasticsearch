@@ -91,7 +91,7 @@ public class AutomatonQueries {
             nfa,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             circuitBreaker,
-            "wildcard-ci:" + wildcardquery.field()
+            ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + "[ci]:" + wildcardquery.field()
         );
     }
 
@@ -105,7 +105,7 @@ public class AutomatonQueries {
             nfa,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
             circuitBreaker,
-            "wildcard:" + wildcardquery.field()
+            ChildMemoryCircuitBreaker.CATEGORY_WILDCARD + ":" + wildcardquery.field()
         );
     }
 

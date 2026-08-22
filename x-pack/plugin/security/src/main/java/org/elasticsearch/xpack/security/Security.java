@@ -118,6 +118,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -782,7 +783,8 @@ public class Security extends Plugin
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
                 services.projectRoutingResolver(),
-                services.systemIndices()
+                services.systemIndices(),
+                services.usageService()
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -807,7 +809,8 @@ public class Security extends Plugin
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
-        SystemIndices coreSystemIndices
+        SystemIndices coreSystemIndices,
+        UsageService usageService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -1203,7 +1206,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            usageService
         );
 
         components.add(nativeRolesStore); // used by roles actions

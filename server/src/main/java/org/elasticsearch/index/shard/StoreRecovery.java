@@ -32,8 +32,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -50,7 +48,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -420,7 +417,6 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        final List<Releasable> releasables = new ArrayList<>(1);
         SubscribableListener
 
             .newForked(indexShard::preRecovery)
@@ -432,8 +428,8 @@ public final class StoreRecovery {
                 indexShard.prepareForIndexRecovery();
                 SegmentInfos si = null;
                 final Store store = indexShard.store();
-                store.incRef();
-                releasables.add(store::decRef);
+                // Store ref is held by IndicesService for the recovery lifetime.
+                assert store.hasReferences();
                 try {
                     store.failIfCorrupted();
                     try {
@@ -505,13 +501,13 @@ public final class StoreRecovery {
                 indexShard.postRecovery("post recovery from shard_store", l);
             })
 
-            .addListener(ActionListener.runBefore(outerListener.delegateResponse((l, e) -> {
+            .addListener(outerListener.delegateResponse((l, e) -> {
                 if (e instanceof IndexShardRecoveryException) {
                     l.onFailure(e);
                 } else {
                     l.onFailure(new IndexShardRecoveryException(shardId, "failed to recover from gateway", e));
                 }
-            }), () -> Releasables.close(releasables)));
+            }));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
@@ -633,27 +629,24 @@ public final class StoreRecovery {
     private static void bootstrap(final IndexShard indexShard) throws IOException {
         assert indexShard.routingEntry().primary();
         final var store = indexShard.store();
-        store.incRef();
-        try {
-            final var translogLocation = indexShard.shardPath().resolveTranslog();
-            if (indexShard.hasTranslog() == false) {
-                if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
-                    Translog.deleteAll(translogLocation);
-                }
-                return;
+        // Store ref is held by IndicesService for the recovery lifetime.
+        assert store.hasReferences();
+        final var translogLocation = indexShard.shardPath().resolveTranslog();
+        if (indexShard.hasTranslog() == false) {
+            if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
+                Translog.deleteAll(translogLocation);
             }
-            store.bootstrapNewHistory();
-            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-            final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            final String translogUUID = Translog.createEmptyTranslog(
-                translogLocation,
-                localCheckpoint,
-                indexShard.shardId(),
-                indexShard.getPendingPrimaryTerm()
-            );
-            store.associateIndexWithNewTranslog(translogUUID);
-        } finally {
-            store.decRef();
+            return;
         }
+        store.bootstrapNewHistory();
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        final String translogUUID = Translog.createEmptyTranslog(
+            translogLocation,
+            localCheckpoint,
+            indexShard.shardId(),
+            indexShard.getPendingPrimaryTerm()
+        );
+        store.associateIndexWithNewTranslog(translogUUID);
     }
 }

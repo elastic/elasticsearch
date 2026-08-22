@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -51,7 +50,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         }).when(serviceAccountService).getManagedAccountInfos(any(), any(), any());
         transportGetServiceAccountAction = new TransportGetServiceAccountAction(
             transportService,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             serviceAccountService
         );
     }
@@ -97,7 +96,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
         TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             failingServiceAccountService
         );
 
@@ -116,7 +115,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
         TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             failingServiceAccountService
         );
 
@@ -135,7 +134,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
         TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
             MockUtils.setupTransportServiceWithThreadpoolExecutor(),
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             failingServiceAccountService
         );
 

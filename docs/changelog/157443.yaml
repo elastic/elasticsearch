@@ -1,0 +1,6 @@
+pr: 157443
+summary: Add mandatory Date header to all HTTP responses
+area: REST API
+type: bug
+issues:
+  - 157382

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -117,6 +118,7 @@ public enum FeatureMetric {
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
+    DENSE_VECTOR(DenseVector.class::isInstance),
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(node -> node instanceof Subquery && !(node instanceof NamedSubquery)),
     VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal

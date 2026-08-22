@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -30,6 +29,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -93,9 +93,8 @@ final class PrefetchedRowGroupBuilder {
      *            or when an individual column lacks an offset index in the filtered path
      * @param codecFactory shared {@link PlainCompressionCodecFactory} used to build per-column
      *            decompressors
-     * @param allocator Arrow allocator used by {@link PrefetchedPageReader} to back native
-     *            decompression buffers; allocations are breaker-accounted via
-     *            {@code BlockFactory.arrowAllocator()}'s {@code CircuitBreakerAllocationListener}
+     * @param breaker request breaker used by {@link PrefetchedPageReader} to charge heap
+     *            decompression output for the current data page and cached dictionary
      */
     static PrefetchedPageReadStore build(
         BlockMetaData block,
@@ -107,7 +106,7 @@ final class PrefetchedRowGroupBuilder {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks,
         StorageObject storageObject,
         CompressionCodecFactory codecFactory,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
         Map<String, ColumnDescriptor> descriptorsByPath = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
@@ -154,11 +153,11 @@ final class PrefetchedRowGroupBuilder {
                         source,
                         block.getRowCount(),
                         decompressor,
-                        allocator,
+                        breaker,
                         rowGroupOrdinal
                     );
                 } else {
-                    reader = buildSequential(column, primitiveType, source, decompressor, allocator, rowGroupOrdinal);
+                    reader = buildSequential(column, primitiveType, source, decompressor, breaker, rowGroupOrdinal);
                 }
                 readers.put(descriptor, reader);
             }
@@ -198,7 +197,7 @@ final class PrefetchedRowGroupBuilder {
         ColumnPageBytesSource source,
         long rowGroupRowCount,
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         int rowGroupOrdinal
     ) {
         DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal);
@@ -228,7 +227,7 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
+        return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount);
     }
 
     /**
@@ -241,7 +240,7 @@ final class PrefetchedRowGroupBuilder {
         PrimitiveType primitiveType,
         ColumnPageBytesSource source,
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         int rowGroupOrdinal
     ) {
         long startingPos = column.getStartingPos();
@@ -281,7 +280,7 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
+            return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount);
         } catch (IOException e) {
             throw ParquetReadFailures.wrap(
                 e,
@@ -699,8 +698,9 @@ final class PrefetchedRowGroupBuilder {
         if (buffer.hasArray()) {
             return BytesInput.from(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        // Direct buffer: wrap as-is so decompressToDirectBuffer sees isDirect()==true and skips
-        // the heap→direct copy that would otherwise fire per page.
+        // Direct buffer: wrap as-is so uncompressed pages can alias I/O (no copy) and compressed
+        // codecs see the original slice. Heap codecs may still copy via toByteArray() until
+        // prefetch itself is heap-backed.
         return BytesInput.from(buffer.duplicate());
     }
 

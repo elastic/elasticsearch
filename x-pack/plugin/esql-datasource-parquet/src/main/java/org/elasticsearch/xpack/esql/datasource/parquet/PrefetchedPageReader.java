@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
@@ -17,11 +15,10 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -38,16 +35,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * original page type ({@link DataPageV1} stays V1, {@link DataPageV2} stays V2 with only the
  * data portion decompressed). Encryption and CRC verification are not supported.
  *
- * <p>Decompression uses one reusable {@link ArrowBuf} from the supplied {@link BufferAllocator},
- * exposed via {@link ArrowBuf#nioBuffer(long, int)} for the direct-to-direct JNI fast path.
- * {@link #readPage()} overwrites that buffer. It grows only when a later page needs more
- * capacity — breaker residency is the high-water-mark page, not the current page — and is
- * released on {@link #close()}. Heap-backed compressed input still copies through a per-page
- * scratch buffer; production prefetch already yields direct slices, so that path is idle.
- * Returned {@link DataPage}s and {@link BytesInput}s alias the current buffer and must not be
- * used after the next {@link #readPage()} or {@link #close()}.
+ * <p>Compressed pages decompress onto a heap {@code byte[]} via
+ * {@link BytesInputDecompressor#decompress(BytesInput, int)}. That output is charged to
+ * {@code breaker} for the life of the current page (and the cached dictionary, if any) and
+ * released before the next page or on {@link #close()}. Uncompressed pages alias the
+ * prefetched I/O bytes and are not charged — those bytes are already accounted by the
+ * prefetch allocator. Heap {@code byte[]}s remain valid after the next {@link #readPage()};
+ * the breaker tracks only the current page plus dictionary so peak residency is O(one page).
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
+
+    private static final String DECOMP_BREAKER_LABEL = "parquet page decompression";
 
     /**
      * A compressed data page paired with its {@code firstRowIndex}. Required because
@@ -59,30 +57,28 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     record CompressedPage(DataPage page, long firstRowIndex) {}
 
     private final BytesInputDecompressor decompressor;
-    private final BufferAllocator allocator;
+    private final CircuitBreaker breaker;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
     private final DictionaryPage compressedDictionaryPage;
-    // Reusable decompress-output buffer. Grown when a page needs more capacity; released on
-    // close(). Overwritten in place across pages so we do not malloc/free per page — that churn
-    // is what retained glibc arenas after the allocator balance had already returned to baseline.
-    private ArrowBuf reusableDecompBuf;
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
+    private long dataPageCharge;
+    private long dictCharge;
     // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
-    // on a single compareAndSet and only one thread actually releases the owned buffers.
+    // on a single compareAndSet and only one thread actually releases the breaker charge.
     private final AtomicBoolean closed = new AtomicBoolean();
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
-        BufferAllocator allocator,
+        CircuitBreaker breaker,
         List<CompressedPage> compressedPages,
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
         this.decompressor = decompressor;
-        this.allocator = allocator;
+        this.breaker = breaker;
         this.compressedPages = new ArrayDeque<>(compressedPages);
         this.compressedDictionaryPage = compressedDictionaryPage;
         this.valueCount = valueCount;
@@ -97,8 +93,8 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     public DataPage readPage() {
         CompressedPage entry = compressedPages.poll();
         if (entry == null) {
-            // Queue drained. The last page returned stays live (the consumer may still be decoding
-            // it) until close() releases the reusable buffer; there is no new page to decode.
+            // Queue drained. The last page's breaker charge stays until close(); there is no new
+            // page to decode.
             return null;
         }
         // Previous page is dead. Both consumers of this reader ask for pages strictly sequentially
@@ -111,10 +107,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // its level/value readers from the new page before any further read, and its consumers
         // (ParquetColumnDecoding#readListRow) copy each value to the heap before the consume()
         // that can cross a page boundary.
-        // Overwrite the reusable decompress buffer rather than free+malloc: per-page free fed
-        // glibc arena retention even when the allocator balance returned to baseline. Live
-        // working set stays O(one page); parking a new buffer per page until close() is the
-        // accumulation the OOM-killer saw.
+        dataPageCharge = releaseCharge(dataPageCharge);
         DataPage page = entry.page();
         if (page instanceof DataPageV1 v1) {
             return decompressV1(v1);
@@ -133,28 +126,36 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         if (dictionaryDecompressed) {
             return cachedDictionaryPage;
         }
+        int uncompressedSize = compressedDictionaryPage.getUncompressedSize();
+        boolean charge = isNoopDecompressor() == false;
+        if (charge) {
+            breaker.addEstimateBytesAndMaybeBreak(uncompressedSize, DECOMP_BREAKER_LABEL);
+        }
+        boolean success = false;
         try {
-            // Use the heap decompressor path (not decompressToDirectBuffer) so the
-            // returned BytesInput is backed by a plain byte[] rather than an ArrowBuf.
-            // DictionaryPageReader (parquet-mr) caches this DictionaryPage indefinitely
-            // in a ConcurrentHashMap; if the decompressed bytes aliased an ArrowBuf they
-            // would become dangling as soon as the owning PrefetchedPageReader is closed
-            // at row-group rollover. The compressed input (compressedDictionaryPage.getBytes())
-            // is also heap-backed — PrefetchedRowGroupBuilder.makeDictionaryPage eagerly
-            // copies it from the PrefetchedChunk's direct buffer, which can be released
-            // before this call. Dictionary pages are small; neither copy is performance-critical.
-            BytesInput decompressed = decompressor.decompress(
-                compressedDictionaryPage.getBytes(),
-                compressedDictionaryPage.getUncompressedSize()
-            );
+            // Heap decompressor path so the returned BytesInput is a plain byte[] rather than an
+            // alias of the prefetched chunk. DictionaryPageReader (parquet-mr) caches this
+            // DictionaryPage indefinitely in a ConcurrentHashMap; if the decompressed bytes
+            // aliased a prefetch ArrowBuf they would become dangling as soon as this reader is
+            // closed at row-group rollover. The compressed input is also heap-backed —
+            // PrefetchedRowGroupBuilder.makeDictionaryPage eagerly copies it from the
+            // PrefetchedChunk. Uncompressed dictionaries skip the breaker charge and alias that
+            // heap copy.
+            BytesInput decompressed = decompressor.decompress(compressedDictionaryPage.getBytes(), uncompressedSize);
             cachedDictionaryPage = new DictionaryPage(
                 decompressed,
-                compressedDictionaryPage.getUncompressedSize(),
+                uncompressedSize,
                 compressedDictionaryPage.getDictionarySize(),
                 compressedDictionaryPage.getEncoding()
             );
+            dictCharge = charge ? uncompressedSize : 0;
+            success = true;
         } catch (IOException e) {
             throw new ParquetDecodingException("Could not decompress dictionary page", e);
+        } finally {
+            if (success == false && charge) {
+                breaker.addWithoutBreaking(-uncompressedSize);
+            }
         }
         // Set the cache flag only after a successful decompression. If decompression throws,
         // the next call will retry instead of silently returning a null cachedDictionaryPage.
@@ -164,7 +165,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private DataPageV1 decompressV1(DataPageV1 v1) {
         try {
-            BytesInput decompressed = decompressToDirectBuffer(v1.getBytes(), v1.getUncompressedSize());
+            BytesInput decompressed = decompressToHeap(v1.getBytes(), v1.getUncompressedSize());
             int indexRowCount = v1.getIndexRowCount().orElse(-1);
             long firstRowIndex = v1.getFirstRowIndex().orElse(-1L);
             if (firstRowIndex >= 0 && indexRowCount >= 0) {
@@ -231,7 +232,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                     v2.getStatistics()
                 );
             }
-            BytesInput decompressedData = decompressToDirectBuffer(v2.getData(), uncompressedDataSize);
+            BytesInput decompressedData = decompressToHeap(v2.getData(), uncompressedDataSize);
             return DataPageV2.uncompressed(
                 v2.getRowCount(),
                 v2.getNullCount(),
@@ -248,84 +249,43 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         }
     }
 
-    /**
-     * Decompresses {@code compressed} into a direct {@link ByteBuffer}, then wraps the result
-     * as a {@link BytesInput}. Both the input and output sides are direct so each codec takes its
-     * direct-to-direct JNI fast path (Zstd: {@code decompressDirectByteBuffer}; Snappy:
-     * {@code Snappy.uncompress(ByteBuffer, ByteBuffer)}), avoiding
-     * {@code GetPrimitiveArrayCritical} JNI pinning and the G1GC evacuation failures it causes.
-     *
-     * <p>For the prefetched path, {@link ColumnChunkPrefetcher} promotes each S3 response buffer
-     * from heap to direct once at fetch time (one copy per coalesced range), so page slices
-     * derived from it are already direct and the conditional copy below is a no-op. The copy
-     * remains as a safety net for the non-prefetched sync fallback path.
-     *
-     * <p>Uncompressed Parquet files take a short-circuit: when the decompressor is the pass-through
-     * {@link PlainCompressionCodecFactory.NoopDecompressor} and the input slice is already direct,
-     * the input is returned as-is. This avoids one {@code ByteBuffer.allocateDirect(pageSize)} plus
-     * a full page memcopy per V1 data page (and per dictionary page) — wasted work since
-     * {@code NoopDecompressor} would just copy the input into the output buffer verbatim. DataPageV2
-     * already has its own {@code isCompressed()=false} early exit upstream of this method; V1 has no
-     * equivalent flag in the page header, so the marker check on the decompressor instance is the
-     * only signal we have at the page-read layer. See elastic/esql-planning#804.
-     */
-    private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
-        ByteBuffer input = compressed.toByteBuffer();
-        if (decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor && input.isDirect()) {
-            if (input.remaining() != decompressedSize) {
+    private BytesInput decompressToHeap(BytesInput compressed, int decompressedSize) throws IOException {
+        // V1 has no isCompressed flag; NoopDecompressor is the only signal at this layer.
+        // Alias I/O bytes and skip the breaker — prefetch already charged them. See #804.
+        if (isNoopDecompressor()) {
+            if (compressed.size() != decompressedSize) {
                 throw new ParquetDecodingException(
                     "Uncompressed page size mismatch: input has "
-                        + input.remaining()
+                        + compressed.size()
                         + " bytes but page header declares "
                         + decompressedSize
                 );
             }
-            return BytesInput.from(input);
+            return compressed;
         }
-        // Scratch buffer used only when the input is on the heap and must be copied to direct
-        // memory to take the codec's direct-to-direct JNI fast path. decompress() consumes it
-        // synchronously, so it is released in the finally below rather than held on the reader.
-        ArrowBuf scratch = null;
+        breaker.addEstimateBytesAndMaybeBreak(decompressedSize, DECOMP_BREAKER_LABEL);
+        boolean success = false;
         try {
-            if (input.isDirect() == false) {
-                scratch = allocator.buffer(input.remaining());
-                ByteBuffer directInput = scratch.nioBuffer(0, input.remaining());
-                directInput.put(input);
-                directInput.flip();
-                input = directInput;
-            }
-            ByteBuffer output = allocateDirect(decompressedSize);
-            decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
-            output.flip();
-            return BytesInput.from(output);
+            BytesInput decompressed = decompressor.decompress(compressed, decompressedSize);
+            dataPageCharge = decompressedSize;
+            success = true;
+            return decompressed;
         } finally {
-            if (scratch != null) {
-                scratch.close();
+            if (success == false) {
+                breaker.addWithoutBreaking(-decompressedSize);
             }
         }
     }
 
-    private ByteBuffer allocateDirect(int size) {
-        if (reusableDecompBuf == null || reusableDecompBuf.capacity() < size) {
-            closeReusableDecompBuf();
-            reusableDecompBuf = allocator.buffer(size);
-        }
-        // Explicit (index, length): ArrowBuf may round capacity up, but the codec's size sanity
-        // check expects remaining() == declared decompressed size.
-        return reusableDecompBuf.nioBuffer(0, size);
+    private boolean isNoopDecompressor() {
+        return decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor;
     }
 
-    private void closeReusableDecompBuf() {
-        if (reusableDecompBuf == null) {
-            return;
+    private long releaseCharge(long bytes) {
+        if (bytes != 0) {
+            breaker.addWithoutBreaking(-bytes);
         }
-        ArrowBuf buf = reusableDecompBuf;
-        reusableDecompBuf = null;
-        try {
-            DirectMemoryDebug.poison(buf.nioBuffer(0, Math.toIntExact(buf.capacity())));
-        } finally {
-            buf.close();
-        }
+        return 0;
     }
 
     @Override
@@ -333,9 +293,10 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        // Drop the cached dictionary page reference. It is deliberately heap-backed (see
-        // readDictionaryPage), so this is reference hygiene, not a buffer-lifetime requirement.
+        // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
+        // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
         cachedDictionaryPage = null;
-        closeReusableDecompBuf();
+        dataPageCharge = releaseCharge(dataPageCharge);
+        dictCharge = releaseCharge(dictCharge);
     }
 }

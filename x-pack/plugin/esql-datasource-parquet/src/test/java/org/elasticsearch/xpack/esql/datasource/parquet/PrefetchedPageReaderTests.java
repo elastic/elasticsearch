@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DataPage;
@@ -21,8 +20,6 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -38,14 +35,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class PrefetchedPageReaderTests extends ESTestCase {
 
     private PlainCompressionCodecFactory codecFactory;
-    private BlockFactory blockFactory;
-    private BufferAllocator allocator;
+    private NoopCircuitBreaker breaker;
 
     @Before
-    public void initCodecAndAllocator() {
+    public void initCodecAndBreaker() {
         codecFactory = new PlainCompressionCodecFactory();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
+        breaker = new NoopCircuitBreaker("test");
     }
 
     @After
@@ -112,7 +107,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.GZIP), // codec must not be invoked
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                 null,
                 8
@@ -156,7 +151,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             try (
                 PrefetchedPageReader reader = new PrefetchedPageReader(
                     codecFactory.getDecompressor(codec),
-                    allocator,
+                    breaker,
                     List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                     null,
                     10
@@ -197,7 +192,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -240,7 +235,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -260,7 +255,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 compressedDict,
                 0
@@ -288,7 +283,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.SNAPPY),
-                allocator,
+                breaker,
                 List.of(),
                 compressedDict,
                 0
@@ -307,7 +302,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 null,
                 0
@@ -321,7 +316,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 null,
                 0
@@ -335,7 +330,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 null,
                 12345L
@@ -363,7 +358,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, 42L)),
                 null,
                 5
@@ -395,7 +390,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 decompressor,
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -411,7 +406,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(outV1.getDlEncoding(), equalTo(Encoding.RLE));
             assertThat(outV1.getBytes().toByteArray(), equalTo(payload));
             ByteBuffer decompressedBuf = outV1.getBytes().toByteBuffer();
-            assertTrue("decompressed V1 page must be backed by a direct buffer to avoid G1GC pinning", decompressedBuf.isDirect());
+            assertFalse("round-trip decompressed V1 bytes are heap-backed", decompressedBuf.isDirect());
             assertNull(reader.readPage());
         }
     }
@@ -439,7 +434,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 decompressor,
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                 null,
                 10
@@ -457,7 +452,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(outV2.getDefinitionLevels().toByteArray(), equalTo(dl));
             assertThat(outV2.getData().toByteArray(), equalTo(data));
             ByteBuffer decompressedBuf = outV2.getData().toByteBuffer();
-            assertTrue("decompressed V2 data must be backed by a direct buffer to avoid G1GC pinning", decompressedBuf.isDirect());
+            assertFalse("round-trip decompressed V2 data is heap-backed", decompressedBuf.isDirect());
             assertNull(reader.readPage());
         }
     }

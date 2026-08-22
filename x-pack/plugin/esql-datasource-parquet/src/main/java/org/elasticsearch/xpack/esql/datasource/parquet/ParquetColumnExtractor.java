@@ -720,7 +720,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 prefetched,
                 storageObject,
                 reader.codecFactory(),
-                blockFactory.arrowAllocator()
+                blockFactory.breaker()
             )
         ) {
             if (info.maxRepLevel() == 0) {

@@ -48,13 +48,10 @@ import java.util.zip.GZIPOutputStream;
  * G1GC region pinning). When either buffer is heap, the decompressor falls back to the
  * byte-array path. Two call sites reach these decompressors:
  * <ul>
- *   <li>{@code PrefetchedPageReader} explicitly calls the {@code decompress(ByteBuffer, int,
- *       ByteBuffer, int)} overload with both sides guaranteed direct: all {@code StorageObject}
- *       backends return direct {@link java.nio.ByteBuffer}s from {@code readBytesAsync}, and
- *       {@link ColumnChunkPrefetcher} promotes any heap buffer to direct as defense-in-depth for
- *       future backends. Page slices derived from that direct buffer are already direct when they
- *       reach {@code PrefetchedPageReader}, so the direct-to-direct fast path is always taken with
- *       no per-page copy.</li>
+ *   <li>{@code PrefetchedPageReader} calls {@code decompress(BytesInput, int)} so compressed
+ *       pages land on a heap {@code byte[]}. Uncompressed pages alias the prefetched I/O
+ *       {@link BytesInput} (still a direct slice until prefetch itself is heap-backed).
+ *       Heap output is charged to the request breaker for the current page.</li>
  *   <li>Parquet-MR's {@code ColumnChunkPageReadStore.ColumnChunkPageReader.readPage()} (the
  *       non-prefetched path) invokes only the {@code decompress(BytesInput, int)} overload — it
  *       never reaches the {@code ByteBuffer} overload, regardless of the allocator or the
@@ -169,10 +166,10 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     /**
      * Pass-through decompressor for files written with {@link CompressionCodecName#UNCOMPRESSED}.
      *
-     * <p>Visible at package level so {@link PrefetchedPageReader#decompressToDirectBuffer} can
-     * detect this case via {@code instanceof} and skip the {@code allocateDirect} + memcopy that
-     * the {@code ByteBuffer} overload below would otherwise perform. The marker check is a narrow
-     * coupling to the only built-in pass-through codec.
+     * <p>Visible at package level so {@link PrefetchedPageReader} can detect this case via
+     * {@code instanceof} and return the compressed input as-is (no heap copy, no breaker charge)
+     * instead of routing through {@code decompress(BytesInput, int)}. The marker check is a
+     * narrow coupling to the only built-in pass-through codec.
      */
     static class NoopDecompressor implements BytesInputDecompressor {
         @Override
@@ -208,10 +205,8 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            // PrefetchedPageReader (the optimized path) uses the ByteBuffer overload with Arrow
-            // buffers on both sides. This BytesInput overload is what everything else reaches:
-            // parquet-mr's ColumnChunkPageReadStore.readPage() on the baseline path, and
-            // ParquetFileReader.readDictionary during dictionary filtering on the optimized path.
+            // PrefetchedPageReader (the optimized path) and parquet-mr's
+            // ColumnChunkPageReadStore.readPage() both reach this BytesInput overload.
             // Fast path: avoid BytesInput.toByteArray() for heap-buffer-backed inputs — the default
             // toByteArray() funnels through a sized ByteArrayOutputStream, adding one allocation
             // and one System.arraycopy that the JNI Snappy binding does not need.
@@ -273,15 +268,13 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     /**
      * Zstd decompressor.
      *
-     * <p>Both code paths — the direct→direct hot path invoked by parquet-mr's
-     * {@code ColumnChunkPageReadStore} and our own {@code PrefetchedPageReader}, and the cold
-     * {@code BytesInput}/{@code byte[]} path — delegate to {@link PanamaZstd}, the shared Panama
-     * FFI binding that lives in {@code esql-datasource-compression-libs} (so Iceberg/ORC adopters
-     * can route their direct paths through the same code). This eliminates zstd-jni from the
-     * production runtime classpath entirely. The cold path uses {@code PanamaZstd.decompressHeap}
-     * which is bound with {@code Linker.Option.critical(true)}, so heap segments cross into
-     * libzstd without an off-heap staging copy — equivalent to zstd-jni's
-     * {@code GetPrimitiveArrayCritical} path but without G1's region pinning.
+     * <p>The hot path for {@code PrefetchedPageReader} and parquet-mr's
+     * {@code ColumnChunkPageReadStore} is {@code BytesInput}/{@code byte[]} via
+     * {@link PanamaZstd#decompressHeap}, bound with {@code Linker.Option.critical(true)} so heap
+     * segments cross into libzstd without an off-heap staging copy — equivalent to zstd-jni's
+     * {@code GetPrimitiveArrayCritical} path but without G1's region pinning. The
+     * {@code ByteBuffer} overload still takes a direct-to-direct Panama path when both sides are
+     * direct.
      *
      * <p>When the Panama binding is unavailable on a platform ({@link PanamaZstd#isAvailable()}
      * returns {@code false}), both paths fail with the same {@link IllegalStateException} from

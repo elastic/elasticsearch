@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DataPage;
@@ -15,52 +14,37 @@ import org.apache.parquet.column.page.DataPageV1;
 import org.apache.parquet.column.statistics.IntStatistics;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.lang.management.BufferPoolMXBean;
-import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-
 /**
- * Regression for the direct-memory leak on the parquet decompression path
+ * Regression for decompress-buffer accounting on the parquet page-read path.
  *
  * <p>Loops {@link PrefetchedPageReader#readPage} over a few hundred small zstd-compressed pages
- * and asserts JVM-tracked direct memory stays bounded. Before the fix, every page allocated
- * a fresh {@code ByteBuffer.allocateDirect} that only the {@code Cleaner} could reclaim, and
- * the {@code Cleaner} only runs on Old/Mixed GC — which the tight loop never triggers, so
- * direct memory grew monotonically across iterations.
- *
- * <p>After the fix, decompression buffers come from a {@link BufferAllocator}-managed
- * {@link org.apache.arrow.memory.ArrowBuf} that is released deterministically when the
- * reader is closed, so each iteration's peak goes back to the baseline within a small delta.
+ * and asserts the request breaker returns to zero after every read-close cycle. Heap codecs
+ * allocate {@code byte[]}s that GC owns; this test does not claim JVM-wide direct RSS is flat
+ * (prefetch I/O still uses native buffers until a follow-up).
  */
 public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
 
     private static final int ITERATIONS = 500;
     private static final int PAGES_PER_ITERATION = 50;
-    private static final int PAGE_PAYLOAD_BYTES = 64 * 1024;          // 64 KB decompressed
-    private static final long MAX_DIRECT_GROWTH_BYTES = 64L * 1024 * 1024; // 64 MB ceiling
+    private static final int PAGE_PAYLOAD_BYTES = 64 * 1024;
     private static final int CONCURRENT_READERS = 4;
     private static final int CONCURRENT_ITERS_PER_READER = 50;
 
     private PlainCompressionCodecFactory codecFactory;
-    private BlockFactory blockFactory;
-    private BufferAllocator allocator;
 
     @Before
-    public void initCodecAndAllocator() {
+    public void initCodec() {
         codecFactory = new PlainCompressionCodecFactory();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
     }
 
     @After
@@ -68,17 +52,15 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
         codecFactory.release();
     }
 
-    public void testRepeatedZstdDecompressionStaysWithinDirectMemoryBudget() throws IOException {
+    public void testRepeatedZstdDecompressionReleasesBreakerCharge() throws IOException {
         ZstdPageFixture fixture = compressedZstdPages();
-
-        long directBaseline = directMemoryUsedBytes();
-        long allocBaseline = allocator.getAllocatedMemory();
+        LimitedBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofGb(1));
 
         for (int i = 0; i < ITERATIONS; i++) {
             try (
                 PrefetchedPageReader reader = new PrefetchedPageReader(
                     codecFactory.getDecompressor(CompressionCodecName.ZSTD),
-                    allocator,
+                    breaker,
                     fixture.copyPages(),
                     null,
                     (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
@@ -89,44 +71,25 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                     consume(page);
                 }
             }
-            assertEquals("allocator must return to baseline after cycle " + i, allocBaseline, allocator.getAllocatedMemory());
+            assertEquals("breaker must return to zero after cycle " + i, 0L, breaker.getUsed());
         }
-
-        long after = directMemoryUsedBytes();
-        long grew = after - directBaseline;
-        assertThat(
-            "direct-memory grew "
-                + (grew >>> 20)
-                + " MB across "
-                + ITERATIONS
-                + " iters x "
-                + PAGES_PER_ITERATION
-                + " pages; expected <= "
-                + (MAX_DIRECT_GROWTH_BYTES >>> 20)
-                + " MB. After the fix, decompressToDirectBuffer allocates from a BufferAllocator-managed"
-                + " ArrowBuf released by PrefetchedPageReader.close().",
-            grew,
-            lessThanOrEqualTo(MAX_DIRECT_GROWTH_BYTES)
-        );
     }
 
     /**
-     * Concurrent zstd decompress loops must not accumulate native memory. Arrow accounting is
-     * exact (zero after join); MXBean remains a coarse JVM-wide ceiling matching the
-     * single-threaded regression.
+     * Concurrent zstd decompress loops must not leave breaker charge behind. Each reader uses
+     * its own breaker so threads cannot race on {@code used}.
      */
-    public void testDirectMemoryStableUnderConcurrentReads() throws Exception {
+    public void testBreakerChargeStableUnderConcurrentReads() throws Exception {
         ZstdPageFixture fixture = compressedZstdPages();
-        long allocBaseline = allocator.getAllocatedMemory();
-        long directBaseline = directMemoryUsedBytes();
 
         startInParallel(CONCURRENT_READERS, i -> {
+            LimitedBreaker breaker = new LimitedBreaker("test-" + i, ByteSizeValue.ofGb(1));
             try {
                 for (int iter = 0; iter < CONCURRENT_ITERS_PER_READER; iter++) {
                     try (
                         PrefetchedPageReader reader = new PrefetchedPageReader(
                             codecFactory.getDecompressor(CompressionCodecName.ZSTD),
-                            allocator,
+                            breaker,
                             fixture.copyPages(),
                             null,
                             (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
@@ -137,22 +100,12 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                             consume(page);
                         }
                     }
+                    assertEquals(0L, breaker.getUsed());
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         });
-        assertEquals("allocator must return to baseline after concurrent reads", allocBaseline, allocator.getAllocatedMemory());
-        long grew = directMemoryUsedBytes() - directBaseline;
-        assertThat(
-            "direct-memory grew "
-                + (grew >>> 20)
-                + " MB under concurrent zstd reads; expected <= "
-                + (MAX_DIRECT_GROWTH_BYTES >>> 20)
-                + " MB",
-            grew,
-            lessThanOrEqualTo(MAX_DIRECT_GROWTH_BYTES)
-        );
     }
 
     private ZstdPageFixture compressedZstdPages() throws IOException {
@@ -189,22 +142,10 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
     }
 
     private static void consume(DataPage page) throws IOException {
-        // Force the BytesInput contents through to a heap copy (simulates the Block-construction
-        // consumer) and let the array go out of scope. The copy must complete before the reader
-        // is closed because closing the reader releases the underlying ArrowBuf.
         DataPageV1 v1 = (DataPageV1) page;
         byte[] sink = v1.getBytes().toByteArray();
         if (sink.length < 0) {
             throw new AssertionError(); // anti-DCE guard; JIT cannot fold sink.length < 0 to false
         }
-    }
-
-    private static long directMemoryUsedBytes() {
-        for (BufferPoolMXBean p : ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)) {
-            if ("direct".equals(p.getName())) {
-                return p.getMemoryUsed();
-            }
-        }
-        return 0;
     }
 }

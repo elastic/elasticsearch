@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -492,6 +493,7 @@ public class FieldNameUtils {
     private static boolean couldOverrideAliases(LogicalPlan p) {
         return (p instanceof Aggregate
             || p instanceof Completion
+            || p instanceof DenseVector
             || p instanceof Drop
             || p instanceof Eval
             || p instanceof Filter

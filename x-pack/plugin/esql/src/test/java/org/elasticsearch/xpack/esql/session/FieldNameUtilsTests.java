@@ -4316,6 +4316,37 @@ public class FieldNameUtilsTests extends ESTestCase {
         return FieldNameUtils.resolveFieldNames(agg, false, includePrefixFields).fieldNames();
     }
 
+    public void testDenseVectorFieldNames() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+        // Assert EVAL aliases are collected properly
+        assertFieldNames("""
+            FROM employees
+            | EVAL xx = ""
+            | DENSE_VECTOR xx WITH { "inference_id" : "inference_id" }
+            """, ALL_FIELDS);
+
+        // Assert index fields are collected properly
+        assertFieldNames("""
+            FROM employees
+            | DENSE_VECTOR first_name WITH { "inference_id" : "inference_id" }
+            """, ALL_FIELDS);
+
+        // Assert that a trailing KEEP yields a concrete set including the index field.
+        assertFieldNames("""
+            FROM employees
+            | DENSE_VECTOR first_name WITH { "inference_id" : "inference_id" }
+            | KEEP first_name, first_name_dense_vector
+            """, Set.of("_index", "first_name", "first_name.*", "first_name_dense_vector", "first_name_dense_vector.*"));
+
+        // Assert that an EVAL alias input is not collected, unlike the index field emp_no.
+        assertFieldNames("""
+            FROM employees
+            | EVAL xx = ""
+            | DENSE_VECTOR xx WITH { "inference_id" : "inference_id" }
+            | KEEP emp_no, xx, xx_dense_vector
+            """, Set.of("_index", "emp_no", "emp_no.*", "xx_dense_vector", "xx_dense_vector.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

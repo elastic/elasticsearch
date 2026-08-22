@@ -36,10 +36,10 @@ import java.util.function.LongSupplier;
  * the same config reuses the same client across overlapping calls instead of building
  * a new HTTP pool each time.
  *
-     * <p>Borrow protocol matches snapshot S3 {@code AmazonS3Reference} ({@code tryIncRef} /
-     * {@code close() = decRef} / {@code closeInternal} at 0). Unlike snapshot S3, this pool keeps
-     * an extra map-held ref so an idle client can be reused until TTL; last user close does not
-     * immediately shut the SDK client.
+ * <p>Borrow protocol matches snapshot S3 {@code AmazonS3Reference} ({@code tryIncRef} /
+ * {@code close() = decRef} / {@code closeInternal} at 0). Unlike snapshot S3, this pool keeps
+ * an extra map-held ref so an idle client can be reused until TTL; last user close does not
+ * immediately shut the SDK client.
  *
  * <p>In-use entries are pinned ({@code refCount() > 1}) so a long scan cannot observe
  * {@code Connection pool shut down}. Idle entries (map ref only) expire after
@@ -109,16 +109,17 @@ public class StorageProviderCache implements Closeable {
      * @throws Exception if the factory throws during a cache miss
      */
     public Configured<StorageProvider> getOrCreate(CacheKey key, ProviderFactory factory) throws Exception {
-        CacheKey stableKey = new CacheKey(key.scheme(), Map.copyOf(key.config()));
+        Map<String, Object> config = Map.copyOf(key.config());
+        CacheKey stableKey = config == key.config() ? key : new CacheKey(key.scheme(), config);
         sweepExpired();
         Entry existing = entries.get(stableKey);
-        if (existing != null && existing.tryIncRef()) {
+        if (existing != null && pin(existing)) {
             evictExcessIdle();
             return wrap(existing);
         }
         synchronized (this) {
             existing = entries.get(stableKey);
-            if (existing != null && existing.tryIncRef()) {
+            if (existing != null && pin(existing)) {
                 evictExcessIdle();
                 return wrap(existing);
             }
@@ -177,9 +178,7 @@ public class StorageProviderCache implements Closeable {
         for (Map.Entry<CacheKey, Entry> mapEntry : entries.entrySet()) {
             Entry entry = mapEntry.getValue();
             if (entry.refCount() == 1 && now - entry.lastAccessNanos >= idleTtlNanos) {
-                if (entries.remove(mapEntry.getKey(), entry)) {
-                    entry.close();
-                }
+                dropMapSlotIfIdle(mapEntry.getKey(), entry, true);
             }
         }
     }
@@ -209,9 +208,29 @@ public class StorageProviderCache implements Closeable {
             if (idle <= MAX_ENTRIES || oldest == null) {
                 return;
             }
-            if (entries.remove(oldestKey, oldest)) {
-                oldest.close();
+            dropMapSlotIfIdle(oldestKey, oldest, false);
+        }
+    }
+
+    // Same lock as pin() and lease return: only unmap+close when still idle.
+    private void dropMapSlotIfIdle(CacheKey key, Entry entry, boolean expireOnly) {
+        synchronized (entry) {
+            if (entry.refCount() != 1) {
+                return;
             }
+            if (expireOnly && nanoClock.getAsLong() - entry.lastAccessNanos < idleTtlNanos) {
+                return;
+            }
+            if (entries.remove(key, entry) == false) {
+                return;
+            }
+            entry.close();
+        }
+    }
+
+    private static boolean pin(Entry entry) {
+        synchronized (entry) {
+            return entry.tryIncRef();
         }
     }
 
@@ -257,8 +276,10 @@ public class StorageProviderCache implements Closeable {
         PooledStorageProvider(Entry entry) {
             this.delegate = entry.provider;
             this.lease = Releasables.releaseOnce(() -> {
-                entry.lastAccessNanos = nanoClock.getAsLong();
-                entry.decRef();
+                synchronized (entry) {
+                    entry.lastAccessNanos = nanoClock.getAsLong();
+                    entry.decRef();
+                }
                 evictExcessIdle();
             });
         }

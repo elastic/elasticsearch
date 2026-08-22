@@ -702,7 +702,7 @@ public class ExternalSourceResolver {
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = singleEntrySchemaMap(storagePath, fileSchema);
             listener.onResponse(new ExternalSourceResolution.ResolvedSource(extMetadata, singletonList, schemaMap));
         } finally {
-            closeBorrowedProvider(provider);
+            StorageProviderCache.closeLease(provider);
         }
     }
 
@@ -804,7 +804,7 @@ public class ExternalSourceResolver {
                 );
             }
         } finally {
-            closeBorrowedProvider(provider);
+            StorageProviderCache.closeLease(provider);
         }
     }
 
@@ -1087,10 +1087,6 @@ public class ExternalSourceResolver {
             return registry.createProvider(storagePath.scheme(), settings, storageConfig(config));
         }
         return registry.provider(storagePath);
-    }
-
-    private static void closeBorrowedProvider(StorageProvider provider) {
-        StorageProviderCache.closeLease(provider);
     }
 
     private static String detectFormatType(StoragePath path) {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -328,6 +329,25 @@ public class StorageProviderCacheTests extends ESTestCase {
         );
         other3.value().close();
         assertEquals(1, c.closeCalls.get());
+    }
+
+    public void testMutableConfigMapIsSnapshotted() throws Exception {
+        StorageProviderCache cache = new StorageProviderCache();
+        HashMap<String, Object> config = new HashMap<>();
+        config.put("k", "v");
+        StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", config);
+        TrackingProvider provider = new TrackingProvider();
+        Configured<StorageProvider> first = cache.getOrCreate(key, () -> Configured.empty(provider));
+        config.put("k", "mutated");
+        TrackingProvider secondProvider = new TrackingProvider();
+        Configured<StorageProvider> second = cache.getOrCreate(key, () -> Configured.empty(secondProvider));
+        try {
+            assertNotSame("mutating the caller's map must not alias the pooled key", unwrap(first.value()), unwrap(second.value()));
+            assertEquals(0, provider.closeCalls.get());
+        } finally {
+            first.value().close();
+            second.value().close();
+        }
     }
 
     private static StorageProviderCache.CacheKey idleKey(int i) {

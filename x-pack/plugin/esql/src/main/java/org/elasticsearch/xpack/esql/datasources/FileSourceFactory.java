@@ -473,7 +473,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
                 // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
                 // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
-                // WITH-config storage is a pool lease: return it on query end. QueryBudgetedStorageProvider.close()
+                // WITH-config storage is a pool lease: return it when operators from get() finish.
+                // A built-but-never-started factory leaks the lease until node shutdown (same hole as
+                // the query budget; OperatorFactory has no close). QueryBudgetedStorageProvider.close()
                 // only releases the budget, so the lease is a sibling Closeable when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
                 if (allocator != null) {

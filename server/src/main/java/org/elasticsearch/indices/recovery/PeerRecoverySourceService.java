@@ -359,7 +359,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 maxConcurrentOutgoingRecoveries = newMax;
             }
             if (oldMax < newMax) {
-                startRecoveriesUpToLimit();
+                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
+                // applier thread stops before the thread pool shuts down so this can never be rejected.
+                transportService.getThreadPool().generic().execute(this::startRecoveriesUpToLimit);
             }
         }
 

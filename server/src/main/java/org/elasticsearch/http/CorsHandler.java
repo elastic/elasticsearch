@@ -104,6 +104,8 @@ public class CorsHandler {
     }
 
     public void setCorsResponseHeaders(final HttpRequest httpRequest, final HttpResponse httpResponse) {
+        // RFC 9110: Add Date header to all responses
+        setDateHeader(httpResponse);
         if (config.isCorsSupportEnabled() == false) {
             return;
         }
@@ -129,6 +131,7 @@ public class CorsHandler {
 
     private static HttpResponse forbidden(final HttpRequest request) {
         HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+        setDateHeader(response);
         response.addHeader("content-length", "0");
         return response;
     }
@@ -145,8 +148,12 @@ public class CorsHandler {
     }
 
     private static void setPreflightHeaders(final HttpResponse response) {
-        response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
+        setDateHeader(response);
         response.addHeader("content-length", "0");
+    }
+
+    private static void setDateHeader(final HttpResponse response) {
+        response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
     }
 
     private boolean setOrigin(final HttpRequest request, final HttpResponse response) {

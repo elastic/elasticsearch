@@ -94,6 +94,9 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
         for (ResolvedApplicationPrivilege resolved : applicationPrivileges) {
             final ApplicationPrivilege privilege = resolved.privilege();
             if (applicationMatchesKibana(privilege.getApplication())) {
+                // Using getPatterns() rather than predicate().test(...) to allow for the open nature of `ai_index:` action namespace
+                // (there could be more types created for `ai_index:<type>/read` in the future), whereas predicate is good for a known
+                // fixed list of actions.
                 Set<String> aiIndexActions = Arrays.stream(privilege.getPatterns())
                     .filter(pattern -> pattern.startsWith(AI_INDEX_ACTION_PREFIX))
                     .collect(Collectors.toSet());

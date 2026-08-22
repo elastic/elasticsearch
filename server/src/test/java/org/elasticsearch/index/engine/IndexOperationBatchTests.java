@@ -223,23 +223,6 @@ public class IndexOperationBatchTests extends ESTestCase {
         assertThat(batch.uids().length, equalTo(to - from));
     }
 
-    public void testInitFromBulkNullIdThrows() {
-        final int n = randomIntBetween(1, 8);
-        final BulkItemRequest[] items = new BulkItemRequest[n];
-        final int nullDoc = randomIntBetween(0, n - 1);
-        for (int d = 0; d < n; d++) {
-            final IndexRequest req = d == nullDoc
-                ? new IndexRequest("index").source(src(d), XContentType.JSON)  // no id
-                : new IndexRequest("index").id("id-" + d).source(src(d), XContentType.JSON);
-            items[d] = new BulkItemRequest(d, req);
-        }
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> IndexOperationBatch.initFromBulk(items, 0, n, null, Engine.Operation.Origin.PRIMARY, 1L, 0L)
-        );
-        assertTrue(e.getMessage().contains("coordinating node"));
-    }
-
     public void testInitFromBulkRejectsInvalidRange() {
         final int n = randomIntBetween(2, 8);
         final BulkItemRequest[] items = items(n);

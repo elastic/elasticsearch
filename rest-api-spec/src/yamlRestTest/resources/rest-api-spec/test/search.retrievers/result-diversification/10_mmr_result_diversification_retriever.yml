@@ -715,7 +715,7 @@ teardown:
   - match: { error.type: action_request_validation_exception }
 
 ---
-"Test MMR result diversification required field type":
+"Test MMR result diversification ignores an unmapped diversification field":
   - requires:
       cluster_features: [ "retriever.mmr_null_dense_vector_fix" ]
       reason: "MMR now drops null-vector docs instead of erroring"
@@ -739,6 +739,12 @@ teardown:
 
   - match: { hits.total.value: 6 }
   - length: { hits.hits: 0 }
+
+---
+"Test MMR result diversification ignores a diversification field that cannot return embeddings":
+  - requires:
+      cluster_features: [ "retriever.mmr_null_dense_vector_fix" ]
+      reason: "MMR now drops docs that do not return a dense vector value for the diversification field"
 
   - do:
       search:

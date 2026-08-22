@@ -1656,8 +1656,10 @@ public class TranslogTests extends ESTestCase {
         final ArrayList<Long> seqNos = new ArrayList<>();
         final ArrayList<Location> locations = new ArrayList<>();
         final ArrayList<BytesReference> datas = new ArrayList<>();
-        OperationListener listener = (operation, seqNo, location) -> {
-            seqNos.add(seqNo);
+        OperationListener listener = (operation, recordSeqNos, location) -> {
+            for (long seqNo : recordSeqNos) {
+                seqNos.add(seqNo);
+            }
             locations.add(location);
             try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
                 try {

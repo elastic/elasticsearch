@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -247,167 +248,171 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
 
-        // Dedup cache for ColumnMapping: concurrent-safe when split discovery is parallel.
-        Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
-
-        // Unified schema for the prune-to-per-file-query transformation. When null (legacy
-        // callers, data-node paths) the per-file mapping stays at Unified width — the data node
-        // still works, the on-wire cost is just slightly higher.
-        ExternalSchema unifiedSchema = context.unifiedSchema();
-
-        // Bail before doing any per-file work if the originating query is already cancelled.
-        throwIfCancelled(context);
-
-        // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
-        // build the list of FileTask items that need I/O (footer reads, boundary scans).
-        // Tracks whether any file was dropped by the row-count-unsafe no-column-overlap heuristic:
-        // such a file still contributes rows to COUNT(*), so an all-dropped result driven by it is
-        // NOT an exhaustive prune and must fall back to a full read (see SplitDiscoveryResult).
-        boolean droppedByColumnOverlap = false;
-        List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
-        for (int i = 0; i < fileList.fileCount(); i++) {
-            StoragePath filePath = fileList.path(i);
-
-            Map<String, Object> partitionValues = new HashMap<>();
-            if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                if (filePartitions != null) {
-                    partitionValues.putAll(filePartitions);
-                }
-            }
-            partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
-
-            if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
-                if (matchesPartitionFilters(partitionValues, filterHints) == false) {
-                    // Partition pruning: the path values alone disprove the filter, so the file is skipped unread.
-                    continue;
-                }
-            }
-
-            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
-
-            if (fileBackedQuerySchema.isEmpty() == false && fileSchemaInfo != null) {
-                if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), fileBackedQuerySchema)) {
-                    // Row-count-unsafe: the file's rows still exist (they would be all-NULL for the query's
-                    // columns), so COUNT(*) and other row-count-sensitive queries need them. Skipping is a
-                    // best-effort optimization that relies on a full-read fallback when it empties the plan.
-                    droppedByColumnOverlap = true;
-                    continue;
-                }
-            }
-
-            if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
-                Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
-                // Partition columns are always available (values come from paths, not file data)
-                fileColumnNames.addAll(partitionValues.keySet());
-                if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
-                    continue;
-                }
-            }
-
-            String objectName = filePath.objectName();
-            String format = null;
-            if (objectName != null) {
-                int lastDot = objectName.lastIndexOf('.');
-                if (lastDot >= 0 && lastDot < objectName.length() - 1) {
-                    format = objectName.substring(lastDot);
-                }
-            }
-
-            long fileLength = fileList.size(i);
-
-            ColumnMapping columnMapping = null;
-            List<Attribute> readSchema = null;
-            Map<String, DataType> inferredFileTypes = null;
-            if (schemaInfo != null) {
-                SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
-                if (info != null) {
-                    inferredFileTypes = info.inferredTypes();
-                    ColumnMapping mapping = info.mapping();
-                    if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
-                        // Fused narrowing: output dimension goes from Unified to Query, read
-                        // dimension goes from File to per-file Query projection. See the
-                        // four-schema doc on SchemaReconciliation. For Hive-partitioned sources
-                        // context.unifiedSchema() is the post-shadow data-only schema (partition
-                        // columns are appended only to the coordinator-facing schema, never here), so
-                        // its width matches each per-file mapping built by shadowPartitionCollisions and
-                        // satisfies pruneToPerFileQuery's unifiedSchema.size() == index.length assertion.
-                        mapping = mapping.pruneToPerFileQuery(unifiedSchema, info.fileSchema(), fileBackedQuerySchema);
-                    }
-                    if (mapping != null && mapping.isIdentity() == false) {
-                        columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
-                    }
-                    // Pin the reader to the coordinator's reconciled per-file read schema so it
-                    // doesn't re-infer at runtime and disagree with the planner's view of this file.
-                    // For text formats this schema already carries each widened column's reconciled
-                    // type (see SchemaReconciliation), so the reader reads at that type directly.
-                    readSchema = info.fileSchema().attributes();
-                }
-            }
-
-            tasks.add(
-                new FileTask(
-                    filePath,
-                    fileLength,
-                    format,
-                    config,
-                    partitionValues,
-                    columnMapping,
-                    readSchema,
-                    // Reconciled query types (by unified name). Under UNION_BY_NAME (the only path that can widen
-                    // a mixed-temporal column) file column names equal unified names, so footer split stats key
-                    // by the same names and normalize by-name. Strict reconciliation rejects differing types, so
-                    // there is no mixed-unit column to normalize on that path.
-                    unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
-                    context.maxRecordBytes(),
-                    context.declaredReadSpec(),
-                    inferredFileTypes
-                )
-            );
-        }
-
-        if (tasks.isEmpty()) {
-            // Every file was dropped. Only a resolved, non-empty file list whose files were all removed by
-            // row-count-preserving filter contradictions (no no-overlap heuristic among them) is a true
-            // exhaustive prune the phase may trust to read nothing; otherwise fall back to a full read.
-            boolean exhaustivelyPruned = fileList.fileCount() > 0 && droppedByColumnOverlap == false;
-            return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
-        }
-
-        // Phase 2: I/O-bound split discovery — parallelize when executor is available.
-        final StorageProvider hoistedProvider = sharedProvider;
-        final BooleanSupplier isCancelled = context.isCancelled();
-        List<List<ExternalSplit>> perFileSplits;
         try {
-            if (executor != null && tasks.size() > 1) {
-                perFileSplits = BoundedParallelGather.gather(
-                    tasks,
-                    task -> processFileForSplits(task, hoistedProvider, isCancelled),
-                    MAX_PARALLEL_SPLIT_DISCOVERY,
-                    executor
-                );
-            } else {
-                perFileSplits = new ArrayList<>(tasks.size());
-                for (FileTask task : tasks) {
-                    perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
-                }
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to discover splits", e);
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to discover splits", e);
-        }
+            // Dedup cache for ColumnMapping: concurrent-safe when split discovery is parallel.
+            Map<ColumnMapping, ColumnMapping> mappingCache = new ConcurrentHashMap<>();
 
-        // Flatten per-file split lists into a single ordered list.
-        List<ExternalSplit> splits = new ArrayList<>();
-        for (List<ExternalSplit> fileSplits : perFileSplits) {
-            splits.addAll(fileSplits);
+            // Unified schema for the prune-to-per-file-query transformation. When null (legacy
+            // callers, data-node paths) the per-file mapping stays at Unified width — the data node
+            // still works, the on-wire cost is just slightly higher.
+            ExternalSchema unifiedSchema = context.unifiedSchema();
+
+            // Bail before doing any per-file work if the originating query is already cancelled.
+            throwIfCancelled(context);
+
+            // Phase 1: sequential filtering — cheap, in-memory predicates applied per file to
+            // build the list of FileTask items that need I/O (footer reads, boundary scans).
+            // Tracks whether any file was dropped by the row-count-unsafe no-column-overlap heuristic:
+            // such a file still contributes rows to COUNT(*), so an all-dropped result driven by it is
+            // NOT an exhaustive prune and must fall back to a full read (see SplitDiscoveryResult).
+            boolean droppedByColumnOverlap = false;
+            List<FileTask> tasks = new ArrayList<>(fileList.fileCount());
+            for (int i = 0; i < fileList.fileCount(); i++) {
+                StoragePath filePath = fileList.path(i);
+
+                Map<String, Object> partitionValues = new HashMap<>();
+                if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+                    Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
+                    if (filePartitions != null) {
+                        partitionValues.putAll(filePartitions);
+                    }
+                }
+                partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
+
+                if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
+                    if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+                        // Partition pruning: the path values alone disprove the filter, so the file is skipped unread.
+                        continue;
+                    }
+                }
+
+                SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
+
+                if (fileBackedQuerySchema.isEmpty() == false && fileSchemaInfo != null) {
+                    if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), fileBackedQuerySchema)) {
+                        // Row-count-unsafe: the file's rows still exist (they would be all-NULL for the query's
+                        // columns), so COUNT(*) and other row-count-sensitive queries need them. Skipping is a
+                        // best-effort optimization that relies on a full-read fallback when it empties the plan.
+                        droppedByColumnOverlap = true;
+                        continue;
+                    }
+                }
+
+                if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
+                    Set<String> fileColumnNames = new LinkedHashSet<>(fileSchemaInfo.fileSchema().names());
+                    // Partition columns are always available (values come from paths, not file data)
+                    fileColumnNames.addAll(partitionValues.keySet());
+                    if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                        continue;
+                    }
+                }
+
+                String objectName = filePath.objectName();
+                String format = null;
+                if (objectName != null) {
+                    int lastDot = objectName.lastIndexOf('.');
+                    if (lastDot >= 0 && lastDot < objectName.length() - 1) {
+                        format = objectName.substring(lastDot);
+                    }
+                }
+
+                long fileLength = fileList.size(i);
+
+                ColumnMapping columnMapping = null;
+                List<Attribute> readSchema = null;
+                Map<String, DataType> inferredFileTypes = null;
+                if (schemaInfo != null) {
+                    SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
+                    if (info != null) {
+                        inferredFileTypes = info.inferredTypes();
+                        ColumnMapping mapping = info.mapping();
+                        if (mapping != null && unifiedSchema != null && fileBackedQuerySchema.isEmpty() == false) {
+                            // Fused narrowing: output dimension goes from Unified to Query, read
+                            // dimension goes from File to per-file Query projection. See the
+                            // four-schema doc on SchemaReconciliation. For Hive-partitioned sources
+                            // context.unifiedSchema() is the post-shadow data-only schema (partition
+                            // columns are appended only to the coordinator-facing schema, never here), so
+                            // its width matches each per-file mapping built by shadowPartitionCollisions and
+                            // satisfies pruneToPerFileQuery's unifiedSchema.size() == index.length assertion.
+                            mapping = mapping.pruneToPerFileQuery(unifiedSchema, info.fileSchema(), fileBackedQuerySchema);
+                        }
+                        if (mapping != null && mapping.isIdentity() == false) {
+                            columnMapping = mappingCache.computeIfAbsent(mapping, k -> k);
+                        }
+                        // Pin the reader to the coordinator's reconciled per-file read schema so it
+                        // doesn't re-infer at runtime and disagree with the planner's view of this file.
+                        // For text formats this schema already carries each widened column's reconciled
+                        // type (see SchemaReconciliation), so the reader reads at that type directly.
+                        readSchema = info.fileSchema().attributes();
+                    }
+                }
+
+                tasks.add(
+                    new FileTask(
+                        filePath,
+                        fileLength,
+                        format,
+                        config,
+                        partitionValues,
+                        columnMapping,
+                        readSchema,
+                        // Reconciled query types (by unified name). Under UNION_BY_NAME (the only path that can widen
+                        // a mixed-temporal column) file column names equal unified names, so footer split stats key
+                        // by the same names and normalize by-name. Strict reconciliation rejects differing types, so
+                        // there is no mixed-unit column to normalize on that path.
+                        unifiedSchema != null ? attributesToTypeMap(unifiedSchema.attributes()) : null,
+                        context.maxRecordBytes(),
+                        context.declaredReadSpec(),
+                        inferredFileTypes
+                    )
+                );
+            }
+
+            if (tasks.isEmpty()) {
+                // Every file was dropped. Only a resolved, non-empty file list whose files were all removed by
+                // row-count-preserving filter contradictions (no no-overlap heuristic among them) is a true
+                // exhaustive prune the phase may trust to read nothing; otherwise fall back to a full read.
+                boolean exhaustivelyPruned = fileList.fileCount() > 0 && droppedByColumnOverlap == false;
+                return new SplitDiscoveryResult(List.of(), 0, exhaustivelyPruned);
+            }
+
+            // Phase 2: I/O-bound split discovery — parallelize when executor is available.
+            final StorageProvider hoistedProvider = sharedProvider;
+            final BooleanSupplier isCancelled = context.isCancelled();
+            List<List<ExternalSplit>> perFileSplits;
+            try {
+                if (executor != null && tasks.size() > 1) {
+                    perFileSplits = BoundedParallelGather.gather(
+                        tasks,
+                        task -> processFileForSplits(task, hoistedProvider, isCancelled),
+                        MAX_PARALLEL_SPLIT_DISCOVERY,
+                        executor
+                    );
+                } else {
+                    perFileSplits = new ArrayList<>(tasks.size());
+                    for (FileTask task : tasks) {
+                        perFileSplits.add(processFileForSplits(task, hoistedProvider, isCancelled));
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to discover splits", e);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to discover splits", e);
+            }
+
+            // Flatten per-file split lists into a single ordered list.
+            List<ExternalSplit> splits = new ArrayList<>();
+            for (List<ExternalSplit> fileSplits : perFileSplits) {
+                splits.addAll(fileSplits);
+            }
+            // Each surviving task produces at least one split, so the task count is the number of
+            // distinct files that are actually scanned after coordinator-side pruning.
+            return new SplitDiscoveryResult(splits, tasks.size());
+        } finally {
+            StorageProviderCache.closeLease(sharedProvider);
         }
-        // Each surviving task produces at least one split, so the task count is the number of
-        // distinct files that are actually scanned after coordinator-side pruning.
-        return new SplitDiscoveryResult(splits, tasks.size());
     }
 
     /**
@@ -1221,15 +1226,16 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Resolves the {@link StorageProvider} to use for a single-file operation.
-     * Returns the hoisted provider if available (non-null), otherwise falls back to the
-     * registry: per-config provider for non-empty config, or cached default for empty config.
+     * Returns the hoisted WITH-config lease when present; empty-config reads use the
+     * registry default. A missing hoist with non-empty config is a programming error
+     * (creating a provider here would leak a pool lease).
      */
     private StorageProvider resolveProvider(StoragePath filePath, Map<String, Object> config, @Nullable StorageProvider hoistedProvider) {
         if (hoistedProvider != null) {
             return hoistedProvider;
         }
         if (config != null && config.isEmpty() == false) {
-            return storageRegistry.createProvider(filePath.scheme(), settings, config);
+            throw new IllegalStateException("WITH-config split discovery requires a hoisted storage provider");
         }
         return storageRegistry.provider(filePath);
     }

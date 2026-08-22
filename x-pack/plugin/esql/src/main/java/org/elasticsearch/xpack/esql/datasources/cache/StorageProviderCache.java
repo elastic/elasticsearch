@@ -7,46 +7,57 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
- * LRU cache for {@link StorageProvider} instances, keyed by {@code (scheme, config)}.
+ * Pool of live {@link StorageProvider} clients, keyed by {@code (scheme, config)}.
  *
  * <p>When a query supplies a {@code WITH} clause (non-empty config), a cloud client
- * (S3, GCS, Azure) is constructed per {@link StorageProvider}. Without this cache,
- * consecutive calls to {@code StorageProviderRegistry.createProvider()} with the same
- * config would each create a new client instance and its associated connection pool.
- * This cache ensures that the same config reuses the same client across calls.
+ * (S3, GCS, Azure) is constructed per {@link StorageProvider}. This pool ensures that
+ * the same config reuses the same client across overlapping calls instead of building
+ * a new HTTP pool each time.
  *
- * <p>Entries expire after {@link #DEFAULT_TTL_MINUTES} minutes of inactivity.
- * On eviction, the removed provider is closed so that connection pools and cloud
- * resources are released.
+     * <p>Borrow protocol matches snapshot S3 {@code AmazonS3Reference} ({@code tryIncRef} /
+     * {@code close() = decRef} / {@code closeInternal} at 0). Unlike snapshot S3, this pool keeps
+     * an extra map-held ref so an idle client can be reused until TTL; last user close does not
+     * immediately shut the SDK client.
  *
- * <p>The cache is bounded at {@link #MAX_ENTRIES} entries — large enough to serve
- * typical workloads (a handful of distinct S3 credentials) while preventing unbounded
- * growth when queries use many distinct configs.
+ * <p>In-use entries are pinned ({@code refCount() > 1}) so a long scan cannot observe
+ * {@code Connection pool shut down}. Idle entries (map ref only) expire after
+ * {@link #DEFAULT_TTL_MINUTES} minutes from the last return, swept on the next
+ * {@link #getOrCreate}. Idle count is capped at {@link #MAX_ENTRIES}; leased entries
+ * do not count toward the cap and are never true-closed by eviction.
  *
- * <p>Thread-safe: backed by {@link Cache#computeIfAbsent}.
+ * <p>Callers of {@link #getOrCreate} must {@code close()} the returned provider exactly
+ * as a borrow. Empty-config default providers are not pooled here.
  */
 public class StorageProviderCache implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(StorageProviderCache.class);
 
-    /** Maximum number of distinct (scheme, config) entries retained. */
+    /** Maximum number of distinct idle (scheme, config) entries retained. */
     static final int MAX_ENTRIES = 32;
 
-    /** Default TTL in minutes for cached providers. */
+    /** Default idle TTL in minutes for pooled providers with no outstanding borrows. */
     static final long DEFAULT_TTL_MINUTES = 5L;
 
     /**
@@ -65,58 +76,231 @@ public class StorageProviderCache implements Closeable {
         Configured<StorageProvider> create() throws Exception;
     }
 
-    private final Cache<CacheKey, Configured<StorageProvider>> cache;
+    private final ConcurrentHashMap<CacheKey, Entry> entries = new ConcurrentHashMap<>();
+    private final long idleTtlNanos;
+    private final LongSupplier nanoClock;
 
     public StorageProviderCache() {
-        this(DEFAULT_TTL_MINUTES);
+        this(TimeValue.timeValueMinutes(DEFAULT_TTL_MINUTES), System::nanoTime);
     }
 
-    StorageProviderCache(long ttlMinutes) {
-        this.cache = CacheBuilder.<CacheKey, Configured<StorageProvider>>builder()
-            .setMaximumWeight(MAX_ENTRIES)
-            .weigher((key, value) -> 1)
-            .setExpireAfterWrite(TimeValue.timeValueMinutes(ttlMinutes))
-            .removalListener(notification -> {
-                Configured<StorageProvider> evicted = notification.getValue();
-                if (evicted != null && evicted.value() != null) {
-                    try {
-                        evicted.value().close();
-                    } catch (IOException e) {
-                        logger.warn("Failed to close evicted StorageProvider for scheme [{}]", notification.getKey().scheme(), e);
-                    }
-                }
-            })
-            .build();
+    StorageProviderCache(TimeValue idleTtl, LongSupplier nanoClock) {
+        if (idleTtl == null) {
+            throw new IllegalArgumentException("idleTtl cannot be null");
+        }
+        if (nanoClock == null) {
+            throw new IllegalArgumentException("nanoClock cannot be null");
+        }
+        this.idleTtlNanos = idleTtl.nanos();
+        this.nanoClock = nanoClock;
     }
 
     /**
-     * Returns a cached provider for the given key, or creates one via the factory on a cache miss.
-     * The factory is invoked at most once per key under concurrent access.
+     * Returns a pooled lease for the given key, creating the underlying provider on a miss.
+     * The factory is invoked at most once per key under concurrent access (miss path is
+     * synchronized, matching {@code S3ClientsManager.ClientsHolder#client}).
+     *
+     * <p>The returned {@link Configured#value()} is a wrapper: {@code close()} returns the
+     * lease to the pool and is idempotent. It does not shut down the SDK client.
      *
      * @param key     the cache key (scheme + config)
      * @param factory supplier to create the provider on a miss; may throw any exception
-     * @return the cached or newly created provider, paired with its consumed-key set
+     * @return a new lease wrapping the cached provider, paired with its consumed-key set
      * @throws Exception if the factory throws during a cache miss
      */
     public Configured<StorageProvider> getOrCreate(CacheKey key, ProviderFactory factory) throws Exception {
-        try {
-            return cache.computeIfAbsent(key, k -> factory.create());
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof Exception ex) {
-                throw ex;
+        CacheKey stableKey = new CacheKey(key.scheme(), Map.copyOf(key.config()));
+        sweepExpired();
+        Entry existing = entries.get(stableKey);
+        if (existing != null && existing.tryIncRef()) {
+            evictExcessIdle();
+            return wrap(existing);
+        }
+        synchronized (this) {
+            existing = entries.get(stableKey);
+            if (existing != null && existing.tryIncRef()) {
+                evictExcessIdle();
+                return wrap(existing);
             }
-            throw new RuntimeException("Failed to create StorageProvider for key " + key, cause);
+            Configured<StorageProvider> created = factory.create();
+            Entry entry = new Entry(stableKey, created, nanoClock.getAsLong());
+            entry.mustIncRef();
+            entries.put(stableKey, entry);
+            evictExcessIdle();
+            return wrap(entry);
         }
     }
 
-    /** Removes all entries and closes the associated providers. */
+    /** Removes all map slots. In-flight leases keep their clients alive until returned. */
     public void invalidateAll() {
-        cache.invalidateAll();
+        synchronized (this) {
+            for (CacheKey key : Set.copyOf(entries.keySet())) {
+                Entry entry = entries.remove(key);
+                if (entry != null) {
+                    entry.close();
+                }
+            }
+        }
     }
 
     @Override
     public void close() {
         invalidateAll();
+    }
+
+    /** Inner provider when {@code provider} is a pool lease; otherwise {@code provider} itself. */
+    static StorageProvider unwrap(StorageProvider provider) {
+        return provider instanceof PooledStorageProvider pooled ? pooled.delegate : provider;
+    }
+
+    /**
+     * {@code close()} on a WITH-config pool lease returns the client to the pool. No-op for
+     * registry defaults and {@code null} — those must never be true-closed by query code.
+     */
+    public static void closeLease(StorageProvider provider) {
+        if (provider instanceof PooledStorageProvider pooled) {
+            pooled.close();
+        }
+    }
+
+    /** {@code true} when {@code close()} is a pool return, not a client shutdown. */
+    public static boolean isPooledLease(StorageProvider provider) {
+        return provider instanceof PooledStorageProvider;
+    }
+
+    private Configured<StorageProvider> wrap(Entry entry) {
+        return new Configured<>(new PooledStorageProvider(entry), entry.consumedKeys);
+    }
+
+    private void sweepExpired() {
+        long now = nanoClock.getAsLong();
+        for (Map.Entry<CacheKey, Entry> mapEntry : entries.entrySet()) {
+            Entry entry = mapEntry.getValue();
+            if (entry.refCount() == 1 && now - entry.lastAccessNanos >= idleTtlNanos) {
+                if (entries.remove(mapEntry.getKey(), entry)) {
+                    entry.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * True-close oldest idle entries until at most {@link #MAX_ENTRIES} idle remain.
+     * Leased entries ({@code refCount() > 1}) are skipped.
+     */
+    private void evictExcessIdle() {
+        while (true) {
+            CacheKey oldestKey = null;
+            Entry oldest = null;
+            long oldestAccess = Long.MAX_VALUE;
+            int idle = 0;
+            for (Map.Entry<CacheKey, Entry> mapEntry : entries.entrySet()) {
+                Entry entry = mapEntry.getValue();
+                if (entry.refCount() != 1) {
+                    continue;
+                }
+                idle++;
+                if (entry.lastAccessNanos <= oldestAccess) {
+                    oldestAccess = entry.lastAccessNanos;
+                    oldestKey = mapEntry.getKey();
+                    oldest = entry;
+                }
+            }
+            if (idle <= MAX_ENTRIES || oldest == null) {
+                return;
+            }
+            if (entries.remove(oldestKey, oldest)) {
+                oldest.close();
+            }
+        }
+    }
+
+    /**
+     * Map-slot refcounted provider. Ref 1 is the map; extra refs are borrows.
+     * {@link #close()} drops one ref (the map's, when called from eviction / invalidate).
+     */
+    private static final class Entry extends AbstractRefCounted implements Releasable {
+        private final CacheKey key;
+        private final StorageProvider provider;
+        private final Set<String> consumedKeys;
+        private volatile long lastAccessNanos;
+
+        Entry(CacheKey key, Configured<StorageProvider> created, long nowNanos) {
+            this.key = key;
+            this.provider = created.value();
+            this.consumedKeys = created.consumedKeys();
+            this.lastAccessNanos = nowNanos;
+        }
+
+        @Override
+        public void close() {
+            decRef();
+        }
+
+        @Override
+        protected void closeInternal() {
+            try {
+                provider.close();
+            } catch (Exception e) {
+                logger.warn("Failed to close StorageProvider for scheme [{}]", key.scheme(), e);
+            }
+        }
+    }
+
+    /**
+     * Per-borrow wrapper. {@link #close()} returns the lease; the inner client stays pooled.
+     */
+    private final class PooledStorageProvider implements StorageProvider {
+        private final StorageProvider delegate;
+        private final Releasable lease;
+
+        PooledStorageProvider(Entry entry) {
+            this.delegate = entry.provider;
+            this.lease = Releasables.releaseOnce(() -> {
+                entry.lastAccessNanos = nanoClock.getAsLong();
+                entry.decRef();
+                evictExcessIdle();
+            });
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return delegate.newObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return delegate.newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return delegate.newObject(path, length, lastModified);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+            return delegate.listObjects(prefix, recursive);
+        }
+
+        @Override
+        public boolean exists(StoragePath path) throws IOException {
+            return delegate.exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return delegate.supportedSchemes();
+        }
+
+        @Override
+        public boolean supportsStableMetadata() {
+            return delegate.supportsStableMetadata();
+        }
+
+        @Override
+        public void close() {
+            lease.close();
+        }
     }
 }

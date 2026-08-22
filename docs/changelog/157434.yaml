@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 157434
+summary: Managed service accounts oauth tokens poc
+type: enhancement

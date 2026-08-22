@@ -190,6 +190,61 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         );
     }
 
+    /**
+     * Regression for github.com/elastic/elasticsearch/issues/157313: a KEYWORD equality
+     * ({@code countrycode == "US"}) whose decoded predicate block is an {@link IntBlock}
+     * must not ClassCast the BytesRef literal to Number. Numeric cells are compared via
+     * {@code String.valueOf}, matching declared keyword-over-integer coercion.
+     */
+    public void testKeywordEqualsAgainstIntBlockDoesNotCastLiteralToNumber() {
+        int[] values = { 1, 840, 2, 840 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("countrycode", block);
+        WordMask reusable = new WordMask();
+
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new Equals(Source.EMPTY, attr("countrycode", DataType.KEYWORD), lit(new BytesRef("US"), DataType.KEYWORD), null))
+            ),
+            blocks,
+            4,
+            reusable,
+            new int[] {}
+        );
+
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new Equals(Source.EMPTY, attr("countrycode", DataType.KEYWORD), lit(new BytesRef("840"), DataType.KEYWORD), null))
+            ),
+            blocks,
+            4,
+            reusable,
+            new int[] { 1, 3 }
+        );
+    }
+
+    public void testIntEqualsParsesBytesRefLiteral() {
+        int[] values = { 1, 2, 3, 4 };
+        Block block = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        Map<String, Block> blocks = Map.of("i", block);
+        WordMask reusable = new WordMask();
+
+        assertSurvivors(
+            new ParquetPushedExpressions(
+                List.of(new Equals(Source.EMPTY, attr("i", DataType.INTEGER), lit(new BytesRef("3"), DataType.KEYWORD), null))
+            ),
+            blocks,
+            4,
+            reusable,
+            new int[] { 2 }
+        );
+
+        WordMask result = new ParquetPushedExpressions(
+            List.of(new Equals(Source.EMPTY, attr("i", DataType.INTEGER), lit(new BytesRef("US"), DataType.KEYWORD), null))
+        ).evaluateFilter(blocks, 4, reusable);
+        assertNull("unparseable string vs integer is unevaluable; FilterExec rechecks", result);
+    }
+
     // ---- Test 2: Equals across all 5 block types ----
 
     public void testEqualsWithIntBlock() {

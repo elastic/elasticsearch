@@ -591,6 +591,62 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
+     * Late-mat equality on a KEYWORD column in a mixed-type file (strings + ints + doubles),
+     * spanning many page batches — the GBIF shape from
+     * github.com/elastic/elasticsearch/issues/157313. The filter must not throw
+     * {@code ClassCastException: BytesRef cannot be cast to Number}.
+     */
+    public void testKeywordEqualsFilterOnMixedTypeFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .named("gbifid")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("countrycode")
+            .required(DOUBLE)
+            .named("decimallatitude")
+            .required(INT32)
+            .named("year")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("kingdom")
+            .named("gbif_like");
+
+        int rows = 4_000;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            String[] countries = { "US", "CA", "BR", "DE", "IN" };
+            for (int i = 0; i < rows; i++) {
+                groups.add(
+                    factory.newGroup()
+                        .append("gbifid", 1_000_000L + i)
+                        .append("countrycode", countries[i % countries.length])
+                        .append("decimallatitude", 10.0 + (i % 80))
+                        .append("year", 2000 + (i % 25))
+                        .append("kingdom", i % 2 == 0 ? "Animalia" : "Plantae")
+                );
+            }
+            return groups;
+        });
+
+        ReferenceAttribute country = new ReferenceAttribute(Source.EMPTY, "countrycode", DataType.KEYWORD);
+        Expression esqlFilter = new Equals(Source.EMPTY, country, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
+        List<Page> pages = readWithPushedExpressions(parquetData, esqlFilter);
+        int total = 0;
+        BytesRef scratch = new BytesRef();
+        for (Page page : pages) {
+            total += page.getPositionCount();
+            BytesRefBlock codes = (BytesRefBlock) page.getBlock(1);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                assertFalse(codes.isNull(i));
+                assertThat(codes.getBytesRef(codes.getFirstValueIndex(i), scratch).utf8ToString(), equalTo("US"));
+            }
+            page.releaseBlocks();
+        }
+        assertThat(total, equalTo(rows / 5));
+    }
+
+    /**
      * Builds a multi-row-group parquet file with a dictionary-encoded BINARY column. The
      * dictionary alphabet is small (16 values) so every row group keeps dictionary encoding,
      * which exercises {@code RowGroupFilter}'s DICTIONARY-level pruning code path that the

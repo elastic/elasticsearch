@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -1610,10 +1612,21 @@ final class ParquetPushedExpressions {
         int rowCount,
         @Nullable Map<Expression, boolean[]> dictCache
     ) {
+        // KEYWORD/TEXT predicates must compare as UTF-8 even when the decoded block is numeric
+        // (declared keyword over INT32, or a file whose physical type disagrees with the
+        // planner type). Casting the BytesRef query literal to Number is what produced
+        // github.com/elastic/elasticsearch/issues/157313 (countrycode == "US").
+        if (isBytesRefComparisonType(bc.left().dataType())) {
+            return evaluateStringTypedComparison(bc, block, toByteRef(literal), rowCount, dictCache);
+        }
         WordMask mask = new WordMask();
         mask.reset(rowCount);
         if (block instanceof IntBlock ib) {
-            int val = ((Number) literal).intValue();
+            Integer boxed = toIntValue(literal);
+            if (boxed == null) {
+                return null;
+            }
+            int val = boxed;
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1 && compareResult(Integer.compare(ib.getInt(block.getFirstValueIndex(i)), val), bc)) {
@@ -1647,7 +1660,11 @@ final class ParquetPushedExpressions {
                 }
             }
         } else if (block instanceof DoubleBlock db) {
-            double val = ((Number) literal).doubleValue();
+            Double boxed = toDoubleValue(literal);
+            if (boxed == null) {
+                return null;
+            }
+            double val = boxed;
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1 && compareResult(Double.compare(db.getDouble(block.getFirstValueIndex(i)), val), bc)) {
@@ -1690,6 +1707,9 @@ final class ParquetPushedExpressions {
                 }
             }
         } else if (block instanceof BooleanBlock boolBlock) {
+            if (literal instanceof Boolean == false) {
+                return null;
+            }
             boolean val = (Boolean) literal;
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
@@ -1709,6 +1729,118 @@ final class ParquetPushedExpressions {
             return null;
         }
         return mask;
+    }
+
+    private static boolean isBytesRefComparisonType(DataType dt) {
+        return dt == DataType.KEYWORD || dt == DataType.TEXT || dt == DataType.IP || dt == DataType.VERSION;
+    }
+
+    /**
+     * Compares a KEYWORD/TEXT (or other BytesRef-encoded) predicate against whatever block the
+     * decoder actually produced. Numeric blocks are compared via the same {@code String.valueOf}
+     * rendering {@link DeclaredTypeCoercions} uses for integer/long/double → keyword, so a
+     * declared-keyword filter still evaluates instead of throwing ClassCastException.
+     */
+    private static WordMask evaluateStringTypedComparison(
+        EsqlBinaryComparison bc,
+        Block block,
+        BytesRef val,
+        int rowCount,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        WordMask mask = new WordMask();
+        mask.reset(rowCount);
+        Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
+        if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, bc, obb.getDictionaryVector(), matcher);
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
+            return mask;
+        }
+        if (block instanceof BytesRefBlock bb) {
+            BytesRef scratch = new BytesRef();
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && matcher.test(bb.getBytesRef(block.getFirstValueIndex(i), scratch))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && matcher.test(bb.getBytesRef(i, scratch))) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        if (block instanceof IntBlock ib) {
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1
+                        && matcher.test(new BytesRef(Integer.toString(ib.getInt(block.getFirstValueIndex(i)))))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && matcher.test(new BytesRef(Integer.toString(ib.getInt(i))))) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        if (block instanceof LongBlock lb) {
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && matcher.test(new BytesRef(Long.toString(lb.getLong(block.getFirstValueIndex(i)))))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && matcher.test(new BytesRef(Long.toString(lb.getLong(i))))) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        if (block instanceof DoubleBlock db) {
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1
+                        && matcher.test(new BytesRef(Double.toString(db.getDouble(block.getFirstValueIndex(i)))))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && matcher.test(new BytesRef(Double.toString(db.getDouble(i))))) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        if (block instanceof BooleanBlock boolBlock) {
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1
+                        && matcher.test(new BytesRef(Boolean.toString(boolBlock.getBoolean(block.getFirstValueIndex(i)))))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && matcher.test(new BytesRef(Boolean.toString(boolBlock.getBoolean(i))))) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        return null;
     }
 
     /**
@@ -1747,9 +1879,58 @@ final class ParquetPushedExpressions {
         return true;
     }
 
+    private static Integer toIntValue(Object literal) {
+        if (literal instanceof Number n) {
+            return n.intValue();
+        }
+        String s = literalAsString(literal);
+        if (s == null) {
+            return null;
+        }
+        try {
+            return EsqlDataTypeConverter.stringToInt(s);
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     private static Long toLongValue(Object literal) {
         if (literal instanceof Number n) {
             return n.longValue();
+        }
+        String s = literalAsString(literal);
+        if (s == null) {
+            return null;
+        }
+        try {
+            return EsqlDataTypeConverter.stringToLong(s);
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static Double toDoubleValue(Object literal) {
+        if (literal instanceof Number n) {
+            return n.doubleValue();
+        }
+        String s = literalAsString(literal);
+        if (s == null) {
+            return null;
+        }
+        try {
+            return EsqlDataTypeConverter.stringToDouble(s);
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String literalAsString(Object literal) {
+        if (literal instanceof BytesRef br) {
+            return br.utf8ToString();
+        }
+        if (literal instanceof String s) {
+            return s;
         }
         return null;
     }
@@ -1780,7 +1961,13 @@ final class ParquetPushedExpressions {
         if (block instanceof IntBlock ib) {
             Set<Integer> intSet = new HashSet<>();
             for (Object v : values) {
-                intSet.add(((Number) v).intValue());
+                Integer i = toIntValue(v);
+                if (i != null) {
+                    intSet.add(i);
+                }
+            }
+            if (intSet.isEmpty()) {
+                return null;
             }
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
@@ -1798,7 +1985,13 @@ final class ParquetPushedExpressions {
         } else if (block instanceof LongBlock lb) {
             Set<Long> longSet = new HashSet<>();
             for (Object v : values) {
-                longSet.add(((Number) v).longValue());
+                Long l = toLongValue(v);
+                if (l != null) {
+                    longSet.add(l);
+                }
+            }
+            if (longSet.isEmpty()) {
+                return null;
             }
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
@@ -1816,7 +2009,13 @@ final class ParquetPushedExpressions {
         } else if (block instanceof DoubleBlock db) {
             Set<Double> doubleSet = new HashSet<>();
             for (Object v : values) {
-                doubleSet.add(((Number) v).doubleValue());
+                Double d = toDoubleValue(v);
+                if (d != null) {
+                    doubleSet.add(d);
+                }
+            }
+            if (doubleSet.isEmpty()) {
+                return null;
             }
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
@@ -1860,7 +2059,9 @@ final class ParquetPushedExpressions {
         } else if (block instanceof BooleanBlock boolBlock) {
             Set<Boolean> boolSet = new HashSet<>();
             for (Object v : values) {
-                boolSet.add((Boolean) v);
+                if (v instanceof Boolean b) {
+                    boolSet.add(b);
+                }
             }
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
@@ -1894,8 +2095,13 @@ final class ParquetPushedExpressions {
         if (block instanceof IntBlock ib) {
             boolean hasLo = lower != null;
             boolean hasHi = upper != null;
-            int lo = hasLo ? ((Number) lower).intValue() : 0;
-            int hi = hasHi ? ((Number) upper).intValue() : 0;
+            Integer loBoxed = hasLo ? toIntValue(lower) : 0;
+            Integer hiBoxed = hasHi ? toIntValue(upper) : 0;
+            if ((hasLo && loBoxed == null) || (hasHi && hiBoxed == null)) {
+                return null;
+            }
+            int lo = loBoxed;
+            int hi = hiBoxed;
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1) {
@@ -1918,8 +2124,13 @@ final class ParquetPushedExpressions {
         } else if (block instanceof LongBlock lb) {
             boolean hasLo = lower != null;
             boolean hasHi = upper != null;
-            long lo = hasLo ? ((Number) lower).longValue() : 0;
-            long hi = hasHi ? ((Number) upper).longValue() : 0;
+            Long loBoxed = hasLo ? toLongValue(lower) : 0L;
+            Long hiBoxed = hasHi ? toLongValue(upper) : 0L;
+            if ((hasLo && loBoxed == null) || (hasHi && hiBoxed == null)) {
+                return null;
+            }
+            long lo = loBoxed;
+            long hi = hiBoxed;
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1) {
@@ -1942,8 +2153,13 @@ final class ParquetPushedExpressions {
         } else if (block instanceof DoubleBlock db) {
             boolean hasLo = lower != null;
             boolean hasHi = upper != null;
-            double lo = hasLo ? ((Number) lower).doubleValue() : 0;
-            double hi = hasHi ? ((Number) upper).doubleValue() : 0;
+            Double loBoxed = hasLo ? toDoubleValue(lower) : 0d;
+            Double hiBoxed = hasHi ? toDoubleValue(upper) : 0d;
+            if ((hasLo && loBoxed == null) || (hasHi && hiBoxed == null)) {
+                return null;
+            }
+            double lo = loBoxed;
+            double hi = hiBoxed;
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1) {

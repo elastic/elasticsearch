@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.ELASTIC_AI_INDICES;
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.ELASTIC_AI_INDEX;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.KIBANA_APPLICATION;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.NAME_FIELD;
 import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.SPACE_FIELD;
@@ -61,7 +61,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
-        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_AI_INDICES));
+        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_AI_INDEX));
         assertThat(privilege.getPrivileges(), arrayContainingInAnyOrder("read"));
 
         assertThat(privilege.getQuery().utf8ToString(), equalTo(EXPECTED_SINGLE_SPACE_QUERY));
@@ -156,7 +156,7 @@ public class ElasticAiIndexImplicitPrivilegesProviderTests extends ESTestCase {
         assertThat(result, hasSize(1));
 
         RoleDescriptor.IndicesPrivileges privilege = result.iterator().next();
-        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_AI_INDICES));
+        assertThat(privilege.getIndices(), arrayContainingInAnyOrder(ELASTIC_AI_INDEX));
         // Must NOT be null — the wildcard is not a bypass; the action check still applies.
         assertThat(privilege.getQuery(), is(notNullValue()));
 

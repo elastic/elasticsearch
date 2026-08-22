@@ -25,6 +25,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.ELASTIC_AI_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,11 +63,9 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
 
-    // The alias must be exactly the name in ELASTIC_AI_INDICES.
-    // The SML storage adapter creates a CONCRETE index "<name>-000001" and fronts it with an ALIAS named "<name>".
-    // So "ai-index-idx-sml-data" is never a concrete index in production.
-    private static final String ELASTIC_AI_INDEX_ALIAS = "ai-index-idx-sml-data";
-    private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX_ALIAS + "-000001";
+    // The SML storage adapter creates a CONCRETE index "<name>-000001" and fronts it with an ALIAS
+    // named exactly ELASTIC_AI_INDEX. So "ai-index-idx-sml-data" is never a concrete index in production.
+    private static final String ELASTIC_AI_INDEX_BACKING = ELASTIC_AI_INDEX + "-000001";
 
     // Shared between the _search and ES|QL assertions: both engines must resolve each role's DLS
     // filter to exactly these sets.
@@ -158,7 +157,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
         final Request create = new Request("PUT", "/" + ELASTIC_AI_INDEX_BACKING);
         create.setJsonEntity(Strings.format("""
             { "aliases": { "%s": { "is_write_index": true } } }
-            """, ELASTIC_AI_INDEX_ALIAS));
+            """, ELASTIC_AI_INDEX));
         assertOK(client().performRequest(create));
         indexDoc("marketing-dashboard", """
             {
@@ -169,7 +168,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
+        final Request search = new Request("GET", "/" + ELASTIC_AI_INDEX + "/_search");
         search.setOptions(getRequestOptions());
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(search));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
@@ -298,7 +297,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
                 }
               }
             }
-            """, ELASTIC_AI_INDEX_ALIAS));
+            """, ELASTIC_AI_INDEX));
         assertOK(client().performRequest(create));
 
         // Documents deliberately carry no title/description/content: the template maps a semantic_text
@@ -402,12 +401,12 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
 
-        assertOK(client().performRequest(new Request("POST", "/" + ELASTIC_AI_INDEX_ALIAS + "/_refresh")));
+        assertOK(client().performRequest(new Request("POST", "/" + ELASTIC_AI_INDEX + "/_refresh")));
     }
 
     /** Writes through the alias, as the SML storage adapter does (its bulk sets require_alias). */
     private void indexDoc(String id, String body) throws Exception {
-        final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX_ALIAS + "/_doc/" + id);
+        final Request request = new Request("PUT", "/" + ELASTIC_AI_INDEX + "/_doc/" + id);
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));
     }
@@ -452,13 +451,13 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
      * Pinning the identical positive set catches DLS regressions where the two engines drift apart.
      */
     private void assertUserSeesOnlyAuthorizedDocs(List<String> expectedIds) throws Exception {
-        final Request searchRequest = new Request("GET", "/" + ELASTIC_AI_INDEX_ALIAS + "/_search");
+        final Request searchRequest = new Request("GET", "/" + ELASTIC_AI_INDEX + "/_search");
         searchRequest.setOptions(getRequestOptions());
 
         final Request esqlRequest = new Request("POST", "/_query");
         esqlRequest.setOptions(getRequestOptions());
         // The explicit LIMIT avoids the "no limit defined" warning header, which the test REST client treats as a failure.
-        esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", ELASTIC_AI_INDEX_ALIAS));
+        esqlRequest.setJsonEntity(Strings.format("{ \"query\": \"FROM %s METADATA _id | KEEP _id | LIMIT 100\" }", ELASTIC_AI_INDEX));
 
         final Response searchResponse = client().performRequest(searchRequest);
         final Response esqlResponse = client().performRequest(esqlRequest);

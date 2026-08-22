@@ -50,7 +50,7 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
 
     static final String KIBANA_APPLICATION = "kibana-.kibana";
     // Index pattern mirrors the Kibana-side definition; keep in sync if it changes.
-    static final String[] ELASTIC_AI_INDICES = { "ai-index-idx-sml-data" };
+    static final String ELASTIC_AI_INDEX = "ai-index-idx-sml-data";
     static final String RESOURCE_PREFIX = "space:";
     // Action namespace owned by Elastic AI Index; mirrors the Kibana-side AiIndexActions definition, keep in sync if it changes.
     static final String AI_INDEX_ACTION_PREFIX = "ai_index:";
@@ -73,7 +73,7 @@ public class ElasticAiIndexImplicitPrivilegesProvider implements ImplicitPrivile
         }
 
         return List.of(
-            RoleDescriptor.IndicesPrivileges.builder().indices(ELASTIC_AI_INDICES).privileges(INDEX_READ_PRIVILEGE).query(dlsQuery).build()
+            RoleDescriptor.IndicesPrivileges.builder().indices(ELASTIC_AI_INDEX).privileges(INDEX_READ_PRIVILEGE).query(dlsQuery).build()
         );
     }
 

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 157213
+pr: 157460
+summary: Bound `StreamOutput.writeText` thread-local spare capacity
+type: bug

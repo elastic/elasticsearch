@@ -656,14 +656,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
             var preference = fieldExtractPreference.apply(attr);
-            ElementType elementType = PlannerUtils.toElementType(dataType, preference);
-            ValuesSourceReaderOperator.BuildLoader buildLoader = (driverContext, s) -> blockLoaderAndConverter(
-                driverContext,
-                s,
-                attr,
-                preference
-            );
-            String fieldName = getFieldName(attr);
+            FieldExtractionSpec extractionSpec = FieldExtractionSpec.plan(attr, preference).orElse(null);
+            ElementType elementType = extractionSpec == null
+                ? PlannerUtils.toElementType(dataType, preference)
+                : extractionSpec.elementType();
+            ValuesSourceReaderOperator.BuildLoader buildLoader = extractionSpec == null
+                ? (driverContext, s) -> blockLoaderAndConverter(driverContext, s, attr, preference)
+                : (driverContext, s) -> extractionSpec.bind(
+                    shardContexts.get(s),
+                    plannerSettings,
+                    new BlockLoaderWarnings(driverContext, attr.source())
+                );
+            String fieldName = extractionSpec == null ? getFieldName(attr) : extractionSpec.fieldName();
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
             fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }

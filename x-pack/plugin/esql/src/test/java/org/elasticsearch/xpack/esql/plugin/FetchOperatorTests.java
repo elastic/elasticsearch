@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.FieldExtractionSpec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 
@@ -68,7 +69,7 @@ public class FetchOperatorTests extends OperatorTestCase {
                 return new FetchOperator(
                     driverContext,
                     0,
-                    List.of(new FetchService.FetchField("salary", DataType.INTEGER)),
+                    List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER)),
                     List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER)),
                     null,
                     ConfigurationAware.CONFIGURATION_MARKER,
@@ -79,14 +80,14 @@ public class FetchOperatorTests extends OperatorTestCase {
 
             @Override
             public String describe() {
-                return "FetchOperator[channel=0, requestFields=[salary:integer]]";
+                return "FetchOperator[channel=0, extractionSpecs=[DIRECT[salary:integer->INT, preference=NONE]]]";
             }
         };
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("FetchOperator[channel=0, requestFields=[salary:integer]]");
+        return equalTo("FetchOperator[channel=0, extractionSpecs=[DIRECT[salary:integer->INT, preference=NONE]]]");
     }
 
     @Override
@@ -143,7 +144,7 @@ public class FetchOperatorTests extends OperatorTestCase {
         public FetchService.TargetExchange openTargetExchange(
             String nodeId,
             String sessionId,
-            List<FetchService.FetchField> fields,
+            List<FieldExtractionSpec> fields,
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
@@ -220,9 +221,9 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testFetchesAcrossNodesAndReassemblesInInputOrder() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(
-            new FetchService.FetchField("salary", DataType.INTEGER),
-            new FetchService.FetchField("name", DataType.KEYWORD)
+        List<FieldExtractionSpec> fields = List.of(
+            FieldExtractionSpec.direct("salary", DataType.INTEGER),
+            FieldExtractionSpec.direct("name", DataType.KEYWORD)
         );
         List<Attribute> outputFields = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER),
@@ -306,7 +307,7 @@ public class FetchOperatorTests extends OperatorTestCase {
      */
     public void testEmptyInputPageEmitsEmptyPageWithFullSchema() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -352,7 +353,7 @@ public class FetchOperatorTests extends OperatorTestCase {
      */
     public void testPlainFetchRejectsEmptyBatchResponse() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -397,7 +398,7 @@ public class FetchOperatorTests extends OperatorTestCase {
      */
     public void testFilteredMergePreservesConstantInputBlocks() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -453,9 +454,9 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testFilteredFetchDropsRowsAndRemapsPositions() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(
-            new FetchService.FetchField("salary", DataType.INTEGER),
-            new FetchService.FetchField("name", DataType.KEYWORD)
+        List<FieldExtractionSpec> fields = List.of(
+            FieldExtractionSpec.direct("salary", DataType.INTEGER),
+            FieldExtractionSpec.direct("name", DataType.KEYWORD)
         );
         List<Attribute> outputFields = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER),
@@ -530,7 +531,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testStreamingFetchWaitsForAllGroupsBeforeConservativeOutput() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -582,7 +583,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testFilteredFetchCanDropAllRowsInGroupAfterLastPageMarker() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -634,7 +635,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testPushdownRequiresMappedResponsePages() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -675,7 +676,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testPlainFetchRejectsMappedResponsePages() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -716,18 +717,18 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testInvalidRequestShapesRejected() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
             void onBatch(String nodeId, String sessionId, long batchId, List<FetchHandle> handles) {}
         };
 
-        IllegalArgumentException noRequestFields = expectThrows(
+        IllegalArgumentException noExtractionSpecs = expectThrows(
             IllegalArgumentException.class,
             () -> new FetchOperator(driverContext, 0, List.of(), outputFields, null, ConfigurationAware.CONFIGURATION_MARKER, 2, client)
         );
-        assertThat(noRequestFields.getMessage(), containsString("fetch requires at least one request field"));
+        assertThat(noExtractionSpecs.getMessage(), containsString("fetch requires at least one extraction specification"));
 
         IllegalArgumentException noOutputFields = expectThrows(
             IllegalArgumentException.class,
@@ -740,7 +741,7 @@ public class FetchOperatorTests extends OperatorTestCase {
             () -> new FetchOperator(
                 driverContext,
                 0,
-                List.of(new FetchService.FetchField("salary", DataType.INTEGER), new FetchService.FetchField("name", DataType.KEYWORD)),
+                List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER), FieldExtractionSpec.direct("name", DataType.KEYWORD)),
                 outputFields,
                 null,
                 ConfigurationAware.CONFIGURATION_MARKER,
@@ -748,7 +749,7 @@ public class FetchOperatorTests extends OperatorTestCase {
                 client
             )
         );
-        assertThat(fewerOutputFields.getMessage(), containsString("request fields [2] must match output fields [1]"));
+        assertThat(fewerOutputFields.getMessage(), containsString("extraction specifications [2] must match output fields [1]"));
 
         IllegalArgumentException moreOutputFields = expectThrows(
             IllegalArgumentException.class,
@@ -766,12 +767,12 @@ public class FetchOperatorTests extends OperatorTestCase {
                 client
             )
         );
-        assertThat(moreOutputFields.getMessage(), containsString("request fields [1] must match output fields [2]"));
+        assertThat(moreOutputFields.getMessage(), containsString("extraction specifications [1] must match output fields [2]"));
     }
 
     public void testUnsupportedPushdownRejectedAtOperatorConstruction() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         ReferenceAttribute outputField = new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(Source.EMPTY, null, "_fetch_position", DataType.INTEGER);
         PhysicalPlan unsupportedPushdown = new LimitExec(
@@ -811,7 +812,7 @@ public class FetchOperatorTests extends OperatorTestCase {
             new InvalidPositionCase("too_large", "out of range")
         )) {
             DriverContext driverContext = driverContext();
-            List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+            List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
             List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
             RecordingClient client = new RecordingClient(driverContext) {
                 @Override
@@ -859,7 +860,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testAddInputFailureKeepsOperatorUnfinishedUntilFailureIsThrown() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -897,7 +898,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testExchangeFailurePropagatesThroughDriver() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         IllegalStateException expected = new IllegalStateException("fetch exchange failed");
         RecordingClient client = new RecordingClient(driverContext) {
@@ -927,7 +928,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testDelayedExchangeFailureWakesDriverAndPropagates() throws InterruptedException {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         IllegalStateException expected = new IllegalStateException("delayed fetch exchange failure");
         // Observe when the Driver reaches the exchange's blocking path instead of exposing the failure immediately.
@@ -980,7 +981,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testIsBlockedWaitsForFetchEvenWhenMoreInputCanBeAccepted() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
 
         try (
@@ -1009,7 +1010,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
     public void testIsBlockedDrainsReadyPagesBeforeCheckingBlockState() {
         DriverContext driverContext = driverContext();
-        List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
+        List<FieldExtractionSpec> fields = List.of(FieldExtractionSpec.direct("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
@@ -1186,7 +1187,7 @@ public class FetchOperatorTests extends OperatorTestCase {
         public FetchService.TargetExchange openTargetExchange(
             String nodeId,
             String sessionId,
-            List<FetchService.FetchField> fields,
+            List<FieldExtractionSpec> fields,
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {

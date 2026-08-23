@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.planner.FieldExtractionSpec;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,6 +56,10 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
      */
     private final List<Attribute> attributesToFetch;
     /**
+     * Complete extraction semantics for {@link #attributesToFetch}, in the same order.
+     */
+    private final List<FieldExtractionSpec> extractionSpecs;
+    /**
      * Attributes appended to this node's output on the coordinator.
      */
     private final List<Attribute> fetchedOutputAttributes;
@@ -66,6 +71,7 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
         PhysicalPlan child,
         Attribute handleAttribute,
         List<Attribute> attributesToFetch,
+        List<FieldExtractionSpec> extractionSpecs,
         List<Attribute> fetchedOutputAttributes,
         PhysicalPlan fetchPlan
     ) {
@@ -73,7 +79,34 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
         this.fetchPlan = requireFetchPlan(fetchPlan);
         this.handleAttribute = handleAttribute;
         this.attributesToFetch = List.copyOf(attributesToFetch);
+        this.extractionSpecs = List.copyOf(extractionSpecs);
         this.fetchedOutputAttributes = List.copyOf(fetchedOutputAttributes);
+        validateExtractionSpecs();
+    }
+
+    private void validateExtractionSpecs() {
+        if (this.attributesToFetch.size() != this.extractionSpecs.size()) {
+            throw new IllegalArgumentException(
+                "fetch attributes ["
+                    + this.attributesToFetch.size()
+                    + "] must match extraction specifications ["
+                    + this.extractionSpecs.size()
+                    + "]"
+            );
+        }
+        for (int i = 0; i < this.attributesToFetch.size(); i++) {
+            if (this.attributesToFetch.get(i).dataType() != this.extractionSpecs.get(i).dataType()) {
+                throw new IllegalArgumentException(
+                    "fetch attribute ["
+                        + this.attributesToFetch.get(i)
+                        + "] has type ["
+                        + this.attributesToFetch.get(i).dataType().typeName()
+                        + "] but extraction specification has type ["
+                        + this.extractionSpecs.get(i).dataType().typeName()
+                        + "]"
+                );
+            }
+        }
     }
 
     private FetchExec(StreamInput in) throws IOException {
@@ -81,7 +114,9 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
         this.fetchPlan = requireFetchPlan(right());
         this.handleAttribute = in.readNamedWriteable(Attribute.class);
         this.attributesToFetch = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.extractionSpecs = in.readCollectionAsList(FieldExtractionSpec::new);
         this.fetchedOutputAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
+        validateExtractionSpecs();
     }
 
     private static FragmentExec requireFetchPlan(PhysicalPlan plan) {
@@ -109,6 +144,7 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
         super.writeTo(out);
         out.writeNamedWriteable(handleAttribute);
         out.writeNamedWriteableCollection(attributesToFetch);
+        out.writeCollection(extractionSpecs);
         out.writeNamedWriteableCollection(fetchedOutputAttributes);
     }
 
@@ -119,12 +155,21 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FetchExec> info() {
-        return NodeInfo.create(this, FetchExec::new, left(), handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
+        return NodeInfo.create(
+            this,
+            FetchExec::new,
+            left(),
+            handleAttribute,
+            attributesToFetch,
+            extractionSpecs,
+            fetchedOutputAttributes,
+            fetchPlan
+        );
     }
 
     @Override
     public FetchExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight) {
-        return new FetchExec(source(), newLeft, handleAttribute, attributesToFetch, fetchedOutputAttributes, newRight);
+        return new FetchExec(source(), newLeft, handleAttribute, attributesToFetch, extractionSpecs, fetchedOutputAttributes, newRight);
     }
 
     /**
@@ -138,7 +183,7 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
      * Compatibility helper while this class migrates from {@link UnaryExec} to {@link BinaryExec}.
      */
     public FetchExec replaceChild(PhysicalPlan newChild) {
-        return new FetchExec(source(), newChild, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
+        return new FetchExec(source(), newChild, handleAttribute, attributesToFetch, extractionSpecs, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override
@@ -167,6 +212,11 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     public List<Attribute> attributesToFetch() {
         return attributesToFetch;
+    }
+
+    /** Complete extraction specifications, in the same order as {@link #attributesToFetch()}. */
+    public List<FieldExtractionSpec> extractionSpecs() {
+        return extractionSpecs;
     }
 
     /**
@@ -203,7 +253,7 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), handleAttribute, attributesToFetch, fetchedOutputAttributes);
+        return Objects.hash(super.hashCode(), handleAttribute, attributesToFetch, extractionSpecs, fetchedOutputAttributes);
     }
 
     @Override
@@ -214,6 +264,7 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
         FetchExec other = (FetchExec) obj;
         return Objects.equals(handleAttribute, other.handleAttribute)
             && Objects.equals(attributesToFetch, other.attributesToFetch)
+            && Objects.equals(extractionSpecs, other.extractionSpecs)
             && Objects.equals(fetchedOutputAttributes, other.fetchedOutputAttributes);
     }
 }

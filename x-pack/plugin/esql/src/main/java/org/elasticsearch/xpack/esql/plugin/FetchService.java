@@ -18,7 +18,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -41,8 +40,6 @@ import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
@@ -55,13 +52,12 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.FieldExtractionSpec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -78,8 +74,8 @@ import java.util.stream.Collectors;
 /**
  * Internal transport service that fetches field values for coordinator-selected rows from the owning data node.
  * <p>
- * This is the transport half of the remote late-materialization prototype. It intentionally works on a narrow v1
- * contract: a batch of {@link FetchHandle}s plus a list of plain field specifications to load.
+ * This is the transport half of the deferred-fetch prototype. Each request carries a batch of {@link FetchHandle}s and complete
+ * {@link FieldExtractionSpec} instances. The service binds those specifications to the retained shard contexts on the target node.
  */
 public final class FetchService {
     private static final String ACTION_PREFIX = EsqlQueryAction.NAME + "/fetch";
@@ -242,7 +238,7 @@ public final class FetchService {
         TargetExchange openTargetExchange(
             String nodeId,
             String retainedSessionId,
-            List<FetchField> fields,
+            List<FieldExtractionSpec> extractionSpecs,
             PhysicalPlan pushdownPlan,
             Configuration configuration
         );
@@ -324,7 +320,7 @@ public final class FetchService {
         public TargetExchange openTargetExchange(
             String nodeId,
             String retainedSessionId,
-            List<FetchField> fields,
+            List<FieldExtractionSpec> extractionSpecs,
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
@@ -335,10 +331,10 @@ public final class FetchService {
                 }
                 TargetExchangeChannel existing = targetExchanges.get(target);
                 if (existing != null) {
-                    existing.validate(fields, pushdownPlan, configuration);
+                    existing.validate(extractionSpecs, pushdownPlan, configuration);
                     return existing;
                 }
-                TargetExchangeChannel created = createTargetExchange(target, fields, pushdownPlan, configuration);
+                TargetExchangeChannel created = createTargetExchange(target, extractionSpecs, pushdownPlan, configuration);
                 targetExchanges.put(target, created);
                 return created;
             }
@@ -363,7 +359,7 @@ public final class FetchService {
 
         private TargetExchangeChannel createTargetExchange(
             TargetSession target,
-            List<FetchField> fields,
+            List<FieldExtractionSpec> extractionSpecs,
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
@@ -378,7 +374,7 @@ public final class FetchService {
                 setupListener) -> {
                 ExchangeSetupRequest setupRequest = new ExchangeSetupRequest(
                     target.retainedSessionId(),
-                    fields,
+                    extractionSpecs,
                     pushdownPlan,
                     configuration,
                     clientToServerId,
@@ -403,7 +399,7 @@ public final class FetchService {
                 transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
                 // Keep one extra response slot on the coordinator side so setup/metadata traffic does not
                 // starve the field-value pages flowing back from the data node.
-                Math.max(1, fields.size() + 1),
+                Math.max(1, extractionSpecs.size() + 1),
                 transportService,
                 parentTask,
                 ActionListener.noop(),
@@ -414,7 +410,7 @@ public final class FetchService {
                 () -> node
             );
             retainedSessionReleaser.track(node, target.retainedSessionId());
-            return new TargetExchangeChannel(target, node, retainedSessionReleaser, client, fields, pushdownPlan, configuration);
+            return new TargetExchangeChannel(target, node, retainedSessionReleaser, client, extractionSpecs, pushdownPlan, configuration);
         }
     }
 
@@ -423,7 +419,7 @@ public final class FetchService {
         private final DiscoveryNode targetNode;
         private final RetainedSessionReleaser retainedSessionReleaser;
         private final BidirectionalBatchExchangeClient client;
-        private final List<FetchField> fields;
+        private final List<FieldExtractionSpec> extractionSpecs;
         private final PhysicalPlan pushdownPlan;
         private final Configuration configuration;
         private final Object lock = new Object();
@@ -436,7 +432,7 @@ public final class FetchService {
             DiscoveryNode targetNode,
             RetainedSessionReleaser retainedSessionReleaser,
             BidirectionalBatchExchangeClient client,
-            List<FetchField> fields,
+            List<FieldExtractionSpec> extractionSpecs,
             PhysicalPlan pushdownPlan,
             Configuration configuration
         ) {
@@ -444,14 +440,14 @@ public final class FetchService {
             this.targetNode = targetNode;
             this.retainedSessionReleaser = retainedSessionReleaser;
             this.client = client;
-            this.fields = List.copyOf(fields);
+            this.extractionSpecs = List.copyOf(extractionSpecs);
             this.pushdownPlan = pushdownPlan;
             this.configuration = configuration;
         }
 
-        void validate(List<FetchField> fields, PhysicalPlan pushdownPlan, Configuration configuration) {
-            if (this.fields.equals(fields) == false) {
-                throw new IllegalStateException("fetch fields differ for reused target session channel");
+        void validate(List<FieldExtractionSpec> extractionSpecs, PhysicalPlan pushdownPlan, Configuration configuration) {
+            if (this.extractionSpecs.equals(extractionSpecs) == false) {
+                throw new IllegalStateException("fetch extraction specifications differ for reused target session channel");
             }
             if (Objects.equals(this.pushdownPlan, pushdownPlan) == false) {
                 throw new IllegalStateException("fetch pushdown plan differs for reused target session channel");
@@ -620,8 +616,8 @@ public final class FetchService {
                 request.serverToClientId(),
                 exchangeService,
                 transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
-                // Data-node server responses are bounded by requested fetch fields.
-                Math.max(1, request.fields().size()),
+                // Data-node server responses are bounded by requested extraction specifications.
+                Math.max(1, request.extractionSpecs().size()),
                 transportService,
                 task,
                 clientNode,
@@ -678,12 +674,7 @@ public final class FetchService {
         try {
             operators.add(new FetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
 
-            List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(
-                request.fields(),
-                shardContexts,
-                settings,
-                request.configuration().pragmas().fieldExtractPreference()
-            );
+            List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(request.extractionSpecs(), shardContexts, settings);
             IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
                 c -> new ValuesSourceReaderOperator.ShardContext(
                     c.searcher().getIndexReader(),
@@ -733,40 +724,18 @@ public final class FetchService {
     }
 
     static List<ValuesSourceReaderOperator.FieldInfo> buildFieldInfos(
-        List<FetchField> fields,
+        List<FieldExtractionSpec> extractionSpecs,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        PlannerSettings plannerSettings,
-        MappedFieldType.FieldExtractPreference fieldExtractPreference
+        PlannerSettings plannerSettings
     ) {
-        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(fields.size());
-        for (FetchField field : fields) {
-            if (FetchField.supports(field.dataType()) == false) {
-                throw new IllegalArgumentException(
-                    "deferred fetch field ["
-                        + field.fieldName()
-                        + "] with type ["
-                        + field.dataType().typeName()
-                        + "] requires extraction semantics not represented by the plain fetch field contract"
-                );
-            }
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(extractionSpecs.size());
+        for (FieldExtractionSpec extractionSpec : extractionSpecs) {
             fieldInfos.add(
                 new ValuesSourceReaderOperator.FieldInfo(
-                    field.fieldName(),
-                    PlannerUtils.toElementType(field.dataType()),
+                    extractionSpec.fieldName(),
+                    extractionSpec.elementType(),
                     false,
-                    (warningsMode, shardIdx) -> {
-                        BlockLoader loader = shardContexts.get(shardIdx)
-                            .blockLoader(
-                                field.fieldName(),
-                                field.dataType() == DataType.UNSUPPORTED,
-                                fieldExtractPreference,
-                                null,
-                                null,
-                                plannerSettings.blockLoaderSizeOrdinals(),
-                                plannerSettings.blockLoaderSizeScript()
-                            );
-                        return ValuesSourceReaderOperator.load(loader);
-                    }
+                    (warningsMode, shardIdx) -> extractionSpec.bind(shardContexts.get(shardIdx), plannerSettings, null)
                 )
             );
         }
@@ -804,73 +773,6 @@ public final class FetchService {
         return node;
     }
 
-    public static final class FetchField implements Writeable {
-        private final String fieldName;
-        private final DataType dataType;
-
-        public FetchField(String fieldName, DataType dataType) {
-            this.fieldName = Objects.requireNonNull(fieldName, "fieldName");
-            this.dataType = Objects.requireNonNull(dataType, "dataType");
-        }
-
-        FetchField(StreamInput in) throws IOException {
-            this(in.readString(), DataType.fromTypeName(in.readString()));
-        }
-
-        public String fieldName() {
-            return fieldName;
-        }
-
-        public DataType dataType() {
-            return dataType;
-        }
-
-        /**
-         * Whether this data type can be loaded by the plain field-name-and-type fetch contract.
-         */
-        public static boolean supports(DataType dataType) {
-            return switch (dataType) {
-                case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE,
-                    KEYWORD, TEXT, DATETIME, DATE_NANOS, DATE_RANGE, DOUBLE_RANGE, IP, VERSION, SOURCE, TSID_DATA_TYPE,
-                    AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
-                // Mapped numeric types are widened to their ES|QL block type before fetch planning.
-                case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> false;
-                // Spatial field loaders need an extraction preference to determine their physical block type.
-                case GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE -> false;
-                // These types are evaluator or execution values rather than independently loadable mapped fields.
-                case OBJECT, DATE_PERIOD, TIME_DURATION, GEOHASH, GEOTILE, GEOHEX, DOC_DATA_TYPE, PARTIAL_AGG -> false;
-            };
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            out.writeString(dataType.typeName());
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            }
-            if (obj instanceof FetchField == false) {
-                return false;
-            }
-            FetchField other = (FetchField) obj;
-            return fieldName.equals(other.fieldName) && dataType == other.dataType;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(fieldName, dataType);
-        }
-
-        @Override
-        public String toString() {
-            return fieldName + ":" + dataType.typeName();
-        }
-    }
-
     static final class ReleaseRequest extends AbstractTransportRequest {
         private final String retainedSessionId;
 
@@ -896,7 +798,7 @@ public final class FetchService {
 
     static final class ExchangeSetupRequest extends AbstractTransportRequest {
         private final String retainedSessionId;
-        private final List<FetchField> fields;
+        private final List<FieldExtractionSpec> extractionSpecs;
         private final PhysicalPlan pushdownPlan;
         private final Configuration configuration;
         private final String clientToServerId;
@@ -904,16 +806,16 @@ public final class FetchService {
 
         ExchangeSetupRequest(
             String retainedSessionId,
-            List<FetchField> fields,
+            List<FieldExtractionSpec> extractionSpecs,
             PhysicalPlan pushdownPlan,
             Configuration configuration,
             String clientToServerId,
             String serverToClientId
         ) {
             this.retainedSessionId = Objects.requireNonNull(retainedSessionId, "retainedSessionId");
-            this.fields = List.copyOf(fields);
-            if (this.fields.isEmpty()) {
-                throw new IllegalArgumentException("fetch requires at least one request field");
+            this.extractionSpecs = List.copyOf(extractionSpecs);
+            if (this.extractionSpecs.isEmpty()) {
+                throw new IllegalArgumentException("fetch requires at least one extraction specification");
             }
             this.pushdownPlan = validatePushdownPlan(pushdownPlan, "request_build");
             this.configuration = Objects.requireNonNull(configuration, "configuration");
@@ -924,9 +826,9 @@ public final class FetchService {
         ExchangeSetupRequest(StreamInput in) throws IOException {
             super(in);
             this.retainedSessionId = in.readString();
-            this.fields = in.readCollectionAsList(FetchField::new);
-            if (this.fields.isEmpty()) {
-                throw new IllegalArgumentException("fetch requires at least one request field");
+            this.extractionSpecs = in.readCollectionAsList(FieldExtractionSpec::new);
+            if (this.extractionSpecs.isEmpty()) {
+                throw new IllegalArgumentException("fetch requires at least one extraction specification");
             }
             this.configuration = readConfiguration(in);
             PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
@@ -939,8 +841,8 @@ public final class FetchService {
             return retainedSessionId;
         }
 
-        List<FetchField> fields() {
-            return fields;
+        List<FieldExtractionSpec> extractionSpecs() {
+            return extractionSpecs;
         }
 
         PhysicalPlan pushdownPlan() {
@@ -963,7 +865,7 @@ public final class FetchService {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(retainedSessionId);
-            out.writeCollection(fields);
+            out.writeCollection(extractionSpecs);
             Configuration serializedConfiguration = configuration.withoutTables();
             serializedConfiguration.writeTo(out);
             new PlanStreamOutput(out, serializedConfiguration).writeOptionalNamedWriteable(

@@ -1,5 +1,5 @@
 ProjectExec[[hire_date{f}#0, salary{f}#1, emp_no{f}#2]]
-\_FetchExec[_fetch_handle{r$}#3,[emp_no{f}#2, salary{f}#1],[emp_no{f}#2, salary{f}#1]]
+\_FetchExec[_fetch_handle{r$}#3,[emp_no{f}#2, salary{f}#1],[DIRECT[emp_no:integer->INT, preference=NONE], DIRECT[salary:integer->INT, preference=NONE]],[emp_no{f}#2, salary{f}#1]]
   |_TopNExec[[Order[hire_date{f}#0,ASC,LAST]],20[INTEGER],null]
   | \_ExchangeExec[[_fetch_handle{r$}#3, hire_date{f}#0],false]
   |   \_FetchBoundaryExec[handle=_fetch_handle{r$}#3, handoffOutput=[_fetch_handle{r$}#3, hire_date{f}#0], requiresRetainedSearchContexts=true]

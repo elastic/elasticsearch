@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.FieldExtractionSpec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -421,7 +422,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         PhysicalPlan pushdownPlan = new FragmentExec(new FetchSource(Source.EMPTY, List.of(fieldAttribute)));
         FetchService.ExchangeSetupRequest request = new FetchService.ExchangeSetupRequest(
             "session-1",
-            List.of(new FetchService.FetchField("n", DataType.LONG)),
+            List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
             pushdownPlan,
             configuration,
             "clientToServer-1",
@@ -435,7 +436,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             ) {
                 FetchService.ExchangeSetupRequest copy = new FetchService.ExchangeSetupRequest(in);
                 assertThat(copy.retainedSessionId(), equalTo("session-1"));
-                assertThat(copy.fields(), equalTo(List.of(new FetchService.FetchField("n", DataType.LONG))));
+                assertThat(copy.extractionSpecs(), equalTo(List.of(FieldExtractionSpec.direct("n", DataType.LONG))));
                 assertThat(
                     copy.pushdownPlan() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof FetchSource,
                     equalTo(true)
@@ -447,7 +448,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testFetchFieldLoadingHonorsConfiguredPreference() {
+    public void testDirectExtractionHonorsConfiguredPreference() {
         MappedFieldType.FieldExtractPreference preference = MappedFieldType.FieldExtractPreference.STORED;
         EsPhysicalOperationProviders.ShardContext shardContext = Mockito.mock(EsPhysicalOperationProviders.ShardContext.class);
         BlockLoader blockLoader = Mockito.mock(BlockLoader.class, Mockito.withSettings().stubOnly());
@@ -464,10 +465,9 @@ public class FetchServiceTests extends MapperServiceTestCase {
         ).thenReturn(blockLoader);
 
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = FetchService.buildFieldInfos(
-            List.of(new FetchService.FetchField("n", DataType.LONG)),
+            List.of(FieldExtractionSpec.direct("n", DataType.LONG, preference)),
             new IndexedByShardIdFromSingleton<>(shardContext),
-            PlannerSettings.DEFAULTS,
-            preference
+            PlannerSettings.DEFAULTS
         );
         fieldInfos.getFirst().buildLoader().build(null, 0);
 
@@ -483,9 +483,9 @@ public class FetchServiceTests extends MapperServiceTestCase {
             );
     }
 
-    public void testSupportedFetchFieldTypesHavePreferenceIndependentElementTypes() {
+    public void testDirectExtractionTypesHavePreferenceIndependentElementTypes() {
         for (DataType dataType : DataType.values()) {
-            if (FetchService.FetchField.supports(dataType)) {
+            if (FieldExtractionSpec.supportsDirectDataType(dataType)) {
                 var expectedElementType = PlannerUtils.toElementType(dataType);
                 for (MappedFieldType.FieldExtractPreference preference : MappedFieldType.FieldExtractPreference.values()) {
                     assertThat(PlannerUtils.toElementType(dataType, preference), equalTo(expectedElementType));
@@ -494,23 +494,13 @@ public class FetchServiceTests extends MapperServiceTestCase {
         }
     }
 
-    public void testFetchFieldLoadingRejectsSpatialFieldsWithConfiguredPreference() {
-        EsPhysicalOperationProviders.ShardContext shardContext = Mockito.mock(EsPhysicalOperationProviders.ShardContext.class);
-
+    public void testDirectExtractionRejectsSpatialFieldsWithConfiguredPreference() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> FetchService.buildFieldInfos(
-                List.of(new FetchService.FetchField("location", DataType.GEO_POINT)),
-                new IndexedByShardIdFromSingleton<>(shardContext),
-                PlannerSettings.DEFAULTS,
-                MappedFieldType.FieldExtractPreference.DOC_VALUES
-            )
+            () -> FieldExtractionSpec.direct("location", DataType.GEO_POINT, MappedFieldType.FieldExtractPreference.DOC_VALUES)
         );
 
-        assertThat(
-            exception.getMessage(),
-            containsString("requires extraction semantics not represented by the plain fetch field contract")
-        );
+        assertThat(exception.getMessage(), containsString("requires a specialized extraction operation"));
     }
 
     public void testExchangeSetupRequestRejectsUnsupportedPushdownPlan() {
@@ -532,7 +522,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> new FetchService.ExchangeSetupRequest(
                 "session-1",
-                List.of(new FetchService.FetchField("n", DataType.LONG)),
+                List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
                 pushdownPlan,
                 ConfigurationTestUtils.randomConfiguration(),
                 "clientToServer-1",
@@ -548,7 +538,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> new FetchService.ExchangeSetupRequest(
                 "session-1",
-                List.of(new FetchService.FetchField("n", DataType.LONG)),
+                List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
                 null,
                 ConfigurationTestUtils.randomConfiguration(),
                 " ",
@@ -561,7 +551,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> new FetchService.ExchangeSetupRequest(
                 "session-1",
-                List.of(new FetchService.FetchField("n", DataType.LONG)),
+                List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
                 null,
                 ConfigurationTestUtils.randomConfiguration(),
                 "clientToServer-1",
@@ -579,7 +569,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             configuration = ConfigurationTestUtils.randomConfiguration("from test", Map.of("t", Map.of("v", column)));
             FetchService.ExchangeSetupRequest request = new FetchService.ExchangeSetupRequest(
                 "session-1",
-                List.of(new FetchService.FetchField("n", DataType.LONG)),
+                List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
                 null,
                 configuration,
                 "clientToServer-1",
@@ -606,7 +596,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         Configuration configuration = ConfigurationTestUtils.randomConfiguration();
         FetchService.ExchangeSetupRequest request = new FetchService.ExchangeSetupRequest(
             "session-1",
-            List.of(new FetchService.FetchField("n", DataType.LONG)),
+            List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
             null,
             configuration,
             "clientToServer-1",
@@ -620,7 +610,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         assertThat(task.getParentTaskId(), equalTo(parentTaskId));
     }
 
-    public void testExchangeSetupRequestRejectsEmptyFields() {
+    public void testExchangeSetupRequestRejectsEmptyExtractionSpecs() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new FetchService.ExchangeSetupRequest(
@@ -632,7 +622,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
                 "serverToClient-1"
             )
         );
-        assertThat(exception.getMessage(), containsString("fetch requires at least one request field"));
+        assertThat(exception.getMessage(), containsString("fetch requires at least one extraction specification"));
     }
 
     public void testRetainedSessionReleaserDeduplicatesReleases() {
@@ -740,7 +730,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         service.startExchangeFetchServer(
             new FetchService.ExchangeSetupRequest(
                 "session-1",
-                List.of(new FetchService.FetchField("n", DataType.LONG)),
+                List.of(FieldExtractionSpec.direct("n", DataType.LONG)),
                 null,
                 ConfigurationTestUtils.randomConfiguration(),
                 "clientToServer-1",

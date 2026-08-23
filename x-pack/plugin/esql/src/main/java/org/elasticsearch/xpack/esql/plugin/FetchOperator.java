@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.FieldExtractionSpec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -64,7 +66,7 @@ public final class FetchOperator implements Operator {
 
     public record Factory(
         int handleChannel,
-        List<FetchService.FetchField> requestFields,
+        List<FieldExtractionSpec> extractionSpecs,
         List<Attribute> outputFields,
         PhysicalPlan pushdownPlan,
         Configuration configuration,
@@ -76,7 +78,7 @@ public final class FetchOperator implements Operator {
             return new FetchOperator(
                 driverContext,
                 handleChannel,
-                requestFields,
+                extractionSpecs,
                 outputFields,
                 pushdownPlan,
                 configuration,
@@ -87,7 +89,7 @@ public final class FetchOperator implements Operator {
 
         @Override
         public String describe() {
-            return "FetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
+            return "FetchOperator[channel=" + handleChannel + ", extractionSpecs=" + extractionSpecs + "]";
         }
     }
 
@@ -160,7 +162,7 @@ public final class FetchOperator implements Operator {
 
     private final DriverContext driverContext;
     private final int handleChannel;
-    private final List<FetchService.FetchField> requestFields;
+    private final List<FieldExtractionSpec> extractionSpecs;
     private final List<Attribute> outputFields;
     private final PhysicalPlan pushdownPlan;
     private final Configuration configuration;
@@ -185,28 +187,28 @@ public final class FetchOperator implements Operator {
     FetchOperator(
         DriverContext driverContext,
         int handleChannel,
-        List<FetchService.FetchField> requestFields,
+        List<FieldExtractionSpec> extractionSpecs,
         List<Attribute> outputFields,
         PhysicalPlan pushdownPlan,
         Configuration configuration,
         int maxPendingInputs,
         FetchService.Client client
     ) {
-        if (requestFields.isEmpty()) {
-            throw new IllegalArgumentException("fetch requires at least one request field");
+        if (extractionSpecs.isEmpty()) {
+            throw new IllegalArgumentException("fetch requires at least one extraction specification");
         }
         if (outputFields.isEmpty()) {
             throw new IllegalArgumentException("fetch requires at least one output field");
         }
-        if (requestFields.size() != outputFields.size()) {
+        if (extractionSpecs.size() != outputFields.size()) {
             throw new IllegalArgumentException(
-                "fetch request fields [" + requestFields.size() + "] must match output fields [" + outputFields.size() + "]"
+                "fetch extraction specifications [" + extractionSpecs.size() + "] must match output fields [" + outputFields.size() + "]"
             );
         }
         validatePushdownPlan(pushdownPlan);
         this.driverContext = driverContext;
         this.handleChannel = handleChannel;
-        this.requestFields = List.copyOf(requestFields);
+        this.extractionSpecs = List.copyOf(extractionSpecs);
         this.outputFields = List.copyOf(outputFields);
         this.pushdownPlan = pushdownPlan;
         this.configuration = configuration;
@@ -244,7 +246,7 @@ public final class FetchOperator implements Operator {
                     exchange = client.openTargetExchange(
                         group.target.nodeId(),
                         group.target.retainedSessionId(),
-                        requestFields,
+                        extractionSpecs,
                         pushdownPlan,
                         configuration
                     );
@@ -488,7 +490,7 @@ public final class FetchOperator implements Operator {
 
     @Override
     public String toString() {
-        return "FetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
+        return "FetchOperator[channel=" + handleChannel + ", extractionSpecs=" + extractionSpecs + "]";
     }
 
     @Override
@@ -675,8 +677,10 @@ public final class FetchOperator implements Operator {
                 outputBlocks[block].incRef();
             }
             for (int field = 0; field < outputFields.size(); field++) {
-                builders[field] = PlannerUtils.toElementType(outputFields.get(field).dataType())
-                    .newBlockBuilder(inputPage.getPositionCount(), driverContext.blockFactory());
+                builders[field] = fetchedOutputElementType(field).newBlockBuilder(
+                    inputPage.getPositionCount(),
+                    driverContext.blockFactory()
+                );
                 for (FetchedRowRef rowRef : fetchedRows) {
                     Page fetchedPage = pagesByGroup.get(rowRef.group()).pages().get(rowRef.pageIndex());
                     builders[field].copyFrom(fetchedPage.getBlock(field), rowRef.position(), rowRef.position() + 1);
@@ -731,8 +735,7 @@ public final class FetchOperator implements Operator {
                 outputBlocks[i] = inputPage.getBlock(i).filter(false, survivingPositions, 0, survivors);
             }
             for (int field = 0; field < outputFields.size(); field++) {
-                Block.Builder builder = PlannerUtils.toElementType(outputFields.get(field).dataType())
-                    .newBlockBuilder(survivors, driverContext.blockFactory());
+                Block.Builder builder = fetchedOutputElementType(field).newBlockBuilder(survivors, driverContext.blockFactory());
                 builders[field] = builder;
                 for (FetchedRowRef rowRef : keptRows) {
                     Page fetchedPage = pagesByGroup.get(rowRef.group()).pages().get(rowRef.pageIndex());
@@ -751,6 +754,14 @@ public final class FetchOperator implements Operator {
                 Releasables.closeExpectNoException(outputBlocks);
             }
         }
+    }
+
+    private ElementType fetchedOutputElementType(int field) {
+        // A bare fetch returns the loader's physical block type. A pushdown can transform that input, so its declared
+        // output attributes, rather than the source extraction specifications, define the response block types.
+        return pushdownPlan == null
+            ? extractionSpecs.get(field).elementType()
+            : PlannerUtils.toElementType(outputFields.get(field).dataType());
     }
 
     private static FetchedRowRef[][] buildGroupMappings(List<GroupPages> pagesByGroup) {

@@ -784,16 +784,12 @@ public class LocalExecutionPlanner {
         if (handle == null) {
             throw new IllegalStateException("fetch handle attribute [" + exec.handleAttribute() + "] is not present in input layout");
         }
-        List<FetchService.FetchField> requestFields = exec.attributesToFetch()
-            .stream()
-            .map(attr -> new FetchService.FetchField(fieldName(attr), attr.dataType()))
-            .toList();
         PhysicalPlan pushdownPlan = exec.pushdownPlan();
         Layout layout = source.layout.builder().append(exec.fetchedOutputAttributes()).build();
         return source.with(
             new FetchOperator.Factory(
                 handle.channel(),
-                requestFields,
+                exec.extractionSpecs(),
                 exec.fetchedOutputAttributes(),
                 pushdownPlan,
                 configuration,
@@ -802,10 +798,6 @@ public class LocalExecutionPlanner {
             ),
             layout
         );
-    }
-
-    private static String fieldName(Attribute attr) {
-        return attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {

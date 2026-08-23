@@ -17,15 +17,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.FetchHandleFunction;
@@ -55,12 +50,12 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.FieldExtractionSpec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.FetchHandle;
-import org.elasticsearch.xpack.esql.plugin.FetchService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -110,7 +105,8 @@ public final class ReductionPlanner {
             && minimumTransportVersion.supports(FetchBoundaryExec.ESQL_FETCH_BOUNDARY)) {
             var rewrittenPlan = planDistributedTopN(
                 stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldContext, stats),
-                resolvedPlan
+                resolvedPlan,
+                minimumTransportVersion
             );
             if (rewrittenPlan.isPresent()) {
                 return new DistributedReductionPlan(rewrittenPlan.get());
@@ -283,7 +279,8 @@ public final class ReductionPlanner {
      */
     private static Optional<PhysicalPlan> planDistributedTopN(
         Function<SearchStats, LocalPhysicalOptimizerContext> contextFactory,
-        PhysicalPlan distributedPlan
+        PhysicalPlan distributedPlan,
+        TransportVersion minimumTransportVersion
     ) {
         List<Attribute> originalOutput = distributedPlan.output();
         var replacedTopN = new Holder<Boolean>(false);
@@ -313,12 +310,18 @@ public final class ReductionPlanner {
 
             AttributeSet exchangeOutputSet = AttributeSet.of(exchangeOutput);
             List<Attribute> attributesToFetch = new ArrayList<>();
+            List<FieldExtractionSpec> extractionSpecs = new ArrayList<>();
             for (Attribute attr : topLevelProject.output()) {
                 if (exchangeOutputSet.contains(attr) == false) {
-                    if (isFetchable(attr) == false) {
+                    FieldExtractionSpec extractionSpec = FieldExtractionSpec.plan(
+                        attr,
+                        planningContext.optimizerContext().configuration().pragmas().fieldExtractPreference()
+                    ).orElse(null);
+                    if (extractionSpec == null || extractionSpec.supports(minimumTransportVersion) == false) {
                         return topNExec;
                     }
                     attributesToFetch.add(attr);
+                    extractionSpecs.add(extractionSpec);
                 }
             }
             if (attributesToFetch.isEmpty()) {
@@ -333,7 +336,7 @@ public final class ReductionPlanner {
             FragmentExec fetchPlan = new FragmentExec(new FetchSource(Source.EMPTY, attributesToFetch));
             replacedTopN.set(true);
             TopNExec updatedTopN = topNExec.replaceChild(updatedExchange);
-            return new FetchExec(topNExec.source(), updatedTopN, handle, attributesToFetch, attributesToFetch, fetchPlan);
+            return new FetchExec(topNExec.source(), updatedTopN, handle, attributesToFetch, extractionSpecs, attributesToFetch, fetchPlan);
         });
         if (replacedTopN.get() == false) {
             return Optional.empty();
@@ -505,26 +508,6 @@ public final class ReductionPlanner {
 
     private static Attribute fetchHandleAttribute(Source source) {
         return new ReferenceAttribute(source, null, FetchHandle.ATTRIBUTE_NAME, DataType.KEYWORD, Nullability.FALSE, null, true);
-    }
-
-    private static boolean isFetchable(Attribute attr) {
-        /*
-         * The runtime fetch request currently carries only the field name and data type. Keep fields that need any additional loader
-         * configuration on the eager extraction path until the fetch contract can preserve those semantics.
-         *
-         * TODO: Replace these conservative attribute/type checks with a shared, serializable extraction specification that owns the
-         * field name, loader configuration, conversion, and physical element type for both eager and deferred field loading.
-         */
-        if (attr instanceof TimeSeriesMetadataAttribute) {
-            return false;
-        }
-        if (attr instanceof FieldAttribute fieldAttribute) {
-            return FetchService.FetchField.supports(fieldAttribute.dataType())
-                && (fieldAttribute.field() instanceof FunctionEsField) == false
-                && (fieldAttribute.field() instanceof PotentiallyUnmappedKeywordEsField) == false
-                && (fieldAttribute.field() instanceof UnionTypeEsField) == false;
-        }
-        return attr instanceof MetadataAttribute;
     }
 
     private static final SearchStats SEARCH_STATS_TOP_N_REPLACEMENT = new SearchStats.UnsupportedSearchStats() {

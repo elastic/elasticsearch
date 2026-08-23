@@ -22,6 +22,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.BeforeClass;
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Verifies that the {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}} is optimized into the reduce driver instead
  * of the data driver.
  *
- * For more information on why this is important, see {@link org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner}.
+ * For more information on why this is important, see {@link ReductionPlanner}.
  */
 public abstract class EsqlReductionLateMaterializationTestCase extends AbstractEsqlIntegTestCase {
     private final int shardCount;

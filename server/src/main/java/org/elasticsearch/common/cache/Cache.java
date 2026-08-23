@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -425,12 +427,13 @@ public class Cache<K, V> {
 
     /**
      * If the specified key is not already associated with a value (or is mapped to null), attempts to compute its
-     * value using the given mapping function and enters it into this map unless null. The load method for a given key
-     * will be invoked at most once.
-     *
+     * value using the given mapping function and enters it into this map unless null.
+     * <p>
      * Use of different {@link CacheLoader} implementations on the same key concurrently may result in only the first
      * loader function being called and the second will be returned the result provided by the first including any exceptions
-     * thrown during the execution of the first.
+     * thrown during the execution of the first, except for a {@link TaskCancelledException}: a cancellation belongs
+     * to the caller which was canceled, so a thread waiting on a computation which was canceled computes the value itself
+     * instead of inheriting the cancellation.
      *
      * @param key    the key whose associated value is to be returned or computed for if non-existent
      * @param loader the function to compute a value given a key
@@ -455,14 +458,18 @@ public class Cache<K, V> {
      * @throws TaskCancelledException thrown if the operation is cancelled at any cache wait point
      */
     public V computeIfAbsent(K key, CacheLoader<K, V> loader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
-        long now = now();
-        // we have to eagerly evict expired entries or our putIfAbsent call below will fail
-        // this can block on an existing in-flight computation and may throw TaskCancelledException
-        V value = get(key, now, true, cancellationRegistrar);
-        if (value == null) {
+        // the loop is re-entered only after a computation this thread waited on was canceled
+        while (true) {
+            long now = now();
+            // we have to eagerly evict expired entries or our putIfAbsent call below will fail
+            // this can block on an existing in-flight computation and may throw TaskCancelledException
+            V value = get(key, now, true, cancellationRegistrar);
+            if (value != null) {
+                return value;
+            }
             // we need to synchronize loading of a value for a given key; however, holding the segment lock while
             // invoking load can lead to deadlock against another thread due to dependent key loading; therefore, we
-            // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
+            // need a mechanism to ensure that at most one load is in flight for a key, but we are not invoking load while holding
             // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
             // get the value from this future on the thread that won the race to place the future into the segment map
             final CacheSegment segment = getCacheSegment(key);
@@ -486,14 +493,12 @@ public class Cache<K, V> {
                 try {
                     loaded = loader.load(key);
                 } catch (Exception e) {
-                    future.completeExceptionally(e);
-                    cleanupFailedFuture(segment, key, future);
+                    abandonFuture(segment, key, future, e);
                     throw new ExecutionException(e);
                 }
                 if (loaded == null) {
                     NullPointerException npe = new NullPointerException("loader returned a null value");
-                    future.completeExceptionally(npe);
-                    cleanupFailedFuture(segment, key, future);
+                    abandonFuture(segment, key, future, npe);
                     throw new ExecutionException(npe);
                 }
                 Entry<K, V> entry = new Entry<>(key, loaded, now);
@@ -509,19 +514,25 @@ public class Cache<K, V> {
                     }
                     promote(entry, now);
                     return entry.value;
+                } catch (ExecutionException e) {
+                    if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) == null) {
+                        throw e;
+                    }
+                    // the cancellation belongs to the canceled caller and not to this one, so go round again rather than inherit it
+                    logger.debug(() -> Strings.format("retrying key [%s], the computation it waited on was canceled", key));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new ExecutionException(e);
                 }
             }
         }
-        return value;
     }
 
     /**
-     * Clean up a failed future from the segment map.
+     * Fails an in-flight computation, having first removed it from the segment map so that no thread starts waiting on a computation
+     * which is already known to be doomed.
      */
-    private void cleanupFailedFuture(CacheSegment segment, K key, CompletableFuture<Entry<K, V>> future) {
+    private void abandonFuture(CacheSegment segment, K key, CompletableFuture<Entry<K, V>> future, Exception failure) {
         segment.writeLock.lock();
         try {
             if (segment.map != null) {
@@ -538,6 +549,8 @@ public class Cache<K, V> {
         } finally {
             segment.writeLock.unlock();
         }
+        // completed outside the segment lock, since this releases the waiting threads, which take the lock themselves
+        future.completeExceptionally(failure);
     }
 
     /**

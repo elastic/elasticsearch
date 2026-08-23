@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -40,6 +41,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class CacheTests extends ESTestCase {
@@ -912,6 +916,39 @@ public class CacheTests extends ESTestCase {
 
         assertEquals("computed-value", cache.get(1));
         assertNull("No exception should have been thrown by computing thread", threadException.get());
+    }
+
+    public void testComputeIfAbsentDoesNotShareLoaderCancellation() throws Exception {
+        final int threads = 8;
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        CountDownLatch waitersParked = new CountDownLatch(threads - 1);
+        AtomicReference<Thread> canceledThread = new AtomicReference<>();
+        List<String> values = new CopyOnWriteArrayList<>();
+        List<Throwable> failures = new CopyOnWriteArrayList<>();
+
+        startInParallel(threads, i -> {
+            try {
+                values.add(cache.computeIfAbsent(1, k -> {
+                    if (canceledThread.compareAndSet(null, Thread.currentThread())) {
+                        safeAwait(waitersParked);
+                        throw new TaskCancelledException("task cancelled [somebody else's channel closed]");
+                    }
+                    return "value-" + k;
+                }, callback -> waitersParked.countDown()));
+            } catch (ExecutionException | TaskCancelledException e) {
+                if (Thread.currentThread() != canceledThread.get()) {
+                    failures.add(e);
+                }
+            }
+        });
+
+        assertNotNull("a thread must have computed the entry", canceledThread.get());
+        for (Throwable failure : failures) {
+            fail("a thread which was not canceled failed with " + ExceptionsHelper.stackTrace(failure));
+        }
+        assertThat(values, hasSize(threads - 1));
+        assertThat(values, everyItem(equalTo("value-1")));
+        assertEquals("value-1", cache.get(1));
     }
 
     public void testComputeIfAbsentPropagatesLoaderExceptionToWaitingThreadWithCancellationRegistrar() throws Exception {

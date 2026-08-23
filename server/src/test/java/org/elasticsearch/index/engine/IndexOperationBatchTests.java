@@ -663,4 +663,53 @@ public class IndexOperationBatchTests extends ESTestCase {
             }
         }
     }
+
+    public void testToTranslogRecordNullArraysWhenUnused() throws IOException {
+        // A batch where no row has a routing value and no row is a no-op stores its routings and
+        // noOpReasons in canonical form: the whole arrays stay null instead of holding all nulls.
+        final int n = randomIntBetween(1, 5);
+        try (EscfBatch escf = escfBatch(n)) {
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+                items(n),
+                0,
+                n,
+                escf,
+                Engine.Operation.Origin.PRIMARY,
+                1L,
+                0L
+            );
+            for (int d = 0; d < n; d++) {
+                ByteUtils.writeLongLE(d, batch.seqNoBytes().bytes, d * 8);
+                ByteUtils.writeLongLE(1L, batch.versionBytes().bytes, d * 8);
+            }
+
+            final byte[] statuses = new byte[n]; // all ROW_INDEXED
+            final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(statuses, null);
+
+            assertThat(record.routings(), nullValue());
+            assertThat(record.noOpReasons(), nullValue());
+            for (int i = 0; i < n; i++) {
+                assertThat("routing at i=" + i, record.routing(i), nullValue());
+                assertThat("seqNo at i=" + i, record.seqNo(i), equalTo((long) i));
+            }
+        }
+    }
+
+    public void testToTranslogRecordRejectsRowStatusLengthMismatch() throws IOException {
+        final int n = randomIntBetween(2, 5);
+        try (EscfBatch escf = escfBatch(n)) {
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+                items(n),
+                0,
+                n,
+                escf,
+                Engine.Operation.Origin.PRIMARY,
+                1L,
+                0L
+            );
+            final byte[] statuses = new byte[n - 1]; // all ROW_INDEXED, but one row short
+            final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> batch.toTranslogRecord(statuses, null));
+            assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage().contains("does not match batch docCount"));
+        }
+    }
 }

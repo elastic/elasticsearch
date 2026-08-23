@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,12 +33,14 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -80,10 +83,18 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     private Translog create(Path path) throws IOException {
-        return create(path, longsRef -> {});
+        return create(path, longsRef -> {}, (d, s, l) -> {});
     }
 
     private Translog create(Path path, Consumer<LongsRef> persistedSeqNoConsumer) throws IOException {
+        return create(path, persistedSeqNoConsumer, (d, s, l) -> {});
+    }
+
+    private Translog create(Path path, OperationListener operationListener) throws IOException {
+        return create(path, longsRef -> {}, operationListener);
+    }
+
+    private Translog create(Path path, Consumer<LongsRef> persistedSeqNoConsumer, OperationListener operationListener) throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.index.IndexVersion.current())
             .build();
@@ -95,7 +106,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
             NON_RECYCLING_INSTANCE,
             ByteSizeValue.ofBytes(8 * 1024),
             DiskIoBufferPool.INSTANCE,
-            (d, s, l) -> {},
+            operationListener,
             true
         );
         final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
@@ -200,10 +211,20 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 timestamps,
                 types,
                 uids,
-                routings,
-                reasons,
+                anyNonNull(routings) ? routings : null,
+                anyNonNull(reasons) ? reasons : null,
                 batchData
             );
+        }
+
+        /** The record stores routings/noOpReasons as null when no row has a value, as the production factories do. */
+        private static boolean anyNonNull(String[] values) {
+            for (String value : values) {
+                if (value != null) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -329,6 +350,59 @@ public class TranslogIndexBatchTests extends ESTestCase {
                 assertEquals(xContentType, XContentHelper.xContentType(idx.source()));
             }
             assertNull(snapshot.next());
+        }
+    }
+
+    public void testAddBatchNotifiesOperationListener() throws IOException {
+        final List<long[]> recordSeqNos = new ArrayList<>();
+        final List<Translog.Location> recordLocations = new ArrayList<>();
+        final List<BytesReference> records = new ArrayList<>();
+        final OperationListener listener = (operation, seqNos, location) -> {
+            recordSeqNos.add(seqNos);
+            recordLocations.add(location);
+            try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                operation.writeToTranslogBuffer(output);
+                records.add(output.bytes());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+
+        final Path dir = createTempDir();
+        final long term = primaryTerm.get();
+        try (Translog listeningTranslog = create(dir, listener)) {
+            final Translog.Index solo = new Translog.Index(Uid.encodeId("solo"), 0, term, 1L, new BytesArray("{\"k\":\"v\"}"), null, -1L);
+            listeningTranslog.add(solo);
+
+            final List<BytesReference> sources = List.of(
+                BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("k", "v1"))),
+                BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("k", "v2"))),
+                BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("k", "v3"))),
+                BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(Map.of("k", "v4")))
+            );
+            final IndexOperationBatch.TranslogRecord batch = new RecordBuilder(4).indexed(0, 1L, 100L, 0L, XContentType.JSON, "doc-0", null)
+                .indexed(1, 2L, 101L, 1L, XContentType.JSON, "doc-1", null)
+                .noOp(2, 3L, "test failure")
+                .skipped(3)
+                .build(term, encodeBatchData(sources));
+            final Translog.Location location = listeningTranslog.add(batch);
+
+            // Two records: the solo op (one seqNo) and the batch (one seqNo per replayable row;
+            // the preflight-error row never consumed a seqNo and is not reported).
+            assertEquals(2, recordSeqNos.size());
+            assertArrayEquals(new long[] { 0L }, recordSeqNos.get(0));
+            assertArrayEquals(new long[] { 1L, 2L, 3L }, recordSeqNos.get(1));
+            assertEquals(location, recordLocations.get(1));
+
+            // The listener received the full framed records: they must round-trip through readRecord to equal records.
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(records.get(0).streamInput(), "test")) {
+                final Translog.Record record = Translog.readRecord(in);
+                assertEquals(solo, record);
+            }
+            try (BufferedChecksumStreamInput in = new BufferedChecksumStreamInput(records.get(1).streamInput(), "test")) {
+                final Translog.Record record = Translog.readRecord(in);
+                assertEquals(batch, record);
+            }
         }
     }
 
@@ -618,6 +692,86 @@ public class TranslogIndexBatchTests extends ESTestCase {
         final RecordBuilder builder = new RecordBuilder(2);
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> builder.build(primaryTerm.get(), batchData));
         assertTrue("unexpected exception message: " + ex.getMessage(), ex.getMessage().contains("at least one replayable row"));
+    }
+
+    public void testWireFormatRoundTripWithNullRoutingsAndReasons() throws IOException {
+        // A batch with no routing values and no no-op rows stores null routings/noOpReasons
+        // arrays; the wire format must reconstruct that canonical form so round-trips stay equal
+        // and replay produces index operations without routing.
+        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"row-0\"}"), new BytesArray("{\"k\":\"row-1\"}")));
+        final IndexOperationBatch.TranslogRecord batch = new RecordBuilder(2).indexed(0, 0L, 1L, 100L, XContentType.JSON, "doc-0", null)
+            .indexed(1, 1L, 1L, 101L, XContentType.JSON, "doc-1", null)
+            .build(primaryTerm.get(), batchData);
+        assertNull(batch.routings());
+        assertNull(batch.noOpReasons());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            batch.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                assertEquals(Translog.Record.Type.BATCH.id(), in.readByte());
+                final IndexOperationBatch.TranslogRecord read = IndexOperationBatch.TranslogRecord.readFrom(in);
+                assertEquals(batch, read);
+                assertNull(read.routings());
+                assertNull(read.noOpReasons());
+
+                final List<Translog.Operation> replayed = read.explode();
+                assertEquals(2, replayed.size());
+                for (Translog.Operation op : replayed) {
+                    assertNull(((Translog.Index) op).routing());
+                }
+            }
+        }
+    }
+
+    public void testConstructorRejectsAllNullArrays() throws IOException {
+        // A value-free routings/noOpReasons array carries no information and must be passed as
+        // null; an all-null array trips the constructor assertion.
+        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"v\"}")));
+        final long term = primaryTerm.get();
+        expectThrows(AssertionError.class, () -> allIndexedRecord(term, new String[1], null, batchData));
+        expectThrows(AssertionError.class, () -> allIndexedRecord(term, null, new String[1], batchData));
+    }
+
+    private static IndexOperationBatch.TranslogRecord allIndexedRecord(
+        long term,
+        String[] routings,
+        String[] noOpReasons,
+        BytesReference batchData
+    ) {
+        return new IndexOperationBatch.TranslogRecord(
+            term,
+            new byte[] { ROW_INDEXED },
+            new long[] { 0L },
+            new long[] { 1L },
+            new long[] { 100L },
+            new XContentType[] { XContentType.JSON },
+            new BytesRef[] { Uid.encodeId("doc-0") },
+            routings,
+            noOpReasons,
+            batchData
+        );
+    }
+
+    public void testConstructorAssertsNoOpReasonPresent() throws IOException {
+        // Every ROW_NO_OP row must carry a reason; a record with a no-op row but no reasons array
+        // (or a null reason in its slot) trips the constructor assertion.
+        final BytesReference batchData = encodeBatchData(List.of(new BytesArray("{\"k\":\"v\"}")));
+        final long term = primaryTerm.get();
+        expectThrows(
+            AssertionError.class,
+            () -> new IndexOperationBatch.TranslogRecord(
+                term,
+                new byte[] { ROW_NO_OP },
+                new long[] { 0L },
+                new long[] { 0L },
+                new long[] { 0L },
+                new XContentType[1],
+                new BytesRef[1],
+                null,
+                randomBoolean() ? null : new String[1],
+                batchData
+            )
+        );
     }
 
     public void testSeqNumberConflictAssertsDifferentOps() throws IOException {

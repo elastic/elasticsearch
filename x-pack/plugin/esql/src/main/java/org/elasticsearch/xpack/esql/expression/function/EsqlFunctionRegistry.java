@@ -225,6 +225,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytesSi;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtDuration;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtPercent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
@@ -492,6 +496,10 @@ public class EsqlFunctionRegistry {
                 RTrim.DEFINITION,
                 Repeat.DEFINITION,
                 Replace.DEFINITION,
+                FmtBytes.DEFINITION,
+                FmtBytesSi.DEFINITION,
+                FmtDuration.DEFINITION,
+                FmtPercent.DEFINITION,
                 Reverse.DEFINITION,
                 Right.DEFINITION,
                 Sha1.DEFINITION,

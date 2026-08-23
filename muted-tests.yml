@@ -59,6 +59,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/157329
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/40_indices_boost/Indices boost with wildcard}
+  issue: https://github.com/elastic/elasticsearch/issues/157451
 
 # Examples:
 #

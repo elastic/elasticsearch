@@ -49,9 +49,7 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
-    public static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
-        "esql_remote_fetch_retained_contexts"
-    );
+    public static final TransportVersion ESQL_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName("esql_remote_fetch_retained_contexts");
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
         "esql_external_splits_in_data_node_request"
     );
@@ -169,7 +167,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.reductionLateMaterialization = false;
         }
-        this.retainSearchContexts = in.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS) && in.readBoolean();
+        this.retainSearchContexts = in.getTransportVersion().supports(ESQL_FETCH_RETAINED_CONTEXTS) && in.readBoolean();
         if (in.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         } else {
@@ -196,7 +194,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
         }
-        if (out.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
+        if (out.getTransportVersion().supports(ESQL_FETCH_RETAINED_CONTEXTS)) {
             out.writeBoolean(retainSearchContexts);
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {

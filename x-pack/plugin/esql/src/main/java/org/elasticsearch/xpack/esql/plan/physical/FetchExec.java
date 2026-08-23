@@ -31,15 +31,16 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Fetches deferred fields on the coordinator from remote shard owners using a transport-safe handle.
  * <p>
- * Remote fetch keeps two attribute lists because they represent different contracts:
+ * Fetch keeps two attribute lists because they represent different contracts:
  * <ul>
  *     <li>{@code attributesToFetch}: remote request schema (what the data node must load to execute fetch/pushdown)</li>
  *     <li>{@code fetchedOutputAttributes}: coordinator output schema (what this node appends to its child output)</li>
  * </ul>
  * <p>
  * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a constrained
- * {@link FetchSource}/{@link Eval}/{@link Filter}/{@link Project} logical plan. This follows the same architectural pattern as lookup
- * planning: logical plans are serialized and shipped, while physical planning remains local to the target node.
+ * {@link FetchSource}/{@link Eval}/{@link Filter}/{@link Project} logical plan. This follows the same
+ * architectural pattern as lookup planning: logical plans are serialized and shipped, while physical planning remains
+ * local to the target node.
  */
 public class FetchExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -169,8 +170,8 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
     }
 
     /**
-     * The plan the fetch target must execute in addition to loading the fetched fields, or {@code null} when the fetch plan is a bare
-     * {@link FetchSource} that only describes the fields to fetch.
+     * The plan the fetch target must execute in addition to loading the fetched fields, or {@code null} when the fetch
+     * plan is a bare {@link FetchSource} that only describes the fields to fetch.
      */
     @Nullable
     public PhysicalPlan pushdownPlan() {

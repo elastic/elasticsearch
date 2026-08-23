@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Validates and builds operators for the deliberately small post-fetch pushdown fragment supported by remote fetch.
+ * Validates and builds operators for the deliberately small post-fetch pushdown fragment supported by fetch.
  * <p>
  * At runtime, this class translates a supported pushdown {@link FragmentExec} into an operator pipeline that is
  * appended to the exchange server's data-node driver pipeline.
@@ -47,7 +47,7 @@ final class FetchPushdownOperatorBuilder {
     private record PushdownPipeline(Layout layout, NameId positionAttributeId) {}
 
     /**
-     * Validates the remote-fetch pushdown shape used on the wire.
+     * Validates the fetch pushdown shape used on the wire.
      * <p>
      * Accepted forms are {@link FragmentExec} wrapping logical nodes from the constrained
      * {@link FetchSource}/{@link Eval}/{@link Filter}/{@link Project} family.
@@ -75,7 +75,7 @@ final class FetchPushdownOperatorBuilder {
     }
 
     private static String unsupportedPlanMessage(Object plan) {
-        return "unsupported remote fetch pushdown plan [" + plan.getClass().getSimpleName() + "]";
+        return "unsupported fetch pushdown plan [" + plan.getClass().getSimpleName() + "]";
     }
 
     /**
@@ -91,7 +91,7 @@ final class FetchPushdownOperatorBuilder {
         DriverContext driverContext
     ) {
         if (pushdownPlan == null) {
-            throw new IllegalArgumentException("remote fetch pushdown plan must not be null");
+            throw new IllegalArgumentException("fetch pushdown plan must not be null");
         }
         List<Operator.OperatorFactory> factories = new ArrayList<>();
         PushdownPipeline pipeline = buildPipeline(pushdownPlan, factories, shardContexts, foldContext);
@@ -130,7 +130,7 @@ final class FetchPushdownOperatorBuilder {
         }
         Layout.ChannelAndType position = pipeline.layout().get(positionAttributeId);
         if (position == null) {
-            throw new IllegalStateException("remote fetch pushdown lost position-mapping attribute");
+            throw new IllegalStateException("fetch pushdown lost position-mapping attribute");
         }
         int positionChannel = position.channel();
         int totalChannels = pipeline.layout().numberOfChannels();
@@ -163,7 +163,7 @@ final class FetchPushdownOperatorBuilder {
             Attribute positionAttribute = output.isEmpty() ? null : output.getLast();
             if (positionAttribute == null || positionAttribute.name().equals(FetchSource.POSITION_ATTRIBUTE_NAME) == false) {
                 throw new IllegalStateException(
-                    "remote fetch pushdown source must end with the position-mapping attribute ["
+                    "fetch pushdown source must end with the position-mapping attribute ["
                         + FetchSource.POSITION_ATTRIBUTE_NAME
                         + "] but ends with ["
                         + (positionAttribute == null ? "nothing" : positionAttribute.name())
@@ -210,7 +210,7 @@ final class FetchPushdownOperatorBuilder {
             if (child.positionAttributeId() != null) {
                 Layout.ChannelAndType positionInput = childLayout.get(child.positionAttributeId());
                 if (positionInput == null) {
-                    throw new IllegalStateException("remote fetch pushdown lost position-mapping attribute");
+                    throw new IllegalStateException("fetch pushdown lost position-mapping attribute");
                 }
                 projectionList.add(positionInput.channel());
                 builder.append(childLayout.inverse().get(positionInput.channel()));
@@ -227,7 +227,7 @@ final class FetchPushdownOperatorBuilder {
                 return child.id();
             }
             throw new IllegalStateException(
-                "remote fetch pushdown project aliases must reference existing named expressions; use EvalExec for scalar alias ["
+                "fetch pushdown project aliases must reference existing named expressions; use EvalExec for scalar alias ["
                     + projection
                     + "]"
             );

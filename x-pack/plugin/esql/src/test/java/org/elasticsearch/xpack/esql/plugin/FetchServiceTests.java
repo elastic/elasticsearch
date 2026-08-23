@@ -540,7 +540,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             )
         );
         assertThat(exception.getMessage(), containsString("request_build"));
-        assertThat(exception.getMessage(), containsString("unsupported remote fetch pushdown plan [LimitExec]"));
+        assertThat(exception.getMessage(), containsString("unsupported fetch pushdown plan [LimitExec]"));
     }
 
     public void testExchangeSetupRequestRejectsBlankExchangeIds() {
@@ -632,7 +632,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
                 "serverToClient-1"
             )
         );
-        assertThat(exception.getMessage(), containsString("remote fetch requires at least one request field"));
+        assertThat(exception.getMessage(), containsString("fetch requires at least one request field"));
     }
 
     public void testRetainedSessionReleaserDeduplicatesReleases() {
@@ -689,7 +689,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         releaser.track(node, "session-1");
         releaser.track(node, "session-1");
 
-        FetchService.Client client = remoteFetchService().newBatchExchangeClient(Mockito.mock(CancellableTask.class), releaser);
+        FetchService.Client client = fetchService().newBatchExchangeClient(Mockito.mock(CancellableTask.class), releaser);
         client.close();
         client.close();
 
@@ -700,7 +700,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         long[] now = new long[] { 0L };
         RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(10));
         List<Runnable> scheduledCommands = new ArrayList<>();
-        FetchService service = remoteFetchService(registry, scheduledCommands);
+        FetchService service = fetchService(registry, scheduledCommands);
         SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
 
         RetainedSearchContextsRegistry.Handle registration = service.retainSearchContexts("session-1", createContexts(searchContext));
@@ -716,7 +716,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
         long[] now = new long[] { 0L };
         RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry(() -> now[0], TimeValue.timeValueMillis(10));
         List<Runnable> scheduledCommands = new ArrayList<>();
-        FetchService service = remoteFetchService(registry, scheduledCommands);
+        FetchService service = fetchService(registry, scheduledCommands);
         SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
         RetainedSearchContextsRegistry.Handle registration = service.retainSearchContexts("session-1", createContexts(searchContext));
 
@@ -732,7 +732,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
     public void testStartExchangeFetchServerReleasesLeaseWhenSetupFails() {
         RetainedSearchContextsRegistry registry = new RetainedSearchContextsRegistry();
         RuntimeException setupFailure = new RuntimeException("setup failed");
-        FetchService service = remoteFetchService(registry, new ArrayList<>(), (a, b, c, d, e, f, g, h, i, j) -> { throw setupFailure; });
+        FetchService service = fetchService(registry, new ArrayList<>(), (a, b, c, d, e, f, g, h, i, j) -> { throw setupFailure; });
         SearchContext searchContext = new TestSearchContext(Mockito.mock(SearchExecutionContext.class, Mockito.withSettings().stubOnly()));
         RetainedSearchContextsRegistry.Handle registration = service.retainSearchContexts("session-1", createContexts(searchContext));
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -787,7 +787,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             executionBlockFactory.bigArrays(),
             executionBlockFactory,
             LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS,
-            "remote_fetch_pushdown_test"
+            "fetch_pushdown_test"
         );
         List<Operator> operators = pushdownBuilder.buildOperators(pushdownPlan, shardContexts, foldContext, driverContext);
         return runOperatorChain(inputPages, operators);
@@ -838,15 +838,15 @@ public class FetchServiceTests extends MapperServiceTestCase {
         return BlockFactory.builder(bigArrays).build();
     }
 
-    private static FetchService remoteFetchService() {
-        return remoteFetchService(new RetainedSearchContextsRegistry(), new ArrayList<>());
+    private static FetchService fetchService() {
+        return fetchService(new RetainedSearchContextsRegistry(), new ArrayList<>());
     }
 
-    private static FetchService remoteFetchService(RetainedSearchContextsRegistry registry, List<Runnable> scheduledCommands) {
-        return remoteFetchService(registry, scheduledCommands, BidirectionalBatchExchangeServer::new);
+    private static FetchService fetchService(RetainedSearchContextsRegistry registry, List<Runnable> scheduledCommands) {
+        return fetchService(registry, scheduledCommands, BidirectionalBatchExchangeServer::new);
     }
 
-    private static FetchService remoteFetchService(
+    private static FetchService fetchService(
         RetainedSearchContextsRegistry registry,
         List<Runnable> scheduledCommands,
         FetchService.ExchangeServerFactory exchangeServerFactory
@@ -907,7 +907,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
     }
 
     /**
-     * Test helper that builds a doc-only page from remote fetch handles.
+     * Test helper that builds a doc-only page from fetch handles.
      */
     private static Page inputPage(BlockFactory blockFactory, List<FetchHandle> handles) {
         try (DocVector.FixedBuilder builder = DocVector.newFixedBuilder(blockFactory, handles.size())) {
@@ -934,7 +934,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             return List.of();
         }
         if (fieldInfos.isEmpty()) {
-            throw new IllegalArgumentException("remote fetch requires at least one field");
+            throw new IllegalArgumentException("fetch requires at least one field");
         }
 
         final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
@@ -946,7 +946,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             bigArrays,
             blockFactory.newChildFactory(localBreaker),
             localBreakerSettings,
-            "remote_fetch"
+            "fetch"
         );
         final Operator operator = new ValuesSourceReaderOperator.Factory(
             plannerSettings.valuesLoadingJumboSize(),
@@ -973,7 +973,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
             while (operator.isFinished() == false) {
                 Page page = operator.getOutput();
                 if (page == null) {
-                    throw new IllegalStateException("remote fetch operator stalled without producing output");
+                    throw new IllegalStateException("fetch operator stalled without producing output");
                 }
                 Page projected = page.projectBlocks(projection);
                 page.releaseBlocks();

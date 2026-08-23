@@ -20,7 +20,7 @@ import java.util.List;
 public class FetchHandleFunctionSerializationTests extends AbstractExpressionSerializationTests<FetchHandleFunction> {
     /**
      * Keep this registration test-local for now. Production registration is intentionally deferred
-     * until remote fetch handles need wire shipping, so this PR does not take that compatibility
+     * until fetch handles need wire shipping, so this PR does not take that compatibility
      * commitment yet.
      */
     @Override

@@ -46,7 +46,7 @@ public class QueryWarnings {
      * A no-op instance that silently discards all warnings. Use this when a
      * {@link SearchExecutionContext} must carry a {@link QueryWarnings} but
      * the caller intentionally does not want warnings emitted - for example,
-     * the lookup-join and detached remote-fetch paths.
+     * the lookup-join and detached fetch paths.
      */
     public static final QueryWarnings NOOP = new QueryWarnings() {
         @Override

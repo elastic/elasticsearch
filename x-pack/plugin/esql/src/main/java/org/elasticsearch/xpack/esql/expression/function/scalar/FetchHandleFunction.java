@@ -38,13 +38,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Internal scalar that converts node-local {@code _doc} values into transport-safe remote fetch handles.
+ * Internal scalar that converts node-local {@code _doc} values into transport-safe fetch handles.
  * <p>
  * Each handle encodes enough routing information for follow-up fetches: the owning node, retained session, and
  * doc identity ({@code shard/segment/doc}) for the originating reader. Handles are only valid while the retained
  * session is alive; they are not a durable document identifier.
  * <p>
- * This function is intentionally not registered as user-visible ES|QL syntax. The remote fetch planner can build an
+ * This function is intentionally not registered as user-visible ES|QL syntax. The fetch planner can build an
  * {@link org.elasticsearch.xpack.esql.plan.physical.EvalExec} containing this expression when it needs to carry
  * node-local doc references through a generic exchange.
  */
@@ -76,7 +76,7 @@ public class FetchHandleFunction extends EsqlScalarFunction {
         this.doc = doc;
         if (doc.typeResolved().resolved()
             && (doc.dataType() != DataType.DOC_DATA_TYPE || MetadataAttribute.DOC.equals(doc.name()) == false)) {
-            throw new IllegalStateException("remote fetch handle requires _doc input but got [" + doc.dataType() + ":" + doc.name() + "]");
+            throw new IllegalStateException("fetch handle requires _doc input but got [" + doc.dataType() + ":" + doc.name() + "]");
         }
         this.nodeId = Objects.requireNonNull(nodeId, "nodeId");
         this.retainedSessionId = Objects.requireNonNull(retainedSessionId, "retainedSessionId");
@@ -165,7 +165,7 @@ public class FetchHandleFunction extends EsqlScalarFunction {
         if (expression instanceof Attribute attribute) {
             return attribute;
         }
-        throw new IllegalStateException("remote fetch handle requires _doc attribute input but got [" + expression.nodeName() + "]");
+        throw new IllegalStateException("fetch handle requires _doc attribute input but got [" + expression.nodeName() + "]");
     }
 
     private static final class Evaluator implements ExpressionEvaluator {
@@ -191,9 +191,7 @@ public class FetchHandleFunction extends EsqlScalarFunction {
                 BytesStreamOutput scratch = new BytesStreamOutput()
             ) {
                 if (block instanceof DocBlock == false) {
-                    throw new IllegalStateException(
-                        "remote fetch handle requires a _doc block but got [" + block.getClass().getName() + "]"
-                    );
+                    throw new IllegalStateException("fetch handle requires a _doc block but got [" + block.getClass().getName() + "]");
                 }
                 // DocBlock is always single-valued and non-null by construction.
                 DocVector docVector = ((DocBlock) block).asVector();
@@ -209,7 +207,7 @@ public class FetchHandleFunction extends EsqlScalarFunction {
                             docVector.docs().getInt(position)
                         );
                     } catch (IOException e) {
-                        throw new UncheckedIOException("failed to encode remote fetch handle", e);
+                        throw new UncheckedIOException("failed to encode fetch handle", e);
                     }
                     handleBuilder.appendBytesRef(scratch.bytes().toBytesRef());
                 }

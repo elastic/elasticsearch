@@ -5,5 +5,7 @@
  * 2.0.
  */
 
-/** Reduction planning for data-node and node-reduce execution. */
+/**
+ * Planning for shard, node, and coordinator reduction stages.
+ */
 package org.elasticsearch.xpack.esql.planner.reduction;

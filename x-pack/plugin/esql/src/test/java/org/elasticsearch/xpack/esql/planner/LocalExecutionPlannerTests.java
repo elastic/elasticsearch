@@ -1179,7 +1179,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
-            null, // fetchService - not needed for these tests
+            null, // FetchService - not needed for these tests
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop()

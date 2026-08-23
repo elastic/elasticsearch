@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.plan.physical.FetchBoundaryExec;
 
 import java.util.EnumSet;
 import java.util.Objects;
@@ -33,6 +34,38 @@ public class ReductionPlannerGoldenTests extends GoldenTestCase {
         Stage.NODE_REDUCE,
         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
+    private static final EnumSet<Stage> FETCH_STAGES = EnumSet.of(Stage.PHYSICAL_OPTIMIZATION, Stage.DISTRIBUTED_REDUCTION);
+
+    public void testTopNFetchBoundary() throws Exception {
+        String query = """
+            FROM employees
+            | KEEP hire_date, salary, emp_no
+            | SORT hire_date
+            | LIMIT 20
+            """;
+        builder(query).stages(FETCH_STAGES).searchStats(unindexedStats()).since(FetchBoundaryExec.ESQL_FETCH_BOUNDARY).run();
+    }
+
+    public void testFetchBoundaryDoesNotApplyAfterAggregation() throws Exception {
+        String query = """
+            FROM employees
+            | STATS total = SUM(salary)
+            | SORT total DESC
+            | LIMIT 5
+            """;
+        builder(query).stages(FETCH_STAGES).searchStats(unindexedStats()).since(FetchBoundaryExec.ESQL_FETCH_BOUNDARY).run();
+    }
+
+    public void testFetchBoundaryDoesNotApplyWithExpressionBeforeTopN() throws Exception {
+        String query = """
+            FROM employees
+            | EVAL x = salary + 1
+            | SORT hire_date
+            | LIMIT 20
+            | KEEP hire_date, x
+            """;
+        builder(query).stages(FETCH_STAGES).searchStats(unindexedStats()).since(FetchBoundaryExec.ESQL_FETCH_BOUNDARY).run();
+    }
 
     public void testBasicTopNLateMaterialization() throws Exception {
         String query = """

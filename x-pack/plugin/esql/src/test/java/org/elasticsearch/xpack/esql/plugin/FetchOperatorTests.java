@@ -79,14 +79,14 @@ public class FetchOperatorTests extends OperatorTestCase {
 
             @Override
             public String describe() {
-                return "RemoteFetchOperator[channel=0, requestFields=[salary:integer]]";
+                return "FetchOperator[channel=0, requestFields=[salary:integer]]";
             }
         };
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("RemoteFetchOperator[channel=0, requestFields=[salary:integer]]");
+        return equalTo("FetchOperator[channel=0, requestFields=[salary:integer]]");
     }
 
     @Override
@@ -383,7 +383,7 @@ public class FetchOperatorTests extends OperatorTestCase {
             input = null;
 
             IllegalStateException exception = expectThrows(IllegalStateException.class, operator::getOutput);
-            assertThat(exception.getMessage(), containsString("remote fetch returned [0] rows but expected [2]"));
+            assertThat(exception.getMessage(), containsString("fetch returned [0] rows but expected [2]"));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -665,7 +665,7 @@ public class FetchOperatorTests extends OperatorTestCase {
             input = null;
 
             IllegalStateException exception = expectThrows(IllegalStateException.class, operator::getOutput);
-            assertThat(exception.getMessage(), containsString("remote fetch returned plain response pages for a pushdown fetch"));
+            assertThat(exception.getMessage(), containsString("fetch returned plain response pages for a pushdown fetch"));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -706,7 +706,7 @@ public class FetchOperatorTests extends OperatorTestCase {
             input = null;
 
             IllegalStateException exception = expectThrows(IllegalStateException.class, operator::getOutput);
-            assertThat(exception.getMessage(), containsString("remote fetch returned mapped response pages for a plain fetch"));
+            assertThat(exception.getMessage(), containsString("fetch returned mapped response pages for a plain fetch"));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -727,13 +727,13 @@ public class FetchOperatorTests extends OperatorTestCase {
             IllegalArgumentException.class,
             () -> new FetchOperator(driverContext, 0, List.of(), outputFields, null, ConfigurationAware.CONFIGURATION_MARKER, 2, client)
         );
-        assertThat(noRequestFields.getMessage(), containsString("remote fetch requires at least one request field"));
+        assertThat(noRequestFields.getMessage(), containsString("fetch requires at least one request field"));
 
         IllegalArgumentException noOutputFields = expectThrows(
             IllegalArgumentException.class,
             () -> new FetchOperator(driverContext, 0, fields, List.of(), null, ConfigurationAware.CONFIGURATION_MARKER, 2, client)
         );
-        assertThat(noOutputFields.getMessage(), containsString("remote fetch requires at least one output field"));
+        assertThat(noOutputFields.getMessage(), containsString("fetch requires at least one output field"));
 
         IllegalArgumentException fewerOutputFields = expectThrows(
             IllegalArgumentException.class,
@@ -798,7 +798,7 @@ public class FetchOperatorTests extends OperatorTestCase {
                 client
             )
         );
-        assertThat(exception.getMessage(), containsString("unsupported remote fetch pushdown plan [LimitExec]"));
+        assertThat(exception.getMessage(), containsString("unsupported fetch pushdown plan [LimitExec]"));
     }
 
     public void testMappedFetchRejectsInvalidPositionMappings() {
@@ -899,7 +899,7 @@ public class FetchOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
-        IllegalStateException expected = new IllegalStateException("remote fetch exchange failed");
+        IllegalStateException expected = new IllegalStateException("fetch exchange failed");
         RecordingClient client = new RecordingClient(driverContext) {
             @Override
             void onBatch(String nodeId, String sessionId, long batchId, List<FetchHandle> handles) {}
@@ -929,7 +929,7 @@ public class FetchOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
-        IllegalStateException expected = new IllegalStateException("delayed remote fetch exchange failure");
+        IllegalStateException expected = new IllegalStateException("delayed fetch exchange failure");
         // Observe when the Driver reaches the exchange's blocking path instead of exposing the failure immediately.
         CountDownLatch driverBlocked = new CountDownLatch(1);
         RecordingClient client = new RecordingClient(driverContext) {
@@ -957,13 +957,13 @@ public class FetchOperatorTests extends OperatorTestCase {
             try {
                 // Completing the exchange's page-ready listener after this point must wake the Driver to observe the failure.
                 if (driverBlocked.await(10, TimeUnit.SECONDS) == false) {
-                    throw new AssertionError("driver did not block waiting for the remote fetch exchange");
+                    throw new AssertionError("driver did not block waiting for the fetch exchange");
                 }
                 client.fail("node-a", expected);
             } catch (Throwable t) {
                 failureThreadError.set(t);
             }
-        }, "remote-fetch-test-failure");
+        }, "fetch-test-failure");
         failureThread.start();
 
         try {
@@ -978,7 +978,7 @@ public class FetchOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testIsBlockedWaitsForRemoteFetchEvenWhenMoreInputCanBeAccepted() {
+    public void testIsBlockedWaitsForFetchEvenWhenMoreInputCanBeAccepted() {
         DriverContext driverContext = driverContext();
         List<FetchService.FetchField> fields = List.of(new FetchService.FetchField("salary", DataType.INTEGER));
         List<Attribute> outputFields = List.of(new ReferenceAttribute(Source.EMPTY, null, "salary", DataType.INTEGER));
@@ -1003,7 +1003,7 @@ public class FetchOperatorTests extends OperatorTestCase {
 
             IsBlockedResult blocked = operator.isBlocked();
             assertFalse(blocked.listener().isDone());
-            assertThat(blocked.reason(), containsString("remote fetch"));
+            assertThat(blocked.reason(), containsString("fetch"));
         }
     }
 
@@ -1277,7 +1277,7 @@ public class FetchOperatorTests extends OperatorTestCase {
             public IsBlockedResult isBlocked() {
                 if (pages.isEmpty()) {
                     onBlocked(nodeId);
-                    return new IsBlockedResult(pageReady, "remote fetch response");
+                    return new IsBlockedResult(pageReady, "fetch response");
                 }
                 return Operator.NOT_BLOCKED;
             }

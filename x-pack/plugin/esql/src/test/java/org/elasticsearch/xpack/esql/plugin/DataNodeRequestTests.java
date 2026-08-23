@@ -11,6 +11,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 
 import java.util.Collections;
 import java.util.List;
@@ -62,5 +65,28 @@ public class DataNodeRequestTests extends ESTestCase {
         request.indices(NO_INDEX_PLACEHOLDER);
 
         assertThat(request.shards(), empty());
+    }
+
+    public void testWithPlanPreservesRetainedSearchContexts() {
+        var plan = new ExchangeSinkExec(Source.EMPTY, List.of(), false, new ExchangeSourceExec(Source.EMPTY, List.of(), false));
+        var replacement = new ExchangeSinkExec(Source.EMPTY, List.of(), false, new ExchangeSourceExec(Source.EMPTY, List.of(), false));
+        DataNodeRequest request = new DataNodeRequest(
+            randomAlphaOfLength(10),
+            randomConfiguration(),
+            randomAlphaOfLength(10),
+            List.of(),
+            Collections.emptyMap(),
+            plan,
+            new String[0],
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            false,
+            false,
+            true
+        );
+
+        DataNodeRequest copy = request.withPlan(replacement);
+
+        assertSame(replacement, copy.plan());
+        assertTrue(copy.retainSearchContexts());
     }
 }

@@ -567,7 +567,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
         } else if (toBuildClass == FetchExec.class && argClass == PhysicalPlan.class) {
             // FetchExec requires fetch-side shape FragmentExec(FetchSource).
-            return randomRemoteFetchFragment();
+            return randomFetchFragment();
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
         } else if (argClass == Stat.class) {
@@ -965,9 +965,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         );
     }
 
-    private static FragmentExec randomRemoteFetchFragment() {
-        FetchSource remoteFetchSource = new FetchSource(Source.EMPTY, randomFieldAttributes(1, 4, false));
-        return new FragmentExec(Source.EMPTY, remoteFetchSource, randomQuery(), between(0, Integer.MAX_VALUE));
+    private static FragmentExec randomFetchFragment() {
+        FetchSource fetchSource = new FetchSource(Source.EMPTY, randomFieldAttributes(1, 4, false));
+        return new FragmentExec(Source.EMPTY, fetchSource, randomQuery(), between(0, Integer.MAX_VALUE));
     }
 
     static QueryBuilder randomQuery() {

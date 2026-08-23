@@ -1,0 +1,5 @@
+FROM employees
+| EVAL x = salary + 1
+| SORT hire_date
+| LIMIT 20
+| KEEP hire_date, x

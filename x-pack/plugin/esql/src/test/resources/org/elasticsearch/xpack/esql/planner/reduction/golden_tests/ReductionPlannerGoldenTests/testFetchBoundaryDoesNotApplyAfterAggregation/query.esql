@@ -1,0 +1,4 @@
+FROM employees
+| STATS total = SUM(salary)
+| SORT total DESC
+| LIMIT 5

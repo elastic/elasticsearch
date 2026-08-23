@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Logical source describing the initial remote-fetch fragment.
+ * Logical source describing the initial fetch fragment.
  * <p>
  * This node is serialized to remote nodes inside a {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}
  * and then converted into physical operators locally on the target node.

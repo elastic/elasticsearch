@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -51,7 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *     <li>emits one output page once every group for that input page has completed</li>
  * </ol>
  * An optional {@code pushdownPlan} may be supplied so filtering happens on the data node. Mapped responses
- * include a trailing position-mapping column ({@link org.elasticsearch.xpack.esql.plan.logical.FetchSource#POSITION_ATTRIBUTE_NAME})
+ * include a trailing position-mapping column ({@link FetchSource#POSITION_ATTRIBUTE_NAME})
  * so rows pruned by pushdown can be omitted from the merged output; see {@link FetchPushdownOperatorBuilder} for the
  * supported pushdown shape.
  * <p>
@@ -67,7 +68,7 @@ public final class FetchOperator implements Operator {
         List<Attribute> outputFields,
         PhysicalPlan pushdownPlan,
         Configuration configuration,
-        int maxOutstandingRequests,
+        int maxPendingInputs,
         FetchService.ClientFactory clientFactory
     ) implements OperatorFactory {
         @Override
@@ -79,14 +80,14 @@ public final class FetchOperator implements Operator {
                 outputFields,
                 pushdownPlan,
                 configuration,
-                maxOutstandingRequests,
+                maxPendingInputs,
                 clientFactory.create()
             );
         }
 
         @Override
         public String describe() {
-            return "RemoteFetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
+            return "FetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
         }
     }
 
@@ -163,7 +164,7 @@ public final class FetchOperator implements Operator {
     private final List<Attribute> outputFields;
     private final PhysicalPlan pushdownPlan;
     private final Configuration configuration;
-    private final int maxOutstandingRequests;
+    private final int maxPendingInputs;
     private final FetchService.Client client;
     private final AtomicLong batchIds = new AtomicLong();
     private final Map<TargetSession, FetchService.TargetExchange> exchanges = new HashMap<>();
@@ -188,18 +189,18 @@ public final class FetchOperator implements Operator {
         List<Attribute> outputFields,
         PhysicalPlan pushdownPlan,
         Configuration configuration,
-        int maxOutstandingRequests,
+        int maxPendingInputs,
         FetchService.Client client
     ) {
         if (requestFields.isEmpty()) {
-            throw new IllegalArgumentException("remote fetch requires at least one request field");
+            throw new IllegalArgumentException("fetch requires at least one request field");
         }
         if (outputFields.isEmpty()) {
-            throw new IllegalArgumentException("remote fetch requires at least one output field");
+            throw new IllegalArgumentException("fetch requires at least one output field");
         }
         if (requestFields.size() != outputFields.size()) {
             throw new IllegalArgumentException(
-                "remote fetch request fields [" + requestFields.size() + "] must match output fields [" + outputFields.size() + "]"
+                "fetch request fields [" + requestFields.size() + "] must match output fields [" + outputFields.size() + "]"
             );
         }
         validatePushdownPlan(pushdownPlan);
@@ -209,13 +210,15 @@ public final class FetchOperator implements Operator {
         this.outputFields = List.copyOf(outputFields);
         this.pushdownPlan = pushdownPlan;
         this.configuration = configuration;
-        this.maxOutstandingRequests = maxOutstandingRequests;
+        this.maxPendingInputs = maxPendingInputs;
         this.client = client;
     }
 
     @Override
     public boolean needsInput() {
-        return finishing == false && failure == null && pendingInputs.size() < maxOutstandingRequests;
+        // TODO: Bound pending groups rather than input pages. One page can fan out into one batch per target session,
+        // so this limit does not cap the number of outstanding fetch batches.
+        return finishing == false && failure == null && pendingInputs.size() < maxPendingInputs;
     }
 
     @Override
@@ -421,11 +424,11 @@ public final class FetchOperator implements Operator {
         try {
             BatchMetadata metadata = page.batchMetadata();
             if (metadata == null) {
-                throw new IllegalStateException("remote fetch response page missing batch metadata");
+                throw new IllegalStateException("fetch response page missing batch metadata");
             }
             PendingGroup group = pendingByBatch.get(metadata.batchId());
             if (group == null) {
-                throw new IllegalStateException("received unexpected remote fetch batch [" + metadata.batchId() + "]");
+                throw new IllegalStateException("received unexpected fetch batch [" + metadata.batchId() + "]");
             }
             if (page.getPositionCount() > 0) {
                 page.allowPassingToDifferentDriver();
@@ -464,7 +467,7 @@ public final class FetchOperator implements Operator {
         if (e instanceof RuntimeException re) {
             throw re;
         }
-        throw new IllegalStateException("remote fetch operator failed", e);
+        throw new IllegalStateException("fetch operator failed", e);
     }
 
     private void releasePendingInput(PendingInput pendingInput) {
@@ -485,7 +488,7 @@ public final class FetchOperator implements Operator {
 
     @Override
     public String toString() {
-        return "RemoteFetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
+        return "FetchOperator[channel=" + handleChannel + ", requestFields=" + requestFields + "]";
     }
 
     @Override
@@ -494,7 +497,7 @@ public final class FetchOperator implements Operator {
     }
 
     /**
-     * Profile status for the coordinator-side remote fetch phase.
+     * Profile status for the coordinator-side fetch phase.
      * <p>
      * Because pushdown filtering happens on the data node, {@code rowsReceived - rowsEmitted} is the number of rows
      * the pushdown pruned before they crossed the wire, and {@code batchesSent}/{@code exchangesOpened} show how the
@@ -508,9 +511,7 @@ public final class FetchOperator implements Operator {
             "fetch",
             Status::new
         );
-        private static final TransportVersion ESQL_REMOTE_FETCH_OPERATOR_STATUS = TransportVersion.fromName(
-            "esql_remote_fetch_operator_status"
-        );
+        private static final TransportVersion ESQL_FETCH_OPERATOR_STATUS = TransportVersion.fromName("esql_remote_fetch_operator_status");
 
         Status(StreamInput in) throws IOException {
             this(in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVInt());
@@ -533,7 +534,7 @@ public final class FetchOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return ESQL_REMOTE_FETCH_OPERATOR_STATUS;
+            return ESQL_FETCH_OPERATOR_STATUS;
         }
 
         @Override
@@ -559,10 +560,10 @@ public final class FetchOperator implements Operator {
 
         for (int position = 0; position < inputPage.getPositionCount(); position++) {
             if (handlesBlock.isNull(position)) {
-                throw new IllegalStateException("remote fetch handle column cannot contain nulls");
+                throw new IllegalStateException("fetch handle column cannot contain nulls");
             }
             if (handlesBlock.getValueCount(position) != 1) {
-                throw new IllegalStateException("remote fetch handle column must contain exactly one handle per row");
+                throw new IllegalStateException("fetch handle column must contain exactly one handle per row");
             }
             FetchHandle handle = FetchHandle.fromBytesRef(handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch));
             TargetSession target = new TargetSession(handle.nodeId(), handle.retainedSessionId());
@@ -599,14 +600,14 @@ public final class FetchOperator implements Operator {
         for (Page page : pages) {
             boolean pageHasPosition = page.getBlockCount() == outputFields.size() + 1;
             if (expectedPositionMapping == false && pageHasPosition) {
-                throw new IllegalStateException("remote fetch returned mapped response pages for a plain fetch");
+                throw new IllegalStateException("fetch returned mapped response pages for a plain fetch");
             }
             if (expectedPositionMapping && pageHasPosition == false) {
-                throw new IllegalStateException("remote fetch returned plain response pages for a pushdown fetch");
+                throw new IllegalStateException("fetch returned plain response pages for a pushdown fetch");
             }
             if (page.getBlockCount() != outputFields.size() + (expectedPositionMapping ? 1 : 0)) {
                 throw new IllegalStateException(
-                    "remote fetch returned ["
+                    "fetch returned ["
                         + page.getBlockCount()
                         + "] columns but expected ["
                         + (outputFields.size() + (expectedPositionMapping ? 1 : 0))
@@ -617,9 +618,7 @@ public final class FetchOperator implements Operator {
                 Block positionBlock = page.getBlock(page.getBlockCount() - 1);
                 if (positionBlock instanceof IntBlock == false) {
                     throw new IllegalStateException(
-                        "remote fetch position-mapping column must be an IntBlock but was ["
-                            + positionBlock.getClass().getSimpleName()
-                            + "]"
+                        "fetch position-mapping column must be an IntBlock but was [" + positionBlock.getClass().getSimpleName() + "]"
                     );
                 }
                 validatePositionMapping(group, page, (IntBlock) positionBlock, seenPositions);
@@ -627,7 +626,7 @@ public final class FetchOperator implements Operator {
             positions += page.getPositionCount();
         }
         if (expectedPositionMapping == false && positions != group.handles.size()) {
-            throw new IllegalStateException("remote fetch returned [" + positions + "] rows but expected [" + group.handles.size() + "]");
+            throw new IllegalStateException("fetch returned [" + positions + "] rows but expected [" + group.handles.size() + "]");
         }
         return expectedPositionMapping;
     }
@@ -635,19 +634,19 @@ public final class FetchOperator implements Operator {
     private static void validatePositionMapping(Group group, Page page, IntBlock positionBlock, boolean[] seenPositions) {
         for (int row = 0; row < page.getPositionCount(); row++) {
             if (positionBlock.isNull(row)) {
-                throw new IllegalStateException("remote fetch position-mapping column cannot contain nulls");
+                throw new IllegalStateException("fetch position-mapping column cannot contain nulls");
             }
             if (positionBlock.getValueCount(row) != 1) {
-                throw new IllegalStateException("remote fetch position-mapping column must contain exactly one position per row");
+                throw new IllegalStateException("fetch position-mapping column must contain exactly one position per row");
             }
             int position = positionBlock.getInt(positionBlock.getFirstValueIndex(row));
             if (position < 0 || position >= group.handles.size()) {
                 throw new IllegalStateException(
-                    "remote fetch position-mapping value [" + position + "] out of range [0, " + group.handles.size() + ")"
+                    "fetch position-mapping value [" + position + "] out of range [0, " + group.handles.size() + ")"
                 );
             }
             if (seenPositions[position]) {
-                throw new IllegalStateException("remote fetch returned duplicate position [" + position + "]");
+                throw new IllegalStateException("fetch returned duplicate position [" + position + "]");
             }
             seenPositions[position] = true;
         }
@@ -664,7 +663,7 @@ public final class FetchOperator implements Operator {
         FetchedRowRef[] fetchedRows = resolveFetchedRows(groupByPosition, offsetByPosition, buildGroupMappings(pagesByGroup));
         for (FetchedRowRef rowRef : fetchedRows) {
             if (rowRef == null) {
-                throw new IllegalStateException("remote fetch response did not contain the expected row");
+                throw new IllegalStateException("fetch response did not contain the expected row");
             }
         }
         Block[] outputBlocks = new Block[inputPage.getBlockCount() + outputFields.size()];
@@ -767,7 +766,7 @@ public final class FetchOperator implements Operator {
                 for (int row = 0; row < page.getPositionCount(); row++) {
                     int position = positionBlock == null ? runningOffset++ : positionBlock.getInt(positionBlock.getFirstValueIndex(row));
                     if (mapping[position] != null) {
-                        throw new IllegalStateException("remote fetch returned duplicate position [" + position + "]");
+                        throw new IllegalStateException("fetch returned duplicate position [" + position + "]");
                     }
                     mapping[position] = new FetchedRowRef(group, pageIndex, row);
                 }

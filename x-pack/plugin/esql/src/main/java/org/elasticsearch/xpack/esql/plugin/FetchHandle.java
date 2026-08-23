@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -17,14 +19,14 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Serialized row handle for coordinator-driven remote fetch.
+ * Serialized row handle for coordinator-driven fetch.
  * <p>
  * {@code DocBlock} references (shard ordinal, segment, doc) are only meaningful on the node that produced them -
  * a coordinator receiving pages from multiple data nodes cannot resolve those local ordinals back to the original
  * shard. This handle pairs the doc triple with the originating node and retained session so the coordinator can route a
  * fetch request back to the owning node after narrowing the candidate set.
  * <p>
- * Remote fetch deliberately carries this as one serialized {@code keyword}-like value per row. A struct-of-arrays
+ * Fetch deliberately carries this as one serialized {@code keyword}-like value per row. A struct-of-arrays
  * representation would save repeated node/retained-session bytes, but it would require a new internal data type and block
  * implementation to keep the handle as a single logical column across generic projection, exchange, and top-N
  * operators. The serialized form keeps this prototype on existing block/exchange machinery.
@@ -34,6 +36,8 @@ import java.util.Objects;
  * versioned transport representation then.
  */
 public record FetchHandle(String nodeId, String retainedSessionId, int shard, int segment, int doc) {
+    public static final String ATTRIBUTE_NAME = "_fetch_handle";
+
     public FetchHandle {
         Objects.requireNonNull(nodeId, "nodeId");
         Objects.requireNonNull(retainedSessionId, "retainedSessionId");
@@ -60,7 +64,7 @@ public record FetchHandle(String nodeId, String retainedSessionId, int shard, in
             encodeTo(out, nodeId, retainedSessionId, shard, segment, doc);
             return BytesRef.deepCopyOf(out.bytes().toBytesRef());
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to encode remote fetch handle", e);
+            throw new UncheckedIOException("failed to encode fetch handle", e);
         }
     }
 
@@ -68,7 +72,7 @@ public record FetchHandle(String nodeId, String retainedSessionId, int shard, in
         try (StreamInput in = StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length)) {
             return new FetchHandle(in.readString(), in.readString(), in.readVInt(), in.readVInt(), in.readVInt());
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to decode remote fetch handle", e);
+            throw new UncheckedIOException("failed to decode fetch handle", e);
         }
     }
 
@@ -85,7 +89,7 @@ public record FetchHandle(String nodeId, String retainedSessionId, int shard, in
             out.writeString(retainedSessionId);
             return BytesRef.deepCopyOf(out.bytes().toBytesRef());
         } catch (IOException e) {
-            throw new UncheckedIOException("failed to encode remote fetch handle prefix", e);
+            throw new UncheckedIOException("failed to encode fetch handle prefix", e);
         }
     }
 
@@ -103,5 +107,12 @@ public record FetchHandle(String nodeId, String retainedSessionId, int shard, in
                 prefix.offset,
                 prefix.offset + prefix.length
             );
+    }
+
+    /**
+     * Whether an attribute is the internal binary carrier for fetch handles.
+     */
+    public static boolean isAttribute(Attribute attribute) {
+        return attribute.synthetic() && attribute.name().equals(ATTRIBUTE_NAME) && attribute.dataType() == DataType.KEYWORD;
     }
 }

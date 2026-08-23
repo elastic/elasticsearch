@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -202,8 +203,8 @@ public final class FetchService {
     }
 
     /**
-     * Creates a batch exchange client for runtime fetch operators that releases retained remote search contexts once a fetch session is
-     * no longer needed.
+     * Creates a batch exchange client for runtime fetch operators that releases retained remote search contexts once
+     * a fetch session is no longer needed.
      */
     public Client newReleasingBatchExchangeClient(CancellableTask parentTask) {
         return newBatchExchangeClient(parentTask, newRetainedSessionReleaser());
@@ -212,7 +213,7 @@ public final class FetchService {
     RetainedSessionReleaser newRetainedSessionReleaser() {
         return new RetainedSessionReleaser(
             (targetNode, retainedSessionId) -> releaseAsync(targetNode, retainedSessionId, ActionListener.wrap(ignored -> {}, e -> {
-                logger.debug("failed to release retained remote fetch session [{}] on node [{}]", retainedSessionId, targetNode.getId(), e);
+                logger.debug("failed to release retained fetch session [{}] on node [{}]", retainedSessionId, targetNode.getId(), e);
             }))
         );
     }
@@ -330,7 +331,7 @@ public final class FetchService {
             TargetSession target = new TargetSession(nodeId, retainedSessionId);
             synchronized (this) {
                 if (closed) {
-                    throw new IllegalStateException("remote fetch exchange client is closed");
+                    throw new IllegalStateException("fetch exchange client is closed");
                 }
                 TargetExchangeChannel existing = targetExchanges.get(target);
                 if (existing != null) {
@@ -368,7 +369,7 @@ public final class FetchService {
         ) {
             DiscoveryNode node = clusterService.state().nodes().get(target.nodeId());
             if (node == null) {
-                throw new IllegalStateException("remote fetch target node [" + target.nodeId() + "] not found");
+                throw new IllegalStateException("fetch target node [" + target.nodeId() + "] not found");
             }
             BidirectionalBatchExchangeClient.ServerSetupCallback setupCallback = (
                 serverNode,
@@ -397,7 +398,7 @@ public final class FetchService {
                 );
             };
             BidirectionalBatchExchangeClient client = new BidirectionalBatchExchangeClient(
-                target.retainedSessionId() + "/remote-fetch/" + exchangeIdGenerator.incrementAndGet(),
+                target.retainedSessionId() + "/fetch/" + exchangeIdGenerator.incrementAndGet(),
                 exchangeService,
                 transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
                 // Keep one extra response slot on the coordinator side so setup/metadata traffic does not
@@ -450,13 +451,13 @@ public final class FetchService {
 
         void validate(List<FetchField> fields, PhysicalPlan pushdownPlan, Configuration configuration) {
             if (this.fields.equals(fields) == false) {
-                throw new IllegalStateException("remote fetch fields differ for reused target session channel");
+                throw new IllegalStateException("fetch fields differ for reused target session channel");
             }
             if (Objects.equals(this.pushdownPlan, pushdownPlan) == false) {
-                throw new IllegalStateException("remote fetch pushdown plan differs for reused target session channel");
+                throw new IllegalStateException("fetch pushdown plan differs for reused target session channel");
             }
             if (this.configuration.equals(configuration) == false) {
-                throw new IllegalStateException("remote fetch configuration differs for reused target session channel");
+                throw new IllegalStateException("fetch configuration differs for reused target session channel");
             }
         }
 
@@ -464,7 +465,7 @@ public final class FetchService {
         public void sendBatch(long batchId, List<FetchHandle> handles) throws Exception {
             synchronized (lock) {
                 if (closed) {
-                    throw new IllegalStateException("remote fetch target exchange is closed");
+                    throw new IllegalStateException("fetch target exchange is closed");
                 }
                 validateHandlesForTarget(handles);
                 Page page = buildHandlesPage(handles, batchId);
@@ -545,7 +546,7 @@ public final class FetchService {
                     finish();
                     client.close();
                 } catch (Exception e) {
-                    logger.debug("failed to close remote fetch target exchange", e);
+                    logger.debug("failed to close fetch target exchange", e);
                 } finally {
                     releaseTarget();
                 }
@@ -556,7 +557,7 @@ public final class FetchService {
             for (FetchHandle handle : handles) {
                 if (target.nodeId().equals(handle.nodeId()) == false
                     || target.retainedSessionId().equals(handle.retainedSessionId()) == false) {
-                    throw new IllegalStateException("remote fetch handle does not match target session [" + target + "]");
+                    throw new IllegalStateException("fetch handle does not match target session [" + target + "]");
                 }
             }
         }
@@ -601,7 +602,7 @@ public final class FetchService {
             final DiscoveryNode clientNode = determineClientNode(task);
             final PlannerSettings settings = plannerSettings.get();
             final IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = lease.searchContexts()
-                .map(ComputeSearchContext::newDetachedShardContext);
+                .map(csc -> csc.newDetachedShardContext(QueryWarnings.NOOP));
             localBreaker = new LocalCircuitBreaker(
                 blockFactory.breaker(),
                 localBreakerSettings.overReservedBytes(),
@@ -611,7 +612,7 @@ public final class FetchService {
                 bigArrays,
                 blockFactory.newChildFactory(localBreaker),
                 localBreakerSettings,
-                "remote_fetch_exchange"
+                "fetch_exchange"
             );
             server = exchangeServerFactory.create(
                 request.retainedSessionId(),
@@ -632,15 +633,13 @@ public final class FetchService {
                 intermediate = buildDataNodeOperators(request, shardContexts, settings, driverContext);
             } catch (Exception e) {
                 throw new IllegalStateException(
-                    "remote fetch exchange setup failed while building data-node operators for session ["
-                        + request.retainedSessionId()
-                        + "]",
+                    "fetch exchange setup failed while building data-node operators for session [" + request.retainedSessionId() + "]",
                     e
                 );
             }
             logger.debug(
                 () -> Strings.format(
-                    "starting remote fetch exchange setup [%s] with operator chain [%s]",
+                    "starting fetch exchange setup [%s] with operator chain [%s]",
                     request.retainedSessionId(),
                     describeOperatorChain(intermediate)
                 )
@@ -719,9 +718,7 @@ public final class FetchService {
                     );
                 } catch (Exception e) {
                     throw new IllegalStateException(
-                        "failed to build remote fetch pushdown operators for plan ["
-                            + request.pushdownPlan().getClass().getSimpleName()
-                            + "]",
+                        "failed to build fetch pushdown operators for plan [" + request.pushdownPlan().getClass().getSimpleName() + "]",
                         e
                     );
                 }
@@ -794,15 +791,15 @@ public final class FetchService {
 
     private DiscoveryNode determineClientNode(CancellableTask task) {
         if (task == null) {
-            throw new IllegalStateException("cannot determine remote fetch exchange client node: task is null");
+            throw new IllegalStateException("cannot determine fetch exchange client node: task is null");
         }
         if (task.getParentTaskId().isSet() == false) {
-            throw new IllegalStateException("cannot determine remote fetch exchange client node: parent task is not set");
+            throw new IllegalStateException("cannot determine fetch exchange client node: parent task is not set");
         }
         String nodeId = task.getParentTaskId().getNodeId();
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         if (node == null) {
-            throw new IllegalStateException("remote fetch exchange client node [" + nodeId + "] not found");
+            throw new IllegalStateException("fetch exchange client node [" + nodeId + "] not found");
         }
         return node;
     }
@@ -828,7 +825,9 @@ public final class FetchService {
             return dataType;
         }
 
-        /** Whether this data type can be loaded by the plain field-name-and-type fetch contract. */
+        /**
+         * Whether this data type can be loaded by the plain field-name-and-type fetch contract.
+         */
         public static boolean supports(DataType dataType) {
             return switch (dataType) {
                 case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE,
@@ -914,7 +913,7 @@ public final class FetchService {
             this.retainedSessionId = Objects.requireNonNull(retainedSessionId, "retainedSessionId");
             this.fields = List.copyOf(fields);
             if (this.fields.isEmpty()) {
-                throw new IllegalArgumentException("remote fetch requires at least one request field");
+                throw new IllegalArgumentException("fetch requires at least one request field");
             }
             this.pushdownPlan = validatePushdownPlan(pushdownPlan, "request_build");
             this.configuration = Objects.requireNonNull(configuration, "configuration");
@@ -927,7 +926,7 @@ public final class FetchService {
             this.retainedSessionId = in.readString();
             this.fields = in.readCollectionAsList(FetchField::new);
             if (this.fields.isEmpty()) {
-                throw new IllegalArgumentException("remote fetch requires at least one request field");
+                throw new IllegalArgumentException("fetch requires at least one request field");
             }
             this.configuration = readConfiguration(in);
             PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
@@ -977,20 +976,20 @@ public final class FetchService {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             if (parentTaskId.isSet() == false) {
-                assert false : "remote fetch exchange setup must have a parent task";
-                throw new IllegalStateException("remote fetch exchange setup must have a parent task");
+                assert false : "fetch exchange setup must have a parent task";
+                throw new IllegalStateException("fetch exchange setup must have a parent task");
             }
             return new CancellableTask(id, type, action, "", parentTaskId, headers) {
                 @Override
                 public String getDescription() {
-                    return "remote fetch exchange setup [" + retainedSessionId + "]";
+                    return "fetch exchange setup [" + retainedSessionId + "]";
                 }
             };
         }
 
         private static String requireNonBlank(String value, String fieldName) {
             if (value == null || value.isBlank()) {
-                throw new IllegalArgumentException("remote fetch exchange setup requires a non-empty [" + fieldName + "]");
+                throw new IllegalArgumentException("fetch exchange setup requires a non-empty [" + fieldName + "]");
             }
             return value;
         }
@@ -1003,7 +1002,7 @@ public final class FetchService {
                 FetchPushdownOperatorBuilder.validateSupportedPlan(pushdownPlan);
                 return pushdownPlan;
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("remote fetch pushdown plan is invalid during [" + phase + "]: " + e.getMessage(), e);
+                throw new IllegalArgumentException("fetch pushdown plan is invalid during [" + phase + "]: " + e.getMessage(), e);
             }
         }
     }
@@ -1088,7 +1087,7 @@ public final class FetchService {
             try {
                 releaseAction.release(targetNode, retainedSessionId);
             } catch (Exception e) {
-                logger.debug("failed to release retained remote fetch session [{}] on node [{}]", retainedSessionId, targetNode.getId(), e);
+                logger.debug("failed to release retained fetch session [{}] on node [{}]", retainedSessionId, targetNode.getId(), e);
             }
         }
 

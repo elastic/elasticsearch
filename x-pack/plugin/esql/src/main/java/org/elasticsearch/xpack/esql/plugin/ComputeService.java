@@ -92,6 +92,8 @@ import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlan;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -118,8 +120,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecu
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
 
 /**
- * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
- * This method is responsible for splitting physical plan into coordinator and data node plans.
+ * Once a query is parsed and validated, this service coordinates its distributed execution. Late plan preparation is delegated to
+ * dedicated planner classes before each plan is executed.
  * <p>
  * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
  * and is prepared to collect and merge pages from data nodes into the final query result.
@@ -174,7 +176,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final FetchService remoteFetchService;
+    private final FetchService fetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -214,7 +216,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.remoteFetchService = new FetchService(transportActionServices, this.bigArrays, blockFactory);
+        this.fetchService = new FetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -250,8 +252,8 @@ public class ComputeService {
         return plannerSettings;
     }
 
-    FetchService remoteFetchService() {
-        return remoteFetchService;
+    FetchService fetchService() {
+        return fetchService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -936,19 +938,26 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
-            resolvedPlan,
-            configuration
-        );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
         });
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
+        var reductionPlanning = ReductionPlanner.planDistributed(
+            plannerSettings.get(),
+            flags,
+            configuration,
+            foldContext,
+            resolvedPlan,
+            clusterToConcreteIndices,
+            clusterService.state().getMinTransportVersion()
+        );
+        var coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(reductionPlanning.plan(), configuration);
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
 
         if (exchangeSinkSupplier == null) {
-            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
@@ -957,15 +966,8 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
-        boolean hasConcreteIndices = false;
-        for (OriginalIndices v : clusterToConcreteIndices.values()) {
-            if (v.indices().length > 0) {
-                hasConcreteIndices = true;
-                break;
-            }
-        }
+        boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
         if (dataNodePlan == null) {
             if (hasConcreteIndices) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
@@ -1034,6 +1036,7 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
+        final boolean retainSearchContexts = reductionPlanning.retainSearchContexts();
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1041,7 +1044,18 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
-        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        // Releases retained sessions on every data node at query end. Fetch operators also release the sessions
+        // they actually fetch from (the winning nodes), earlier. The overlap is intentional and safe: release is
+        // idempotent, and this releaser is the only one that reaches nodes whose rows lost the global TopN.
+        final FetchService.RetainedSessionReleaser fetchRetainedSessionReleaser = retainSearchContexts
+            ? fetchService.newRetainedSessionReleaser()
+            : null;
+        listener = ActionListener.runBefore(listener, () -> {
+            if (fetchRetainedSessionReleaser != null) {
+                fetchRetainedSessionReleaser.close();
+            }
+            exchangeService.removeExchangeSourceHandler(sessionId);
+        });
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
             failIfAllShardsFailed(execInfo, collectedPages);
@@ -1110,6 +1124,8 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
+                            retainSearchContexts,
+                            fetchRetainedSessionReleaser,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1124,7 +1140,8 @@ public class ComputeService {
                                 );
                                 dataNodesListener.onResponse(r.getCompletionInfo());
                             }, e -> {
-                                if (configuration.allowPartialResults() && EsqlCCSUtils.canAllowPartial(e)) {
+                                if (DataNodeComputeHandler.allowPartialResults(configuration, retainSearchContexts)
+                                    && EsqlCCSUtils.canAllowPartial(e)) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
                                         (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
@@ -1357,7 +1374,11 @@ public class ComputeService {
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         var shardContexts = context.searchContexts()
-            .map(csc -> context.retainSearchContexts() ? csc.newDetachedShardContext() : csc.shardContext(singleValueQueryWarnings));
+            .map(
+                csc -> context.retainSearchContexts()
+                    ? csc.newDetachedShardContext(singleValueQueryWarnings)
+                    : csc.shardContext(singleValueQueryWarnings)
+            );
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -1395,7 +1416,7 @@ public class ComputeService {
                 projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
-                remoteFetchService,
+                fetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get()
@@ -1591,6 +1612,60 @@ public class ComputeService {
             return indicesService::currentStoreBytesRead;
         }
         return () -> 0L;
+    }
+
+    /**
+     * Preserves the compute-service entry point for data-node reduction planning without request-specific fetch state.
+     */
+    public static ReductionPlan reductionPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldContext,
+        ExchangeSinkExec originalPlan,
+        boolean runNodeLevelReduction,
+        boolean reduceNodeLateMaterialization,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return ReductionPlanner.plan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldContext,
+            originalPlan,
+            runNodeLevelReduction,
+            reduceNodeLateMaterialization,
+            planTimeProfile
+        );
+    }
+
+    /**
+     * Preserves the compute-service entry point for data-node reduction planning that may bind fetch runtime state.
+     */
+    public static ReductionPlan reductionPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldContext,
+        ExchangeSinkExec originalPlan,
+        boolean runNodeLevelReduction,
+        boolean reduceNodeLateMaterialization,
+        String localNodeId,
+        String retainedSessionId,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return ReductionPlanner.plan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldContext,
+            originalPlan,
+            runNodeLevelReduction,
+            reduceNodeLateMaterialization,
+            localNodeId,
+            retainedSessionId,
+            planTimeProfile
+        );
     }
 
     /**

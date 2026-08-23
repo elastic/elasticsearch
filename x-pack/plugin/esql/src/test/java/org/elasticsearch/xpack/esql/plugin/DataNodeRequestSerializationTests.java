@@ -25,7 +25,11 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -35,6 +39,9 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -140,9 +147,40 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         DataNodeRequest downgraded = copyInstance(
             request,
-            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)
+            TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_RETAINED_CONTEXTS)
         );
         assertFalse(downgraded.retainSearchContexts());
+    }
+
+    public void testFetchBoundaryRoundTripsAsPartOfPhysicalPlan() throws IOException {
+        Attribute handle = new ReferenceAttribute(Source.EMPTY, null, "_fetch_handle", DataType.KEYWORD);
+        FetchBoundaryExec boundary = new FetchBoundaryExec(
+            Source.EMPTY,
+            new ExchangeSourceExec(Source.EMPTY, List.of(), false),
+            handle,
+            List.of(handle)
+        );
+        DataNodeRequest request = new DataNodeRequest(
+            "fetch-session",
+            randomConfiguration(),
+            "",
+            List.of(),
+            Map.of(),
+            new ExchangeSinkExec(Source.EMPTY, boundary.output(), false, boundary),
+            new String[0],
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            true,
+            false,
+            true
+        );
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        FetchBoundaryExec copiedBoundary = copy.plan().collect(FetchBoundaryExec.class).getFirst();
+        assertThat(copiedBoundary.handleAttribute(), equalTo(handle));
+        assertThat(copiedBoundary.handoffOutput(), equalTo(List.of(handle)));
+        assertTrue(copy.retainSearchContexts());
     }
 
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {

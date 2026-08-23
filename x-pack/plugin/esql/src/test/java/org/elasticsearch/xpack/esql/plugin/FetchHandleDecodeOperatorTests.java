@@ -35,7 +35,7 @@ public class FetchHandleDecodeOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("RemoteFetchHandleDecodeOperator[include_position_mapping=" + includePositionMapping + "]");
+        return equalTo("FetchHandleDecodeOperator[include_position_mapping=" + includePositionMapping + "]");
     }
 
     @Override
@@ -149,7 +149,7 @@ public class FetchHandleDecodeOperatorTests extends OperatorTestCase {
             input = null;
 
             IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
-            assertThat(e.getMessage(), equalTo("remote fetch handle block cannot contain nulls"));
+            assertThat(e.getMessage(), equalTo("fetch handle block cannot contain nulls"));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -172,7 +172,7 @@ public class FetchHandleDecodeOperatorTests extends OperatorTestCase {
             input = null;
 
             IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
-            assertThat(e.getMessage(), equalTo("remote fetch handle block must have exactly one value per row"));
+            assertThat(e.getMessage(), equalTo("fetch handle block must have exactly one value per row"));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -192,9 +192,7 @@ public class FetchHandleDecodeOperatorTests extends OperatorTestCase {
             IllegalStateException e = expectThrows(IllegalStateException.class, operator::getOutput);
             assertThat(
                 e.getMessage(),
-                equalTo(
-                    "remote fetch batch must contain handles from a single target session but saw [node-1/session-1] and [node-2/session-2]"
-                )
+                equalTo("fetch batch must contain handles from a single target session but saw [node-1/session-1] and [node-2/session-2]")
             );
         } finally {
             if (input != null) {

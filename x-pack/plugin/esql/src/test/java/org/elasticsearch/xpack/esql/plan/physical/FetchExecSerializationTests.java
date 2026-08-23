@@ -20,6 +20,9 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
+/**
+ * Verifies the serialized coordinator-side fetch operation and the constrained data-node plan it carries for deferred field loading.
+ */
 public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchExec> {
     private static FragmentExec randomFetchPlan() {
         FetchSource fetchSource = new FetchSource(randomSource(), randomFieldAttributes(1, 4, false));

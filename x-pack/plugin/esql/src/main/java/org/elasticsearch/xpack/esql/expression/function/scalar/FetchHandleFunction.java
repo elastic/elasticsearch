@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.plugin.FetchHandle;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -48,11 +48,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * {@link org.elasticsearch.xpack.esql.plan.physical.EvalExec} containing this expression when it needs to carry
  * node-local doc references through a generic exchange.
  */
-public class RemoteFetchHandleFunction extends EsqlScalarFunction {
+public class FetchHandleFunction extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "RemoteFetchHandleFunction",
-        RemoteFetchHandleFunction::new
+        "FetchHandleFunction",
+        FetchHandleFunction::new
     );
 
     /**
@@ -71,7 +71,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
      */
     private final String retainedSessionId;
 
-    public RemoteFetchHandleFunction(Source source, Attribute doc, String nodeId, String retainedSessionId) {
+    public FetchHandleFunction(Source source, Attribute doc, String nodeId, String retainedSessionId) {
         super(source, List.of(doc));
         this.doc = doc;
         if (doc.typeResolved().resolved()
@@ -82,7 +82,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
         this.retainedSessionId = Objects.requireNonNull(retainedSessionId, "retainedSessionId");
     }
 
-    private RemoteFetchHandleFunction(StreamInput in) throws IOException {
+    private FetchHandleFunction(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             requireDocAttribute(in.readNamedWriteable(Expression.class)),
@@ -119,12 +119,12 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new RemoteFetchHandleFunction(source(), requireDocAttribute(newChildren.get(0)), nodeId, retainedSessionId);
+        return new FetchHandleFunction(source(), requireDocAttribute(newChildren.get(0)), nodeId, retainedSessionId);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, RemoteFetchHandleFunction::new, doc, nodeId, retainedSessionId);
+        return NodeInfo.create(this, FetchHandleFunction::new, doc, nodeId, retainedSessionId);
     }
 
     @Override
@@ -133,7 +133,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
             return false;
         }
 
-        RemoteFetchHandleFunction other = (RemoteFetchHandleFunction) o;
+        FetchHandleFunction other = (FetchHandleFunction) o;
         return Objects.equals(nodeId, other.nodeId) && Objects.equals(retainedSessionId, other.retainedSessionId);
     }
 
@@ -145,7 +145,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory docEvaluator = toEvaluator.apply(doc);
-        // Keep this evaluator hand-written: each row serializes a RemoteFetchHandle into bytes using a reused scratch stream.
+        // Keep this evaluator hand-written: each row serializes a FetchHandle into bytes using a reused scratch stream.
         return driverContext -> new Evaluator(driverContext, docEvaluator.get(driverContext), nodeId, retainedSessionId);
     }
 
@@ -200,7 +200,7 @@ public class RemoteFetchHandleFunction extends EsqlScalarFunction {
                 for (int position = 0; position < page.getPositionCount(); position++) {
                     scratch.reset();
                     try {
-                        RemoteFetchHandle.encodeTo(
+                        FetchHandle.encodeTo(
                             scratch,
                             nodeId,
                             retainedSessionId,

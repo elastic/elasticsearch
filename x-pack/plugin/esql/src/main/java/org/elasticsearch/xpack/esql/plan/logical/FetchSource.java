@@ -24,11 +24,11 @@ import java.util.Objects;
  * This node is serialized to remote nodes inside a {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}
  * and then converted into physical operators locally on the target node.
  */
-public class RemoteFetchSource extends LeafPlan {
+public class FetchSource extends LeafPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
-        "RemoteFetchSource",
-        RemoteFetchSource::readFrom
+        "FetchSource",
+        FetchSource::readFrom
     );
 
     /**
@@ -38,17 +38,17 @@ public class RemoteFetchSource extends LeafPlan {
      * position-mapping attribute with this name, matching the trailing position channel that the data-node pipeline
      * appends to fetched pages.
      */
-    public static final String POSITION_ATTRIBUTE_NAME = "_remote_fetch_position";
+    public static final String POSITION_ATTRIBUTE_NAME = "_fetch_position";
 
     private final List<Attribute> output;
 
-    public RemoteFetchSource(Source source, List<Attribute> output) {
+    public FetchSource(Source source, List<Attribute> output) {
         super(source);
         this.output = Objects.requireNonNull(output, "output");
     }
 
-    private static RemoteFetchSource readFrom(StreamInput in) throws IOException {
-        return new RemoteFetchSource(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Attribute.class));
+    private static FetchSource readFrom(StreamInput in) throws IOException {
+        return new FetchSource(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Attribute.class));
     }
 
     @Override
@@ -73,8 +73,8 @@ public class RemoteFetchSource extends LeafPlan {
     }
 
     @Override
-    protected NodeInfo<RemoteFetchSource> info() {
-        return NodeInfo.create(this, RemoteFetchSource::new, output);
+    protected NodeInfo<FetchSource> info() {
+        return NodeInfo.create(this, FetchSource::new, output);
     }
 
     @Override
@@ -90,7 +90,7 @@ public class RemoteFetchSource extends LeafPlan {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        RemoteFetchSource other = (RemoteFetchSource) obj;
+        FetchSource other = (FetchSource) obj;
         return Objects.equals(output, other.output);
     }
 }

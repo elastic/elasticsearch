@@ -16,15 +16,15 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestCase<RemoteFetchOperator.Status> {
+public class FetchOperatorStatusTests extends AbstractWireSerializingTestCase<FetchOperator.Status> {
     @Override
-    protected Writeable.Reader<RemoteFetchOperator.Status> instanceReader() {
-        return RemoteFetchOperator.Status::new;
+    protected Writeable.Reader<FetchOperator.Status> instanceReader() {
+        return FetchOperator.Status::new;
     }
 
     @Override
-    protected RemoteFetchOperator.Status createTestInstance() {
-        return new RemoteFetchOperator.Status(
+    protected FetchOperator.Status createTestInstance() {
+        return new FetchOperator.Status(
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
@@ -35,7 +35,7 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
     }
 
     @Override
-    protected RemoteFetchOperator.Status mutateInstance(RemoteFetchOperator.Status in) throws IOException {
+    protected FetchOperator.Status mutateInstance(FetchOperator.Status in) throws IOException {
         int pagesReceived = in.pagesReceived();
         int pagesEmitted = in.pagesEmitted();
         long rowsReceived = in.rowsReceived();
@@ -51,11 +51,11 @@ public class RemoteFetchOperatorStatusTests extends AbstractWireSerializingTestC
             case 5 -> exchangesOpened = randomValueOtherThan(exchangesOpened, ESTestCase::randomNonNegativeInt);
             default -> throw new UnsupportedOperationException();
         }
-        return new RemoteFetchOperator.Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, batchesSent, exchangesOpened);
+        return new FetchOperator.Status(pagesReceived, pagesEmitted, rowsReceived, rowsEmitted, batchesSent, exchangesOpened);
     }
 
     public void testToXContent() {
-        RemoteFetchOperator.Status status = new RemoteFetchOperator.Status(1, 2, 30, 20, 4, 3);
+        FetchOperator.Status status = new FetchOperator.Status(1, 2, 30, 20, 4, 3);
         assertThat(Strings.toString(status), equalTo("""
             {"pages_received":1,"pages_emitted":2,"rows_received":30,"rows_emitted":20,"batches_sent":4,"exchanges_opened":3}"""));
     }

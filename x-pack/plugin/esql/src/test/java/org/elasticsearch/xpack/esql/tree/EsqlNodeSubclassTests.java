@@ -54,7 +54,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.RemoteFetchHandleFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.FetchHandleFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -66,10 +66,10 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -91,11 +91,11 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.mockito.exceptions.base.MockitoException;
 
@@ -562,11 +562,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomGeoDistanceSort();
         } else if (toBuildClass == Pow.class && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(randomBoolean() ? FieldAttribute.class : Literal.class);
-        } else if (toBuildClass == RemoteFetchHandleFunction.class && argClass == Attribute.class) {
-            // RemoteFetchHandleFunction requires a metadata _doc attribute.
+        } else if (toBuildClass == FetchHandleFunction.class && argClass == Attribute.class) {
+            // FetchHandleFunction requires a metadata _doc attribute.
             return new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false);
-        } else if (toBuildClass == RemoteFetchExec.class && argClass == PhysicalPlan.class) {
-            // RemoteFetchExec requires fetch-side shape FragmentExec(RemoteFetchSource).
+        } else if (toBuildClass == FetchExec.class && argClass == PhysicalPlan.class) {
+            // FetchExec requires fetch-side shape FragmentExec(FetchSource).
             return randomRemoteFetchFragment();
         } else if (isPlanNodeClass(toBuildClass) && Expression.class.isAssignableFrom(argClass)) {
             return randomResolvedExpression(argClass);
@@ -966,7 +966,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     private static FragmentExec randomRemoteFetchFragment() {
-        RemoteFetchSource remoteFetchSource = new RemoteFetchSource(Source.EMPTY, randomFieldAttributes(1, 4, false));
+        FetchSource remoteFetchSource = new FetchSource(Source.EMPTY, randomFieldAttributes(1, 4, false));
         return new FragmentExec(Source.EMPTY, remoteFetchSource, randomQuery(), between(0, Integer.MAX_VALUE));
     }
 

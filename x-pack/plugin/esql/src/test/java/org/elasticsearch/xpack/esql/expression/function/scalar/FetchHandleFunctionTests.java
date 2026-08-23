@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandle;
+import org.elasticsearch.xpack.esql.plugin.FetchHandle;
 
 import java.util.List;
 
@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.containsString;
  * Keeps evaluator-level checks hand-rolled because generic scalar-function fixtures build rows via
  * {@code BlockUtils.fromListRow}, which does not support DOC blocks.
  */
-public class RemoteFetchHandleFunctionTests extends ESTestCase {
-    public void testEncodesDocColumnIntoRemoteFetchHandles() {
+public class FetchHandleFunctionTests extends ESTestCase {
+    public void testEncodesDocColumnIntoFetchHandles() {
         DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
         ReferenceAttribute doc = new ReferenceAttribute(Source.EMPTY, null, "_doc", DataType.DOC_DATA_TYPE);
         Layout.Builder layout = new Layout.Builder();
@@ -51,7 +51,7 @@ public class RemoteFetchHandleFunctionTests extends ESTestCase {
                 driverContext,
                 EvalMapper.toEvaluator(
                     FoldContext.small(),
-                    new RemoteFetchHandleFunction(Source.EMPTY, doc, "node-a", "session-a"),
+                    new FetchHandleFunction(Source.EMPTY, doc, "node-a", "session-a"),
                     layout.build()
                 ).get(driverContext)
             )
@@ -73,8 +73,8 @@ public class RemoteFetchHandleFunctionTests extends ESTestCase {
 
             BytesRefBlock handles = output.getBlock(2);
             assertEquals(2, handles.getPositionCount());
-            assertEquals(new RemoteFetchHandle("node-a", "session-a", 1, 2, 10), decode(handles, 0));
-            assertEquals(new RemoteFetchHandle("node-a", "session-a", 3, 4, 20), decode(handles, 1));
+            assertEquals(new FetchHandle("node-a", "session-a", 1, 2, 10), decode(handles, 0));
+            assertEquals(new FetchHandle("node-a", "session-a", 3, 4, 20), decode(handles, 1));
         } finally {
             if (input != null) {
                 input.releaseBlocks();
@@ -88,7 +88,7 @@ public class RemoteFetchHandleFunctionTests extends ESTestCase {
     public void testRejectsNonDocAttribute() {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> new RemoteFetchHandleFunction(
+            () -> new FetchHandleFunction(
                 Source.EMPTY,
                 new ReferenceAttribute(Source.EMPTY, null, "not_doc", DataType.KEYWORD),
                 "node-a",
@@ -99,7 +99,7 @@ public class RemoteFetchHandleFunctionTests extends ESTestCase {
     }
 
     public void testRejectsNonAttributeExpressionOnReplaceChildren() {
-        RemoteFetchHandleFunction function = new RemoteFetchHandleFunction(
+        FetchHandleFunction function = new FetchHandleFunction(
             Source.EMPTY,
             new MetadataAttribute(Source.EMPTY, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false),
             "node-a",
@@ -112,8 +112,8 @@ public class RemoteFetchHandleFunctionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("requires _doc attribute input"));
     }
 
-    private static RemoteFetchHandle decode(BytesRefBlock handles, int position) {
+    private static FetchHandle decode(BytesRefBlock handles, int position) {
         BytesRef scratch = new BytesRef();
-        return RemoteFetchHandle.fromBytesRef(handles.getBytesRef(handles.getFirstValueIndex(position), scratch));
+        return FetchHandle.fromBytesRef(handles.getBytesRef(handles.getFirstValueIndex(position), scratch));
     }
 }

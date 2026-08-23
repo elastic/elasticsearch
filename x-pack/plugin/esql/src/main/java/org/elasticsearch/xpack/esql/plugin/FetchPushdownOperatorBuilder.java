@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -43,14 +43,14 @@ import java.util.List;
  * The source fragment's last output attribute is the synthetic position-mapping attribute. It corresponds to the final
  * {@link IntBlock} in the data-node pipeline and must remain the last output block after pushdown execution.
  */
-final class RemoteFetchPushdownOperatorBuilder {
+final class FetchPushdownOperatorBuilder {
     private record PushdownPipeline(Layout layout, NameId positionAttributeId) {}
 
     /**
      * Validates the remote-fetch pushdown shape used on the wire.
      * <p>
      * Accepted forms are {@link FragmentExec} wrapping logical nodes from the constrained
-     * {@link RemoteFetchSource}/{@link Eval}/{@link Filter}/{@link Project} family.
+     * {@link FetchSource}/{@link Eval}/{@link Filter}/{@link Project} family.
      */
     static void validateSupportedPlan(PhysicalPlan plan) {
         if (plan == null) {
@@ -65,7 +65,7 @@ final class RemoteFetchPushdownOperatorBuilder {
 
     private static void validateSupportedFragment(LogicalPlan plan) {
         plan.forEachDown(node -> {
-            if (node instanceof RemoteFetchSource == false
+            if (node instanceof FetchSource == false
                 && node instanceof Eval == false
                 && node instanceof Filter == false
                 && node instanceof Project == false) {
@@ -153,7 +153,7 @@ final class RemoteFetchPushdownOperatorBuilder {
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
         FoldContext foldContext
     ) {
-        if (plan instanceof RemoteFetchSource sourcePlan) {
+        if (plan instanceof FetchSource sourcePlan) {
             Layout.Builder builder = new Layout.Builder();
             builder.append(sourcePlan.output());
             List<Attribute> output = sourcePlan.output();
@@ -161,10 +161,10 @@ final class RemoteFetchPushdownOperatorBuilder {
             // instead of trusting the position alone so a malformed fragment fails fast rather than mapping the
             // wrong channel.
             Attribute positionAttribute = output.isEmpty() ? null : output.getLast();
-            if (positionAttribute == null || positionAttribute.name().equals(RemoteFetchSource.POSITION_ATTRIBUTE_NAME) == false) {
+            if (positionAttribute == null || positionAttribute.name().equals(FetchSource.POSITION_ATTRIBUTE_NAME) == false) {
                 throw new IllegalStateException(
                     "remote fetch pushdown source must end with the position-mapping attribute ["
-                        + RemoteFetchSource.POSITION_ATTRIBUTE_NAME
+                        + FetchSource.POSITION_ATTRIBUTE_NAME
                         + "] but ends with ["
                         + (positionAttribute == null ? "nothing" : positionAttribute.name())
                         + "]"

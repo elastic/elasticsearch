@@ -25,12 +25,12 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
+public class FetchHandleDecodeOperatorTests extends OperatorTestCase {
     private final boolean includePositionMapping = randomBoolean();
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RemoteFetchHandleDecodeOperator.Factory(includePositionMapping);
+        return new FetchHandleDecodeOperator.Factory(includePositionMapping);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
         List<BytesRef> handles = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             // Doc positions are unique per handle, matching production where each handle points at a distinct doc.
-            handles.add(new RemoteFetchHandle("node-1", "session-1", between(0, 10), between(0, 100), i).toBytesRef());
+            handles.add(new FetchHandle("node-1", "session-1", between(0, 10), between(0, 100), i).toBytesRef());
         }
         return new BytesRefBlockSourceOperator(blockFactory, handles);
     }
@@ -65,9 +65,7 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
             BytesRefBlock handlesBlock = inputPage.getBlock(0);
             DocBlock docBlock = outputPage.getBlock(0);
             for (int position = 0; position < inputPage.getPositionCount(); position++) {
-                RemoteFetchHandle handle = RemoteFetchHandle.fromBytesRef(
-                    handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
-                );
+                FetchHandle handle = FetchHandle.fromBytesRef(handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch));
                 assertThat(docBlock.asVector().shards().getInt(position), equalTo(handle.shard()));
                 assertThat(docBlock.asVector().segments().getInt(position), equalTo(handle.segment()));
                 assertThat(docBlock.asVector().docs().getInt(position), equalTo(handle.doc()));
@@ -84,11 +82,9 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
     public void testDecodeHandlesBuildsDocBlock() {
         Page input = null;
         Page output = null;
-        try (
-            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
-        ) {
+        try (FetchHandleDecodeOperator operator = new FetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)) {
             input = handlesPage(
-                List.of(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11), new RemoteFetchHandle("node-1", "session-1", 5, 13, 17))
+                List.of(new FetchHandle("node-1", "session-1", 3, 7, 11), new FetchHandle("node-1", "session-1", 5, 13, 17))
             );
             operator.addInput(input);
             input = null;
@@ -117,11 +113,9 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
     public void testDecodeHandlesWithPositionMappingAddsTrailingPositionColumn() {
         Page input = null;
         Page output = null;
-        try (
-            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), true)
-        ) {
+        try (FetchHandleDecodeOperator operator = new FetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), true)) {
             input = handlesPage(
-                List.of(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11), new RemoteFetchHandle("node-1", "session-1", 5, 13, 17))
+                List.of(new FetchHandle("node-1", "session-1", 3, 7, 11), new FetchHandle("node-1", "session-1", 5, 13, 17))
             );
             operator.addInput(input);
             input = null;
@@ -145,11 +139,9 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
 
     public void testRejectsNullHandle() {
         Page input = null;
-        try (
-            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
-        ) {
+        try (FetchHandleDecodeOperator operator = new FetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)) {
             try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(2)) {
-                builder.appendBytesRef(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11).toBytesRef());
+                builder.appendBytesRef(new FetchHandle("node-1", "session-1", 3, 7, 11).toBytesRef());
                 builder.appendNull();
                 input = new Page(builder.build());
             }
@@ -167,10 +159,8 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
 
     public void testRejectsMultiValueHandle() {
         Page input = null;
-        try (
-            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
-        ) {
-            BytesRef handleBytes = new RemoteFetchHandle("node-1", "session-1", 3, 7, 11).toBytesRef();
+        try (FetchHandleDecodeOperator operator = new FetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)) {
+            BytesRef handleBytes = new FetchHandle("node-1", "session-1", 3, 7, 11).toBytesRef();
             try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(1)) {
                 builder.beginPositionEntry();
                 builder.appendBytesRef(handleBytes);
@@ -192,11 +182,9 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
 
     public void testRejectsMixedTargetSessions() {
         Page input = null;
-        try (
-            RemoteFetchHandleDecodeOperator operator = new RemoteFetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)
-        ) {
+        try (FetchHandleDecodeOperator operator = new FetchHandleDecodeOperator(TestBlockFactory.getNonBreakingInstance(), false)) {
             input = handlesPage(
-                List.of(new RemoteFetchHandle("node-1", "session-1", 3, 7, 11), new RemoteFetchHandle("node-2", "session-2", 5, 13, 17))
+                List.of(new FetchHandle("node-1", "session-1", 3, 7, 11), new FetchHandle("node-2", "session-2", 5, 13, 17))
             );
             operator.addInput(input);
             input = null;
@@ -215,9 +203,9 @@ public class RemoteFetchHandleDecodeOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static Page handlesPage(List<RemoteFetchHandle> handles) {
+    private static Page handlesPage(List<FetchHandle> handles) {
         try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(handles.size())) {
-            for (RemoteFetchHandle handle : handles) {
+            for (FetchHandle handle : handles) {
                 builder.appendBytesRef(handle.toBytesRef());
             }
             return new Page(builder.build());

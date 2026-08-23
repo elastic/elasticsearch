@@ -10,17 +10,17 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
-public class RemoteFetchHandleTests extends ESTestCase {
+public class FetchHandleTests extends ESTestCase {
     public void testBytesRefRoundTrip() {
-        RemoteFetchHandle handle = randomHandle();
+        FetchHandle handle = randomHandle();
 
         BytesRef encoded = handle.toBytesRef();
 
-        assertEquals(handle, RemoteFetchHandle.fromBytesRef(encoded));
+        assertEquals(handle, FetchHandle.fromBytesRef(encoded));
     }
 
-    private RemoteFetchHandle randomHandle() {
-        return new RemoteFetchHandle(
+    private FetchHandle randomHandle() {
+        return new FetchHandle(
             randomAlphaOfLengthBetween(5, 12),
             randomAlphaOfLengthBetween(5, 16),
             randomIntBetween(0, 1024),

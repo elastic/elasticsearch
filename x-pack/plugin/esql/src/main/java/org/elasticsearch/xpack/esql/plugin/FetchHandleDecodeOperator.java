@@ -28,18 +28,18 @@ import java.io.UncheckedIOException;
  * {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}.
  * <p>
  * This is a strict one-to-one page mapping: each input page produces exactly one output page, so the operator never
- * accumulates pages. Input pages contain exactly one bytes block with one serialized {@link RemoteFetchHandle} per row.
+ * accumulates pages. Input pages contain exactly one bytes block with one serialized {@link FetchHandle} per row.
  * Output pages contain:
  * <ul>
  *     <li>channel 0: doc block (shard, segment, doc)</li>
  *     <li>channel 1 (optional): position mapping used by pushdown filtering</li>
  * </ul>
  */
-final class RemoteFetchHandleDecodeOperator extends AbstractPageMappingOperator {
+final class FetchHandleDecodeOperator extends AbstractPageMappingOperator {
     record Factory(boolean includePositionMapping) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping);
+            return new FetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping);
         }
 
         @Override
@@ -51,7 +51,7 @@ final class RemoteFetchHandleDecodeOperator extends AbstractPageMappingOperator 
     private final BlockFactory blockFactory;
     private final boolean includePositionMapping;
 
-    RemoteFetchHandleDecodeOperator(BlockFactory blockFactory, boolean includePositionMapping) {
+    FetchHandleDecodeOperator(BlockFactory blockFactory, boolean includePositionMapping) {
         this.blockFactory = blockFactory;
         this.includePositionMapping = includePositionMapping;
     }
@@ -91,16 +91,14 @@ final class RemoteFetchHandleDecodeOperator extends AbstractPageMappingOperator 
                 }
                 BytesRef handleBytes = handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch);
                 if (expectedTargetSessionPrefix == null) {
-                    RemoteFetchHandle first = RemoteFetchHandle.fromBytesRef(handleBytes);
-                    expectedTargetSessionPrefix = RemoteFetchHandle.encodeTargetSessionPrefix(first.nodeId(), first.retainedSessionId());
+                    FetchHandle first = FetchHandle.fromBytesRef(handleBytes);
+                    expectedTargetSessionPrefix = FetchHandle.encodeTargetSessionPrefix(first.nodeId(), first.retainedSessionId());
                     docBuilder.append(first.shard(), first.segment(), first.doc());
-                } else if (RemoteFetchHandle.startsWithTargetSessionPrefix(handleBytes, expectedTargetSessionPrefix)) {
+                } else if (FetchHandle.startsWithTargetSessionPrefix(handleBytes, expectedTargetSessionPrefix)) {
                     appendDocAfterPrefix(docBuilder, handleBytes, expectedTargetSessionPrefix.length);
                 } else {
-                    RemoteFetchHandle expected = RemoteFetchHandle.fromBytesRef(
-                        handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(0), scratch)
-                    );
-                    RemoteFetchHandle actual = RemoteFetchHandle.fromBytesRef(
+                    FetchHandle expected = FetchHandle.fromBytesRef(handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(0), scratch));
+                    FetchHandle actual = FetchHandle.fromBytesRef(
                         handlesBlock.getBytesRef(handlesBlock.getFirstValueIndex(position), scratch)
                     );
                     throw new IllegalStateException(

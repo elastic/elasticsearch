@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteFetchHandleFunctionSerializationTests extends AbstractExpressionSerializationTests<RemoteFetchHandleFunction> {
+public class FetchHandleFunctionSerializationTests extends AbstractExpressionSerializationTests<FetchHandleFunction> {
     /**
      * Keep this registration test-local for now. Production registration is intentionally deferred
      * until remote fetch handles need wire shipping, so this PR does not take that compatibility
@@ -25,26 +25,26 @@ public class RemoteFetchHandleFunctionSerializationTests extends AbstractExpress
      */
     @Override
     protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
-        return List.of(RemoteFetchHandleFunction.ENTRY);
+        return List.of(FetchHandleFunction.ENTRY);
     }
 
     @Override
-    protected RemoteFetchHandleFunction createTestInstance() {
-        return new RemoteFetchHandleFunction(randomSource(), randomDocAttribute(), randomAlphaOfLength(6), randomAlphaOfLength(8));
+    protected FetchHandleFunction createTestInstance() {
+        return new FetchHandleFunction(randomSource(), randomDocAttribute(), randomAlphaOfLength(6), randomAlphaOfLength(8));
     }
 
     @Override
-    protected RemoteFetchHandleFunction mutateInstance(RemoteFetchHandleFunction instance) throws IOException {
+    protected FetchHandleFunction mutateInstance(FetchHandleFunction instance) throws IOException {
         Attribute doc = instance.doc();
         String nodeId = instance.nodeId();
         String retainedSessionId = instance.retainedSessionId();
         switch (between(0, 2)) {
-            case 0 -> doc = randomValueOtherThan(doc, RemoteFetchHandleFunctionSerializationTests::randomDocAttribute);
+            case 0 -> doc = randomValueOtherThan(doc, FetchHandleFunctionSerializationTests::randomDocAttribute);
             case 1 -> nodeId = randomValueOtherThan(nodeId, () -> randomAlphaOfLength(6));
             case 2 -> retainedSessionId = randomValueOtherThan(retainedSessionId, () -> randomAlphaOfLength(8));
             default -> throw new IllegalStateException("unexpected mutation branch");
         }
-        return new RemoteFetchHandleFunction(instance.source(), doc, nodeId, retainedSessionId);
+        return new FetchHandleFunction(instance.source(), doc, nodeId, retainedSessionId);
     }
 
     private static Attribute randomDocAttribute() {

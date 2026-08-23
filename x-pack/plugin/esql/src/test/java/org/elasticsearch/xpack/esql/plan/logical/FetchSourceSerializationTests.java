@@ -11,20 +11,20 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteFetchSourceSerializationTests extends AbstractLogicalPlanSerializationTests<RemoteFetchSource> {
-    public static RemoteFetchSource randomRemoteFetchSource() {
+public class FetchSourceSerializationTests extends AbstractLogicalPlanSerializationTests<FetchSource> {
+    public static FetchSource randomFetchSource() {
         List<Attribute> output = randomFieldAttributes(1, 4, false);
-        return new RemoteFetchSource(randomSource(), output);
+        return new FetchSource(randomSource(), output);
     }
 
     @Override
-    protected RemoteFetchSource createTestInstance() {
-        return randomRemoteFetchSource();
+    protected FetchSource createTestInstance() {
+        return randomFetchSource();
     }
 
     @Override
-    protected RemoteFetchSource mutateInstance(RemoteFetchSource instance) throws IOException {
-        return new RemoteFetchSource(instance.source(), randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 4, false)));
+    protected FetchSource mutateInstance(FetchSource instance) throws IOException {
+        return new FetchSource(instance.source(), randomValueOtherThan(instance.output(), () -> randomFieldAttributes(1, 4, false)));
     }
 
     @Override

@@ -262,7 +262,7 @@ public class RetainedSearchContextsRegistryTests extends ESTestCase {
         AcquiredSearchContexts contexts = createContexts(searchContext);
         DiscoveryNode node = DiscoveryNodeUtils.create("node-1");
         List<String> released = new ArrayList<>();
-        RemoteFetchService.RetainedSessionReleaser releaser = new RemoteFetchService.RetainedSessionReleaser((targetNode, sessionId) -> {
+        FetchService.RetainedSessionReleaser releaser = new FetchService.RetainedSessionReleaser((targetNode, sessionId) -> {
             released.add(targetNode.getId() + "/" + sessionId);
             registry.closeRegistration(sessionId);
         });

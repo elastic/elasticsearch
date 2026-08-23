@@ -78,15 +78,15 @@ import java.util.stream.Collectors;
  * Internal transport service that fetches field values for coordinator-selected rows from the owning data node.
  * <p>
  * This is the transport half of the remote late-materialization prototype. It intentionally works on a narrow v1
- * contract: a batch of {@link RemoteFetchHandle}s plus a list of plain field specifications to load.
+ * contract: a batch of {@link FetchHandle}s plus a list of plain field specifications to load.
  */
-public final class RemoteFetchService {
-    private static final String ACTION_PREFIX = EsqlQueryAction.NAME + "/remote_fetch";
+public final class FetchService {
+    private static final String ACTION_PREFIX = EsqlQueryAction.NAME + "/fetch";
     static final String RELEASE_ACTION_NAME = ACTION_PREFIX + "/release";
     static final String EXCHANGE_SETUP_ACTION_NAME = ACTION_PREFIX + "/exchange_setup";
     private static final TimeValue RETAINED_CONTEXTS_REAPER_INTERVAL = TimeValue.timeValueMinutes(1);
 
-    private static final Logger logger = LogManager.getLogger(RemoteFetchService.class);
+    private static final Logger logger = LogManager.getLogger(FetchService.class);
     private static final AtomicLong exchangeIdGenerator = new AtomicLong();
 
     private final ClusterService clusterService;
@@ -96,11 +96,11 @@ public final class RemoteFetchService {
     private final BlockFactory blockFactory;
     private final PlannerSettings.Holder plannerSettings;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
-    private final RemoteFetchPushdownOperatorBuilder pushdownOperatorBuilder;
+    private final FetchPushdownOperatorBuilder pushdownOperatorBuilder;
     private final RetainedSearchContextsRegistry retainedSearchContexts;
     private final ExchangeServerFactory exchangeServerFactory;
 
-    RemoteFetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
+    FetchService(TransportActionServices transportActionServices, BigArrays bigArrays, BlockFactory blockFactory) {
         this(
             transportActionServices,
             bigArrays,
@@ -109,7 +109,7 @@ public final class RemoteFetchService {
         );
     }
 
-    RemoteFetchService(
+    FetchService(
         TransportActionServices transportActionServices,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -118,7 +118,7 @@ public final class RemoteFetchService {
         this(transportActionServices, bigArrays, blockFactory, retainedSearchContexts, BidirectionalBatchExchangeServer::new);
     }
 
-    RemoteFetchService(
+    FetchService(
         TransportActionServices transportActionServices,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -132,7 +132,7 @@ public final class RemoteFetchService {
         this.blockFactory = blockFactory;
         this.plannerSettings = transportActionServices.plannerSettings();
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
-        this.pushdownOperatorBuilder = new RemoteFetchPushdownOperatorBuilder();
+        this.pushdownOperatorBuilder = new FetchPushdownOperatorBuilder();
         this.retainedSearchContexts = Objects.requireNonNull(retainedSearchContexts);
         this.exchangeServerFactory = Objects.requireNonNull(exchangeServerFactory);
         transportService.registerRequestHandler(
@@ -209,9 +209,9 @@ public final class RemoteFetchService {
         );
     }
 
-    private Page buildHandlesPage(List<RemoteFetchHandle> handles, long batchId) {
+    private Page buildHandlesPage(List<FetchHandle> handles, long batchId) {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(handles.size())) {
-            for (RemoteFetchHandle handle : handles) {
+            for (FetchHandle handle : handles) {
                 builder.appendBytesRef(handle.toBytesRef());
             }
             return new Page(new BatchMetadata(batchId, 0, true), builder.build());
@@ -249,7 +249,7 @@ public final class RemoteFetchService {
      * through it belong to that same target session.
      */
     public interface TargetExchange extends Releasable {
-        void sendBatch(long batchId, List<RemoteFetchHandle> handles) throws Exception;
+        void sendBatch(long batchId, List<FetchHandle> handles) throws Exception;
 
         Page pollPage();
 
@@ -453,7 +453,7 @@ public final class RemoteFetchService {
         }
 
         @Override
-        public void sendBatch(long batchId, List<RemoteFetchHandle> handles) throws Exception {
+        public void sendBatch(long batchId, List<FetchHandle> handles) throws Exception {
             synchronized (lock) {
                 if (closed) {
                     throw new IllegalStateException("remote fetch target exchange is closed");
@@ -544,8 +544,8 @@ public final class RemoteFetchService {
             }
         }
 
-        private void validateHandlesForTarget(List<RemoteFetchHandle> handles) {
-            for (RemoteFetchHandle handle : handles) {
+        private void validateHandlesForTarget(List<FetchHandle> handles) {
+            for (FetchHandle handle : handles) {
                 if (target.nodeId().equals(handle.nodeId()) == false
                     || target.retainedSessionId().equals(handle.retainedSessionId()) == false) {
                     throw new IllegalStateException("remote fetch handle does not match target session [" + target + "]");
@@ -669,7 +669,7 @@ public final class RemoteFetchService {
         List<Operator> operators = new ArrayList<>();
         boolean success = false;
         try {
-            operators.add(new RemoteFetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
+            operators.add(new FetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
 
             List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(request.fields(), shardContexts, settings);
             IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
@@ -962,7 +962,7 @@ public final class RemoteFetchService {
          */
         private static PhysicalPlan validatePushdownPlan(PhysicalPlan pushdownPlan, String phase) {
             try {
-                RemoteFetchPushdownOperatorBuilder.validateSupportedPlan(pushdownPlan);
+                FetchPushdownOperatorBuilder.validateSupportedPlan(pushdownPlan);
                 return pushdownPlan;
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("remote fetch pushdown plan is invalid during [" + phase + "]: " + e.getMessage(), e);

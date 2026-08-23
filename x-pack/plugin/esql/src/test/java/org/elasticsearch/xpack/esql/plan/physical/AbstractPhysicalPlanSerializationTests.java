@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,8 +71,8 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.add(FileSplit.ENTRY);
         entries.add(CoalescedSplit.ENTRY);
         entries.add(EncryptedData.ENTRY);
-        entries.add(RemoteFetchExec.ENTRY);
-        entries.add(RemoteFetchSource.ENTRY);
+        entries.add(FetchExec.ENTRY);
+        entries.add(FetchSource.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

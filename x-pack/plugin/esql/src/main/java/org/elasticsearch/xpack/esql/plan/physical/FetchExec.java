@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,15 +32,15 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     <li>{@code fetchedOutputAttributes}: coordinator output schema (what this node appends to its child output)</li>
  * </ul>
  * <p>
- * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a {@link RemoteFetchSource}
+ * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a {@link FetchSource}
  * logical plan. This follows the same architectural pattern as lookup planning: logical plans are serialized and
  * shipped, while physical planning remains local to the target node.
  */
-public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
+public class FetchExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
-        "RemoteFetchExec",
-        RemoteFetchExec::new
+        "FetchExec",
+        FetchExec::new
     );
 
     private final Attribute handleAttribute;
@@ -55,7 +55,7 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     private final PhysicalPlan fetchPlan;
     private List<Attribute> lazyOutput;
 
-    public RemoteFetchExec(
+    public FetchExec(
         Source source,
         PhysicalPlan child,
         Attribute handleAttribute,
@@ -70,7 +70,7 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
         this.fetchedOutputAttributes = List.copyOf(fetchedOutputAttributes);
     }
 
-    private RemoteFetchExec(StreamInput in) throws IOException {
+    private FetchExec(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readNamedWriteable(PhysicalPlan.class));
         this.fetchPlan = requireFetchPlan(right());
         this.handleAttribute = in.readNamedWriteable(Attribute.class);
@@ -79,7 +79,7 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     }
 
     private static FragmentExec requireFetchPlan(PhysicalPlan plan) {
-        if (plan instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof RemoteFetchSource) {
+        if (plan instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof FetchSource) {
             return fragmentExec;
         }
         throw new IllegalArgumentException("remote fetch plan must be a FragmentExec containing RemoteFetchSource");
@@ -99,13 +99,13 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     }
 
     @Override
-    protected NodeInfo<RemoteFetchExec> info() {
-        return NodeInfo.create(this, RemoteFetchExec::new, left(), handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
+    protected NodeInfo<FetchExec> info() {
+        return NodeInfo.create(this, FetchExec::new, left(), handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override
-    public RemoteFetchExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight) {
-        return new RemoteFetchExec(source(), newLeft, handleAttribute, attributesToFetch, fetchedOutputAttributes, newRight);
+    public FetchExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight) {
+        return new FetchExec(source(), newLeft, handleAttribute, attributesToFetch, fetchedOutputAttributes, newRight);
     }
 
     /**
@@ -118,8 +118,8 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
     /**
      * Compatibility helper while this class migrates from {@link UnaryExec} to {@link BinaryExec}.
      */
-    public RemoteFetchExec replaceChild(PhysicalPlan newChild) {
-        return new RemoteFetchExec(source(), newChild, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
+    public FetchExec replaceChild(PhysicalPlan newChild) {
+        return new FetchExec(source(), newChild, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override
@@ -186,7 +186,7 @@ public class RemoteFetchExec extends BinaryExec implements EstimatesRowSize {
         if (super.equals(obj) == false) {
             return false;
         }
-        RemoteFetchExec other = (RemoteFetchExec) obj;
+        FetchExec other = (FetchExec) obj;
         return Objects.equals(handleAttribute, other.handleAttribute)
             && Objects.equals(attributesToFetch, other.attributesToFetch)
             && Objects.equals(fetchedOutputAttributes, other.fetchedOutputAttributes);

@@ -33,8 +33,8 @@ import java.util.Objects;
  * phases need explicit cross-cluster routing identity in transport-scoped handle fields, introduce an explicit
  * versioned transport representation then.
  */
-public record RemoteFetchHandle(String nodeId, String retainedSessionId, int shard, int segment, int doc) {
-    public RemoteFetchHandle {
+public record FetchHandle(String nodeId, String retainedSessionId, int shard, int segment, int doc) {
+    public FetchHandle {
         Objects.requireNonNull(nodeId, "nodeId");
         Objects.requireNonNull(retainedSessionId, "retainedSessionId");
         // Derived from DocVector ordinals in normal execution; keep as assert to avoid per-row checks on hot paths.
@@ -64,9 +64,9 @@ public record RemoteFetchHandle(String nodeId, String retainedSessionId, int sha
         }
     }
 
-    public static RemoteFetchHandle fromBytesRef(BytesRef bytesRef) {
+    public static FetchHandle fromBytesRef(BytesRef bytesRef) {
         try (StreamInput in = StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length)) {
-            return new RemoteFetchHandle(in.readString(), in.readString(), in.readVInt(), in.readVInt(), in.readVInt());
+            return new FetchHandle(in.readString(), in.readString(), in.readVInt(), in.readVInt(), in.readVInt());
         } catch (IOException e) {
             throw new UncheckedIOException("failed to decode remote fetch handle", e);
         }

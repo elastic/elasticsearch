@@ -180,7 +180,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final RemoteFetchService remoteFetchService;
+    private final FetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -220,7 +220,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
+        this.remoteFetchService = new FetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -256,7 +256,7 @@ public class ComputeService {
         return plannerSettings;
     }
 
-    RemoteFetchService remoteFetchService() {
+    FetchService remoteFetchService() {
         return remoteFetchService;
     }
 

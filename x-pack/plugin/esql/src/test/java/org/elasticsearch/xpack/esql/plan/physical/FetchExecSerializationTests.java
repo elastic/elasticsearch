@@ -9,34 +9,34 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.RemoteFetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteFetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<RemoteFetchExec> {
+public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchExec> {
     private static FragmentExec randomFetchPlan() {
-        RemoteFetchSource fetchSource = new RemoteFetchSource(randomSource(), randomFieldAttributes(1, 4, false));
+        FetchSource fetchSource = new FetchSource(randomSource(), randomFieldAttributes(1, 4, false));
         return new FragmentExec(randomSource(), fetchSource, null, between(0, Integer.MAX_VALUE));
     }
 
-    public static RemoteFetchExec randomRemoteFetchExec(int depth) {
+    public static FetchExec randomFetchExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
         Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
         List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
         List<Attribute> fetchedOutputAttributes = randomFieldAttributes(1, 4, false);
         FragmentExec fetchPlan = randomFetchPlan();
-        return new RemoteFetchExec(source, child, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
+        return new FetchExec(source, child, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override
-    protected RemoteFetchExec createTestInstance() {
-        return randomRemoteFetchExec(0);
+    protected FetchExec createTestInstance() {
+        return randomFetchExec(0);
     }
 
     @Override
-    protected RemoteFetchExec mutateInstance(RemoteFetchExec instance) throws IOException {
+    protected FetchExec mutateInstance(FetchExec instance) throws IOException {
         PhysicalPlan child = instance.child();
         Attribute handleAttribute = instance.handleAttribute();
         List<Attribute> attributesToFetch = instance.attributesToFetch();
@@ -47,10 +47,10 @@ public class RemoteFetchExecSerializationTests extends AbstractPhysicalPlanSeria
             case 1 -> handleAttribute = randomValueOtherThan(handleAttribute, () -> randomFieldAttributes(1, 1, false).get(0));
             case 2 -> attributesToFetch = randomValueOtherThan(attributesToFetch, () -> randomFieldAttributes(1, 4, false));
             case 3 -> fetchedOutputAttributes = randomValueOtherThan(fetchedOutputAttributes, () -> randomFieldAttributes(1, 4, false));
-            case 4 -> fetchPlan = randomValueOtherThan(fetchPlan, RemoteFetchExecSerializationTests::randomFetchPlan);
+            case 4 -> fetchPlan = randomValueOtherThan(fetchPlan, FetchExecSerializationTests::randomFetchPlan);
             default -> throw new AssertionError("unexpected mutation branch");
         }
-        return new RemoteFetchExec(instance.source(), child, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
+        return new FetchExec(instance.source(), child, handleAttribute, attributesToFetch, fetchedOutputAttributes, fetchPlan);
     }
 
     @Override

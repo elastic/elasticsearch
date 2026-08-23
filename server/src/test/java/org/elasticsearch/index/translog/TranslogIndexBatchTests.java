@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -95,11 +96,24 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     private Translog create(Path path, Consumer<LongsRef> persistedSeqNoConsumer, OperationListener operationListener) throws IOException {
+        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        return new Translog(
+            translogConfig(path, operationListener),
+            translogUUID,
+            new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm::get,
+            persistedSeqNoConsumer,
+            TranslogOperationAsserter.DEFAULT
+        );
+    }
+
+    private TranslogConfig translogConfig(Path path, OperationListener operationListener) {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.index.IndexVersion.current())
             .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        final TranslogConfig translogConfig = new TranslogConfig(
+        return new TranslogConfig(
             shardId,
             path,
             indexSettings,
@@ -108,16 +122,6 @@ public class TranslogIndexBatchTests extends ESTestCase {
             DiskIoBufferPool.INSTANCE,
             operationListener,
             true
-        );
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
-        return new Translog(
-            translogConfig,
-            translogUUID,
-            new TranslogDeletionPolicy(),
-            () -> SequenceNumbers.NO_OPS_PERFORMED,
-            primaryTerm::get,
-            persistedSeqNoConsumer,
-            TranslogOperationAsserter.DEFAULT
         );
     }
 
@@ -457,6 +461,80 @@ public class TranslogIndexBatchTests extends ESTestCase {
             assertEquals(5L, r5.seqNo());
 
             assertNull(snapshot.next());
+        }
+    }
+
+    public void testReopenedTranslogReplaysBatches() throws IOException {
+        // Batch records must survive a close/reopen cycle: on reopen the previous generations are
+        // recovered from disk and read through TranslogReader (the recovery path), not the writer
+        // that produced them. The generation roll additionally puts the mixed-status batch behind
+        // a closed reader before the reopen, so recovery must replay indexed rows as Index ops and
+        // no-op rows as NoOps, and must skip preflight-error rows entirely.
+        final long term = primaryTerm.get();
+
+        translog.add(new Translog.Index(Uid.encodeId("solo-0"), 0, term, 1L, new BytesArray("{\"k\":\"v0\"}"), null, -1L));
+        // batch A carries every row status: two indexed rows, a post-Lucene failure that replays
+        // as a NoOp, and a preflight failure whose source stays in the batch data but never
+        // consumed a seqNo and must not replay at all
+        final List<BytesReference> batchASources = List.of(
+            new BytesArray("{\"k\":\"v1\"}"),
+            new BytesArray("{\"k\":\"v2\"}"),
+            new BytesArray("{\"k\":\"v3\"}"),
+            new BytesArray("{\"k\":\"v4\"}")
+        );
+        final IndexOperationBatch.TranslogRecord batchA = new RecordBuilder(4).indexed(0, 1L, 1L, 100L, XContentType.JSON, "doc-0", null)
+            .indexed(1, 2L, 1L, 101L, XContentType.JSON, "doc-1", "route-1")
+            .noOp(2, 3L, "post-lucene failure")
+            .skipped(3)
+            .build(term, encodeBatchData(batchASources));
+        translog.add(batchA);
+        translog.rollGeneration();
+        translog.add(buildBatch(List.of(Map.of("k", "v5"), Map.of("k", "v6"), Map.of("k", "v7")), XContentType.JSON, 4L, term));
+        translog.add(new Translog.Delete("solo-7", 7, term));
+        translog.sync();
+
+        final String translogUUID = translog.getTranslogUUID();
+        translog.close();
+        translog = new Translog(
+            translogConfig(translogDir, (d, s, l) -> {}),
+            translogUUID,
+            new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            primaryTerm::get,
+            longsRef -> {},
+            TranslogOperationAsserter.DEFAULT
+        );
+
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            // the preflight-error row is not an operation: batch A contributes 3, not 4
+            assertEquals(1 + 3 + 3 + 1, snapshot.totalOperations());
+            // snapshots iterate generations newest-first, so collect and assert by seqNo
+            final Map<Long, Translog.Operation> bySeqNo = new HashMap<>();
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                assertNull("duplicate seqNo " + op.seqNo(), bySeqNo.put(op.seqNo(), op));
+            }
+            // 8 operations at seqNos 0..7; the skipped row surfaced nowhere
+            assertEquals(8, bySeqNo.size());
+            for (long seqNo = 0; seqNo <= 7; seqNo++) {
+                final Translog.Operation replayed = bySeqNo.get(seqNo);
+                assertNotNull("expected op at seqNo " + seqNo, replayed);
+                assertEquals(term, replayed.primaryTerm());
+                if (seqNo == 3) {
+                    assertTrue(replayed instanceof Translog.NoOp);
+                } else if (seqNo == 7) {
+                    assertTrue(replayed instanceof Translog.Delete);
+                } else {
+                    assertTrue(replayed instanceof Translog.Index);
+                }
+            }
+            // second row of the first (rolled) batch: full metadata and source survive the reopen
+            final Translog.Index idx = (Translog.Index) bySeqNo.get(2L);
+            assertEquals(Uid.encodeId("doc-1"), idx.uid());
+            assertEquals("route-1", idx.routing());
+            assertEquals(Map.of("k", "v2"), XContentHelper.convertToMap(idx.source(), false, XContentType.JSON).v2());
+            // the no-op row keeps its reason across the reopen
+            assertEquals("post-lucene failure", ((Translog.NoOp) bySeqNo.get(3L)).reason());
         }
     }
 

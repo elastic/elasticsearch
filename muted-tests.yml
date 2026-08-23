@@ -752,3 +752,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Get index works}
   issue: https://github.com/elastic/elasticsearch/issues/157449
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=3 p1=upgraded_cluster/10_basic/Find a task result record from the old cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/157450

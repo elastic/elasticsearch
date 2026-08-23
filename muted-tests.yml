@@ -755,3 +755,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=3 p1=upgraded_cluster/10_basic/Find a task result record from the old cluster}
   issue: https://github.com/elastic/elasticsearch/issues/157450
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  method: testSearchShardRecoveryRegistersCommit
+  issue: https://github.com/elastic/elasticsearch/issues/157463

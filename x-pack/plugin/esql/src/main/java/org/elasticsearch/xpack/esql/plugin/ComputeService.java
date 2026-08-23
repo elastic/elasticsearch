@@ -1395,6 +1395,7 @@ public class ComputeService {
                 projectResolver,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
+                remoteFetchService,
                 parallelWorkerExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get()

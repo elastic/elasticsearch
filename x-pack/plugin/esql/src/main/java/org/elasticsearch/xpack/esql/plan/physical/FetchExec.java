@@ -10,12 +10,17 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,9 +37,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     <li>{@code fetchedOutputAttributes}: coordinator output schema (what this node appends to its child output)</li>
  * </ul>
  * <p>
- * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a {@link FetchSource}
- * logical plan. This follows the same architectural pattern as lookup planning: logical plans are serialized and
- * shipped, while physical planning remains local to the target node.
+ * The right-hand side of this {@link BinaryExec} is a {@link FragmentExec} that carries a constrained
+ * {@link FetchSource}/{@link Eval}/{@link Filter}/{@link Project} logical plan. This follows the same architectural pattern as lookup
+ * planning: logical plans are serialized and shipped, while physical planning remains local to the target node.
  */
 public class FetchExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -79,10 +84,23 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
     }
 
     private static FragmentExec requireFetchPlan(PhysicalPlan plan) {
-        if (plan instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof FetchSource) {
-            return fragmentExec;
+        if ((plan instanceof FragmentExec) == false) {
+            throw new IllegalArgumentException("fetch plan must be a FragmentExec");
         }
-        throw new IllegalArgumentException("remote fetch plan must be a FragmentExec containing RemoteFetchSource");
+        FragmentExec fragmentExec = (FragmentExec) plan;
+        LogicalPlan fragment = fragmentExec.fragment();
+        if (fragment.anyMatch(FetchSource.class::isInstance) == false) {
+            throw new IllegalArgumentException("fetch plan must contain FetchSource");
+        }
+        fragment.forEachDown(node -> {
+            if (node instanceof FetchSource == false
+                && node instanceof Eval == false
+                && node instanceof Filter == false
+                && node instanceof Project == false) {
+                throw new IllegalArgumentException("unsupported fetch pushdown plan [" + node.nodeName() + "]");
+            }
+        });
+        return fragmentExec;
     }
 
     @Override
@@ -150,8 +168,14 @@ public class FetchExec extends BinaryExec implements EstimatesRowSize {
         return attributesToFetch;
     }
 
+    /**
+     * The plan the fetch target must execute in addition to loading the fetched fields, or {@code null} when the fetch plan is a bare
+     * {@link FetchSource} that only describes the fields to fetch.
+     */
+    @Nullable
     public PhysicalPlan pushdownPlan() {
-        return fetchPlan;
+        FragmentExec fragmentExec = fetchPlan();
+        return fragmentExec.fragment() instanceof FetchSource ? null : fragmentExec;
     }
 
     public FragmentExec fetchPlan() {

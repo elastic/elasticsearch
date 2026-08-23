@@ -447,6 +447,72 @@ public class FetchServiceTests extends MapperServiceTestCase {
         }
     }
 
+    public void testFetchFieldLoadingHonorsConfiguredPreference() {
+        MappedFieldType.FieldExtractPreference preference = MappedFieldType.FieldExtractPreference.STORED;
+        EsPhysicalOperationProviders.ShardContext shardContext = Mockito.mock(EsPhysicalOperationProviders.ShardContext.class);
+        BlockLoader blockLoader = Mockito.mock(BlockLoader.class, Mockito.withSettings().stubOnly());
+        Mockito.when(
+            shardContext.blockLoader(
+                "n",
+                false,
+                preference,
+                null,
+                null,
+                PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
+                PlannerSettings.DEFAULTS.blockLoaderSizeScript()
+            )
+        ).thenReturn(blockLoader);
+
+        List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = FetchService.buildFieldInfos(
+            List.of(new FetchService.FetchField("n", DataType.LONG)),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            PlannerSettings.DEFAULTS,
+            preference
+        );
+        fieldInfos.getFirst().buildLoader().build(null, 0);
+
+        Mockito.verify(shardContext)
+            .blockLoader(
+                "n",
+                false,
+                preference,
+                null,
+                null,
+                PlannerSettings.DEFAULTS.blockLoaderSizeOrdinals(),
+                PlannerSettings.DEFAULTS.blockLoaderSizeScript()
+            );
+    }
+
+    public void testSupportedFetchFieldTypesHavePreferenceIndependentElementTypes() {
+        for (DataType dataType : DataType.values()) {
+            if (FetchService.FetchField.supports(dataType)) {
+                var expectedElementType = PlannerUtils.toElementType(dataType);
+                for (MappedFieldType.FieldExtractPreference preference : MappedFieldType.FieldExtractPreference.values()) {
+                    assertThat(PlannerUtils.toElementType(dataType, preference), equalTo(expectedElementType));
+                }
+            }
+        }
+    }
+
+    public void testFetchFieldLoadingRejectsSpatialFieldsWithConfiguredPreference() {
+        EsPhysicalOperationProviders.ShardContext shardContext = Mockito.mock(EsPhysicalOperationProviders.ShardContext.class);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> FetchService.buildFieldInfos(
+                List.of(new FetchService.FetchField("location", DataType.GEO_POINT)),
+                new IndexedByShardIdFromSingleton<>(shardContext),
+                PlannerSettings.DEFAULTS,
+                MappedFieldType.FieldExtractPreference.DOC_VALUES
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("requires extraction semantics not represented by the plain fetch field contract")
+        );
+    }
+
     public void testExchangeSetupRequestRejectsUnsupportedPushdownPlan() {
         ReferenceAttribute fetchedAttribute = new ReferenceAttribute(Source.EMPTY, null, "n", DataType.LONG);
         ReferenceAttribute positionAttribute = new ReferenceAttribute(

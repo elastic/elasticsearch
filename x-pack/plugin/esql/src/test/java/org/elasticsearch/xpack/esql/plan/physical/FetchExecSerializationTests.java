@@ -7,12 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.FetchSource;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchExec> {
     private static FragmentExec randomFetchPlan() {
@@ -33,6 +39,52 @@ public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializati
     @Override
     protected FetchExec createTestInstance() {
         return randomFetchExec(0);
+    }
+
+    public void testAllowsPushdownFetchPlan() {
+        PhysicalPlan child = randomChild(0);
+        Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
+        FetchSource fetchSource = new FetchSource(randomSource(), attributesToFetch);
+        FragmentExec fetchPlan = new FragmentExec(new Project(randomSource(), fetchSource, attributesToFetch));
+
+        FetchExec exec = new FetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan);
+
+        assertSame(fetchPlan, exec.fetchPlan());
+        assertSame(fetchPlan, exec.pushdownPlan());
+    }
+
+    public void testBareFetchSourceDoesNotRequirePushdown() {
+        FetchExec exec = randomFetchExec(0);
+
+        assertNull(exec.pushdownPlan());
+    }
+
+    public void testRejectsFetchPlanWithoutFetchSource() {
+        PhysicalPlan child = randomChild(0);
+        Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
+        FragmentExec fetchPlan = new FragmentExec(new LocalRelation(Source.EMPTY, attributesToFetch, null));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan)
+        );
+        assertThat(e.getMessage(), containsString("fetch plan must contain FetchSource"));
+    }
+
+    public void testRejectsUnsupportedPushdownNode() {
+        PhysicalPlan child = randomChild(0);
+        Attribute handleAttribute = randomFieldAttributes(1, 1, false).get(0);
+        List<Attribute> attributesToFetch = randomFieldAttributes(1, 4, false);
+        FetchSource fetchSource = new FetchSource(randomSource(), attributesToFetch);
+        FragmentExec fetchPlan = new FragmentExec(new Limit(randomSource(), EsqlTestUtils.of(10), fetchSource));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FetchExec(Source.EMPTY, child, handleAttribute, attributesToFetch, attributesToFetch, fetchPlan)
+        );
+        assertThat(e.getMessage(), containsString("unsupported fetch pushdown plan [Limit]"));
     }
 
     @Override

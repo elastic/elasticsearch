@@ -172,6 +172,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -211,6 +212,8 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.FetchOperator;
+import org.elasticsearch.xpack.esql.plugin.FetchService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -269,6 +272,8 @@ public class LocalExecutionPlanner {
     private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     @Nullable
+    private final FetchService fetchService;
+    @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
     private final MatcherWatchdog grokMatcherWatchdog;
@@ -291,6 +296,7 @@ public class LocalExecutionPlanner {
         ProjectResolver projectResolver,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable FetchService fetchService,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog
@@ -313,6 +319,7 @@ public class LocalExecutionPlanner {
         this.projectResolver = projectResolver;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.fetchService = fetchService;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -389,6 +396,8 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
+        } else if (node instanceof FetchExec fetch) {
+            return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -762,6 +771,38 @@ public class LocalExecutionPlanner {
             capable::sourceExtractorsFor
         );
         return source.with(factory, newLayout);
+    }
+
+    private PhysicalOperation planFetch(FetchExec exec, LocalExecutionPlannerContext context) {
+        if (fetchService == null) {
+            throw new IllegalStateException("FetchExec requires FetchService");
+        }
+        PhysicalOperation source = plan(exec.child(), context);
+        Layout.ChannelAndType handle = source.layout.get(exec.handleAttribute().id());
+        if (handle == null) {
+            throw new IllegalStateException("fetch handle attribute [" + exec.handleAttribute() + "] is not present in input layout");
+        }
+        List<FetchService.FetchField> requestFields = exec.attributesToFetch()
+            .stream()
+            .map(attr -> new FetchService.FetchField(fieldName(attr), attr.dataType()))
+            .toList();
+        Layout layout = source.layout.builder().append(exec.fetchedOutputAttributes()).build();
+        return source.with(
+            new FetchOperator.Factory(
+                handle.channel(),
+                requestFields,
+                exec.fetchedOutputAttributes(),
+                exec.pushdownPlan(),
+                configuration,
+                Math.max(1, context.queryPragmas().exchangeBufferSize()),
+                () -> fetchService.newReleasingBatchExchangeClient(parentTask)
+            ),
+            layout
+        );
+    }
+
+    private static String fieldName(Attribute attr) {
+        return attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
     }
 
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {

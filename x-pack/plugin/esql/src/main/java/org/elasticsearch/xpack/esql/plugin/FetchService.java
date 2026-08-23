@@ -201,6 +201,14 @@ public final class FetchService {
         return new BatchExchangeFetchClient(parentTask, retainedSessionReleaser);
     }
 
+    /**
+     * Creates a batch exchange client for runtime fetch operators that releases retained remote search contexts once a fetch session is
+     * no longer needed.
+     */
+    public Client newReleasingBatchExchangeClient(CancellableTask parentTask) {
+        return newBatchExchangeClient(parentTask, newRetainedSessionReleaser());
+    }
+
     RetainedSessionReleaser newRetainedSessionReleaser() {
         return new RetainedSessionReleaser(
             (targetNode, retainedSessionId) -> releaseAsync(targetNode, retainedSessionId, ActionListener.wrap(ignored -> {}, e -> {
@@ -671,7 +679,12 @@ public final class FetchService {
         try {
             operators.add(new FetchHandleDecodeOperator(driverContext.blockFactory(), includePositionMapping));
 
-            List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(request.fields(), shardContexts, settings);
+            List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = buildFieldInfos(
+                request.fields(),
+                shardContexts,
+                settings,
+                request.configuration().pragmas().fieldExtractPreference()
+            );
             IndexedByShardId<ValuesSourceReaderOperator.ShardContext> readerContexts = shardContexts.map(
                 c -> new ValuesSourceReaderOperator.ShardContext(
                     c.searcher().getIndexReader(),
@@ -722,13 +735,23 @@ public final class FetchService {
         }
     }
 
-    private static List<ValuesSourceReaderOperator.FieldInfo> buildFieldInfos(
+    static List<ValuesSourceReaderOperator.FieldInfo> buildFieldInfos(
         List<FetchField> fields,
         IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        PlannerSettings plannerSettings
+        PlannerSettings plannerSettings,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(fields.size());
         for (FetchField field : fields) {
+            if (FetchField.supports(field.dataType()) == false) {
+                throw new IllegalArgumentException(
+                    "deferred fetch field ["
+                        + field.fieldName()
+                        + "] with type ["
+                        + field.dataType().typeName()
+                        + "] requires extraction semantics not represented by the plain fetch field contract"
+                );
+            }
             fieldInfos.add(
                 new ValuesSourceReaderOperator.FieldInfo(
                     field.fieldName(),
@@ -739,7 +762,7 @@ public final class FetchService {
                             .blockLoader(
                                 field.fieldName(),
                                 field.dataType() == DataType.UNSUPPORTED,
-                                MappedFieldType.FieldExtractPreference.NONE,
+                                fieldExtractPreference,
                                 null,
                                 null,
                                 plannerSettings.blockLoaderSizeOrdinals(),
@@ -803,6 +826,21 @@ public final class FetchService {
 
         public DataType dataType() {
             return dataType;
+        }
+
+        /** Whether this data type can be loaded by the plain field-name-and-type fetch contract. */
+        public static boolean supports(DataType dataType) {
+            return switch (dataType) {
+                case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE,
+                    KEYWORD, TEXT, DATETIME, DATE_NANOS, DATE_RANGE, DOUBLE_RANGE, IP, VERSION, SOURCE, TSID_DATA_TYPE,
+                    AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
+                // Mapped numeric types are widened to their ES|QL block type before fetch planning.
+                case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> false;
+                // Spatial field loaders need an extraction preference to determine their physical block type.
+                case GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE -> false;
+                // These types are evaluator or execution values rather than independently loadable mapped fields.
+                case OBJECT, DATE_PERIOD, TIME_DURATION, GEOHASH, GEOTILE, GEOHEX, DOC_DATA_TYPE, PARTIAL_AGG -> false;
+            };
         }
 
         @Override

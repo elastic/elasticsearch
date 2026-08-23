@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -447,12 +448,15 @@ public class PlannerUtils {
             .stream()
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
+        Set<PhysicalPlan> fetchExecRightChildren = plan.collect(FetchExec.class::isInstance)
+            .stream()
+            .map(x -> ((FetchExec) x).right())
+            .collect(Collectors.toSet());
 
         PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
-            if (lookupJoinExecRightChildren.contains(f)) {
-                // Do not optimize the right child of a lookup join exec
-                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
-                // Also we only ship logical plans across the network, so the plan needs to remain logical
+            if (lookupJoinExecRightChildren.contains(f) || fetchExecRightChildren.contains(f)) {
+                // These fragments are shipped as logical plans and planned on the target node, where the right stats and execution
+                // context are available.
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);

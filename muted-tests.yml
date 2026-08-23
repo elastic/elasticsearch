@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskFinishesBeforeNodeShutsDown
   issue: https://github.com/elastic/elasticsearch/issues/157346
+- class: org.elasticsearch.xpack.ml.integration.ForecastIT
+  method: testOverflowToDisk
+  issue: https://github.com/elastic/elasticsearch/issues/157223

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plugin;
+package org.elasticsearch.xpack.esql.planner.reduction;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -17,14 +17,14 @@ import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import java.util.EnumSet;
 import java.util.Objects;
 
-public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
+public class ReductionPlannerGoldenTests extends GoldenTestCase {
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
         return goldenModes();
     }
 
-    public LateMaterializationPlannerGoldenTests(@Name("mode") String mode) {
+    public ReductionPlannerGoldenTests(@Name("mode") String mode) {
         super(mode);
     }
 

@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Verifies that the {@link org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator}} is optimized into the reduce driver instead
  * of the data driver.
  *
- * For more information on why this is important, see {@link org.elasticsearch.xpack.esql.plugin.LateMaterializationPlanner}.
+ * For more information on why this is important, see {@link org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner}.
  */
 public abstract class EsqlReductionLateMaterializationTestCase extends AbstractEsqlIntegTestCase {
     private final int shardCount;

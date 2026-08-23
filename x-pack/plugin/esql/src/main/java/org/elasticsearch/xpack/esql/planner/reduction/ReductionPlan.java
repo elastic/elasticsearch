@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plugin;
+package org.elasticsearch.xpack.esql.planner.reduction;
 
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 

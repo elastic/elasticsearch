@@ -33,6 +33,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlan;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
@@ -278,7 +280,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
         exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;
-        ReductionPlan reductionPlan = ComputeService.reductionPlan(
+        ReductionPlan reductionPlan = ReductionPlanner.plan(
             computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,

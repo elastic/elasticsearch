@@ -63,10 +63,10 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlan;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -763,7 +763,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (exchanges.isEmpty() == false) {
                         ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
                         var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                        var reductionPlan = ComputeService.reductionPlan(
+                        var reductionPlan = ReductionPlanner.plan(
                             PlannerSettings.DEFAULTS,
                             new EsqlFlags(false),
                             configuration,
@@ -1099,7 +1099,7 @@ public abstract class GoldenTestCase extends ESTestCase {
          */
         LOOKUP_PHYSICAL_OPTIMIZATION(new SingleFileOutput("lookup_physical_optimization")),
         /**
-         * See {@link ComputeService#reductionPlan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
+         * See {@link ReductionPlanner#plan}. Actually results in <b>two</b> plans: one for the node reduce driver and one for the
          * data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),

@@ -59,6 +59,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlan;
+import org.elasticsearch.xpack.esql.planner.reduction.ReductionPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -814,7 +816,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         ReductionPlan reductionPlan;
         if (request.plan() instanceof ExchangeSinkExec plan) {
-            reductionPlan = ComputeService.reductionPlan(
+            reductionPlan = ReductionPlanner.plan(
                 computeService.plannerSettings().get(),
                 computeService.createFlags(),
                 configuration,

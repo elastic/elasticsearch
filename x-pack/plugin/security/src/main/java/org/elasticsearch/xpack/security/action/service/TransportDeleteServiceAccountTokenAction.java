@@ -17,6 +17,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
 public class TransportDeleteServiceAccountTokenAction extends HandledTransportAction<
@@ -47,6 +48,16 @@ public class TransportDeleteServiceAccountTokenAction extends HandledTransportAc
         DeleteServiceAccountTokenRequest request,
         ActionListener<DeleteServiceAccountTokenResponse> listener
     ) {
+        if (ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE.equals(request.getNamespace()) == false) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "built-in service account token deletion only supports the ["
+                        + ManagedServiceAccountIdValidator.BUILTIN_NAMESPACE
+                        + "] namespace"
+                )
+            );
+            return;
+        }
         serviceAccountService.deleteIndexToken(
             request,
             ActionListener.wrap(found -> listener.onResponse(new DeleteServiceAccountTokenResponse(found)), listener::onFailure)

@@ -1,0 +1,300 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "Managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_manage_token"
+        body: >
+          {
+            "cluster": ["manage_token", "monitor"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-1
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-after-recreate
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: worker_oauth
+        name: token-oauth
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_oauth
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_monitor"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_api_key"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_manage_token"
+        ignore: 404
+
+---
+"Test managed service accounts lifecycle":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts: {}
+  - length: { '': 4 }
+  - is_false: "yaml_poc/worker_1"
+
+  - do:
+      security.get_service_accounts:
+        managed_by: "elastic,user"
+  - length: { '': 5 }
+  - is_true: "yaml_poc/worker_1"
+  - match: { "elastic/kibana.managed_by": "elastic" }
+
+  # managed_by=user filters the listing to API-managed accounts only
+  - do:
+      security.get_service_accounts:
+        managed_by: "user"
+  - length: { '': 1 }
+  - is_true: "yaml_poc/worker_1"
+
+  - do:
+      security.get_service_accounts:
+        namespace: yaml_poc
+        service: worker_1
+  - length: { '': 1 }
+  - match:
+      "yaml_poc/worker_1":
+        managed_by: user
+        roles: ["managed_yaml_monitor"]
+        enabled: true
+
+  # requests scoped to a namespace default to managed_by=elastic,user;
+  # the un-scoped listing defaults to managed_by=elastic
+  - do:
+      security.get_service_accounts:
+        namespace: yaml_poc
+  - length: { '': 1 }
+  - is_true: "yaml_poc/worker_1"
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-1
+  - is_true: created
+  - match: { "token.name": "token-1" }
+  - set: { "token.value": managed_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/worker_1" }
+  - match: { roles: ["managed_yaml_monitor"] }
+  - match: { full_name: "Managed service account - yaml_poc/worker_1" }
+  - match: { metadata._managed_service_account: true }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": false }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        body: >
+          {
+            "roles": ["managed_yaml_api_key"],
+            "enabled": true
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+  - match: { roles: ["managed_yaml_api_key"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { "cluster.manage_own_api_key": true }
+  - match: { has_all_requested: false }
+
+  # deleting while a token exists is rejected unless force=true
+  - do:
+      catch: bad_request
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        force: true
+  - match: { found: true }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_1
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/worker_1" }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: worker_1
+        name: token-after-recreate
+  - set: { "token.value": managed_service_token_recreated }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_service_token_recreated}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/worker_1" }
+
+---
+"Test managed service account can mint an OAuth access token":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: worker_oauth
+        body: >
+          {
+            "roles": ["managed_yaml_manage_token"],
+            "enabled": true
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: worker_oauth
+        name: token-oauth
+  - is_true: created
+  - set: { "token.value": managed_oauth_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_oauth_service_token}
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: managed_oauth_access_token }
+  - match: { expires_in: 1200 }
+  - is_false: refresh_token
+
+  - do:
+      headers:
+        Authorization: Bearer ${managed_oauth_access_token}
+      security.authenticate: {}
+
+  - match: { username: "yaml_poc/worker_oauth" }
+  - match: { authentication_type: "token" }
+  - match: { roles: ["managed_yaml_manage_token"] }
+  - match: { metadata._managed_service_account: true }
+  - match: { "token.name": "token-oauth" }
+  - match: { "token.type": "_service_account_index" }

@@ -100,6 +100,33 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         }
     }
 
+    /**
+     * Service-account credentials work on a basic license, but minting an OAuth
+     * access token does not: the token service requires Standard or above.
+     * After a trial is started the same kibana service account (which has
+     * {@code manage_token}) can mint; after revert, minting is rejected again
+     * and a previously minted access token can no longer authenticate.
+     */
+    public void testServiceAccountOAuthMintingRequiresStandardLicense() throws Exception {
+        checkLicenseType("basic");
+        final String kibanaServiceToken = createServiceAccountToken("elastic", "kibana", "license-oauth-kibana");
+        assertAuthenticateWithServiceAccountToken(kibanaServiceToken, "elastic/kibana");
+        assertFailToGetToken(kibanaServiceToken);
+
+        startTrial();
+        String accessToken = null;
+        try {
+            checkLicenseType("trial");
+            accessToken = getAccessToken(kibanaServiceToken);
+            assertAuthenticateWithToken(accessToken, "elastic/kibana", true);
+        } finally {
+            revertTrial();
+            assertFailToGetToken(kibanaServiceToken);
+            assertAuthenticateWithServiceAccountToken(kibanaServiceToken, "elastic/kibana");
+            assertAuthenticateWithToken(accessToken, "elastic/kibana", false);
+        }
+    }
+
     private void startTrial() throws IOException {
         Response response = client().performRequest(new Request("POST", "/_license/start_trial?acknowledge=true"));
         assertOK(response);
@@ -214,6 +241,14 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         return getToken;
     }
 
+    private Request buildClientCredentialsTokenRequest() {
+        final Request getToken = new Request("POST", "/_security/oauth2/token");
+        getToken.setJsonEntity("""
+            {"grant_type" : "client_credentials"}
+            """);
+        return getToken;
+    }
+
     private Request buildGetApiKeyRequest() {
         final Request getApiKey = new Request("POST", "/_security/api_key");
         getApiKey.setJsonEntity("""
@@ -231,6 +266,16 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         return ObjectPath.evaluate(tokens, "access_token").toString();
     }
 
+    private String getAccessToken(String bearerString) throws IOException {
+        final Request request = buildClientCredentialsTokenRequest();
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerString));
+        Response getTokenResponse = client().performRequest(request);
+        assertThat(getTokenResponse.getStatusLine().getStatusCode(), equalTo(200));
+        final Map<String, Object> tokens = entityAsMap(getTokenResponse);
+        assertNull(tokens.get("refresh_token"));
+        return ObjectPath.evaluate(tokens, "access_token").toString();
+    }
+
     private String getApiKeyCredentials() throws IOException {
         Response getApiKeyResponse = adminClient().performRequest(buildGetApiKeyRequest());
         assertThat(getApiKeyResponse.getStatusLine().getStatusCode(), equalTo(200));
@@ -245,7 +290,19 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertThat(e.getMessage(), containsString("current license is non-compliant for [security tokens]"));
     }
 
+    private void assertFailToGetToken(String bearerString) {
+        final Request request = buildClientCredentialsTokenRequest();
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + bearerString));
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("current license is non-compliant for [security tokens]"));
+    }
+
     private void assertAuthenticateWithToken(String accessToken, boolean shouldSucceed) throws IOException {
+        assertAuthenticateWithToken(accessToken, "security_test_user", shouldSucceed);
+    }
+
+    private void assertAuthenticateWithToken(String accessToken, String expectedUsername, boolean shouldSucceed) throws IOException {
         assertNotNull("access token cannot be null", accessToken);
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -254,7 +311,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         if (shouldSucceed) {
             Response authenticateResponse = client().performRequest(request);
             assertOK(authenticateResponse);
-            assertEquals("security_test_user", entityAsMap(authenticateResponse).get("username"));
+            assertEquals(expectedUsername, entityAsMap(authenticateResponse).get("username"));
         } else {
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
@@ -283,7 +340,14 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private String createServiceAccountToken() throws IOException {
-        final Request request = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
+        return createServiceAccountToken("elastic", "fleet-server", "api-token-1");
+    }
+
+    private String createServiceAccountToken(String namespace, String service, String tokenName) throws IOException {
+        final Request request = new Request(
+            "POST",
+            Strings.format("_security/service/%s/%s/credential/token/%s", namespace, service, tokenName)
+        );
         final Response response = adminClient().performRequest(request);
         assertOK(response);
         @SuppressWarnings("unchecked")
@@ -292,11 +356,15 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void assertAuthenticateWithServiceAccountToken(String bearerString) throws IOException {
+        assertAuthenticateWithServiceAccountToken(bearerString, "elastic/fleet-server");
+    }
+
+    private void assertAuthenticateWithServiceAccountToken(String bearerString, String expectedUsername) throws IOException {
         Request request = new Request("GET", "/_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + bearerString));
         final Response response = client().performRequest(request);
         assertOK(response);
-        assertEquals("elastic/fleet-server", responseAsMap(response).get("username"));
+        assertEquals(expectedUsername, responseAsMap(response).get("username"));
     }
 
     private void assertAddRoleWithDLS(boolean shouldSucceed) throws IOException {

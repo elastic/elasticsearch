@@ -424,12 +424,13 @@ public final class Authentication implements ToXContentObject {
         );
     }
 
-    /** Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
-     * authenticating using the token credential.
+    /**
+     * Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
+     * authenticating using the token credential. Service-account and API key subjects are preserved as-is
+     * ({@link #isServiceAccount()} and {@link #isApiKey()} remain true).
      */
     public Authentication token() {
         assert false == isAuthenticatedInternally();
-        assert false == isServiceAccount();
         assert false == isCrossClusterAccess();
         final Authentication newTokenAuthentication = new Authentication(effectiveSubject, authenticatingSubject, AuthenticationType.TOKEN);
         return newTokenAuthentication;
@@ -540,6 +541,16 @@ public final class Authentication implements ToXContentObject {
      */
     public boolean isServiceAccount() {
         return effectiveSubject.getType() == Subject.Type.SERVICE_ACCOUNT;
+    }
+
+    public boolean isManagedServiceAccount() {
+        return isServiceAccount()
+            && Boolean.TRUE.equals(getEffectiveSubject().getUser().metadata().get(ServiceAccountSettings.MANAGED_SERVICE_ACCOUNT_FIELD));
+    }
+
+    public boolean isBuiltInServiceAccount() {
+        return isServiceAccount()
+            && Boolean.TRUE.equals(getEffectiveSubject().getUser().metadata().get(ServiceAccountSettings.BUILTIN_SERVICE_ACCOUNT_FIELD));
     }
 
     /**
@@ -1037,7 +1048,9 @@ public final class Authentication implements ToXContentObject {
         checkNoInternalUser(authenticatingSubject, "Token");
         if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
             checkNoDomain(authenticatingRealm, "Service account");
-            checkNoRole(authenticatingSubject, "Service account");
+            if (false == isManagedServiceAccount()) {
+                checkNoRole(authenticatingSubject, "Service account");
+            }
             checkNoRunAs(this, "Service account");
         } else {
             if (Subject.Type.API_KEY == authenticatingSubject.getType()) {

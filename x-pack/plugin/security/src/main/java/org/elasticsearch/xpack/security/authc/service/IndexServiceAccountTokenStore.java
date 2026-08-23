@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.Servic
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.support.ManagedServiceAccountIdValidator;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
@@ -60,6 +62,7 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -115,7 +118,8 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                     getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {
-                            final String tokenHash = (String) response.getSource().get("password");
+                            final Map<String, Object> source = response.getSource();
+                            final String tokenHash = (String) source.get("password");
                             assert tokenHash != null : "service account token hash cannot be null";
                             listener.onResponse(
                                 StoreAuthenticationResult.fromBooleanResult(
@@ -137,16 +141,33 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         return TokenSource.INDEX;
     }
 
-    void createToken(
+    void createBuiltInToken(
         Authentication authentication,
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
+        if (false == ElasticServiceAccounts.isBuiltInPrincipal(accountId.asPrincipal())) {
             listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
             return;
         }
+        createToken(authentication, request, listener);
+    }
+
+    void createManagedToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        createToken(authentication, request, listener);
+    }
+
+    private void createToken(
+        Authentication authentication,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
         final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
         try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
@@ -211,7 +232,54 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         }
     }
 
-    void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+    /**
+     * Reports whether the account has at least one index-backed token. Unlike
+     * {@link #findTokensFor}, this is a bounded existence check ({@code size=0},
+     * {@code terminate_after=1}) and does not enumerate or return token names.
+     */
+    void hasTokensFor(ServiceAccountId accountId, ActionListener<Boolean> listener) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
+            listener.onResponse(false);
+        } else if (false == projectSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final BoolQueryBuilder query = QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
+                    .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
+                final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                    .setQuery(query)
+                    .setSize(0)
+                    .setTerminateAfter(1)
+                    .setTrackTotalHitsUpTo(1)
+                    .setFetchSource(false)
+                    .request();
+                executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    request,
+                    ActionListener.wrap(response -> listener.onResponse(response.getHits().getTotalHits().value() > 0), listener::onFailure)
+                );
+            });
+        }
+    }
+
+    void deleteBuiltInToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        if (false == ElasticServiceAccounts.isBuiltInPrincipal(accountId.asPrincipal())) {
+            listener.onResponse(false);
+            return;
+        }
+        deleteToken(request, listener);
+    }
+
+    void deleteManagedToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
+        deleteToken(request, listener);
+    }
+
+    private void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
         if (false == projectSecurityIndex.indexExists()) {
             listener.onResponse(false);
@@ -219,7 +287,8 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-            if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
+            if (false == ElasticServiceAccounts.isBuiltInPrincipal(accountId.asPrincipal())
+                && ManagedServiceAccountIdValidator.validatePrincipal(accountId.asPrincipal()) != null) {
                 listener.onResponse(false);
                 return;
             }

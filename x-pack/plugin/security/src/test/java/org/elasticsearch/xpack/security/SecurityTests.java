@@ -274,7 +274,7 @@ public class SecurityTests extends ESTestCase {
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
             StubLinkedProjectConfigService.INSTANCE,
-            TestProjectResolvers.alwaysThrow(),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             CrossProjectModeDecider.NOOP,
             ProjectRoutingResolver.NOOP,
             new SystemIndices(List.of()),
@@ -347,7 +347,7 @@ public class SecurityTests extends ESTestCase {
         assertNull(fileServiceAccountTokenStore);
         IndexServiceAccountTokenStore indexServiceAccountTokenStore = findComponent(IndexServiceAccountTokenStore.class, components);
         assertNull(indexServiceAccountTokenStore);
-        var account = randomFrom(ServiceAccountService.getServiceAccounts().values());
+        var account = randomFrom(ServiceAccountService.getBuiltInServiceAccounts().values());
         assertThrows(IllegalStateException.class, () -> serviceAccountService.createIndexToken(null, null, null));
         var future = new PlainActionFuture<Authentication>();
         serviceAccountService.authenticateToken(ServiceAccountToken.newToken(account.id(), "test"), "test", future);

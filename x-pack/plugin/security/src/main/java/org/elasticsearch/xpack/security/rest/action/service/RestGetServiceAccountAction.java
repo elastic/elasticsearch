@@ -16,9 +16,11 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -48,7 +50,19 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String namespace = request.param("namespace");
         final String serviceName = request.param("service");
-        final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName);
+        final String[] managedByValues = request.paramAsStringArray("managed_by", null);
+        final EnumSet<ServiceAccountManagedBy> managedBy;
+        if (managedByValues == null) {
+            // the un-scoped listing defaults to built-in accounts to preserve its pre-existing response
+            // shape; a request scoped to a namespace or service defaults to both kinds
+            managedBy = namespace == null ? EnumSet.of(ServiceAccountManagedBy.ELASTIC) : EnumSet.allOf(ServiceAccountManagedBy.class);
+        } else {
+            managedBy = EnumSet.noneOf(ServiceAccountManagedBy.class);
+            for (String value : managedByValues) {
+                managedBy.add(ServiceAccountManagedBy.fromValue(value.trim()));
+            }
+        }
+        final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName, managedBy);
         return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }
 }

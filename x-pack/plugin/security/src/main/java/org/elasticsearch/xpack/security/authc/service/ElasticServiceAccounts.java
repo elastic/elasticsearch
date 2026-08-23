@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountAuthorization;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -203,6 +205,14 @@ final class ElasticServiceAccounts {
         KIBANA_SYSTEM_ACCOUNT
     ).collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
+    static boolean isBuiltInPrincipal(String principal) {
+        return ACCOUNTS.containsKey(principal);
+    }
+
+    static boolean isBuiltInNamespace(String namespace) {
+        return NAMESPACE.equals(namespace);
+    }
+
     private ElasticServiceAccounts() {}
 
     static class ElasticServiceAccount implements ServiceAccount {
@@ -227,9 +237,14 @@ final class ElasticServiceAccounts {
                 Strings.EMPTY_ARRAY,
                 "Service account - " + id,
                 null,
-                Map.of("_elastic_service_account", true),
+                Map.of(ServiceAccountSettings.BUILTIN_SERVICE_ACCOUNT_FIELD, true),
                 true
             );
+        }
+
+        @Override
+        public ServiceAccountAuthorization authorization() {
+            return new ServiceAccountAuthorization.Fixed(roleDescriptor);
         }
 
         @Override

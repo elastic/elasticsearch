@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.action.service;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
@@ -16,13 +18,22 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class TransportGetServiceAccountActionTests extends ESTestCase {
 
@@ -31,7 +42,17 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     @Before
     public void init() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        transportGetServiceAccountAction = new TransportGetServiceAccountAction(transportService, ActionFilters.EMPTY);
+        ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onResponse(List.of());
+            return null;
+        }).when(serviceAccountService).getManagedAccountInfos(any(), any(), any());
+        transportGetServiceAccountAction = new TransportGetServiceAccountAction(
+            transportService,
+            ActionFilters.EMPTY,
+            serviceAccountService
+        );
     }
 
     public void testDoExecute() {
@@ -64,5 +85,62 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         transportGetServiceAccountAction.doExecute(mock(Task.class), request3, future3);
         final GetServiceAccountResponse getServiceAccountResponse3 = future3.actionGet();
         assertThat(getServiceAccountResponse3.getServiceAccountInfos().length, equalTo(0));
+    }
+
+    public void testBuiltInLookupSkipsManagedStoreWhenSecurityIndexUnavailable() {
+        ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onFailure(new ElasticsearchException("security index unavailable"));
+            return null;
+        }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
+        TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            ActionFilters.EMPTY,
+            failingServiceAccountService
+        );
+
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest("elastic", "fleet-server"), future);
+        assertThat(future.actionGet().getServiceAccountInfos()[0].getPrincipal(), equalTo("elastic/fleet-server"));
+        verify(failingServiceAccountService, never()).getManagedAccountInfos(any(), any(), any());
+    }
+
+    public void testUnfilteredLookupStillUsesManagedStoreWhenRequested() {
+        ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onFailure(new ElasticsearchException("security index unavailable"));
+            return null;
+        }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
+        TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            ActionFilters.EMPTY,
+            failingServiceAccountService
+        );
+
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null, EnumSet.allOf(ServiceAccountManagedBy.class)), future);
+        expectThrows(ElasticsearchException.class, future::actionGet);
+        verify(failingServiceAccountService).getManagedAccountInfos(eq(null), eq(null), any());
+    }
+
+    public void testUnfilteredLookupSkipsManagedStoreByDefault() {
+        ServiceAccountService failingServiceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocation -> {
+            ActionListener<List<ServiceAccountInfo>> listener = invocation.getArgument(2);
+            listener.onFailure(new ElasticsearchException("security index unavailable"));
+            return null;
+        }).when(failingServiceAccountService).getManagedAccountInfos(any(), any(), any());
+        TransportGetServiceAccountAction action = new TransportGetServiceAccountAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            ActionFilters.EMPTY,
+            failingServiceAccountService
+        );
+
+        final PlainActionFuture<GetServiceAccountResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), new GetServiceAccountRequest(null, null), future);
+        assertThat(future.actionGet().getServiceAccountInfos().length, equalTo(4));
+        verify(failingServiceAccountService, never()).getManagedAccountInfos(any(), any(), any());
     }
 }

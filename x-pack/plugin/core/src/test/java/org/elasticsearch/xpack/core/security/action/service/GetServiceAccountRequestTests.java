@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.security.action.service;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.util.EnumSet;
+
 public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCase<GetServiceAccountRequest> {
 
     @Override
@@ -21,22 +23,43 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
     protected GetServiceAccountRequest createTestInstance() {
         return new GetServiceAccountRequest(
             randomFrom(randomAlphaOfLengthBetween(3, 8), null),
-            randomFrom(randomAlphaOfLengthBetween(3, 8), null)
+            randomFrom(randomAlphaOfLengthBetween(3, 8), null),
+            randomManagedBy()
         );
     }
 
     @Override
     protected GetServiceAccountRequest mutateInstance(GetServiceAccountRequest instance) {
-        if (randomBoolean()) {
-            return new GetServiceAccountRequest(
-                randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
-                instance.getServiceName()
-            );
-        } else {
-            return new GetServiceAccountRequest(
-                instance.getNamespace(),
-                randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null))
-            );
+        switch (randomInt(2)) {
+            case 0 -> {
+                return new GetServiceAccountRequest(
+                    randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
+                    instance.getServiceName(),
+                    instance.getManagedBy()
+                );
+            }
+            case 1 -> {
+                return new GetServiceAccountRequest(
+                    instance.getNamespace(),
+                    randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
+                    instance.getManagedBy()
+                );
+            }
+            default -> {
+                return new GetServiceAccountRequest(
+                    instance.getNamespace(),
+                    instance.getServiceName(),
+                    randomValueOtherThan(instance.getManagedBy(), GetServiceAccountRequestTests::randomManagedBy)
+                );
+            }
         }
+    }
+
+    private static EnumSet<ServiceAccountManagedBy> randomManagedBy() {
+        return randomFrom(
+            EnumSet.of(ServiceAccountManagedBy.ELASTIC),
+            EnumSet.of(ServiceAccountManagedBy.USER),
+            EnumSet.allOf(ServiceAccountManagedBy.class)
+        );
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.action.service;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
 
@@ -41,7 +44,7 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
 
     public void testDoExecuteWillDelegate() {
         final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
-            randomAlphaOfLengthBetween(3, 8),
+            "elastic",
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8)
         );
@@ -49,5 +52,18 @@ public class TransportDeleteServiceAccountTokenActionTests extends ESTestCase {
         final ActionListener<DeleteServiceAccountTokenResponse> listener = mock(ActionListener.class);
         transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).deleteIndexToken(eq(request), anyActionListener());
+    }
+
+    public void testRejectsNonElasticNamespace() {
+        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
+            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        final PlainActionFuture<DeleteServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        transportDeleteServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("built-in service account token deletion only supports the [elastic] namespace"));
+        verifyNoInteractions(serviceAccountService);
     }
 }

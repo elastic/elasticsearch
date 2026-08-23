@@ -1,0 +1,81 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: kibana
+        name: oauth-token-kibana
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: oauth-token-fleet
+        ignore: 404
+
+---
+"Test kibana service account can mint an OAuth access token":
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: kibana
+        name: oauth-token-kibana
+
+  - is_true: created
+  - match: { "token.name": "oauth-token-kibana" }
+  - set: { "token.value": service_token_kibana }
+
+  - do:
+      headers:
+        Authorization: Bearer ${service_token_kibana}
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: oauth_access_token }
+  - match: { expires_in: 1200 }
+  - is_false: refresh_token
+
+  - do:
+      headers:
+        Authorization: Bearer ${oauth_access_token}
+      security.authenticate: {}
+
+  - match: { username: "elastic/kibana" }
+  - match: { authentication_type: "token" }
+  - match: { metadata._elastic_service_account: true }
+  - match: { "token.name": "oauth-token-kibana" }
+  - match: { "token.type": "_service_account_index" }
+
+---
+"Test fleet-server service account cannot mint an OAuth access token":
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: oauth-token-fleet
+
+  - is_true: created
+  - set: { "token.value": service_token_fleet }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${service_token_fleet}
+      security.get_token:
+        body:
+          grant_type: "client_credentials"
+
+  - match: { "error.type": "security_exception" }

@@ -25,8 +25,10 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
@@ -61,9 +63,28 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     public void testExecutionWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         when(securityContext.getAuthentication()).thenReturn(authentication);
-        final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(
+            "elastic",
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
-        verify(serviceAccountService).createIndexToken(authentication, request, future);
+        verify(serviceAccountService).createIndexToken(eq(authentication), eq(request), eq(future));
+    }
+
+    public void testRejectsNonElasticNamespace() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(
+            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("built-in service account token creation only supports the [elastic] namespace"));
+        verifyNoInteractions(serviceAccountService);
     }
 }

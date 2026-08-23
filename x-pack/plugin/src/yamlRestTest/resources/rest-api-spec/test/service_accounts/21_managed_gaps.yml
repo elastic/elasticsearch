@@ -1,0 +1,492 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_security/service/{namespace}/{service}
+          capabilities: [managed_service_accounts]
+      test_runner_features: capabilities
+      reason: "Managed service accounts are unavailable in multi-project clusters"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_api_key"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "service_account_admin"
+        body: >
+          {
+            "cluster": ["manage_service_account"]
+          }
+
+  - do:
+      security.put_user:
+        username: "service_account_admin_user"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": ["service_account_admin"]
+          }
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: gap-elastic-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: gap_worker
+        name: gap-managed-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: disabled_worker
+        name: disabled-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: role_def_worker
+        name: role-def-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: union_worker
+        name: union-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: missing_role_worker
+        name: missing-role-token
+        ignore: 404
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: guard_worker
+        name: guard-token
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: gap_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: disabled_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: role_def_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: union_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: missing_role_worker
+        force: true
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "service_account_admin_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "service_account_admin"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_api_key"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_missing_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "managed_yaml_monitor"
+        ignore: 404
+
+---
+"Test manage_service_account privilege boundary":
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: gap_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: gap_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.create_service_token:
+        namespace: yaml_poc
+        service: gap_worker
+        name: gap-managed-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: gap_worker
+        name: gap-managed-token
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: gap_worker
+
+  - do:
+      headers:
+        Authorization: "Basic c2VydmljZV9hY2NvdW50X2FkbWluX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: gap-elastic-token
+  - is_true: created
+  - match: { "token.name": "gap-elastic-token" }
+
+---
+"Test delete guard for accounts with tokens":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: guard_worker
+        name: guard-token
+
+  - do:
+      catch: /cannot delete service account \[yaml_poc\/guard_worker\] because it has service tokens/
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+
+  - do:
+      security.delete_service_token:
+        namespace: yaml_poc
+        service: guard_worker
+        name: guard-token
+  - is_true: found
+
+  - do:
+      security.delete_managed_service_account:
+        namespace: yaml_poc
+        service: guard_worker
+  - match: { found: true }
+
+---
+"Test reserved elastic namespace for managed account PUT":
+  - do:
+      catch: bad_request
+      security.put_managed_service_account:
+        namespace: elastic
+        service: custom
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+  - match: { error.type: action_request_validation_exception }
+
+---
+"Test reserved elastic namespace for managed account DELETE":
+  - do:
+      catch: bad_request
+      security.delete_managed_service_account:
+        namespace: elastic
+        service: kibana
+  - match: { error.type: action_request_validation_exception }
+
+---
+"Test disabled managed account":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: disabled_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: disabled_worker
+        name: disabled-token
+  - set: { "token.value": disabled_service_token }
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: disabled_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": false
+          }
+  - match: { created: false }
+
+  - do:
+      catch: unauthorized
+      headers:
+        Authorization: Bearer ${disabled_service_token}
+      security.authenticate: {}
+
+  - do:
+      catch: bad_request
+      security.create_service_token:
+        namespace: yaml_poc
+        service: disabled_worker
+        name: disabled-token-2
+
+---
+"Test native role definition change affects managed authentication":
+  - do:
+      security.put_role:
+        name: "managed_yaml_monitor"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: role_def_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: role_def_worker
+        name: role-def-token
+  - set: { "token.value": role_def_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${role_def_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": false }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_monitor"
+        body: >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      headers:
+        Authorization: Bearer ${role_def_service_token}
+      security.authenticate: {}
+  - match: { roles: ["managed_yaml_monitor"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${role_def_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { "cluster.manage_own_api_key": true }
+
+---
+"Test two named roles union privileges":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: union_worker
+        body: >
+          {
+            "roles": ["managed_yaml_monitor", "managed_yaml_api_key"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: union_worker
+        name: union-token
+  - set: { "token.value": union_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${union_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/union_worker" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${union_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor", "manage_own_api_key"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { "cluster.manage_own_api_key": true }
+  - match: { has_all_requested: true }
+
+---
+"Test missing assigned role":
+  - do:
+      security.put_managed_service_account:
+        namespace: yaml_poc
+        service: missing_role_worker
+        body: >
+          {
+            "roles": ["managed_yaml_missing_role"],
+            "enabled": true
+          }
+
+  - do:
+      security.create_service_token:
+        namespace: yaml_poc
+        service: missing_role_worker
+        name: missing-role-token
+  - set: { "token.value": missing_role_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.authenticate: {}
+  - match: { username: "yaml_poc/missing_role_worker" }
+  - match: { roles: ["managed_yaml_missing_role"] }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+  - match: { "cluster.monitor": false }
+  - match: { has_all_requested: false }
+
+  - do:
+      security.put_role:
+        name: "managed_yaml_missing_role"
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+
+  - do:
+      headers:
+        Authorization: Bearer ${missing_role_service_token}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["monitor"]
+          }
+  - match: { "cluster.monitor": true }
+  - match: { has_all_requested: true }

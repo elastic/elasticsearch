@@ -86,10 +86,16 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountAction;
+import org.elasticsearch.xpack.core.security.action.service.PutManagedServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
@@ -309,7 +315,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         InvalidateApiKeyAction.NAME,
         DeletePrivilegesAction.NAME,
         CreateServiceAccountTokenAction.NAME,
+        CreateManagedServiceAccountTokenAction.NAME,
         DeleteServiceAccountTokenAction.NAME,
+        DeleteManagedServiceAccountTokenAction.NAME,
+        PutManagedServiceAccountAction.NAME,
+        DeleteManagedServiceAccountAction.NAME,
         ActivateProfileAction.NAME,
         UpdateProfileDataAction.NAME,
         SetProfileEnabledAction.NAME,
@@ -780,12 +790,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
-                } else if (msg instanceof CreateServiceAccountTokenRequest) {
-                    assert CreateServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateServiceAccountTokenRequest) msg).build();
-                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
-                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
-                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof CreateServiceAccountTokenRequest createServiceAccountTokenRequest) {
+                    assert CreateServiceAccountTokenAction.NAME.equals(action)
+                        || CreateManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(createServiceAccountTokenRequest).build();
+                } else if (msg instanceof PutManagedServiceAccountRequest putManagedServiceAccountRequest) {
+                    assert PutManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(putManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteManagedServiceAccountRequest deleteManagedServiceAccountRequest) {
+                    assert DeleteManagedServiceAccountAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteManagedServiceAccountRequest).build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action)
+                        || DeleteManagedServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(deleteServiceAccountTokenRequest).build();
                 } else if (msg instanceof final ActivateProfileRequest activateProfileRequest) {
                     assert ActivateProfileAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(activateProfileRequest).build();
@@ -1538,6 +1556,35 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .endObject() // service_token
                 .endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(PutManagedServiceAccountRequest putManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "put_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("managed_service_account")
+                .field("namespace", putManagedServiceAccountRequest.getNamespace())
+                .field("service", putManagedServiceAccountRequest.getServiceName())
+                .array("roles", putManagedServiceAccountRequest.getRoles().toArray(String[]::new))
+                .field("enabled", putManagedServiceAccountRequest.isEnabled())
+                .endObject() // managed_service_account
+                .endObject();
+            logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(DeleteManagedServiceAccountRequest deleteManagedServiceAccountRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_managed_service_account");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("managed_service_account")
+                .field("namespace", deleteManagedServiceAccountRequest.getNamespace())
+                .field("service", deleteManagedServiceAccountRequest.getServiceName())
+                .field("force", deleteManagedServiceAccountRequest.isForce())
+                .endObject() // managed_service_account
+                .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 

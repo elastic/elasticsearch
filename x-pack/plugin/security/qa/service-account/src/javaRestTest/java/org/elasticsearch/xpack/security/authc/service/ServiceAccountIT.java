@@ -26,6 +26,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountManagedBy;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.junit.BeforeClass;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceAccountIT extends ESRestTestCase {
@@ -591,6 +593,49 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(refreshTokenResponse);
     }
 
+    public void testServiceAccountWithoutManageTokenCannotMintOAuthToken() throws IOException {
+        final Request oauthTokenRequest = new Request("POST", "_security/oauth2/token");
+        oauthTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
+        oauthTokenRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + VALID_SERVICE_TOKEN));
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(oauthTokenRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("unauthorized"));
+        assertThat(e.getMessage(), not(containsString("OAuth2 token creation is not supported for service accounts")));
+    }
+
+    public void testKibanaServiceAccountCanMintOAuthToken() throws IOException {
+        final Request createServiceTokenRequest = new Request("POST", "_security/service/elastic/kibana/credential/token/oauth-token-1");
+        final Response createServiceTokenResponse = client().performRequest(createServiceTokenRequest);
+        assertOK(createServiceTokenResponse);
+        @SuppressWarnings("unchecked")
+        final Map<String, String> serviceTokenMap = (Map<String, String>) responseAsMap(createServiceTokenResponse).get("token");
+        final String serviceToken = serviceTokenMap.get("value");
+
+        final Request oauthTokenRequest = new Request("POST", "_security/oauth2/token");
+        oauthTokenRequest.setJsonEntity("{\"grant_type\":\"client_credentials\"}");
+        oauthTokenRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken));
+        final Response oauthTokenResponse = client().performRequest(oauthTokenRequest);
+        assertOK(oauthTokenResponse);
+        final Map<String, Object> oauthTokenResponseMap = responseAsMap(oauthTokenResponse);
+        final String accessToken = (String) oauthTokenResponseMap.get("access_token");
+        assertThat(accessToken, not(nullValue()));
+        assertThat(oauthTokenResponseMap.get("expires_in"), not(nullValue()));
+        assertThat(oauthTokenResponseMap.get("refresh_token"), nullValue());
+
+        final Request authenticateRequest = new Request("GET", "_security/_authenticate");
+        authenticateRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken));
+        final Response authenticateResponse = client().performRequest(authenticateRequest);
+        assertOK(authenticateResponse);
+        final Map<String, Object> authenticateMap = responseAsMap(authenticateResponse);
+        assertThat(authenticateMap.get("username"), equalTo("elastic/kibana"));
+        assertThat(authenticateMap.get("authentication_type"), equalTo("token"));
+        assertThat(authenticateMap.get("metadata"), equalTo(Map.of("_elastic_service_account", true)));
+        assertThat(
+            authenticateMap.get("token"),
+            equalTo(Map.of("name", "oauth-token-1", "type", "_service_account_index", "managed_by", "elasticsearch"))
+        );
+    }
+
     public void testAuthenticateShouldDifferentiateBetweenNormalUserAndServiceAccount() throws IOException {
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(
@@ -933,7 +978,12 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseMap,
             hasEntry(
                 serviceAccountPrincipal,
-                Map.of("role_descriptor", XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())
+                Map.of(
+                    "managed_by",
+                    ServiceAccountManagedBy.ELASTIC.value(),
+                    "role_descriptor",
+                    XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2()
+                )
             )
         );
     }

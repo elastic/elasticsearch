@@ -20,7 +20,14 @@ public interface ServiceAccount {
 
     ServiceAccountId id();
 
-    RoleDescriptor roleDescriptor();
+    ServiceAccountAuthorization authorization();
+
+    default RoleDescriptor roleDescriptor() {
+        if (authorization() instanceof ServiceAccountAuthorization.Fixed fixed) {
+            return fixed.roleDescriptor();
+        }
+        throw new UnsupportedOperationException("managed service accounts do not expose inline role descriptors");
+    }
 
     User asUser();
 

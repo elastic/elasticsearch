@@ -422,6 +422,16 @@ public class AuthenticationTests extends ESTestCase {
         assertCanAccessResources(original3, token3);
         assertCanAccessResources(original3, token3.token());
         assertCanAccessResources(token3, token3.token());
+
+        Authentication original4 = AuthenticationTestHelper.builder().serviceAccount().build(false);
+        Authentication token4 = original4.token();
+        assertThat(token4.isServiceAccount(), is(true));
+        assertCanAccessResources(original4, token4);
+        assertCanAccessResources(original4, token4.token());
+        assertCanAccessResources(token4, token4.token());
+        assertCannotAccessResources(original, token4);
+        assertCannotAccessResources(original2, token4);
+        assertCannotAccessResources(original3, token4);
     }
 
     public void testRunAsAccessResourceOf() {

@@ -24,6 +24,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteManagedServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsNodesResponse;
@@ -64,6 +66,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -91,7 +94,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
                 threadPool.getThreadContext()
             ),
-            indexServiceAccountTokenStore
+            indexServiceAccountTokenStore,
+            null
         );
     }
 
@@ -382,11 +386,19 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 randomAlphaOfLengthBetween(3, 8)
             );
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "non-elastic service account",
+                new MockLog.UnseenEventExpectation(
+                    "non-elastic service account uses managed path",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
                     "only [elastic] service accounts are supported, but received [" + accountId1.asPrincipal() + "]"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "non-elastic service account unsupported without managed store",
+                    ServiceAccountService.class.getName(),
+                    Level.DEBUG,
+                    "managed service account [" + accountId1.asPrincipal() + "] is not supported in this configuration"
                 )
             );
             final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
@@ -408,10 +420,11 @@ public class ServiceAccountServiceTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             // Unknown elastic service name
-            final ServiceAccountId accountId2 = new ServiceAccountId(
-                ElasticServiceAccounts.NAMESPACE,
-                randomValueOtherThan("fleet-server", () -> randomAlphaOfLengthBetween(3, 8))
-            );
+            String unknownServiceName;
+            do {
+                unknownServiceName = randomAlphaOfLengthBetween(3, 8);
+            } while (ServiceAccountService.isBuiltInServiceAccountPrincipal(ElasticServiceAccounts.NAMESPACE + "/" + unknownServiceName));
+            final ServiceAccountId accountId2 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, unknownServiceName);
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "unknown elastic service name",
@@ -603,16 +616,95 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testCreateIndexTokenWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        when(request.getNamespace()).thenReturn(ElasticServiceAccounts.NAMESPACE);
+        when(request.getServiceName()).thenReturn("fleet-server");
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);
-        verify(indexServiceAccountTokenStore).createToken(eq(authentication), eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).createBuiltInToken(eq(authentication), eq(request), eq(future));
     }
 
     public void testDeleteIndexTokenWillDelegate() {
         final DeleteServiceAccountTokenRequest request = mock(DeleteServiceAccountTokenRequest.class);
+        when(request.getNamespace()).thenReturn(ElasticServiceAccounts.NAMESPACE);
+        when(request.getServiceName()).thenReturn("fleet-server");
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteIndexToken(request, future);
-        verify(indexServiceAccountTokenStore).deleteToken(eq(request), eq(future));
+        verify(indexServiceAccountTokenStore).deleteBuiltInToken(eq(request), eq(future));
+    }
+
+    public void testDeleteManagedAccountIsRejectedWhileTokensExist() {
+        // the store requires a live client and security index, so a mock stands in for the delete-guard interaction
+        final ManagedServiceAccountStore managedServiceAccountStore = mock(ManagedServiceAccountStore.class);
+        final ServiceAccountService service = newServiceWithManagedStore(managedServiceAccountStore);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(true);
+            return null;
+        }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
+
+        final PlainActionFuture<DeleteManagedServiceAccountResponse> future = new PlainActionFuture<>();
+        service.deleteManagedAccount(new DeleteManagedServiceAccountRequest("my-ns", "my-svc"), future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "cannot delete service account [my-ns/my-svc] because it has service tokens;"
+                    + " delete the tokens first, or set force=true to delete the account and leave its tokens in place"
+            )
+        );
+        verify(managedServiceAccountStore, never()).deleteAccount(any(), any(), any());
+    }
+
+    public void testDeleteManagedAccountProceedsWhenNoTokensExist() {
+        final ManagedServiceAccountStore managedServiceAccountStore = mock(ManagedServiceAccountStore.class);
+        final ServiceAccountService service = newServiceWithManagedStore(managedServiceAccountStore);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(false);
+            return null;
+        }).when(indexServiceAccountTokenStore).hasTokensFor(any(), any());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            listener.onResponse(true);
+            return null;
+        }).when(managedServiceAccountStore).deleteAccount(any(), any(), any());
+
+        final PlainActionFuture<DeleteManagedServiceAccountResponse> future = new PlainActionFuture<>();
+        service.deleteManagedAccount(new DeleteManagedServiceAccountRequest("my-ns", "my-svc"), future);
+        assertThat(future.actionGet().isFound(), is(true));
+    }
+
+    public void testForceDeleteManagedAccountSkipsTokenCheck() {
+        final ManagedServiceAccountStore managedServiceAccountStore = mock(ManagedServiceAccountStore.class);
+        final ServiceAccountService service = newServiceWithManagedStore(managedServiceAccountStore);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            listener.onResponse(true);
+            return null;
+        }).when(managedServiceAccountStore).deleteAccount(any(), any(), any());
+
+        final DeleteManagedServiceAccountRequest request = new DeleteManagedServiceAccountRequest("my-ns", "my-svc");
+        request.setForce(true);
+        final PlainActionFuture<DeleteManagedServiceAccountResponse> future = new PlainActionFuture<>();
+        service.deleteManagedAccount(request, future);
+        assertThat(future.actionGet().isFound(), is(true));
+        verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
+    }
+
+    private ServiceAccountService newServiceWithManagedStore(ManagedServiceAccountStore managedServiceAccountStore) {
+        return new ServiceAccountService(
+            client,
+            new CompositeServiceAccountTokenStore(
+                List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+                threadPool.getThreadContext()
+            ),
+            indexServiceAccountTokenStore,
+            managedServiceAccountStore
+        );
     }
 
     public void testFindTokensFor() {

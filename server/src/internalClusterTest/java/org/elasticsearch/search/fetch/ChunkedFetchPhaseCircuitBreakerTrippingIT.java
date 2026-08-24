@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -336,7 +337,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
 
     public void testCircuitBreakerTripsOnDataNodeSourceDuringStreamingFetch() throws Exception {
         String dataNode = internalCluster().startNode(
-            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", "2mb").build()
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", "4mb").build()
         );
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(
             Settings.builder().put("indices.breaker.request.limit", "200mb").build()
@@ -347,7 +348,7 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
             .setSource(
                 jsonBuilder().startObject()
                     .field(SORT_FIELD, 0)
-                    .field("huge_field", Strings.repeat("x", 5_000_000))  // 5MB source, exceeds the 2MB data node limit
+                    .field("huge_field", Strings.repeat("x", 10_000_000))  // 10MB source, well past the 4MB data node limit
                     .endObject()
             )
             .get();
@@ -355,6 +356,14 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         long breakerBefore = getRequestBreakerUsed(dataNode);
+        assertThat(
+            "baseline data node request breaker usage should leave ample headroom below the low limit, otherwise "
+                + "an unrelated allocation -- not the streamed source -- could trip the breaker and fail this test "
+                + "for the wrong reason; current usage: "
+                + breakerBefore,
+            breakerBefore,
+            lessThan(1_000_000L)
+        );
 
         ElasticsearchException exception = null;
         SearchResponse resp = null;

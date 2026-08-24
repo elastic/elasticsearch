@@ -135,11 +135,11 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         var function = FunctionFactory.create(config);
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
-        var uiamClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
+        var uiamClient = cloudCredentialManager.wrapWithUiamIfPresent(client, request.cloudCredential());
         // Stamp the validation search + field_caps requests with the transform's trace headers (unless already set,
         // or disabled via xpack.transform.trace_headers_enabled) so they can be attributed like the data-plane requests.
-        var parentClient = TransformTraceHeaderClient.create(uiamClient, clusterService, config.getId());
+        var tracedClient = TransformTraceHeaderClient.create(uiamClient, clusterService, config.getId());
+        var parentClient = new ParentTaskAssigningClient(tracedClient, parentTaskId);
         // These validation searches run under the caller's live credential (not the stored config
         // headers). Scope cross-project resolution to whether that credential can actually fan out.
         var sourceIndicesOptions = config.getSource().indicesOptions(request.cloudCredential() != null);

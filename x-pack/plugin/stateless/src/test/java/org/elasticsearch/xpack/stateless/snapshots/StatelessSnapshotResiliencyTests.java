@@ -1092,7 +1092,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         translogConfig.getBigArrays(),
                         translogConfig.getBufferSize(),
                         translogConfig.getDiskIoBufferPool(),
-                        (operation, seqNo, location) -> translogReplicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                        translogReplicator.listenerFor(translogConfig.getShardId()),
                         false // translog is replicated to the object store, no need fsync that
                     );
 

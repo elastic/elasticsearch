@@ -58,6 +58,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
@@ -104,6 +105,7 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -182,10 +184,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
@@ -3276,68 +3276,116 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
-     * {@link FetchFieldsContext}, and silently skips unmapped fields and fields whose vector type does not
-     * match the requested one.
+     * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into the appropriate context
+     * ({@link FetchFieldsContext} or {@link FetchDocValuesContext}), and silently skips unmapped fields and fields
+     * whose vector type does not match the requested one.
      */
     public void testFetchEmbeddingsFields() throws IOException {
         createEmbeddingsTestIndex("emb_test");
+        var df = new FieldAndFormat("dense", null);
+        var sf = new FieldAndFormat("sparse", null);
 
-        // No embeddings fields set — fetchFieldsContext should remain null.
-        assertThat(resolveFetchFields("emb_test", source -> {}), nullValue());
+        // No embeddings fields set — both contexts should remain null.
+        assertThat(resolveFetchContexts("emb_test", source -> {}), equalTo(new ResolvedFetchContexts(null, null)));
 
-        // dense_vector with no vector type → resolved to FieldAndFormat(dense, null).
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), contains(new FieldAndFormat("dense", null)));
+        // dense_vector with no vector type → resolved into docvalue_fields (not fetch fields).
+        assertThat(
+            resolveFetchContexts("emb_test", s -> s.fetchEmbeddingsField("dense", null)),
+            equalTo(new ResolvedFetchContexts(null, List.of(df)))
+        );
 
         // dense_vector with explicit DENSE_VECTOR type → same result.
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
-            contains(new FieldAndFormat("dense", null))
+            resolveFetchContexts("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(null, List.of(df)))
         );
 
-        // sparse_vector with explicit SPARSE_VECTOR type → resolved.
+        // sparse_vector with explicit SPARSE_VECTOR type → resolved into fetch fields (not doc values).
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
-            contains(new FieldAndFormat("sparse", null))
+            resolveFetchContexts("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(List.of(sf), null))
         );
 
-        // dense_vector field requested as SPARSE_VECTOR → type mismatch, skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)), nullValue());
-
-        // keyword field produces no embeddings → skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("keyword", null)), nullValue());
-
-        // Unmapped field → skipped, no context.
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
-
-        // Mix: unmapped skipped, dense resolved → only dense in result.
+        // dense_vector field requested as SPARSE_VECTOR → type mismatch, skipped, both contexts null.
         assertThat(
-            resolveFetchFields(
+            resolveFetchContexts("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(null, null))
+        );
+
+        // keyword field produces no embeddings → skipped, both contexts null.
+        assertThat(
+            resolveFetchContexts("emb_test", s -> s.fetchEmbeddingsField("keyword", null)),
+            equalTo(new ResolvedFetchContexts(null, null))
+        );
+
+        // Unmapped field → skipped, both contexts null.
+        assertThat(
+            resolveFetchContexts("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)),
+            equalTo(new ResolvedFetchContexts(null, null))
+        );
+
+        // Mix: unmapped skipped, dense resolved → only dense in docvalue_fields.
+        assertThat(
+            resolveFetchContexts(
                 "emb_test",
                 s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
             ),
-            contains(new FieldAndFormat("dense", null))
+            equalTo(new ResolvedFetchContexts(null, List.of(df)))
         );
     }
 
     /**
      * Tests that when both an explicit {@code fields} request and embeddings fields are present,
-     * {@code SearchService#parseSource} prepends the resolved embeddings fields before the user-supplied
-     * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped.
+     * {@code SearchService#parseSource} correctly routes each embeddings field into the appropriate context,
+     * prepends resolved embeddings before the user-supplied fields in the same context, and leaves the
+     * pre-existing context unchanged when all embeddings fields are skipped.
      */
     public void testFetchEmbeddingsFieldsWithFetchFields() throws IOException {
         createEmbeddingsTestIndex("emb_test");
+        var kf = new FieldAndFormat("keyword", null);
+        var df = new FieldAndFormat("dense", null);
+        var sf = new FieldAndFormat("sparse", null);
 
-        // embeddings field resolved → placed before user fields in the merged list.
+        // sparse embeddings resolved → placed before user fields in the fetch-fields context; doc-values context is null.
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
-            contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
+            resolveFetchContexts("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(List.of(sf, kf), null))
         );
 
-        // embeddings field skipped (type mismatch) → pre-existing fetchFieldsContext is left intact.
+        // sparse embeddings skipped (type mismatch) → pre-existing fetch-fields context is left intact.
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
-            contains(new FieldAndFormat("keyword", null))
+            resolveFetchContexts("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("sparse", VectorType.DENSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(List.of(kf), null))
+        );
+
+        // dense embeddings resolved → placed in doc-values context; fetch-fields context carries only the user field.
+        assertThat(
+            resolveFetchContexts("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(List.of(kf), List.of(df)))
+        );
+    }
+
+    /**
+     * Tests that when both an explicit {@code docvalue_fields} request and embeddings fields that resolve to
+     * doc values are present, {@code SearchService#parseSource} prepends the resolved embeddings doc-value fields
+     * before the user-supplied ones, and leaves the pre-existing doc-values context unchanged when all embeddings
+     * fields are skipped.
+     */
+    public void testFetchEmbeddingsFieldsWithDocValueFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+        var kf = new FieldAndFormat("keyword", null);
+        var df = new FieldAndFormat("dense", null);
+
+        // dense embeddings resolved → placed before user doc-value fields in the merged list; fetch-fields context is null.
+        assertThat(
+            resolveFetchContexts("emb_test", s -> s.docValueField("keyword", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(null, List.of(df, kf)))
+        );
+
+        // dense embeddings skipped (type mismatch) → pre-existing doc-values context is left intact.
+        assertThat(
+            resolveFetchContexts("emb_test", s -> s.docValueField("keyword", null).fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
+            equalTo(new ResolvedFetchContexts(null, List.of(kf)))
         );
     }
 
@@ -3378,9 +3426,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     /**
      * Creates a search context for {@code indexName} with a source configured by {@code sourceConsumer},
      * and returns the fields that {@code SearchService#parseSource} placed in the
-     * {@link FetchFieldsContext}, or {@code null} when no fetch-fields context was set.
+     * {@link FetchFieldsContext} and {@link FetchDocValuesContext}. Either list is {@code null} when the
+     * corresponding context was not set.
      */
-    private List<FieldAndFormat> resolveFetchFields(String indexName, Consumer<SearchSourceBuilder> sourceConsumer) throws IOException {
+    private ResolvedFetchContexts resolveFetchContexts(String indexName, Consumer<SearchSourceBuilder> sourceConsumer) throws IOException {
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
@@ -3406,7 +3455,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
         ) {
             FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
-            return fetchFieldsContext == null ? null : fetchFieldsContext.fields();
+            FetchDocValuesContext docValuesContext = context.docValuesContext();
+            return new ResolvedFetchContexts(
+                fetchFieldsContext == null ? null : fetchFieldsContext.fields(),
+                docValuesContext == null ? null : docValuesContext.fields()
+            );
         }
     }
 
@@ -3416,6 +3469,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         List<String> fieldValues = fieldValue instanceof List ? (List<String>) fieldValue : List.of(String.valueOf(fieldValue));
         return fieldValues;
     }
+
+    /**
+     * Holds the resolved fetch-fields and doc-values-fields contexts produced by {@code SearchService#parseSource}.
+     * Either list may be {@code null} when the corresponding context was not set.
+     */
+    private record ResolvedFetchContexts(@Nullable List<FieldAndFormat> fetchFields, @Nullable List<FieldAndFormat> docValueFields) {}
 
     private static class TestRewriteCounterQueryBuilder extends LeafQueryBuilder<TestRewriteCounterQueryBuilder> {
 

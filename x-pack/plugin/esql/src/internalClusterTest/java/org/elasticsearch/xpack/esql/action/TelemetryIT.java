@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.ActionListener;
@@ -39,23 +38,11 @@ import static org.hamcrest.Matchers.is;
 @SuiteScopeTestCase
 public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
-    record Test(
-        String query,
-        Map<String, Integer> expectedCommands,
-        Map<String, Integer> expectedFunctions,
-        Map<String, Integer> expectedSettings,
-        boolean success
-    ) {
-        Test(String query, Map<String, Integer> expectedCommands, Map<String, Integer> expectedFunctions, boolean success) {
-            this(query, expectedCommands, expectedFunctions, Map.of(), success);
-        }
-    }
-
-    private final Test testCase;
-
-    public TelemetryIT(@Name("TestCase") Test test) {
-        this.testCase = test;
-    }
+    private final String query;
+    private final Map<String, Integer> expectedCommands;
+    private final Map<String, Integer> expectedFunctions;
+    private final Map<String, Integer> expectedSettings;
+    private final boolean success;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
@@ -287,7 +274,21 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         Map<String, Integer> expectedSettings,
         boolean success
     ) {
-        return new Object[] { new Test(query, expectedCommands, expectedFunctions, expectedSettings, success) };
+        return new Object[] { query, expectedCommands, expectedFunctions, expectedSettings, success };
+    }
+
+    public TelemetryIT(
+        String query,
+        Map<String, Integer> expectedCommands,
+        Map<String, Integer> expectedFunctions,
+        Map<String, Integer> expectedSettings,
+        boolean success
+    ) {
+        this.query = query;
+        this.expectedCommands = expectedCommands;
+        this.expectedFunctions = expectedFunctions;
+        this.expectedSettings = expectedSettings;
+        this.success = success;
     }
 
     @Override
@@ -301,7 +302,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMetrics() throws Exception {
-        if (testCase.query().contains("LOOKUP JOIN lookup_idx ON host_left == host")) {
+        if (query.contains("LOOKUP JOIN lookup_idx ON host_left == host")) {
             assumeTrue(
                 "requires LOOKUP JOIN ON boolean expression capability",
                 EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
@@ -318,7 +319,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         try {
             int successIterations = randomInt(10);
             for (int i = 0; i < successIterations; i++) {
-                EsqlQueryRequest request = executeQuery(testCase.query);
+                EsqlQueryRequest request = executeQuery(query);
                 CountDownLatch latch = new CountDownLatch(1);
 
                 final long iteration = i + 1;
@@ -326,27 +327,27 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     try {
                         // test total commands used
                         final List<Measurement> commandMeasurementsAll = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS_ALL);
-                        assertAllUsages(testCase.expectedCommands, commandMeasurementsAll, iteration, testCase.success);
+                        assertAllUsages(expectedCommands, commandMeasurementsAll, iteration, success);
 
                         // test num of queries using a command
                         final List<Measurement> commandMeasurements = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS);
-                        assertUsageInQuery(testCase.expectedCommands, commandMeasurements, iteration, testCase.success);
+                        assertUsageInQuery(expectedCommands, commandMeasurements, iteration, success);
 
                         // test total functions used
                         final List<Measurement> functionMeasurementsAll = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS_ALL);
-                        assertAllUsages(testCase.expectedFunctions, functionMeasurementsAll, iteration, testCase.success);
+                        assertAllUsages(expectedFunctions, functionMeasurementsAll, iteration, success);
 
                         // test number of queries using a function
                         final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
-                        assertUsageInQuery(testCase.expectedFunctions, functionMeasurements, iteration, testCase.success);
+                        assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
 
                         // test total settings used
                         final List<Measurement> settingMeasurementsAll = measurements(plugin, PlanTelemetryManager.SETTING_METRICS_ALL);
-                        assertAllUsages(testCase.expectedSettings, settingMeasurementsAll, iteration, testCase.success);
+                        assertAllUsages(expectedSettings, settingMeasurementsAll, iteration, success);
 
                         // test number of queries using a setting
                         final List<Measurement> settingMeasurements = measurements(plugin, PlanTelemetryManager.SETTING_METRICS);
-                        assertUsageInQuery(testCase.expectedSettings, settingMeasurements, iteration, testCase.success);
+                        assertUsageInQuery(expectedSettings, settingMeasurements, iteration, success);
                     } finally {
                         latch.countDown();
                     }

@@ -26,7 +26,7 @@ import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 /**
  * Interface for KNN queries that support post-filtering with retry.
  * Implementations differ in what {@link #k()} means, so the orchestrator never infers the candidate
- * pool from it: see {@link #postFilterCandidatePoolSize(List)} for the pool the orchestrator must fill and
+ * pool from it: see {@link #postFilterExpectedBaseQueryDocMatches(List)} for the pool the orchestrator must fill and
  * {@link #finalizeTopK} for who owns the final (exact) scoring pass.
  */
 public interface PostFilterableKnnQuery {
@@ -199,7 +199,7 @@ public interface PostFilterableKnnQuery {
      * persisted per segment, so it can only be had by resolving the segments that will actually be searched;
      * configuration alone does not know it.
      */
-    default int postFilterCandidatePoolSize(List<LeafReaderContext> leaves) throws IOException {
+    default int postFilterExpectedBaseQueryDocMatches(List<LeafReaderContext> leaves) throws IOException {
         return k();
     }
 

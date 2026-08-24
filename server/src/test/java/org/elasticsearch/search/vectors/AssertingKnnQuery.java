@@ -116,7 +116,8 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     private final int numCandsParam;
     private final Query filter;
     private final float postFilterScale;
-    // postFilterCandidatePoolSize() = ceil(k * poolScale); 1.0f keeps k() == postFilterCandidatePoolSize(), the HNSW convention.
+    // postFilterExpectedBaseQueryDocMatches() = ceil(k * poolScale); 1.0f keeps k() == postFilterExpectedBaseQueryDocMatches(), the HNSW
+    // convention.
     private final float poolScale;
     private final PostFilterMeta postFilterMeta;
     private final BitSetProducer parentsFilter;
@@ -128,7 +129,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     /**
-      * Variant that decouples {@link #postFilterCandidatePoolSize(List)} from {@link #k()}, as IVF does by expanding its own
+      * Variant that decouples {@link #postFilterExpectedBaseQueryDocMatches(List)} from {@link #k()}, as IVF does by expanding its own
       * pool.
       */
     AssertingKnnQuery(
@@ -286,7 +287,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     @Override
-    public int postFilterCandidatePoolSize(List<LeafReaderContext> leaves) {
+    public int postFilterExpectedBaseQueryDocMatches(List<LeafReaderContext> leaves) {
         return Math.max(kParam, (int) Math.ceil(kParam * poolScale));
     }
 

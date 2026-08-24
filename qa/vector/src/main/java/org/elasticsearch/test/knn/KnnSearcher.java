@@ -923,7 +923,7 @@ public class KnnSearcher {
             );
         }
         // PostFilterKnnQuery takes the FINAL result count; the candidate pool it aims for comes from
-        // PostFilterableKnnQuery#postFilterCandidatePoolSize (k for HNSW, which was pre-oversampled above; the internal
+        // PostFilterableKnnQuery#postFilterExpectedBaseQueryDocMatches (k for HNSW, which was pre-oversampled above; the internal
         // expansion for IVF). Passing overSampledTopK here would make the orchestrator demand an
         // already-oversampled count of filter survivors before it accepted the post-filter result.
         if (searchParameters.postFilter() && filterQuery != null && knnQuery instanceof PostFilterableKnnQuery pfKnnQuery) {

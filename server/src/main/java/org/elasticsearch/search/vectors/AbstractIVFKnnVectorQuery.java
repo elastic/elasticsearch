@@ -49,7 +49,7 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
  * must pass the user's {@code k}, never a pre-oversampled one, because this class expands the candidate pool
  * itself from the per-segment oversample resolved by {@link IvfQueryConfigResolver#resolve}. The pool that
- * expansion produces is reported by {@link #postFilterCandidatePoolSize(List)}.
+ * expansion produces is reported by {@link #postFilterExpectedBaseQueryDocMatches(List)}.
  */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
@@ -306,7 +306,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate);
 
     @Override
-    public int postFilterCandidatePoolSize(List<LeafReaderContext> leaves) throws IOException {
+    public int postFilterExpectedBaseQueryDocMatches(List<LeafReaderContext> leaves) throws IOException {
         float maxOversample = Float.NaN;
         for (LeafReaderContext context : leaves) {
             FieldInfo fieldInfo = context.reader().getFieldInfos().fieldInfo(field);

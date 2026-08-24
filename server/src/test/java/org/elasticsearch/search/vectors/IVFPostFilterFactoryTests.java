@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Contract tests for the {@link PostFilterableKnnQuery} factory methods on the IVF query tree
- * ({@code createPostFilterDelegate}, {@code createRetryQuery}, {@code postFilterCandidatePoolSize}), exercising the
+ * ({@code createPostFilterDelegate}, {@code createRetryQuery}, {@code postFilterExpectedBaseQueryDocMatches}), exercising the
  * {@code withParams} respawn wiring directly without a diskbbq index so they pin the per-subtype
  * reconstruction (type, filter, scaled k/numCands, slice range, parents filter) independently of codec
  * behavior. End-to-end search behavior is covered by the diskbbq integration suite.
@@ -169,15 +169,15 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     }
 
     /**
-     * With no leaf to resolve, {@code postFilterCandidatePoolSize} falls back to what configuration declares - the
+     * With no leaf to resolve, {@code postFilterExpectedBaseQueryDocMatches} falls back to what configuration declares - the
      * query-time override if there is one, otherwise the mapping default
      */
     public void testCandidatePoolSizeFallsBackToDeclaredOversample() throws IOException {
-        assertEquals("oversample 1.0 -> pool is k", K, plain().postFilterCandidatePoolSize(List.of()));
+        assertEquals("oversample 1.0 -> pool is k", K, plain().postFilterExpectedBaseQueryDocMatches(List.of()));
 
         IvfQueryConfigResolver oversampling = IvfQueryConfigResolver.from(false, false, 1, 3.0f, null);
         IVFKnnFloatVectorQuery q = new IVFKnnFloatVectorQuery(FIELD, QUERY.clone(), K, NUM_CANDS, filter(), VISIT_RATIO, oversampling);
-        assertEquals("oversample 3.0 -> pool is ceil(k*3)", 30, q.postFilterCandidatePoolSize(List.of()));
+        assertEquals("oversample 3.0 -> pool is ceil(k*3)", 30, q.postFilterExpectedBaseQueryDocMatches(List.of()));
 
         IvfQueryConfigResolver queryOverride = IvfQueryConfigResolver.from(false, false, 1, 3.0f, 2.0f);
         IVFKnnFloatVectorQuery overridden = new IVFKnnFloatVectorQuery(
@@ -189,7 +189,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             VISIT_RATIO,
             queryOverride
         );
-        assertEquals("query-time oversample wins", 20, overridden.postFilterCandidatePoolSize(List.of()));
+        assertEquals("query-time oversample wins", 20, overridden.postFilterExpectedBaseQueryDocMatches(List.of()));
     }
 
     public void testCandidatePoolSizePrefersTheSegmentOversample() throws IOException {
@@ -209,10 +209,10 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
             writer.addDocument(doc);
             writer.commit();
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                assertEquals("the segment's own oversample wins", 15, query.postFilterCandidatePoolSize(reader.leaves()));
+                assertEquals("the segment's own oversample wins", 15, query.postFilterExpectedBaseQueryDocMatches(reader.leaves()));
             }
         }
-        assertEquals("with nothing to resolve, configuration is all there is", 30, query.postFilterCandidatePoolSize(List.of()));
+        assertEquals("with nothing to resolve, configuration is all there is", 30, query.postFilterExpectedBaseQueryDocMatches(List.of()));
     }
 
     public void testDelegateKIgnoresTheRescoreOversample() {

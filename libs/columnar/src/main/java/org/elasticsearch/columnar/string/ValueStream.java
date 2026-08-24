@@ -249,6 +249,8 @@ public final class ValueStream {
         private long cachedBlock = -1;
         private int[] starts;
         private int[] lengths;
+        // Cursor for the readVInt(byte[], int[]) overload, reused across block decodes to avoid allocation.
+        private final int[] cursor = new int[1];
 
         Reader(ChunkedBytesReader chunks, LongValues offsets, long numValues, int valuesPerBlock) {
             this.chunks = chunks;
@@ -292,13 +294,12 @@ public final class ValueStream {
             final long first = blockIndex * valuesPerBlock;
             final int count = (int) Math.min(valuesPerBlock, numValues - first);
             if (width == INLINE) {
-                int position = block.offset + 1;
+                cursor[0] = block.offset + 1;
                 for (int i = 0; i < count; i++) {
-                    final int length = ByteArrayInts.readVInt(bytes, position);
-                    position += ByteArrayInts.vIntLength(length);
-                    starts[i] = position;
+                    final int length = ByteArrayInts.readVInt(bytes, cursor);
+                    starts[i] = cursor[0];
                     lengths[i] = length;
-                    position += length;
+                    cursor[0] += length;
                 }
                 return count;
             }

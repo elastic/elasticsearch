@@ -79,7 +79,7 @@ public class ByteArrayIntsTests extends ESTestCase {
     }
 
     /** A vint is written at an offset inside a shared scratch buffer, so it must not assume it starts at zero. */
-    public void testVIntAtAnOffset() {
+    public void testVIntAtAnOffset() throws IOException {
         final byte[] buffer = new byte[64];
         final int offset = between(1, 32);
         final int value = randomNonNegativeInt();
@@ -87,6 +87,38 @@ public class ByteArrayIntsTests extends ESTestCase {
         assertEquals("bytes written", ByteArrayInts.vIntLength(value), written);
         assertEquals("value", value, ByteArrayInts.readVInt(buffer, offset));
         assertEquals("nothing written before the offset", 0, buffer[offset - 1]);
+    }
+
+    /**
+     * A vint with a continuation bit on the fifth byte is malformed; both overloads must throw rather than
+     * run off the array or silently return a wrong value.
+     */
+    public void testReadVIntRejectsMalformedInput() {
+        // All five bytes have the continuation bit set — no valid vint, ever.
+        final byte[] bad = new byte[] { (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, 0 };
+        assertThrows(IOException.class, () -> ByteArrayInts.readVInt(bad, 0));
+        assertThrows(IOException.class, () -> ByteArrayInts.readVInt(bad, new int[1]));
+    }
+
+    /**
+     * The cursor overload reads the same value as the offset overload and leaves the cursor at the next
+     * position, so callers in a decode loop get the advance without a separate {@code vIntLength} call.
+     */
+    public void testCursorOverloadAdvancesPosition() throws IOException {
+        final byte[] buffer = new byte[ByteArrayInts.MAX_VINT_BYTES * 3];
+        final int[] values = new int[3];
+        int written = 0;
+        for (int i = 0; i < 3; i++) {
+            values[i] = INT_BOUNDARIES[between(0, INT_BOUNDARIES.length - 1)];
+            written += ByteArrayInts.writeVInt(values[i], buffer, written);
+        }
+        final int[] pos = new int[1];
+        for (int i = 0; i < 3; i++) {
+            final int before = pos[0];
+            final int value = ByteArrayInts.readVInt(buffer, pos);
+            assertEquals("value " + i, values[i], value);
+            assertEquals("advance " + i, ByteArrayInts.vIntLength(values[i]), pos[0] - before);
+        }
     }
 
     /** Lengths are decoded by stepping over each vint, so a wrong width silently shifts every later value. */

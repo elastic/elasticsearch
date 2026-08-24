@@ -9,6 +9,8 @@
 
 package org.elasticsearch.columnar.substrate;
 
+import java.io.IOException;
+
 /**
  * Integer encodings over {@code byte[]}, in the two forms this codec writes into buffers it owns:
  * <b>variable-length</b> (a vint or vlong, seven bits per byte, high bit continuing) and <b>fixed-width</b>
@@ -21,9 +23,10 @@ package org.elasticsearch.columnar.substrate;
  * one place — every byte written here is read back by Lucene's {@code readVInt}/{@code readVLong} somewhere,
  * so a divergence would be a silent corruption rather than a compile error.
  *
- * <p>Nothing here bounds-checks or validates: a truncated or corrupt buffer is caught by the segment checksum,
- * and these sit in per-value loops. Callers size their buffers with {@link #MAX_VINT_BYTES},
- * {@link #MAX_VLONG_BYTES} or {@link #vIntLength}.
+ * <p>Callers size their buffers with {@link #MAX_VINT_BYTES}, {@link #MAX_VLONG_BYTES} or
+ * {@link #vIntLength}. Reads throw {@link IOException} on a malformed vint rather than running off the
+ * array, consistent with Lucene's own behaviour; truncated or otherwise corrupt data is also caught by the
+ * segment checksum before it reaches these methods.
  */
 public final class ByteArrayInts {
 
@@ -65,17 +68,43 @@ public final class ByteArrayInts {
         return at - offset;
     }
 
-    /** Reads the vint at {@code offset}. Advance past it with {@link #vIntLength} on the result. */
-    public static int readVInt(byte[] src, int offset) {
-        int value = 0;
-        int shift = 0;
-        byte b;
-        do {
-            b = src[offset++];
+    /**
+     * Reads the vint at {@code offset}. Throws {@link IOException} on a value that is too wide to be a valid
+     * vint rather than running off the array.
+     *
+     * <p>Prefer {@link #readVInt(byte[], int[])} when the caller also needs to advance past the vint, to
+     * avoid a separate {@link #vIntLength} call that re-derives what the read already had in hand.
+     */
+    public static int readVInt(byte[] src, int offset) throws IOException {
+        int value = 0, shift = 0;
+        for (int i = 0; i < MAX_VINT_BYTES; i++) {
+            final byte b = src[offset++];
             value |= (b & 0x7F) << shift;
             shift += 7;
-        } while ((b & 0x80) != 0);
-        return value;
+            if ((b & 0x80) == 0) {
+                return value;
+            }
+        }
+        throw new IOException("Invalid vInt detected (too many bytes)");
+    }
+
+    /**
+     * Reads the vint at {@code pos[0]} and advances {@code pos[0]} past it, so the caller does not need a
+     * separate {@link #vIntLength} call. The cursor is typically a single-element array held as a field and
+     * reused across calls to avoid allocation in hot decode loops.
+     */
+    public static int readVInt(byte[] src, int[] pos) throws IOException {
+        int offset = pos[0], value = 0, shift = 0;
+        for (int i = 0; i < MAX_VINT_BYTES; i++) {
+            final byte b = src[offset++];
+            value |= (b & 0x7F) << shift;
+            shift += 7;
+            if ((b & 0x80) == 0) {
+                pos[0] = offset;
+                return value;
+            }
+        }
+        throw new IOException("Invalid vInt detected (too many bytes)");
     }
 
     /**

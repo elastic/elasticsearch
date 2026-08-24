@@ -37,7 +37,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.inference.InferenceSettings.DENSE_VECTOR_ROW_LIMIT_SETTING;
 
 /**
  * The {@code DENSE_VECTOR} command generates a {@code dense_vector} embedding column per input field.
@@ -64,11 +63,6 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
         LogicalPlan.class,
         "DenseVector",
         DenseVector::new
-    );
-
-    private static final Literal DEFAULT_ROW_LIMIT = Literal.integer(
-        Source.EMPTY,
-        DENSE_VECTOR_ROW_LIMIT_SETTING.getDefault(Settings.EMPTY)
     );
 
     /** Input fields to embed (unresolved names before analysis, resolved attributes after). */
@@ -105,7 +99,7 @@ public class DenseVector extends InferencePlan<DenseVector> implements Telemetry
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
+            in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.getTransportVersion().supports(ESQL_INFERENCE_ACCEPT_TIMEOUT) ? in.readOptionalTimeValue() : null

@@ -647,7 +647,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         ServiceAccountService.getRoleDescriptor(auth2, future2);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
-        assertThat(e.getMessage(), containsString("cannot load role for service account [" + username + "] - no such service account"));
+        assertThat(
+            e.getMessage(),
+            containsString("cannot load role for built-in service account [" + username + "] - no such service account")
+        );
     }
 
     /**

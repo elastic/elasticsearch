@@ -306,14 +306,16 @@ public class ServiceAccountService {
     public static void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getEffectiveSubject().getUser().principal();
-        getRoleDescriptorForPrincipal(principal, listener);
+        getRoleDescriptorForBuiltInPrincipal(principal, listener);
     }
 
-    public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
+    public static void getRoleDescriptorForBuiltInPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final BuiltInServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
-                new ElasticsearchSecurityException("cannot load role for service account [" + principal + "] - no such service account")
+                new ElasticsearchSecurityException(
+                    "cannot load role for built-in service account [" + principal + "] - no such service account"
+                )
             );
             return;
         }

@@ -96,8 +96,10 @@ public record IvfSegmentConfig(
          */
         public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction) {
             validateBitsPerDim(bitsPerDim);
-            if (queryBitsPerDim < 0) {
-                throw new IllegalArgumentException("ASH queryBitsPerDim must be >= 0 (0 for float scoring path), got: " + queryBitsPerDim);
+            if (queryBitsPerDim < 0 || queryBitsPerDim > 8) {
+                throw new IllegalArgumentException(
+                    "ASH queryBitsPerDim must be between 0 and 8 (0 for float scoring path), got: " + queryBitsPerDim
+                );
             }
             if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
                 throw new IllegalArgumentException("ASH projectedDimsFraction must be in (0, 1], got: " + projectedDimsFraction);

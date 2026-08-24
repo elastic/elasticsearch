@@ -137,7 +137,7 @@ its ID in the `WITH` clause. Refer to
 [semantic reranking](docs-content://solutions/search/ranking/semantic-reranking.md)
 for a full list of supported reranking models.
 
-In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md), `RERANK` runs on
+In a [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md#ccq-inference-endpoints), `RERANK` runs on
 the cluster that receives the query, so the inference endpoint must exist on that cluster even when
 the documents come from a remote.
 

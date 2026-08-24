@@ -65,7 +65,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean trackReaderKey, boolean loadTimestampRange) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean trackReaderKey, boolean loadTimestampRange, boolean prewarmIdLookups)
+        throws IOException {
         final Terms terms = reader.terms(IdFieldMapper.NAME);
         if (terms == null) {
             // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
@@ -85,6 +86,19 @@ final class PerThreadIDVersionAndSeqNoLookup {
             }
             termsEnum = null;
         } else {
+            if (prewarmIdLookups) {
+                // Warm the .tim blocks for the min/max terms so the first real lookup on this segment does not
+                // block on a cold read. The IOBooleanSupplier returned by prepareSeekExact is intentionally
+                // discarded, the prefetch is a fire-and-forget hint.
+                final BytesRef min = terms.getMin();
+                final BytesRef max = terms.getMax();
+                if (min != null) {
+                    terms.iterator().prepareSeekExact(min);
+                }
+                if (max != null) {
+                    terms.iterator().prepareSeekExact(max);
+                }
+            }
             termsEnum = terms.iterator();
         }
         if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
@@ -120,8 +134,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.maxTimestamp = maxTimestamp;
     }
 
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean loadTimestampRange) throws IOException {
-        this(reader, true, loadTimestampRange);
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, boolean loadTimestampRange, boolean prewarmIdLookups) throws IOException {
+        this(reader, true, loadTimestampRange, prewarmIdLookups);
     }
 
     /** Return null if id is not found.

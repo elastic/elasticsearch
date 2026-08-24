@@ -1,3 +1,4 @@
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -1085,7 +1086,8 @@ public class InternalEngine extends Engine {
                 final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
                     searcher.getIndexReader(),
                     op.uid(),
-                    loadSeqNo
+                    loadSeqNo,
+                    shouldPrewarmIdLookups()
                 );
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
@@ -1118,10 +1120,11 @@ public class InternalEngine extends Engine {
                         op.uid(),
                         op.id(),
                         loadSeqNo,
-                        useTsdbSyntheticId
+                        useTsdbSyntheticId,
+                        shouldPrewarmIdLookups()
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo, shouldPrewarmIdLookups());
                 }
             });
             if (docIdAndVersion != null) {
@@ -1804,10 +1807,17 @@ public class InternalEngine extends Engine {
                         luceneIds,
                         useTsdbSyntheticId,
                         luceneLoadSeqNo,
-                        luceneResults
+                        luceneResults,
+                        shouldPrewarmIdLookups()
                     );
                 } else {
-                    VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
+                    VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(
+                        reader,
+                        luceneUids,
+                        luceneLoadSeqNo,
+                        luceneResults,
+                        shouldPrewarmIdLookups()
+                    );
                 }
                 return null;
             });

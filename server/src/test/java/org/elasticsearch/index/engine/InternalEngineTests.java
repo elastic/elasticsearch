@@ -1752,7 +1752,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new BytesRef("1"), false));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new BytesRef("1"), false, false));
                 }
             }
         }
@@ -5061,11 +5061,16 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            DocIdAndSeqNo withSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), true);
+            DocIdAndSeqNo withSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), true, false);
             assertNotNull(withSeqNo);
             assertThat(withSeqNo.seqNo, greaterThanOrEqualTo(0L));
 
-            DocIdAndSeqNo withoutSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), false);
+            DocIdAndSeqNo withoutSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
+                searcher.getIndexReader(),
+                Uid.encodeId("1"),
+                false,
+                false
+            );
             assertNotNull(withoutSeqNo);
             assertThat(withoutSeqNo.seqNo, equalTo(UNASSIGNED_SEQ_NO));
             assertThat(withoutSeqNo.docId, equalTo(withSeqNo.docId));

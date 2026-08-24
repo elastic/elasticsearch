@@ -969,7 +969,12 @@ public abstract class Engine implements Closeable {
             if (uncachedLookup) {
                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), loadSeqNo);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
+                    searcher.getIndexReader(),
+                    get.uid(),
+                    loadSeqNo,
+                    shouldPrewarmIdLookups()
+                );
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -1379,6 +1384,14 @@ public abstract class Engine implements Closeable {
         // by default we don't have a writer here... subclasses can override this
         stats.addVersionMapMemoryInBytes(0);
         stats.addIndexWriterMemoryInBytes(0);
+    }
+
+    /**
+     * Returns {@code true} if id lookup state construction should perform prewarming, so that the first real lookup does not
+     * block on a cold read.
+     */
+    protected boolean shouldPrewarmIdLookups() {
+        return false;
     }
 
     /** How much heap is used that would be freed by a refresh. This includes both the current memory being freed and any remaining

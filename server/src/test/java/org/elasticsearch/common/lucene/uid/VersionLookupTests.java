@@ -58,7 +58,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().getFirst();
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, false);
         // found doc
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
@@ -71,7 +71,7 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().getFirst();
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, false);
         assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
         writer.close();
@@ -94,7 +94,7 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().getFirst();
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, false);
         // return the last doc when there are duplicates
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
@@ -105,7 +105,7 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().getFirst();
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, false);
         result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
@@ -115,7 +115,7 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().getFirst();
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, false);
         assertNull(lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment));
         reader.close();
         writer.close();
@@ -142,12 +142,12 @@ public class VersionLookupTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
 
         LeafReaderContext segment = reader.leaves().getFirst();
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true, false);
         assertTrue(lookup.loadedTimestampRange);
         assertEquals(1_000L, lookup.minTimestamp);
         assertEquals(1_000_000L, lookup.maxTimestamp);
 
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, false);
         assertFalse(lookup.loadedTimestampRange);
         assertEquals(0L, lookup.minTimestamp);
         assertEquals(Long.MAX_VALUE, lookup.maxTimestamp);
@@ -250,14 +250,14 @@ public class VersionLookupTests extends ESTestCase {
         BytesRef[] uids = { new BytesRef("a") };
 
         DocIdAndVersion[] withSeqNo = new DocIdAndVersion[1];
-        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { true }, withSeqNo);
+        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { true }, withSeqNo, false);
         assertNotNull(withSeqNo[0]);
         assertEquals(5L, withSeqNo[0].version);
         assertEquals(42L, withSeqNo[0].seqNo);
         assertEquals(7L, withSeqNo[0].primaryTerm);
 
         DocIdAndVersion[] withoutSeqNo = new DocIdAndVersion[1];
-        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { false }, withoutSeqNo);
+        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { false }, withoutSeqNo, false);
         assertNotNull(withoutSeqNo[0]);
         assertEquals(5L, withoutSeqNo[0].version);
         assertEquals(UNASSIGNED_SEQ_NO, withoutSeqNo[0].seqNo);
@@ -455,7 +455,8 @@ public class VersionLookupTests extends ESTestCase {
             new String[] { id },
             false,
             new boolean[] { true },
-            withSeqNo
+            withSeqNo,
+            false
         );
         assertNotNull(withSeqNo[0]);
         assertEquals(9L, withSeqNo[0].version);
@@ -469,7 +470,8 @@ public class VersionLookupTests extends ESTestCase {
             new String[] { id },
             false,
             new boolean[] { false },
-            withoutSeqNo
+            withoutSeqNo,
+            false
         );
         assertNotNull(withoutSeqNo[0]);
         assertEquals(9L, withoutSeqNo[0].version);
@@ -599,10 +601,32 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(ParsedDocument.deleteTombstone(randomSeqNoIndexOptions, "_id").docs().getFirst());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().getFirst();
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), true, false);
         assertTrue(lookup.loadedTimestampRange);
         assertEquals(0L, lookup.minTimestamp);
         assertEquals(Long.MAX_VALUE, lookup.maxTimestamp);
+        reader.close();
+        writer.close();
+        dir.close();
+    }
+
+    public void testPrewarmIdLookups() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter writer = newNoMergeWriter(dir);
+        Document doc = new Document();
+        doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
+        doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
+        writer.addDocument(doc);
+        DirectoryReader reader = DirectoryReader.open(writer);
+        LeafReaderContext segment = reader.leaves().getFirst();
+
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), false, true);
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("1"), randomBoolean(), segment);
+        assertNotNull(result);
+        assertEquals(1, result.version);
+
         reader.close();
         writer.close();
         dir.close();
@@ -618,7 +642,7 @@ public class VersionLookupTests extends ESTestCase {
             uids[i] = new BytesRef(ids[i]);
         }
         DocIdAndVersion[] results = new DocIdAndVersion[ids.length];
-        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[ids.length], results);
+        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[ids.length], results, false);
         return results;
     }
 
@@ -628,7 +652,7 @@ public class VersionLookupTests extends ESTestCase {
             uids[i] = new BytesRef(ids[i]);
         }
         DocIdAndVersion[] results = new DocIdAndVersion[ids.length];
-        VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(reader, uids, ids, false, new boolean[ids.length], results);
+        VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(reader, uids, ids, false, new boolean[ids.length], results, false);
         return results;
     }
 

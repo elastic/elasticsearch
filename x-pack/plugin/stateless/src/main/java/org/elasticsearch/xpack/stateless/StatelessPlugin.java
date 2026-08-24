@@ -1335,6 +1335,7 @@ public class StatelessPlugin extends Plugin
             IndexEngine.MERGE_PREWARM,
             IndexEngine.MERGE_FORCE_REFRESH_SIZE,
             IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR,
+            IndexEngine.ID_LOOKUP_PREWARM_TTL_SETTING,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,

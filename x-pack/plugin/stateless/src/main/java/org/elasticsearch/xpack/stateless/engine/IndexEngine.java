@@ -126,6 +126,16 @@ public class IndexEngine extends InternalEngine {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    /**
+     * How long to keep the id lookup prewarm active after a relocation in which the source reported recent lookups.
+     * {@link TimeValue#MINUS_ONE} disables prewarming entirely.
+     */
+    public static final Setting<TimeValue> ID_LOOKUP_PREWARM_TTL_SETTING = Setting.timeSetting(
+        "stateless.id_lookup.prewarm_ttl",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope
+    );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
 
@@ -151,6 +161,7 @@ public class IndexEngine extends InternalEngine {
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
     private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
+    private final long idLookupPrewarmDeadlineNanos;
 
     @SuppressWarnings("this-escape")
     public IndexEngine(
@@ -208,6 +219,12 @@ public class IndexEngine extends InternalEngine {
         this.translogReplicator = translogReplicator;
         this.translogBlobContainer = translogBlobContainer;
         this.statelessCommitService = statelessCommitService;
+        final StatelessCommitService.RecoveryInfoFromSource recoveryInfo = statelessCommitService.getRecoveryInfoFromSourceEntry(shardId);
+        final boolean prewarmIdLookups = recoveryInfo != null && recoveryInfo.hasRecentIdLookup();
+        final TimeValue prewarmTtl = ID_LOOKUP_PREWARM_TTL_SETTING.get(engineConfig.getIndexSettings().getNodeSettings());
+        this.idLookupPrewarmDeadlineNanos = prewarmIdLookups && prewarmTtl.millis() >= 0
+            ? engineConfig.getRelativeTimeInNanosSupplier().getAsLong() + prewarmTtl.nanos()
+            : Long.MIN_VALUE;
         this.hollowShardsService = hollowShardsService;
         this.cacheWarmingService = cacheWarmingService;
         this.refreshManager = refreshManagerService.createRefreshManager(engineConfig.getIndexSettings(), this::doExternalRefresh);
@@ -1001,6 +1018,11 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected ElasticsearchMergeScheduler getMergeScheduler() {
         return super.getMergeScheduler();
+    }
+
+    @Override
+    public boolean shouldPrewarmIdLookups() {
+        return engineConfig.getThreadPool().relativeTimeInNanos() < idLookupPrewarmDeadlineNanos;
     }
 
     @Override

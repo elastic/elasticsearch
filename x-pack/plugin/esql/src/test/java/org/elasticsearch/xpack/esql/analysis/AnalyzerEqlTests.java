@@ -123,6 +123,22 @@ public class AnalyzerEqlTests extends ESTestCase {
             );
     }
 
+    public void testMappedJoinKeysFieldCollidesInSequenceMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // join_keys is the one reserved synthetic name a real index can plausibly map (it is not a leading-underscore
+        // metadata name); a sequence/sample query over such an index must fail loud rather than emit two join_keys.
+        IndexResolution resolution = indexWith(
+            "eql_jk_collide",
+            Map.of("join_keys", field("join_keys", KEYWORD), "name", field("name", KEYWORD))
+        );
+        analyzer().addIndex("eql_jk_collide", resolution)
+            .error(
+                "EQL eql_jk_collide \"sequence [process where true] [network where true]\"",
+                containsString("[join_keys] collides with the EQL command's reserved column")
+            );
+    }
+
     public void testMappedFieldCollidingWithDeclaredMetadataFails() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 

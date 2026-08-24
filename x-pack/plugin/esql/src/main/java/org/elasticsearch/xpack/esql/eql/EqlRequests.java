@@ -186,6 +186,12 @@ public final class EqlRequests {
         if (fetchFields.isEmpty() == false) {
             request.fetchFields(fetchFields);
         }
+        // ES|QL LIMIT selects the first n rows, but the EQL engine defaults result_position to "tail" (the last n).
+        // Under "tail" a pushed size fetches a suffix while the retained LIMIT trims a prefix, so a downstream op that
+        // blocks the push (e.g. WHERE) would flip which rows come back. Default to "head" so a pushed size and a
+        // cap-fetch both take the prefix and LIMIT is stable w.r.t. the pushdown. A WITH {"result_position"} still
+        // overrides this in applyOptions.
+        request.resultPosition("head");
         // Effective size default; a WITH {"size"} option overrides it in applyOptions.
         request.size(pushedLimit != null ? pushedLimit : enclosing.truncationCap());
         applyOptions(request, options);

@@ -494,3 +494,40 @@ serial_event_id:long
 2
 3
 ;
+
+// LIMIT selects the first n rows deterministically w.r.t. the pushdown: the source defaults result_position to head,
+// so an outer LIMIT below the match count returns the prefix (1..5), the same rows a blocking op (WHERE) would yield.
+eventQueryLimitReturnsPrefix
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+;
+
+eventQueryLimitPrefixStableUnderBlockingWhere
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" | WHERE serial_event_id > 0 | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+;
+
+// An explicit tail inside the EQL query composed with a smaller outer LIMIT: the query's tail 3 yields [92,95,96]
+// and the outer LIMIT 2 must take the prefix [92,95] — the pushed size must not fold the tail into a suffix.
+eventQueryInnerTailWithSmallerOuterLimit
+required_capability: eql_command
+EQL endgame-140 "file where true | tail 3" WITH {"tiebreaker_field": "serial_event_id"} | LIMIT 2 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+92
+95
+;

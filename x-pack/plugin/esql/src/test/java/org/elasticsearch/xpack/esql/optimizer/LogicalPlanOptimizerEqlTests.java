@@ -69,6 +69,12 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
         assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\"", 1000);
     }
 
+    public void testExplicitQueryLimitBlocksPush() {
+        // The EQL query carries its own | tail 3; an outer LIMIT must not be pushed on top of it (it would fold into
+        // the tail and change which events come back), so the request size is left to the cap.
+        assertPushedLimit("EQL eql_test \"process where true | tail 3\" | LIMIT 2", null);
+    }
+
     public void testLimitPushdownPreservesMetadataColumns() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
         LogicalPlan optimized = optimizer().addIndex("eql_test", "mapping-eql_test.json")

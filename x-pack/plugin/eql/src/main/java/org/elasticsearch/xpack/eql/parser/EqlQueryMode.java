@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The result mode of an EQL query — event, sequence, or sample — derivable purely by parsing the
@@ -51,5 +53,22 @@ public enum EqlQueryMode {
         }
         // Sample extends AbstractJoin, so it must be distinguished explicitly.
         return joins.get(0) instanceof Sample ? SAMPLE : SEQUENCE;
+    }
+
+    /**
+     * Whether {@code query} carries its own explicit {@code head}/{@code tail} pipe. The parser always inserts one
+     * implicit head/tail limit; a user-written {@code | head}/{@code | tail} adds a second, so two or more
+     * {@link LimitWithOffset} nodes means the query limits itself. Callers (the ES|QL {@code EQL} source) use this to
+     * avoid pushing an ES|QL {@code LIMIT} into the request size on top of the query's own limit, which would fold
+     * into it and change which events are returned.
+     *
+     * @param query the raw EQL query string
+     * @return {@code true} if the query contains an explicit head/tail pipe
+     */
+    public static boolean hasExplicitLimit(String query) {
+        LogicalPlan plan = new EqlParser().createStatement(query);
+        AtomicInteger limits = new AtomicInteger();
+        plan.forEachDown(LimitWithOffset.class, l -> limits.incrementAndGet());
+        return limits.get() >= 2;
     }
 }

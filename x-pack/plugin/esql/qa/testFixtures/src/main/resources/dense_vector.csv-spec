@@ -545,3 +545,40 @@ FROM dense_vector_limit_by
 c:long
 3
 ;
+
+// Compound grouping key: (dense_vector, keyword). Rows with the same vector but a different
+// label form separate groups. Here LIMIT 1 BY produces 4 groups vs 3 for float_vector alone.
+limitByDenseVectorAndOther
+required_capability: dense_vector_field_type_released
+required_capability: esql_limit_by
+
+FROM dense_vector_limit_by
+| SORT id DESC
+| LIMIT 500
+| LIMIT 1 BY float_vector, label
+| KEEP id, float_vector, label
+;
+
+id:long | float_vector:dense_vector | label:keyword
+5       | null                      | null
+4       | [1.0, 2.0, 3.0]           | A
+3       | [4.0, 5.0, 6.0]           | B
+2       | [4.0, 5.0, 6.0]           | A
+;
+
+sortLimitByDenseVectorAndOther
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
+
+FROM dense_vector_limit_by
+| SORT id
+| LIMIT 1 BY float_vector, label
+| KEEP id, float_vector, label
+;
+
+id:long | float_vector:dense_vector | label:keyword
+0       | [1.0, 2.0, 3.0]           | A
+1       | [4.0, 5.0, 6.0]           | B
+2       | [4.0, 5.0, 6.0]           | A
+5       | null                      | null
+;

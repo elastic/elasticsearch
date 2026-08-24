@@ -231,7 +231,24 @@ public abstract class AbstractPhysicalOperationProviders {
                 if (topAggregation != null) {
                     builder.topAggregation(topAggregation);
                 }
-                operatorFactory = builder.build();
+                HashAggregationOperator.Factory innerFactory = builder.build();
+                int parallelWorkers = context.queryPragmas().parallelAggWorkers();
+                List<BlockHash.GroupSpec> hashGroupSpecs = groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList();
+                if (parallelWorkers > 1
+                    && aggregateExec.groupings().isEmpty() == false
+                    && hashGroupSpecs.stream().noneMatch(BlockHash.GroupSpec::isCategorize)
+                    && context.parallelWorkerExecutor() != null
+                    && aggregatorMode.isOutputPartial() == false) {
+                    operatorFactory = new org.elasticsearch.compute.operator.ParallelHashAggregationOperator.Factory(
+                        innerFactory,
+                        hashGroupSpecs,
+                        parallelWorkers,
+                        200_000,
+                        context.parallelWorkerExecutor()
+                    );
+                } else {
+                    operatorFactory = innerFactory;
+                }
             }
         }
         if (operatorFactory != null) {

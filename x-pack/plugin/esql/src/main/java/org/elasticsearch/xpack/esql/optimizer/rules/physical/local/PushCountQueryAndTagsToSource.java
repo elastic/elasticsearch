@@ -64,6 +64,11 @@ import java.util.Optional;
 public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
+        // This rule rewrites the aggregate into an EsStatsQueryExec that emits intermediate-state
+        // blocks (see the assert on line 92). A SINGLE-mode aggregate expects final output, so skip.
+        if (aggregateExec.getMode().isOutputPartial() == false) {
+            return aggregateExec;
+        }
         // The rule applies only when the aggregate has:
         // - exactly one grouping key
         // - exactly one aggregate (the COUNT itself)

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -334,6 +335,10 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
+        // Single-pass aggregation is indicated by an AggregateExec in SINGLE mode (set by LocalMapper
+        // when FragmentExec.singlePassAgg() is true). It requires exactly one driver so that all data
+        // flows through one HashAggregationOperator instance.
+        final boolean singlePassAgg = localPhysicalPlan.anyMatch(p -> p instanceof AggregateExec a && a.getMode() == AggregatorMode.SINGLE);
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -344,10 +349,13 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
+            singlePassAgg,
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
-            new Holder<>()
+            new Holder<>(),
+            parallelWorkerExecutor,
+            esqlWorkerPoolSize
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -455,7 +463,7 @@ public class LocalExecutionPlanner {
         } else if (node instanceof ShowExec show) {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
-            return planExchangeSource(exchangeSource, exchangeSourceSupplier);
+            return planExchangeSource(exchangeSource, exchangeSourceSupplier, context);
         } else if (node instanceof ExternalSourceExec externalSource) {
             return planExternalSource(externalSource, context);
         }
@@ -852,7 +860,11 @@ public class LocalExecutionPlanner {
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 
-    private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, Supplier<ExchangeSource> exchangeSourceSupplier) {
+    private PhysicalOperation planExchangeSource(
+        ExchangeSourceExec exchangeSource,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        LocalExecutionPlannerContext context
+    ) {
         Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
 
         var builder = new Layout.Builder();
@@ -860,6 +872,18 @@ public class LocalExecutionPlanner {
         // decorate the layout
         var l = builder.build();
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
+
+        // When parallel_agg_final_drivers > 1 and this exchange carries intermediate-agg state,
+        // create N independent drivers each with their own HashAggregationOperator pulling from
+        // the shared exchange buffer. This is the ceiling-measurement lever for Stage 0d of the
+        // parallel-aggregation experiment; it is not safe for production use with low-cardinality
+        // group keys (see QueryPragmas.PARALLEL_AGG_FINAL_DRIVERS javadoc).
+        if (exchangeSource.isIntermediateAgg()) {
+            int n = context.queryPragmas().parallelAggFinalDrivers();
+            if (n > 1) {
+                context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, n));
+            }
+        }
 
         return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
     }
@@ -2484,10 +2508,13 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
+        boolean singlePassAgg,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
-        Holder<TopNExec> lastVisitedTopN
+        Holder<TopNExec> lastVisitedTopN,
+        Executor parallelWorkerExecutor,
+        int esqlWorkerPoolSize
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

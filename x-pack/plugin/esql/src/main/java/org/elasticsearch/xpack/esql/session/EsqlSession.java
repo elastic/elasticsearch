@@ -610,7 +610,9 @@ public class EsqlSession {
             // external source resolution.
             EsqlPlugin.externalBlobStorePool()
         );
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration, minimumVersion));
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(
+            new PhysicalOptimizerContext(configuration, minimumVersion, plannerSettings.singleShardSinglePassAggregation())
+        );
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 

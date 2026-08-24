@@ -90,6 +90,28 @@ public class PlannerSettings {
     );
 
     /**
+     * When enabled and the query touches exactly one shard (as reported by field-caps), the planner
+     * collapses the two-phase INITIAL/FINAL aggregation into a single SINGLE-mode pass running on the
+     * data node. The coordinator then receives the final aggregation output directly, with no
+     * intermediate merging step.
+     * <p>
+     * This trades per-shard scan parallelism for a single hash pass, which is a net win for
+     * high-cardinality {@code GROUP BY} queries (e.g. ClickBench Q31/Q32) but may regress
+     * low-cardinality or scan-bound workloads. Restricted to grouped aggregations; ungrouped
+     * {@code STATS} queries (e.g. {@code COUNT(*)}) are unaffected.
+     * <p>
+     * Note: when a shard retry occurs after rows have been emitted, results may contain duplicate
+     * group rows rather than double-counted values — the same class of issue that affects the
+     * existing two-phase path, not a new correctness regression.
+     */
+    public static final Setting<Boolean> SINGLE_SHARD_SINGLE_PASS_AGGREGATION = Setting.boolSetting(
+        "esql.single_shard_single_pass_aggregation",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
      * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
      * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
@@ -294,6 +316,7 @@ public class PlannerSettings {
             LUCENE_TOPN_LIMIT,
             INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
             REDUCTION_LATE_MATERIALIZATION,
+            SINGLE_SHARD_SINGLE_PASS_AGGREGATION,
             PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
             TIME_SERIES_TARGET_CHUNK_ROWS,
@@ -368,6 +391,10 @@ public class PlannerSettings {
                 IN_SUBQUERY_HASH_JOIN_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.inSubqueryHashJoinThreshold(v))
             );
+            clusterSettings.initializeAndWatch(
+                SINGLE_SHARD_SINGLE_PASS_AGGREGATION,
+                v -> settings.updateAndGet(s -> s.singleShardSinglePassAggregation(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -394,6 +421,7 @@ public class PlannerSettings {
     private final long parallelTopNPromotionThresholdRows;
     private final int parallelTopNMaxWorkers;
     private final int inSubqueryHashJoinThreshold;
+    private final boolean singleShardSinglePassAggregation;
 
     /**
      * Defaults.
@@ -417,7 +445,8 @@ public class PlannerSettings {
         DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
         PARALLEL_OPERATOR_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
         PARALLEL_OPERATOR_MAX_WORKERS.getDefault(Settings.EMPTY),
-        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY),
+        SINGLE_SHARD_SINGLE_PASS_AGGREGATION.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -442,7 +471,8 @@ public class PlannerSettings {
         int docSequenceBytesRefFieldThreshold,
         long parallelTopNPromotionThresholdRows,
         int parallelTopNMaxWorkers,
-        int inSubqueryHashJoinThreshold
+        int inSubqueryHashJoinThreshold,
+        boolean singleShardSinglePassAggregation
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -463,6 +493,7 @@ public class PlannerSettings {
         this.parallelTopNPromotionThresholdRows = parallelTopNPromotionThresholdRows;
         this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
         this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
+        this.singleShardSinglePassAggregation = singleShardSinglePassAggregation;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -485,7 +516,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -513,7 +545,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -541,7 +574,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -583,7 +617,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -611,7 +646,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -639,7 +675,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -667,7 +704,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -695,7 +733,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -730,7 +769,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -761,7 +801,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -792,7 +833,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -820,7 +862,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -848,7 +891,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -876,7 +920,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -904,7 +949,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -932,7 +978,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -960,7 +1007,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -988,7 +1036,8 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
@@ -1016,11 +1065,41 @@ public class PlannerSettings {
             docSequenceBytesRefFieldThreshold,
             parallelTopNPromotionThresholdRows,
             parallelTopNMaxWorkers,
-            inSubqueryHashJoinThreshold
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
         );
     }
 
     public int inSubqueryHashJoinThreshold() {
         return inSubqueryHashJoinThreshold;
+    }
+
+    public PlannerSettings singleShardSinglePassAggregation(boolean singleShardSinglePassAggregation) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            timeSeriesTargetChunkRows,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers,
+            inSubqueryHashJoinThreshold,
+            singleShardSinglePassAggregation
+        );
+    }
+
+    public boolean singleShardSinglePassAggregation() {
+        return singleShardSinglePassAggregation;
     }
 }

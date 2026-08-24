@@ -213,6 +213,13 @@ public class PlannerUtils {
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
+        // When the fragment is marked for single-pass aggregation, the data node handles the full
+        // aggregation itself — no node-level INTERMEDIATE reduction should be added on top.
+        // SINGLE INTERMEDIATE is not a legal AggregatorMode sequence.
+        if (fragment.singlePassAgg()) {
+            return SimplePlanReduction.NO_REDUCTION;
+        }
+
         // Though FORK is technically a pipeline breaker, it should never show up here.
         // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
         final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
@@ -474,7 +481,10 @@ public class PlannerUtils {
             if (onLogicalPlanOptimized != null) {
                 onLogicalPlanOptimized.accept(optimizedFragment);
             }
-            PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
+            org.elasticsearch.compute.aggregation.AggregatorMode topAggMode = f.singlePassAgg()
+                ? org.elasticsearch.compute.aggregation.AggregatorMode.SINGLE
+                : org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
+            PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment, topAggMode);
             if (profilingEnabled) {
                 planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
             }

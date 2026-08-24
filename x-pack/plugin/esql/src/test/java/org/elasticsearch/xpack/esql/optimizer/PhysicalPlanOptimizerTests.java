@@ -10880,6 +10880,127 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(thirdBranchLocalSource.output()), equalTo(List.of("x")));
     }
 
+    // ---- CollapseSingleShardAggregate tests ----
+
+    /**
+     * Positive case: grouped STATS over a single-shard index with the setting enabled collapses the
+     * two-phase INITIAL/FINAL aggregation into a single SINGLE-mode pass on the data node.
+     *
+     * <pre>
+     * Expected shape after single-pass collapse + local planning:
+     *
+     *   LimitExec
+     *   \_ExchangeExec[inBetweenAggs=false]
+     *     \_AggregateExec[SINGLE]
+     *       \_FieldExtractExec
+     *         \_EsQueryExec
+     * </pre>
+     */
+    public void testCollapseSingleShardAggregateGrouped() {
+        var data = makeTestDataSourceWithShards("test", "mapping-basic.json", 1);
+        var plan = physicalPlan("from test | stats x = sum(salary) by first_name", data);
+
+        var optimized = optimizedWithSinglePassAgg(plan, data);
+
+        // Coordinator plan must NOT have a FINAL aggregate.
+        var limit = as(optimized, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        assertFalse("ExchangeExec must not be marked inBetweenAggs after single-pass rewrite", exchange.inBetweenAggs());
+
+        // Data-node plan carries a SINGLE-mode aggregate.
+        var agg = as(exchange.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(SINGLE));
+    }
+
+    /**
+     * Negative case: ungrouped {@code STATS} must NOT be collapsed even with 1 shard and the
+     * setting enabled — the coordinator FINAL aggregate emits the default row when all shards are
+     * skipped by can-match.
+     */
+    public void testCollapseSingleShardAggregateUngroupedNotCollapsed() {
+        var data = makeTestDataSourceWithShards("test", "mapping-basic.json", 1);
+        var plan = physicalPlan("from test | stats x = sum(salary)", data);
+
+        var optimized = optimizedWithSinglePassAgg(plan, data);
+
+        // FINAL aggregate must still be present on the coordinator.
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(FINAL));
+    }
+
+    /**
+     * Negative case: with the setting disabled ({@code allowSinglePassAgg=false}), the rule must
+     * not fire even when there is exactly one shard.
+     */
+    public void testCollapseSingleShardAggregateSettingOffNotCollapsed() {
+        var data = makeTestDataSourceWithShards("test", "mapping-basic.json", 1);
+        var plan = physicalPlan("from test | stats x = sum(salary) by first_name", data);
+
+        // Regular optimizer with allowSinglePassAgg=false.
+        var optimized = optimizedPlan(plan, data);
+
+        // FINAL aggregate must still be present on the coordinator.
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(FINAL));
+    }
+
+    /**
+     * Negative case: when shard count is unknown (zero), the rule must not fire regardless of the
+     * setting. {@code EsIndexGenerator.esIndex()} uses {@code numberOfShards=0} for all test indices.
+     */
+    public void testCollapseSingleShardAggregateUnknownShardsNotCollapsed() {
+        // testData uses numberOfShards=0 (unknown) — the rule must not fire.
+        var plan = physicalPlan("from test | stats x = sum(salary) by first_name");
+
+        var optimized = optimizedWithSinglePassAgg(plan, testData);
+
+        // FINAL aggregate must still be present.
+        var limit = as(optimized, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        assertThat(agg.getMode(), equalTo(FINAL));
+    }
+
+    /** Creates a {@link TestDataSource} where the single concrete index has {@code numberOfShards} shards. */
+    private TestDataSource makeTestDataSourceWithShards(String indexName, String mappingFileName, int numberOfShards) {
+        Map<String, EsField> mapping = loadMapping(mappingFileName);
+        var props = Map.of(indexName, new IndexProperties(IndexMode.STANDARD, numberOfShards));
+        EsIndex index = new EsIndex(indexName, mapping, props, Map.of(), Map.of());
+        TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        setupEnrichPolicies(builder);
+        for (IndexResolution lookupIndex : defaultLookupResolution().values()) {
+            builder.addIndex(lookupIndex);
+            builder.addLookupIndex(lookupIndex);
+        }
+        builder.addNoFieldsIndex();
+        return new TestDataSource(mapping, index, builder.buildAnalyzer(), TEST_SEARCH_STATS);
+    }
+
+    /**
+     * Optimizes the plan using a {@link PhysicalPlanOptimizer} with {@code allowSinglePassAgg=true},
+     * then applies local planning on each {@link FragmentExec}, mirroring {@link #optimizedPlan}.
+     */
+    private PhysicalPlan optimizedWithSinglePassAgg(PhysicalPlan plan, TestDataSource data) {
+        var optimizer = new PhysicalPlanOptimizer(
+            new PhysicalOptimizerContext(data.analyzer.context().configuration(), data.minimumVersion(), true)
+        );
+        var p = EstimatesRowSize.estimateRowSize(0, optimizer.optimize(plan));
+        var l = p.transformUp(FragmentExec.class, fragment -> {
+            var localPlan = PlannerUtils.localPlan(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                config,
+                FoldContext.small(),
+                fragment,
+                data.stats(),
+                null
+            );
+            return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
+        });
+        return localRelationshipAlignment(l);
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());

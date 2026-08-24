@@ -10,4 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {}
+public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion, boolean allowSinglePassAgg) {
+    /** Convenience constructor that disables single-pass aggregation; used by test sites that don't need the feature. */
+    public PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {
+        this(configuration, minimumVersion, false);
+    }
+}

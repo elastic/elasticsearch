@@ -562,6 +562,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Time-series aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
             taskConcurrency = Math.min(taskConcurrency, Math.max(EsExecutors.allocatedProcessors(context.settings()), 2));
         }
+
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;

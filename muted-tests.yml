@@ -471,9 +471,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecChangePointIT
   method: test {csv-spec:change_point.values null column}
   issue: https://github.com/elastic/elasticsearch/issues/157163
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testRegistrationOnBccWithLastHollowCommitAndDifferentPrimaryTerm
-  issue: https://github.com/elastic/elasticsearch/issues/157172
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testDeleteBackingIndexDuringForceMerge
   issue: https://github.com/elastic/elasticsearch/issues/157257

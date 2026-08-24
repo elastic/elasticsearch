@@ -702,7 +702,6 @@ public abstract class IndexRouting {
         public static class ForIndexDimensions extends ExtractFromSource {
 
             private final Predicate<String> isDimensionField;
-            private final IndexVersion creationVersionForTsid;
 
             ForIndexDimensions(IndexMetadata metadata, RoutingFunction routingFunction, IndexReshardingMetadata reshardingMetadata) {
                 super(metadata, routingFunction, reshardingMetadata, metadata.getTimeSeriesDimensions());
@@ -713,7 +712,6 @@ public abstract class IndexRouting {
                         + " for ForIndexDimensions routing but was "
                         + metadata.getCreationVersion();
                 this.isDimensionField = Regex.simpleMatcher(metadata.getTimeSeriesDimensions().toArray(String[]::new));
-                this.creationVersionForTsid = metadata.getCreationVersion();
             }
 
             @Override
@@ -740,7 +738,7 @@ public abstract class IndexRouting {
              * not-yet-handed-off split target.
              */
             int shardIdForExtractedTsid(TsidBuilder tsidBuilder, IndexRequest indexRequest) {
-                BytesRef tsid = tsidBuilder.buildTsid(creationVersionForTsid);
+                BytesRef tsid = tsidBuilder.buildTsid(creationVersion);
                 indexRequest.tsid(tsid);
                 int h = hash(tsid);
                 setRecordedHash(h);
@@ -783,6 +781,7 @@ public abstract class IndexRouting {
              */
             @Override
             public int[] indexShard(IndexRequest[] requests, SourceBatch batch) {
+                batchHashes = null;
                 // Enforce all-or-none tsid rule: either every request has a pre-set tsid (from an
                 // upstream producer that already computed them) or none do. A mixed batch is a bug.
                 boolean allPreSet = requests.length > 0 && requests[0].tsid() != null;
@@ -810,7 +809,7 @@ public abstract class IndexRouting {
                         shards[i] = rerouteWritesIfResharding(routingFunction.shardNum(h));
                     }
                 } else {
-                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersionForTsid);
+                    BytesRef[] tsids = ColumnarTsidCalculator.computeTsids(batch, this::matchesField, creationVersion);
                     for (int i = 0; i < requests.length; i++) {
                         requests[i].tsid(tsids[i]);
                         int h = hash(tsids[i]);

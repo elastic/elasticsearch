@@ -30,7 +30,7 @@ public class FsSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTest
     );
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    public static final TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

@@ -219,10 +219,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     /**
-     * Maximum time to wait for the search tier to respond to a new-uploaded-commit notification before freeing the local files associated
-     * with that BCC. The deferred consumers (e.g. local Lucene and translog file release) fire as soon as the notification response is
-     * received from the search tier, or when this timeout elapses (whichever happens first). A value of {@code 0} fires immediately and
-     * effectively restores the previous behavior of releasing files without waiting for the search tier.
+     * Maximum time to wait for the search tier to respond to a new-uploaded-commit notification before closing the
+     * {@link VirtualBatchedCompoundCommit} (and thus freeing its local Lucene files). The VBCC is closed as soon as the notification
+     * response is received from the search tier, or when this timeout elapses (whichever happens first). A value of {@code 0} closes
+     * the VBCC immediately and effectively restores the previous behavior.
+     * <p>
+     * Note: translog file release is <em>not</em> deferred by this setting — it happens immediately when the BCC upload completes,
+     * via {@link ShardCommitState#markBccUploaded}.
      */
     public static final Setting<TimeValue> STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT = Setting.timeSetting(
         "stateless.upload.release_files_after_notification_timeout",

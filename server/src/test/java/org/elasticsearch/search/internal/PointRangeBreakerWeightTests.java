@@ -311,19 +311,7 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
 
         CountDownLatch firstPartitionEntered = new CountDownLatch(1);
         CountDownLatch releaseFirstPartition = new CountDownLatch(1);
-        Collector blockingCollector = new Collector() {
-            @Override
-            public LeafCollector getLeafCollector(LeafReaderContext context) {
-                firstPartitionEntered.countDown();
-                safeAwait(releaseFirstPartition);
-                return new CountingCollector().getLeafCollector(context);
-            }
-
-            @Override
-            public ScoreMode scoreMode() {
-                return ScoreMode.COMPLETE_NO_SCORES;
-            }
-        };
+        Collector blockingCollector = blockOnFirstDoc(firstPartitionEntered, releaseFirstPartition);
 
         try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
             Future<?> firstPartition = executor.submit(() -> {
@@ -331,11 +319,17 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
                 return null;
             });
             safeAwait(firstPartitionEntered);
+            assertThat("the first partition must have charged before it blocks in collection", breaker.getUsed(), greaterThan(0L));
+
             Future<?> secondPartition = executor.submit(() -> {
                 searcher.searchLeaf(leaf, mid, leaf.reader().maxDoc(), weight, new CountingCollector());
                 return null;
             });
             secondPartition.get();
+            // Charges are per leaf, not per partition, so releasing partition 2 drains partition 1's charge
+            // too. Only benign while computeSlices emits one whole-segment partition per leaf.
+            assertThat("the second partition's release drains the first partition's still-live charge", breaker.getUsed(), equalTo(0L));
+
             releaseFirstPartition.countDown();
             firstPartition.get();
         }

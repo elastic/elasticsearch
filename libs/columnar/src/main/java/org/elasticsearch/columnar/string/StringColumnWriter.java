@@ -41,8 +41,9 @@ import java.util.List;
  * values while chunks bound how many bytes are compressed at once, so a block of long urls and a block of
  * single characters are the same count of values and nothing like the same amount of data.
  *
- * <p>Only {@link StringColumnLayout#PLAIN} is written today; the layout is recorded so an ordinal layout can
- * arrive as a new id. See {@code docs/PLAN.md} for how that decision is meant to be reached.
+ * <p>Which {@link StringColumnLayout} a column takes is decided from its values: a dictionary when the terms
+ * it repeats are worth naming under the caller's {@link DictionaryPolicy}, and otherwise the values
+ * themselves.
  */
 public final class StringColumnWriter {
 
@@ -53,8 +54,8 @@ public final class StringColumnWriter {
     private static final int ORDINAL_BLOCK_SIZE = 128;
 
     /**
-     * Values per entry in the escape-rank table. Finding an escaped value means counting the escapes before
-     * it, which this bounds to one block's worth of ordinals however many escaped.
+     * Values per entry in the escape-rank table, which bounds the count of escapes before a value to one
+     * block's worth of ordinals.
      */
     static final int ESCAPE_RANK_BLOCK = 128;
 
@@ -163,9 +164,9 @@ public final class StringColumnWriter {
     }
 
     /**
-     * Records the terms the survey found and how often it saw them, so a merge of this segment can work out
-     * a vocabulary without reading its values again. A column that stayed plain keeps one too: the survey
-     * already ran, and the segment merged into may well be worth a dictionary even where this one was not.
+     * Records the terms the survey found and how often it saw them, so a merge can work out a vocabulary
+     * without reading this segment's values again. A column that stayed plain keeps one too: the survey
+     * already ran, and the segment it merges into may be worth a dictionary where this one was not.
      *
      * <p>A dictionary column's terms are already on disk as its dictionary, so only the counts are added.
      */
@@ -218,10 +219,9 @@ public final class StringColumnWriter {
     /**
      * Writes the dictionary, an ordinal per value, and the values no term names.
      *
-     * <p>Both the ordinals and the escaped values are staged in temporary files first. The escapes because
-     * how many there are is not known until the pass is over — the survey's counts are lower bounds — and a
-     * stream has to be told its length before it starts; the ordinals because the numeric column reads its
-     * input more than once, and a second pass over the values would have to look every term up again.
+     * <p>Both are staged in temporary files first: the escapes because a stream has to be told its length
+     * before it starts and how many escape is not known until the pass is over, the ordinals because the
+     * numeric column reads its input more than once and a second pass would look every term up again.
      */
     private static StringColumnMetadata writeDictionary(
         ColumnIteratorMetadata iterator,
@@ -296,8 +296,6 @@ public final class StringColumnWriter {
                             final int id = vocabulary.terms().find(value);
                             final int ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
                             if (ordinal == Vocabulary.DROPPED) {
-                                // The escape is one past the last ordinal, so it costs nothing to tell apart
-                                // and widens the ordinals only where the dictionary was already that wide.
                                 ordinalTemp.writeVInt(dictionarySize);
                                 exceptionTemp.writeVInt(value.length);
                                 exceptionTemp.writeBytes(value.bytes, value.offset, value.length);

@@ -258,7 +258,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     /**
      * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
      * segment without a dictionary, or one that let values escape, holds values the union would not name.
-     * The union is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
+     * It is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
      */
     private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState) throws IOException {
         if (dictionaryPolicy.enabled() == false) {
@@ -311,20 +311,18 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     }
 
     /**
-     * A vocabulary combined from the segments' summaries, which every string column keeps. Counts are
-     * summed across segments and the result trimmed to the policy's bound the same way a survey trims, so
-     * the guarantee carries: a term the merged column holds often enough survives, and the coverage worked
-     * out from the summed counts is an under-estimate because each of them was.
+     * A vocabulary combined from the segments' summaries. Counts are summed and trimmed to the policy's
+     * bound as a survey trims, so a term the merged column holds often enough survives; the coverage is an
+     * under-estimate because each summed count was.
      */
     private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState) throws IOException {
         if (dictionaryPolicy.enabled() == false) {
             return null;
         }
         final Map<BytesRef, Long> combined = new HashMap<>();
-        // What the combined summaries may hold while they are being combined. Without it the map would grow
-        // with the number of segments merged rather than with the dictionary any one of them can describe.
-        // Trimming the least frequent keeps the guarantee the summaries carry: a term the merged column
-        // holds often enough is in every summary that saw it, so it outlives the terms that are not.
+        // Bounded as it goes, so the map grows with what one segment's dictionary can describe rather than
+        // with the number of segments merged. A term the merged column holds often enough is in every
+        // summary that saw it, so it outlives the terms trimmed here.
         final long combinedBound = 4L * dictionaryPolicy.maxBytes();
         long combinedBytes = 0;
         long numValues = 0;
@@ -366,8 +364,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (combined.isEmpty() || numValues == 0) {
             return null;
         }
-        // Keep the terms seen most; the rest are what the merged column lets escape. Terms seen equally
-        // often are ordered by term, so the same inputs always yield the same column.
+        // Keep the terms seen most; the rest escape. Ties break by term, so the same inputs always yield
+        // the same column.
         final List<Map.Entry<BytesRef, Long>> ranked = new ArrayList<>(combined.entrySet());
         ranked.sort(Map.Entry.<BytesRef, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey));
         final TreeSet<BytesRef> kept = new TreeSet<>();
@@ -389,8 +387,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         if (kept.isEmpty()) {
             return null;
         }
-        // Whether this is worth a dictionary is left to the same gate a surveyed vocabulary passes. One
-        // that does not clear it still leaves the merged column its summary, sparing the next merge too.
+        // Worth a dictionary or not is left to the gate a surveyed vocabulary passes; either way the merged
+        // column keeps a summary.
         final List<BytesRef> sorted = new ArrayList<>(kept);
         final long[] countsPerTerm = new long[sorted.size()];
         for (int t = 0; t < sorted.size(); t++) {

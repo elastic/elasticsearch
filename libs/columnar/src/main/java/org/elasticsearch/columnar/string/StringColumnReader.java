@@ -53,7 +53,7 @@ public final class StringColumnReader {
 
     public StringColumnReader(StringColumnMetadata meta, IndexInput data) throws IOException {
         this.data = data;
-        assert meta.multiValued() == false : "multi-valued string columns are not implemented yet";
+        assert meta.multiValued() == false : "this surface carries one value per document";
         this.meta = meta;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
         if (meta.layout() == StringColumnLayout.DICTIONARY) {
@@ -88,15 +88,14 @@ public final class StringColumnReader {
     }
 
     /**
-     * The value address of a document's first value, given its rank. String columns are single-valued for now,
-     * so a document's rank is its value address; the seam is kept so multi-valued support stays a localized
-     * change (the numeric column resolves this through a value-address table).
+     * The value address of a document's first value, given its rank. This surface carries one value per
+     * document, so the rank is the address.
      */
     public long firstValueAddress(int rank) {
         return rank;
     }
 
-    /** The number of values a document has, given its rank — always one until multi-valued columns land. */
+    /** The number of values a document has, given its rank. This surface carries one per document. */
     public long valueCount(int rank) {
         return 1;
     }
@@ -121,9 +120,8 @@ public final class StringColumnReader {
     }
 
     /**
-     * Where an escaped value's bytes are: how many values escaped before it. The table gives that for the
-     * start of its block, and the ordinals between there and the value give the rest, so the count never
-     * runs longer than a block however many escaped.
+     * Where an escaped value's bytes are: how many escaped before it. The table gives that for the start
+     * of its block and the ordinals in between give the rest.
      */
     private long escapeRankOf(long valueAddress) throws IOException {
         final long block = valueAddress / StringColumnWriter.ESCAPE_RANK_BLOCK;

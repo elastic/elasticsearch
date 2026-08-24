@@ -28,12 +28,10 @@ import java.util.function.IntBinaryOperator;
  * The terms a column repeats often enough to be worth naming, found in one pass over its values with the
  * memory the caller's {@link DictionaryPolicy} allows.
  *
- * <p>The pass is Misra-Gries: terms are counted in a table bounded by the policy's byte budget, and when
- * the table is full every term is charged the same number of occurrences and those that reach zero leave.
- * A term is therefore only displaced by terms that between them occur more often than it does, so the
- * values most of the column holds survive however late they are first seen — admitting whatever arrived
- * first would keep the leading values rather than the common ones. What this costs is exactness: a count
- * is a lower bound, under-stating by at most the total charged away.
+ * <p>The pass is Misra-Gries: terms are counted in a table bounded by the policy's byte budget, and when it
+ * is full every term is charged the same number of occurrences and those that reach zero leave. A term is
+ * only displaced by terms that between them occur more often, so the values most of the column holds
+ * survive however late they first appear. The cost is exactness: every count is a lower bound.
  */
 public final class Vocabulary {
 
@@ -43,7 +41,7 @@ public final class Vocabulary {
     private Vocabulary() {}
 
     /**
-     * The terms a dictionary will hold, in term order, and what share of the column they account for.
+     * The terms a dictionary holds, in term order, and what share of the column they account for.
      *
      * @param terms          the surveyed terms, addressed by id
      * @param sortedIds      the kept ids in term order, so an ordinal comparison is a term comparison
@@ -83,9 +81,8 @@ public final class Vocabulary {
      * discover what they contain.
      *
      * @param sortedTerms the vocabulary, in term order
-     * @param coverage    the share of the merged column's values these terms hold. One for a union of
-     *                    dictionaries that let nothing escape, and otherwise an under-estimate, since the
-     *                    counts a summary carries are themselves lower bounds.
+     * @param coverage    the share of the merged column's values these terms hold; one for a union of
+     *                    dictionaries that let nothing escape, and otherwise an under-estimate
      */
     public static Terms known(List<BytesRef> sortedTerms, long columnBytes, double coverage, long[] countsPerTerm) {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
@@ -148,9 +145,9 @@ public final class Vocabulary {
         if (terms.size() == 0) {
             return null;
         }
-        // The pass admits every term that fits, which on a column with a long tail means the budget goes to
-        // terms seen once. Keeping only the most frequent that fit the column's budget leaves a dictionary
-        // that costs a fraction of what it describes, and the terms dropped here escape.
+        // The pass admits every term that fits, which on a column with a long tail spends the budget on
+        // terms seen once. Keeping only the most frequent leaves a dictionary that costs a fraction of what
+        // it describes; the terms dropped here escape.
         final int[] sortedIds = keepMostFrequent(terms, counts, policy.budgetFor(columnBytes));
         if (sortedIds.length == 0) {
             return null;
@@ -187,9 +184,8 @@ public final class Vocabulary {
         long bytes = 0;
         final BytesRef scratch = new BytesRef();
         for (int i = 0; i < size; i++) {
-            // A term seen once is worth one value's coverage and costs its own bytes plus, once there are
-            // enough of them, a wider ordinal on every value in the column. It is cheaper to let it escape.
-            // The counts are lower bounds, so a term dropped here was seen at most twice.
+            // A term seen once covers one value and costs its own bytes plus, once there are enough of
+            // them, a wider ordinal on every value. Cheaper to let it escape.
             if (counts[ids[i]] <= 1) {
                 break;
             }

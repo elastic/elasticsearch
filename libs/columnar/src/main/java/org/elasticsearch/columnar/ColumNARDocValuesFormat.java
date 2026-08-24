@@ -61,11 +61,9 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /**
      * The bounds a string column's dictionary is chosen under when none is given.
      *
-     * <p>The byte bound is what decides whether a column with a few thousand distinct values can hold all
-     * of them: a column of host names needs a quarter of a megabyte for its vocabulary, and one that cannot
-     * hold it stores every value instead. Beyond half a megabyte the bound stops admitting whole
-     * vocabularies and starts admitting the tails of large ones, where terms seen once add almost nothing
-     * to what the dictionary covers and widen the ordinal every value pays for.
+     * <p>Half a megabyte holds the whole vocabulary of a column like host names. Beyond it the bound starts
+     * admitting the tails of larger ones, where terms seen once cover almost nothing and widen the ordinal
+     * every value pays for.
      */
     public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 

@@ -57,10 +57,9 @@ public final class ValueStream {
     /**
      * What a written stream records about itself.
      *
-     * @param valueBytes the total length of the values, before any compression. It is counted on the pass
-     *                   that writes them, because nothing downstream can recover it: the stored length is
-     *                   what the chunks compressed to, and the block offsets address the stream rather than
-     *                   measure it. It is what a decision about the column has to be weighed against.
+     * @param valueBytes the total length of the values before compression, counted as they are written.
+     *                   Nothing downstream recovers it: the stored length is what the chunks compressed to,
+     *                   and the block offsets address the stream rather than measure it.
      */
     public record Metadata(long numValues, long valueBytes, int valuesPerBlock, ChunkIndexMetadata chunks, MonotonicWriter.Table offsets) {
 

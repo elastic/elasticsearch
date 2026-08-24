@@ -216,6 +216,36 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("cannot yet be combined with a request filter"));
     }
 
+    public void testRequestFilterOnEqlSubquerySourceRejectedE2E() {
+        // The filter guard runs on the analyzed plan (anyMatch(EqlRelation)), so an EQL source hidden inside a subquery
+        // must be rejected in every position, not just at top level: as a FROM subquery, and behind WHERE x IN (EQL ...).
+        VerificationException fromSubquery = expectThrows(
+            VerificationException.class,
+            () -> run(syncEsqlQueryRequest("FROM (EQL " + INDEX + " \"process where true\")").filter(new MatchAllQueryBuilder())).close()
+        );
+        assertThat(fromSubquery.getMessage(), containsString("cannot yet be combined with a request filter"));
+
+        VerificationException inSubquery = expectThrows(
+            VerificationException.class,
+            () -> run(
+                syncEsqlQueryRequest(
+                    "FROM " + INDEX + " | WHERE process.pid IN (EQL " + INDEX + " \"process where true\" | KEEP process.pid)"
+                ).filter(new MatchAllQueryBuilder())
+            ).close()
+        );
+        assertThat(inSubquery.getMessage(), containsString("cannot yet be combined with a request filter"));
+    }
+
+    public void testDelegateRuntimeErrorSurfacesE2E() {
+        // A query that passes ES|QL analysis but fails inside the EQL engine (an unknown timestamp_field) must surface
+        // the engine's error to the client rather than hang or come back empty.
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run("EQL " + INDEX + " \"process where true\" WITH {\"timestamp_field\": \"no_such_ts\"}").close()
+        );
+        assertThat(e.getMessage(), containsString("no_such_ts"));
+    }
+
     public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {
         // Lower the cap to 1. A pushed LIMIT 1 must set size from the LIMIT (not the cap), so NO truncation warning
         // fires. If the pushed limit failed to reach the request, size would fall back to the cap and the warning

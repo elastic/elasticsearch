@@ -95,6 +95,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
+        .user("eql_fls_user", "x-pack-test-password", "eql_fls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("metadata1_alias_read2", "x-pack-test-password", "metadata1_alias_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
@@ -820,6 +821,44 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(denied.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(denied.getMessage(), containsString("Unknown index [eql-events]"));
+    }
+
+    /**
+     * Field-level security must apply to the delegated EQL search as well: {@code eql_fls_user} is denied the
+     * {@code message} field, so the {@code _source} the command fetches and converts to rows must not carry it — the
+     * same {@code FieldSubsetReader} filtering a {@code FROM} source gets.
+     */
+    public void testEqlSourceCommandHonorsFieldLevelSecurity() throws IOException {
+        assumeTrue(
+            "requires the EQL source command",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName()))
+        );
+        createIndex("eql-events-fls", Settings.EMPTY, """
+            "properties":{"@timestamp":{"type":"date"},"event":{"properties":{"category":{"type":"keyword"}}},\
+            "message":{"type":"keyword"}}
+            """);
+        for (String doc : List.of("""
+            {"@timestamp":"2024-01-01T00:00:01Z","event":{"category":"process"},"message":"secret-a"}""", """
+            {"@timestamp":"2024-01-01T00:00:02Z","event":{"category":"process"},"message":"secret-b"}""")) {
+            Request indexDoc = new Request("POST", "/eql-events-fls/_doc");
+            indexDoc.setJsonEntity(doc);
+            assertOK(client().performRequest(indexDoc));
+        }
+        refresh("eql-events-fls");
+
+        // The delegated EQL search fetches _source, which security filters, so the hidden message field must be absent
+        // from every converted row while the granted fields remain.
+        Response resp = runESQLCommand("eql_fls_user", "EQL eql-events-fls \"process where true\" METADATA _source | KEEP _source");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        assertThat(values, hasSize(2));
+        for (List<Object> row : values) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) row.get(0);
+            assertThat("FLS-hidden field leaked into the EQL _source: " + source, source, not(hasKey("message")));
+            assertThat("granted field must remain in the EQL _source: " + source, source, hasKey("@timestamp"));
+        }
     }
 
     public void testFieldLevelSecurityAllow() throws Exception {

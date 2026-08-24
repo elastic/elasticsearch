@@ -259,6 +259,18 @@ eql_dls_user:
       privileges: [ 'read' ]
       query: '{"term": {"event.category": "process"}}'
 
+# Reads eql-events, but field-level security hides the message field. Used to prove the EQL source command's delegated
+# search honors the caller's FLS: the hidden field never appears in the response _source it converts to rows.
+eql_fls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events-fls' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'message' ]
+
 dls_user2:
   cluster: []
   indices:

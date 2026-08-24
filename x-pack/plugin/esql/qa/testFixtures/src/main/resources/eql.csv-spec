@@ -531,3 +531,31 @@ serial_event_id:long
 92
 95
 ;
+
+// result_position:"tail" is the same suffix lever as an explicit | tail, so an adjacent LIMIT must NOT push (a pushed
+// size would fetch the last 5 events); the LIMIT trims the first 5 instead, and that stays stable when a blocking WHERE
+// prevents the push anyway. Both cases return the same prefix [1..5]; before the fix the first (pushable) case returned
+// the tail suffix.
+eventQueryTailPositionLimitReturnsPrefix
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "tail", "tiebreaker_field": "serial_event_id"} | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+;
+
+eventQueryTailPositionStableUnderBlockingWhere
+required_capability: eql_command
+EQL endgame-140 "process where serial_event_id <= 12" WITH {"result_position": "tail", "tiebreaker_field": "serial_event_id"} | WHERE serial_event_id > 0 | LIMIT 5 | KEEP serial_event_id | SORT serial_event_id;
+
+serial_event_id:long
+1
+2
+3
+4
+5
+;

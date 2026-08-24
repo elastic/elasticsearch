@@ -86,23 +86,27 @@ public final class DirectReadBuffer implements Releasable {
      * <p>Breaker trips and {@link OutOfMemoryError} from the array allocation undo the charge
      * before propagating so callers can distinguish a circuit-breaker rejection (eligible for a
      * 429 response) from an I/O error.
+     *
+     * <p>Charges go through {@link DirectBufferFactory#forAsyncIo(CircuitBreaker)}: a
+     * driver-local breaker is not safe to touch from HTTP/S3 completion threads.
      */
     public static DirectReadBuffer allocate(CircuitBreaker breaker, int length) {
         if (length < 0) {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
-        breaker.addEstimateBytesAndMaybeBreak(length, STORAGE_READ_BREAKER_LABEL);
+        CircuitBreaker ioBreaker = DirectBufferFactory.forAsyncIo(breaker);
+        ioBreaker.addEstimateBytesAndMaybeBreak(length, STORAGE_READ_BREAKER_LABEL);
         final byte[] bytes;
         try {
             bytes = new byte[length];
         } catch (Throwable t) {
-            breaker.addWithoutBreaking(-length);
+            ioBreaker.addWithoutBreaking(-length);
             throw t;
         }
         AtomicBoolean chargeReleased = new AtomicBoolean();
         return new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {
             if (chargeReleased.compareAndSet(false, true)) {
-                breaker.addWithoutBreaking(-length);
+                ioBreaker.addWithoutBreaking(-length);
             }
         });
     }

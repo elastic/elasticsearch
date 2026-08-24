@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 
 import java.nio.ByteBuffer;
 
 /**
  * A Parquet {@code ByteBufferAllocator} that uses a circuit breaker to manage memory usage.
+ * Charges go through {@link DirectBufferFactory#forAsyncIo(CircuitBreaker)} because
+ * parquet-mr may allocate from generic threads after {@code readBytesAsync}.
  */
 public class CircuitBreakerByteBufferAllocator implements ByteBufferAllocator {
     private final ByteBufferAllocator delegate;
@@ -21,7 +24,7 @@ public class CircuitBreakerByteBufferAllocator implements ByteBufferAllocator {
 
     public CircuitBreakerByteBufferAllocator(ByteBufferAllocator delegate, CircuitBreaker breaker) {
         this.delegate = delegate;
-        this.breaker = breaker;
+        this.breaker = DirectBufferFactory.forAsyncIo(breaker);
     }
 
     @Override

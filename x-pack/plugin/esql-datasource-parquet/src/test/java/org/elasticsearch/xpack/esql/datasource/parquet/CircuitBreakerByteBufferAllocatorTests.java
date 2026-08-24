@@ -12,7 +12,11 @@ import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
@@ -38,6 +42,30 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         assertEquals(512, breaker.getUsed());
         allocator.release(buf);
         assertEquals(0, breaker.getUsed());
+    }
+
+    public void testAllocateFromOtherThreadChargesParentBreaker() throws Exception {
+        assumeTrue("requires assertions enabled (-ea) to detect the I/O-thread race", assertionsEnabled());
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
+        CircuitBreaker parent = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent, 0, 0);
+
+        Thread setup = new Thread(() -> assertTrue(local.assertBeginRunLoop()), "setup-pin-driver-breaker");
+        setup.start();
+        setup.join();
+
+        try {
+            var parquetAllocator = allocator(local);
+            ByteBuffer buf = parquetAllocator.allocate(64);
+            assertEquals(64, parent.getUsed());
+            parquetAllocator.release(buf);
+            assertEquals(0, parent.getUsed());
+        } finally {
+            assertTrue(local.assertEndRunLoop());
+            local.close();
+            assertEquals(0, parent.getUsed());
+        }
     }
 
     public void testLargeAllocationTripsBreaker() {
@@ -125,6 +153,13 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         // Breaker accepts reservation, allocation fails
         expectThrows(IllegalArgumentException.class, () -> allocator.allocate(200));
         assertEquals(0, breaker.getUsed());
+    }
+
+    @SuppressWarnings("AssertWithSideEffects")
+    private static boolean assertionsEnabled() {
+        boolean enabled = false;
+        assert enabled = true;
+        return enabled;
     }
 
     static class TestAllocator implements ByteBufferAllocator {

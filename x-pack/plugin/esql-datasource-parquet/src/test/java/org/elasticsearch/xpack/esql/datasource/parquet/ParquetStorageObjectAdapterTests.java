@@ -28,6 +28,11 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -83,6 +88,37 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         try (SeekableInputStream stream = adapter.newStream()) {
             assertNotNull(stream);
             assertEquals(0, stream.getPos());
+        }
+    }
+
+    /**
+     * Window construction charges the breaker. parquet-mr may open the stream on a generic
+     * thread while the driver holds {@link LocalCircuitBreaker#assertBeginRunLoop()}.
+     */
+    public void testNewStreamFromOtherThreadChargesParentBreaker() throws Exception {
+        assumeTrue("requires assertions enabled (-ea) to detect the I/O-thread race", assertionsEnabled());
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(16)).withCircuitBreaking();
+        CircuitBreaker parent = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        LocalCircuitBreaker local = new LocalCircuitBreaker(parent, 0, 0);
+
+        Thread setup = new Thread(() -> assertTrue(local.assertBeginRunLoop()), "setup-pin-driver-breaker");
+        setup.start();
+        setup.join();
+
+        try {
+            byte[] data = new byte[100];
+            randomBytes(data);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(createStorageObject(data), local);
+            try (SeekableInputStream stream = adapter.newStream()) {
+                assertEquals(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE, parent.getUsed());
+                assertNotNull(stream);
+            }
+            assertEquals(0, parent.getUsed());
+        } finally {
+            assertTrue(local.assertEndRunLoop());
+            local.close();
+            assertEquals(0, parent.getUsed());
         }
     }
 
@@ -1675,5 +1711,12 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 return StoragePath.of("memory://test.parquet");
             }
         };
+    }
+
+    @SuppressWarnings("AssertWithSideEffects")
+    private static boolean assertionsEnabled() {
+        boolean enabled = false;
+        assert enabled = true;
+        return enabled;
     }
 }

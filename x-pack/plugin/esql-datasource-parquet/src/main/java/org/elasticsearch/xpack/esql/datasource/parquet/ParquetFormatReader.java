@@ -515,8 +515,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // parquet-mr defaults useColumnIndexFilter=true (since 1.12.0), so when a FilterPredicate
         // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
         // active in addition to row-group level statistics, dictionary, and bloom filter checks.
-        // Note: all read operations happen synchronously with the ESQL engine. If some operations
-        // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
+        // Footer prefetch and parquet-mr allocations can complete on generic/HTTP threads.
+        // CircuitBreakerByteBufferAllocator unwraps a LocalCircuitBreaker to the parent request breaker.
         //
         // Keep the delegate heap-backed. parquet-mr's DirectByteBufferAllocator.release() is empty, so a
         // direct delegate returns the breaker charge but leaves the memory to a Cleaner -- reclamation

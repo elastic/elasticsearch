@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -216,13 +217,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
-            this.breaker = breaker;
-            breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
+            this.breaker = DirectBufferFactory.forAsyncIo(breaker);
+            this.breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
             byte[] allocated;
             try {
                 allocated = UninitializedArrays.newByteArray(windowSize);
             } catch (Throwable t) {
-                breaker.addWithoutBreaking(-windowSize);
+                this.breaker.addWithoutBreaking(-windowSize);
                 throw t;
             }
             this.window = allocated;

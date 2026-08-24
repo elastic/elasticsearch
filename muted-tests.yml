@@ -787,3 +787,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/157521
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/157535

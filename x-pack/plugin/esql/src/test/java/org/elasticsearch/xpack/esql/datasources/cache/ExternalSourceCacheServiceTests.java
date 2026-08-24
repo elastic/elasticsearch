@@ -45,6 +45,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceCacheServiceTests extends ESTestCase {
+    private static final Map<String, Object> HIVE_ON = Map.of();
+
+    private static final Map<String, Object> HIVE_OFF = Map.of("hive_partitioning", "false");
 
     private static Settings defaultSettings() {
         return Settings.builder()
@@ -188,14 +191,14 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 "bucket",
                 "/data/year=*/*.parquet",
                 Map.of(),
-                GlobExpander.listingCacheDiscriminator(glob, List.of(hint), true)
+                GlobExpander.listingCacheDiscriminator(glob, List.of(hint), HIVE_ON)
             );
             ListingCacheKey unfiltered = ListingCacheKey.build(
                 "s3",
                 "bucket",
                 "/data/year=*/*.parquet",
                 Map.of(),
-                GlobExpander.listingCacheDiscriminator(glob, null, true)
+                GlobExpander.listingCacheDiscriminator(glob, null, HIVE_ON)
             );
             assertNotEquals(filtered, unfiltered);
 
@@ -215,7 +218,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             AtomicInteger loaderCalls = new AtomicInteger();
 
-            String discriminator = GlobExpander.listingCacheDiscriminator("s3://bucket/data/*.parquet", null, true);
+            String discriminator = GlobExpander.listingCacheDiscriminator("s3://bucket/data/*.parquet", null, HIVE_ON);
             ListingCacheKey key1 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), discriminator);
             ListingCacheKey key2 = ListingCacheKey.build("s3", "bucket", "/data/*.parquet", Map.of(), discriminator);
             assertEquals(key1, key2);
@@ -2269,7 +2272,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
         // Detect partitions the way production does, so the fixture exercises the real typing and
         // percent-decoding rather than the on-disk spelling a hand-built PartitionMetadata would carry.
-        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries, Map.of());
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(entries);
         return GlobExpander.fileListOf(entries, "s3://bucket/data/*" + "*/*.parquet", pm);
     }
 }

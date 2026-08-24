@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -39,6 +40,7 @@ public class DenseVectorIT extends InferenceCommandIntegTestCase {
 
     @Before
     public void setupIndexAndInferenceModel() throws IOException {
+        assumeTrue("DENSE_VECTOR is only enabled on snapshot builds", Build.current().isSnapshot());
         createAndPopulateTestIndex(TEST_INDEX);
         createTestInferenceEndpoint(DENSE_VECTOR_MODEL_ID, TaskType.TEXT_EMBEDDING, "text_embedding_test_service");
     }

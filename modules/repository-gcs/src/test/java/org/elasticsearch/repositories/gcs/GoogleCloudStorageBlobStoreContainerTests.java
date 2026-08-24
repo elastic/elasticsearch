@@ -251,6 +251,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             storageService,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
+            GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE,
             BackoffPolicy.noBackoff(),
             new GcsRepositoryStatsCollector(),
             null,

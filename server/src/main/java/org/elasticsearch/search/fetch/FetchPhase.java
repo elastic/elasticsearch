@@ -267,9 +267,6 @@ public final class FetchPhase {
      * streaming modes. In streaming mode per-hit source/script-field bytes are charged to the request circuit breaker and
      * released once the hit is serialized (see {@link StreamingFetchPhaseDocsIterator#onHitSerialized()}); otherwise they are
      * held until the fetch response is released.
-     *
-     * @param memoryChecker optional caller-supplied per-hit source byte accounting used in non-streaming mode; may be {@code null}
-     * @param streaming whether the fetch runs in streaming (chunked) mode
      */
     private StreamingFetchPhaseDocsIterator createDocsIterator(
         SearchContext context,

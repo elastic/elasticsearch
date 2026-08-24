@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.simdvec;
 
 /**
  * Shared test utilities for BBQ vector operations in the {@code STRIPED} (bit-plane) layout —

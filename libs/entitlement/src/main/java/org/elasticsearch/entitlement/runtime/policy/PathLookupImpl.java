@@ -28,6 +28,7 @@ public record PathLookupImpl(
     Path sharedDataDir,
     Path[] sharedRepoDirs,
     Path libDir,
+    Path nativeLibDir,
     Path modulesDir,
     Path pluginsDir,
     Path logsDir,
@@ -65,6 +66,7 @@ public record PathLookupImpl(
             case PLUGINS -> Stream.of(pluginsDir);
             case LOGS -> Stream.of(logsDir);
             case TEMP -> Stream.of(tempDir);
+            case NATIVE_LIB -> Stream.of(nativeLibDir);
         };
     }
 

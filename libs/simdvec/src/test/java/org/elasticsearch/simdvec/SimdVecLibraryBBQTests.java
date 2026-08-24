@@ -7,14 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.BBQTestUtils;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
-import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -26,14 +23,14 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryBBQTests extends SimdVecLibraryTests {
+public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
 
     private final SimdVecLibrary.BBQType type;
 
     private final byte maxQueryValue;
     private final byte maxIndexValue;
 
-    public JDKVectorLibraryBBQTests(SimdVecLibrary.BBQType type, SimdVecLibrary.SimilarityFunction function, int size) {
+    public SimdVecLibraryBBQTests(SimdVecLibrary.BBQType type, SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.type = type;
         this.maxQueryValue = (byte) ((1 << type.queryBits()) - 1);

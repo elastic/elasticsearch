@@ -7,8 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.simdvec;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.LibraryProvider;
@@ -22,8 +23,8 @@ import org.elasticsearch.logging.Logger;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.nativeaccess.SimdVecChecks.validateBulkOffsets;
-import static org.elasticsearch.nativeaccess.SimdVecChecks.validateBulkSparse;
+import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkOffsets;
+import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkSparse;
 
 /**
  * Class providing vector similarity functions.
@@ -123,10 +124,49 @@ public abstract class SimdVecLibrary {
     }
 
     /**
+     * System property that opts out of loading the native vector library. Kept under the original
+     * {@code nativeaccess} name for backward compatibility with existing deployments.
+     */
+    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
+
+    /**
+     * Returns the (lazily loaded) native vector library, or an empty {@code Optional} if this host
+     * CPU/OS does not support it, or if the user has explicitly disabled it via
+     * {@code -D} {@value #ENABLE_JDK_VECTOR_LIBRARY} {@code =false}.
+     */
+    public static Optional<SimdVecLibrary> instance() {
+        return Holder.INSTANCE;
+    }
+
+    /** Whether the host CPU/OS/JDK combination can run the native vector library. */
+    public static boolean isNativeVectorLibSupported() {
+        return Runtime.version().feature() >= 22 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
+    }
+
+    /** Returns true iff the OS is Linux and the architecture is amd64 (the OS we currently support for x64). */
+    private static boolean isLinuxAmd64() {
+        String name = System.getProperty("os.name");
+        return name.startsWith("Linux") && System.getProperty("os.arch").equals("amd64");
+    }
+
+    /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
+    private static boolean isMacOrLinuxAarch64() {
+        String name = System.getProperty("os.name");
+        return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean checkEnableSystemProperty() {
+        return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
+    }
+
+    /**
      * Loads the native vector library, or returns an empty {@code Optional} if this host CPU/OS does not
      * support vector functions. Callers have already established that the library is supported here.
      */
-    static Optional<SimdVecLibrary> tryLoad() {
+    private static Optional<SimdVecLibrary> tryLoad() {
         int capability = VecCaps.caps();
         if (capability < 0) {
             logger.warn("""
@@ -143,6 +183,24 @@ public abstract class SimdVecLibrary {
         // (and loaded the native library to call vec_caps)
         assert lib != null;
         return Optional.of(lib);
+    }
+
+    /** Lazy holder for the singleton {@link SimdVecLibrary}. */
+    private static final class Holder {
+        private Holder() {}
+
+        static final Optional<SimdVecLibrary> INSTANCE = load();
+
+        private static Optional<SimdVecLibrary> load() {
+            if (isNativeVectorLibSupported() == false) {
+                return Optional.empty();
+            }
+            Optional<SimdVecLibrary> lib = tryLoad();
+            if (lib.isPresent()) {
+                logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
+            }
+            return lib;
+        }
     }
 
     // --- INT7U: dot product and square distance ---

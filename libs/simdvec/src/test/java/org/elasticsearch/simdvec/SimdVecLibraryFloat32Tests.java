@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
-import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -26,13 +24,13 @@ import java.util.function.IntFunction;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryFloat32Tests extends SimdVecLibraryTests {
+public class SimdVecLibraryFloat32Tests extends SimdVecLibraryTests {
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     final float delta;
 
-    public JDKVectorLibraryFloat32Tests(SimdVecLibrary.SimilarityFunction function, int size) {
+    public SimdVecLibraryFloat32Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
@@ -60,7 +58,7 @@ public class JDKVectorLibraryFloat32Tests extends SimdVecLibraryTests {
     }
 
     public void testRandomFloats() {
-        testFloat32Vectors(JDKVectorLibraryFloat32Tests::randomFloatArray);
+        testFloat32Vectors(SimdVecLibraryFloat32Tests::randomFloatArray);
     }
 
     public void testFloat32Vectors(IntFunction<float[]> vectorGeneratorFunc) {

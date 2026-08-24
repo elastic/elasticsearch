@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -59,7 +59,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     public static void setup() {
         var simdVecSupported = supported();
         if (simdVecSupported) {
-            vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
+            vectorSimilarityFunctions = SimdVecLibrary.instance().orElse(null);
             assertNotNull("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions);
         }
         assumeTrue(notSupportedMsg(), simdVecSupported);
@@ -82,7 +82,7 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
     }
 
     public static boolean supported() {
-        return PosixNativeAccess.isNativeVectorLibSupported() && VecCaps.caps() > 0;
+        return SimdVecLibrary.isNativeVectorLibSupported() && VecCaps.caps() > 0;
     }
 
     public static String notSupportedMsg() {

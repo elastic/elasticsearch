@@ -26,7 +26,6 @@ module org.elasticsearch.nativeaccess {
             org.elasticsearch.columnar,
             org.elasticsearch.parquetrs,
             org.elasticsearch.searchablesnapshots,
-            org.elasticsearch.simdvec,
             org.elasticsearch.systemd,
             org.elasticsearch.xpack.stateless,
             // ESQL data source compression-libs plugin: hosts PanamaZstd, the thin Panama
@@ -36,6 +35,10 @@ module org.elasticsearch.nativeaccess {
             // (process limits, mlock, exec sandbox, systemd hooks, raw memory mapping)
             // invisible to other plugins.
             org.elasticsearch.xpack.esql.datasource.compress;
+
+    // The POSIX C library binding is required by the guard-page allocator that lives in the
+    // simdvec test fixtures (PosixGuardPageAllocator needs PosixCLibrary.getPageSize and errno).
+    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.simdvec;
 
     uses org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 

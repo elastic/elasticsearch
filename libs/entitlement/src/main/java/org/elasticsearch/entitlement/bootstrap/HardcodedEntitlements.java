@@ -37,6 +37,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.DA
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LOGS;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.MODULES;
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.NATIVE_LIB;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.PLUGINS;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_DATA;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.SHARED_REPO;
@@ -180,6 +181,13 @@ class HardcodedEntitlements {
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
+                )
+            ),
+            new Scope(
+                "org.elasticsearch.foreign",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(NATIVE_LIB, READ)))
                 )
             ),
             new Scope("org.elasticsearch.simdvec", List.of(new LoadNativeLibrariesEntitlement()))

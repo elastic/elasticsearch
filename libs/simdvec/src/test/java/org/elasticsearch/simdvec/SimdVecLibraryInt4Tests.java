@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
-import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -21,8 +19,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.List;
 
-import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
-import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
+import static org.elasticsearch.simdvec.Int4TestUtils.dotProductI4SinglePacked;
+import static org.elasticsearch.simdvec.Int4TestUtils.packNibbles;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -33,12 +31,12 @@ import static org.hamcrest.Matchers.containsString;
  * (two nibbles per byte). The third argument to native functions is {@code packedLen},
  * not the logical dimension count.
  */
-public class JDKVectorLibraryInt4Tests extends SimdVecLibraryTests {
+public class SimdVecLibraryInt4Tests extends SimdVecLibraryTests {
 
     static final byte MIN_INT4_VALUE = 0;
     static final byte MAX_INT4_VALUE = 0x0F;
 
-    public JDKVectorLibraryInt4Tests(SimdVecLibrary.SimilarityFunction function, int size) {
+    public SimdVecLibraryInt4Tests(SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
     }
 

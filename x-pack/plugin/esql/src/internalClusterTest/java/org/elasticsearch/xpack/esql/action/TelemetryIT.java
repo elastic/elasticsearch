@@ -160,6 +160,44 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 FROM idx
                 | LOOKUP JOIN _coordinator:lookup_idx ON host
                 """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)), Map.ofEntries(), true) },
+            new Object[] { new Test("""
+                FROM idx
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("COORDINATOR LOOKUP JOIN", 2)), Map.ofEntries(), true) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | LOOKUP JOIN lookup_idx ON host
+                        | LOOKUP JOIN _coordinator:lookup_idx ON host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("LOOKUP JOIN", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | LOOKUP JOIN _coordinator:lookup_idx ON host
+                        | LOOKUP JOIN lookup_idx ON host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("LOOKUP JOIN", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | RENAME host as host_left
+                        | LOOKUP JOIN _coordinator:lookup_idx ON host_left == host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("RENAME", 1), Map.entry("COORDINATOR LOOKUP JOIN ON EXPRESSION", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
             new Object[] {
                 new Test(
                     """

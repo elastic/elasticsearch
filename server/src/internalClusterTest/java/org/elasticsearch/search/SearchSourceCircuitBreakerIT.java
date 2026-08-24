@@ -32,10 +32,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Verifies that the coordinating node charges the request circuit breaker for the retained {@link org.elasticsearch.search.builder.SearchSourceBuilder}
- * before fanning a search out to the shards, and releases the charge when the search finishes. A search whose source
- * exceeds the request breaker limit is rejected with a {@link CircuitBreakingException} naming {@code <search_source>};
- * a subsequent small search then succeeds and the breaker returns to its baseline, proving the charge is released.
+ * Verifies that the coordinating node charges the request circuit breaker for the retained
+ * {@link org.elasticsearch.search.builder.SearchSourceBuilder} before fanning a search out to the shards, and releases
+ * the charge when the search finishes. A search whose source exceeds the request breaker limit is rejected with a
+ * {@link CircuitBreakingException} naming {@code <search_source>}; a subsequent small search then succeeds and the
+ * breaker returns to its baseline, proving the charge is released.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SearchSourceCircuitBreakerIT extends ESIntegTestCase {

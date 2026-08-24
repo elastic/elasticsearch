@@ -308,7 +308,17 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                         });
                     }
                 },
-                (int bytesRead, long timeToReadNanos) -> totalBytesReadFromObjectStore.add(bytesRead)
+                new MeteringCacheBlobReader.ReadCompleteCallback() {
+                    @Override
+                    public void onBytesRead(int bytesRead) {
+                        totalBytesReadFromObjectStore.add(bytesRead);
+                    }
+
+                    @Override
+                    public void onReadCompleted(final int totalBytesRead, final long timeToReadNanos) {
+                        // ignore
+                    }
+                }
             );
         }
 

@@ -64,6 +64,9 @@ import java.util.stream.Collectors;
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
 
+    // Shared no-op used when there is no point-range accounting to enter/exit for a leaf.
+    private static final Releasable NOOP_RELEASABLE = () -> {};
+
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
@@ -548,7 +551,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         cancellable.checkCancelled();
 
         final PointRangeExecutionAccounting accounting = this.pointRangeAccounting.get();
-        try (Releasable ignored = accounting == null ? () -> {} : accounting.enterLeaf(ctx)) {
+        try (Releasable ignored = accounting == null ? NOOP_RELEASABLE : accounting.enterLeaf(ctx)) {
             final LeafCollector leafCollector;
             try {
                 leafCollector = collector.getLeafCollector(ctx);

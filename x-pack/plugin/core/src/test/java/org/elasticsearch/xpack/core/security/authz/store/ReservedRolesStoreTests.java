@@ -1287,6 +1287,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // user indices that Kibana creates and manages via the storage adapter.
         assertReadWriteAndManage(kibanaRole, "context-engine-signals-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
+        // Context Engine feedback-loop improvements: a regular (non-system) user index
+        // that Kibana creates and manages via the storage adapter.
+        Arrays.asList("context-engine-improvements", "context-engine-improvements-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+            .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
         // Agent Builder OTLP telemetry (traces + logs from span events)
         Arrays.asList(
             "traces-agent_builder.otel-" + randomAlphaOfLength(randomIntBetween(0, 13)),

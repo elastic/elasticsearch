@@ -764,7 +764,9 @@ public class VerifierTests extends ESTestCase {
 
         defaultAnalyzer().error(
             "from test | stats max(emp_no) by bucket(emp_no, \"5\")",
-            containsString("second argument of [bucket(emp_no, \"5\")] must be [integer, long or double], found value [\"5\"] type [keyword]")
+            containsString(
+                "second argument of [bucket(emp_no, \"5\")] must be [integer, long or double], found value [\"5\"] type [keyword]"
+            )
         );
 
         defaultAnalyzer().error(

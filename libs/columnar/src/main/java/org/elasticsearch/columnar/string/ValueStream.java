@@ -243,7 +243,7 @@ public final class ValueStream {
         }
     }
 
-    /** Random access by index; a block is decoded once and its value bounds kept for the next lookup. */
+    /** Random access by value address; a block is decoded once and its value bounds kept for the next lookup. */
     public static final class Reader {
 
         private final ChunkedBytesReader chunks;
@@ -269,12 +269,12 @@ public final class ValueStream {
             return numValues;
         }
 
-        /** Points {@code dst} at value {@code index}; the bytes are valid until the next call. */
-        public void get(long index, BytesRef dst) throws IOException {
-            assert index >= 0 && index < numValues : index + " out of [0, " + numValues + ")";
-            final long blockIndex = index / valuesPerBlock;
+        /** Points {@code dst} at the value at {@code valueAddress}; the bytes are valid until the next call. */
+        public void get(long valueAddress, BytesRef dst) throws IOException {
+            assert valueAddress >= 0 && valueAddress < numValues : valueAddress + " out of [0, " + numValues + ")";
+            final long blockIndex = valueAddress / valuesPerBlock;
             ensureBlock(blockIndex);
-            final int within = (int) (index - blockIndex * valuesPerBlock);
+            final int within = (int) (valueAddress - blockIndex * valuesPerBlock);
             dst.bytes = block.bytes;
             dst.offset = starts[within];
             dst.length = lengths[within];

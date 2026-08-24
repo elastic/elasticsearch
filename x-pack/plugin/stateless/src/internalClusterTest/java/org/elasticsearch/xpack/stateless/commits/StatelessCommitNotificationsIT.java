@@ -451,7 +451,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 ResourceNotFoundException.class,
                 () -> commitService.readVirtualBatchedCompoundCommitChunk(
                     request,
-                    new org.elasticsearch.common.io.stream.BytesStreamOutput()
+                    new BytesStreamOutput()
                 )
             )
         );
@@ -518,7 +518,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 ResourceNotFoundException.class,
                 () -> commitService.readVirtualBatchedCompoundCommitChunk(
                     request,
-                    new org.elasticsearch.common.io.stream.BytesStreamOutput()
+                    new BytesStreamOutput()
                 )
             );
         });

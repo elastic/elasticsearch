@@ -91,8 +91,9 @@ public final class FieldExtractionSpec implements Writeable {
     }
 
     /**
-     * Builds the complete direct-extraction specification for an attribute, or returns empty when the attribute requires another
-     * extraction operation.
+     * Builds the complete direct-extraction specification for an attribute. An empty result means that the current specification
+     * protocol does not represent the required extraction operation, so the caller must keep the attribute on the eager extraction
+     * path. It does not mean that the attribute cannot be extracted.
      */
     public static Optional<FieldExtractionSpec> plan(Attribute attribute, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         if (attribute instanceof TimeSeriesMetadataAttribute || attribute instanceof TemporalityAttribute) {
@@ -111,7 +112,7 @@ public final class FieldExtractionSpec implements Writeable {
         } else {
             return Optional.empty();
         }
-        if (supportsDirectDataType(attribute.dataType()) == false) {
+        if (isSupportedByDirectOperation(attribute.dataType()) == false) {
             return Optional.empty();
         }
         return Optional.of(direct(fieldName, attribute.dataType(), fieldExtractPreference));
@@ -123,7 +124,7 @@ public final class FieldExtractionSpec implements Writeable {
         DataType dataType,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
-        if (supportsDirectDataType(dataType) == false) {
+        if (isSupportedByDirectOperation(dataType) == false) {
             throw new IllegalArgumentException("data type [" + dataType.typeName() + "] requires a specialized extraction operation");
         }
         return new FieldExtractionSpec(
@@ -141,15 +142,18 @@ public final class FieldExtractionSpec implements Writeable {
         return direct(fieldName, dataType, MappedFieldType.FieldExtractPreference.NONE);
     }
 
-    /** Whether the direct operation contains all extraction semantics required by this logical type. */
-    public static boolean supportsDirectDataType(DataType dataType) {
+    /**
+     * Whether {@link Operation#DIRECT} contains all extraction semantics required by this logical type. This does not determine whether
+     * a particular attribute supports direct extraction; callers must use {@link #plan(Attribute, MappedFieldType.FieldExtractPreference)}.
+     */
+    public static boolean isSupportedByDirectOperation(DataType dataType) {
         return switch (dataType) {
             case UNSUPPORTED, NULL, BOOLEAN, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, LONG, INTEGER, UNSIGNED_LONG, DOUBLE, KEYWORD,
                 TEXT, DATETIME, DATE_NANOS, DATE_RANGE, DOUBLE_RANGE, IP, VERSION, SOURCE, TSID_DATA_TYPE, AGGREGATE_METRIC_DOUBLE,
                 EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM, DENSE_VECTOR, FLATTENED -> true;
             // These mapped numeric types require widening before a direct extraction specification can describe them.
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> false;
-            // Spatial extraction needs its own operation because the preference changes the physical representation.
+            // Spatial extraction needs its own operation because the preference changes the representation and its consumer semantics.
             case GEO_POINT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_SHAPE -> false;
             // These types are evaluator or execution values rather than independently loadable mapped fields.
             case OBJECT, DATE_PERIOD, TIME_DURATION, GEOHASH, GEOTILE, GEOHEX, DOC_DATA_TYPE, PARTIAL_AGG -> false;
@@ -231,7 +235,7 @@ public final class FieldExtractionSpec implements Writeable {
     private void validate() {
         switch (operation) {
             case DIRECT -> {
-                if (supportsDirectDataType(dataType) == false) {
+                if (isSupportedByDirectOperation(dataType) == false) {
                     throw new IllegalArgumentException(
                         "direct extraction does not contain the semantics required by type [" + dataType.typeName() + "]"
                     );

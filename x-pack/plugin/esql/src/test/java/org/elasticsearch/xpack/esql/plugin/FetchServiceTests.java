@@ -485,7 +485,7 @@ public class FetchServiceTests extends MapperServiceTestCase {
 
     public void testDirectExtractionTypesHavePreferenceIndependentElementTypes() {
         for (DataType dataType : DataType.values()) {
-            if (FieldExtractionSpec.supportsDirectDataType(dataType)) {
+            if (FieldExtractionSpec.isSupportedByDirectOperation(dataType)) {
                 var expectedElementType = PlannerUtils.toElementType(dataType);
                 for (MappedFieldType.FieldExtractPreference preference : MappedFieldType.FieldExtractPreference.values()) {
                     assertThat(PlannerUtils.toElementType(dataType, preference), equalTo(expectedElementType));

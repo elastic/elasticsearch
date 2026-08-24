@@ -12,18 +12,27 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.physical.FetchBoundaryExec;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -70,6 +79,52 @@ public class FieldExtractionSpecTests extends ESTestCase {
         assertTrue(FieldExtractionSpec.plan(attribute, MappedFieldType.FieldExtractPreference.NONE).isEmpty());
     }
 
+    public void testDoesNotPlanAttributesThatNeedSpecializedExtraction() {
+        List<Attribute> attributes = List.of(
+            new TimeSeriesMetadataAttribute(Source.EMPTY, Set.of("pod")),
+            new TemporalityAttribute(Source.EMPTY),
+            field(
+                new FunctionEsField(
+                    new EsField("specialized", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                    DataType.INTEGER,
+                    new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.LENGTH)
+                )
+            ),
+            field(new PotentiallyUnmappedKeywordEsField("specialized")),
+            field(new MultiTypeEsField("specialized", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null))
+        );
+
+        for (Attribute attribute : attributes) {
+            assertTrue(attribute.toString(), FieldExtractionSpec.isSupportedByDirectOperation(attribute.dataType()));
+            assertTrue(attribute.toString(), FieldExtractionSpec.plan(attribute, MappedFieldType.FieldExtractPreference.NONE).isEmpty());
+        }
+    }
+
+    public void testDoesNotPlanTypesThatNeedSpecializedExtraction() {
+        List<DataType> dataTypes = List.of(
+            DataType.SHORT,
+            DataType.BYTE,
+            DataType.FLOAT,
+            DataType.HALF_FLOAT,
+            DataType.SCALED_FLOAT,
+            DataType.GEO_POINT,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEO_SHAPE
+        );
+
+        for (DataType dataType : dataTypes) {
+            assertFalse(dataType.typeName(), FieldExtractionSpec.isSupportedByDirectOperation(dataType));
+            assertTrue(
+                dataType.typeName(),
+                FieldExtractionSpec.plan(
+                    field(new EsField("specialized", dataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    MappedFieldType.FieldExtractPreference.NONE
+                ).isEmpty()
+            );
+        }
+    }
+
     public void testDirectOperationUsesFetchBoundaryCompatibility() {
         FieldExtractionSpec spec = FieldExtractionSpec.direct("salary", DataType.INTEGER);
 
@@ -96,5 +151,9 @@ public class FieldExtractionSpecTests extends ESTestCase {
         var bound = spec.bind(shardContext, PlannerSettings.DEFAULTS, null);
 
         assertSame(blockLoader, bound.loader());
+    }
+
+    private static FieldAttribute field(EsField field) {
+        return new FieldAttribute(Source.EMPTY, field.getName(), field);
     }
 }

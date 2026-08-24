@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class FetchExecSerializationTests extends AbstractPhysicalPlanSerializationTests<FetchExec> {
     private static final DataType[] FETCH_TYPES = Arrays.stream(DataType.values())
-        .filter(FieldExtractionSpec::supportsDirectDataType)
+        .filter(FieldExtractionSpec::isSupportedByDirectOperation)
         .toArray(DataType[]::new);
 
     private static List<Attribute> randomFetchAttributes() {

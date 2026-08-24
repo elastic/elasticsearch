@@ -215,7 +215,7 @@ final class AshSphericalScalarQuantizer {
         double baseDot = 0;
         for (int j = 0; j < d; j++) {
             float a = Math.abs(z[zOffset + j]);
-            absZF[j] = Float.floatToIntBits(a);
+            absZF[j] = Float.floatToRawIntBits(a);
             baseDot = Math.fma(0.5, a, baseDot);
         }
 

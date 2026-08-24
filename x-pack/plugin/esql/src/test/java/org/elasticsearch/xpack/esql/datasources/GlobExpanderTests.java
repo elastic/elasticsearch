@@ -1288,6 +1288,25 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Under TEMPLATE the bound column value is the whole directory segment, so the key=value segment rewrite would
+     * narrow on the wrong axis — spelling a template-bound {@code part=a} as the segment {@code part=part=a}. The
+     * template rewrite is the only one whose spelling matches how the value was bound; when it declines, the pattern
+     * must be left alone.
+     */
+    public void testRewriteGlobTemplateStrategyDoesNotFallBackToKeyValueRewrite() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("part", PartitionFilterHintExtractor.Operator.EQUALS, List.of("part=a"))
+        );
+        String pattern = "s3://bucket/data/part=*/*.parquet";
+
+        assertEquals(
+            "a template strategy must not apply the key=value segment rewrite",
+            pattern,
+            GlobExpander.rewriteGlobWithHints(pattern, hints, new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{part}"))
+        );
+    }
+
+    /**
      * Lists only the entries under the requested prefix, as a real provider does. {@link StubProvider} returns its
      * whole listing whatever the prefix, which makes a glob narrowed onto a missing folder indistinguishable from an
      * un-narrowed one — the reason the listing layer's pruning bugs never surfaced in these tests.

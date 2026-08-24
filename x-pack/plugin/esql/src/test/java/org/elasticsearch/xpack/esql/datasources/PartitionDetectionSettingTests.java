@@ -170,12 +170,13 @@ public class PartitionDetectionSettingTests extends ESTestCase {
     }
 
     /**
-     * Setting {@code partition_path} alone promotes AUTO to TEMPLATE ({@code PartitionConfig.fromConfig}). Against
-     * {@code main} that promotion never reached the read path.
+     * Setting {@code partition_path} alone leaves the strategy at AUTO — it is deliberately NOT promoted to
+     * TEMPLATE. On a layout Hive cannot read, {@code AutoPartitionDetector} falls through to its template fallback,
+     * which is what surfaces the column here.
      */
-    public void testPartitionPathAlonePromotesAutoToTemplate() throws IOException {
+    public void testPartitionPathAloneEnablesTemplateFallbackUnderAuto() throws IOException {
         FileList listing = expandAsResolverDoes(FLAT_PATTERN, FLAT_TREE, Map.of("partition_path", "{year}"));
-        assertEquals("partition_path alone must select template detection", Set.of("year"), columnsOf(listing));
+        assertEquals("partition_path alone must reach the template fallback under AUTO", Set.of("year"), columnsOf(listing));
     }
 
     /**

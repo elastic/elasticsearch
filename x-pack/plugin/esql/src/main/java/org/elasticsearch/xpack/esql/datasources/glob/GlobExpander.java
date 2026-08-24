@@ -814,6 +814,12 @@ public final class GlobExpander {
             if (templateRewritten != null) {
                 return templateRewritten;
             }
+            // Under TEMPLATE the column value is the WHOLE directory segment, so the key=value rewrite below would
+            // narrow on the wrong axis: for a template-bound value of "part=a" it would spell the segment
+            // "part=part=a" and list a sibling directory of that literal name instead. That listing is non-empty, so
+            // the rewrite-to-empty fallback would not fire. The rewrite is never useful under TEMPLATE anyway — the
+            // template rewrite above is the only one that matches how the value was bound.
+            return pattern;
         }
 
         String[] segments = pattern.split("/");

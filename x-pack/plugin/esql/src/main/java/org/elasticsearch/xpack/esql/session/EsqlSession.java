@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -2268,8 +2269,8 @@ public class EsqlSession {
         if (result.fieldNames().equals(IndexResolver.ALL_FIELDS) == false) {
             return false;
         }
-        for (String part : indexPattern.indexPattern().split(",")) {
-            if (RemoteClusterAware.isRemoteIndexName(part.trim())) {
+        for (String part : Strings.splitStringByCommaToArray(indexPattern.indexPattern())) {
+            if (RemoteClusterAware.isRemoteIndexName(part)) {
                 return false;
             }
         }

@@ -415,6 +415,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         class StatelessNode extends TestClusterNodes.TestClusterNode {
 
             private TestStatelessPlugin testStatelessPlugin;
+            private StatelessPrimaryRelocationSourceService primaryRelocationService;
 
             StatelessNode(DiscoveryNode node, TransportInterceptorFactory transportInterceptorFactory) {
                 super(node, transportInterceptorFactory);
@@ -475,6 +476,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             public void stop() {
+                if (primaryRelocationService != null) {
+                    primaryRelocationService.stop();
+                    primaryRelocationService.close();
+                }
                 testStatelessPlugin.consistencyService.stop();
                 testStatelessPlugin.translogReplicator.stop();
                 testStatelessPlugin.statelessCommitService.stop();
@@ -491,6 +496,35 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             }
 
             private Map<ActionType<?>, TransportAction<?, ?>> getActions(ActionFilters actionFilters) {
+                // Construct the transport action so it registers target triggers, then start the source service.
+                primaryRelocationService = new StatelessPrimaryRelocationSourceService(
+                    settings,
+                    clusterService(),
+                    transportService().getThreadPool(),
+                    indicesService,
+                    testStatelessPlugin.hollowShardsService,
+                    new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                    mock(IndexShardCacheWarmer.class),
+                    HollowShardsMetrics.NOOP
+                );
+                final var primaryRelocationAction = new TransportStatelessPrimaryRelocationAction(
+                    transportService(),
+                    actionFilters,
+                    indicesService,
+                    new CompositeRecoverySchedulingListener(),
+                    primaryRelocationService,
+                    new StatelessPrimaryRelocationTargetService(
+                        clusterService(),
+                        transportService().getThreadPool(),
+                        indicesService,
+                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                        mock(IndexShardCacheWarmer.class),
+                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                    ),
+                    peerRecoveryTargetService,
+                    new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                );
+                primaryRelocationService.start();
                 return Map.of(
                     TransportNewCommitNotificationAction.TYPE,
                     new TransportNewCommitNotificationAction(
@@ -506,31 +540,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     TransportRegisterCommitForRecoveryAction.TYPE,
                     new TransportRegisterCommitForRecoveryAction(transportService(), indicesService, clusterService(), actionFilters),
                     StatelessPrimaryRelocationAction.TYPE,
-                    new TransportStatelessPrimaryRelocationAction(
-                        transportService(),
-                        actionFilters,
-                        indicesService,
-                        new CompositeRecoverySchedulingListener(),
-                        new StatelessPrimaryRelocationSourceService(
-                            clusterService(),
-                            transportService().getThreadPool(),
-                            indicesService,
-                            testStatelessPlugin.hollowShardsService,
-                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                            mock(IndexShardCacheWarmer.class),
-                            HollowShardsMetrics.NOOP
-                        ),
-                        new StatelessPrimaryRelocationTargetService(
-                            clusterService(),
-                            transportService().getThreadPool(),
-                            indicesService,
-                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                            mock(IndexShardCacheWarmer.class),
-                            new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
-                        ),
-                        peerRecoveryTargetService,
-                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
-                    ),
+                    primaryRelocationAction,
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
                         transportService(),

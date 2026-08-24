@@ -78,13 +78,9 @@ public class PainlessFilterAllocationIT extends ResourceExhaustionPainlessTestCa
     private Request filterSearch(int iters) {
         String script = "for (int i = 0; i < " + iters + "; i++) { byte[] chunk = new byte[" + CHUNK_BYTES + "]; } return true;";
         Request search = new Request("POST", "/" + INDEX + "/_search");
-        search.setJsonEntity("""
-            {
-              "query": {
-                "script": { "script": { "source": "%s" } }
-              }
-            }
-            """.formatted(script));
+        search.setJsonEntity(
+            "{\"query\":{\"script\":{\"script\":{\"source\":\"" + script + "\"}}}}"
+        );
         return search;
     }
 }

@@ -84,16 +84,12 @@ public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCas
             + CHUNK_BYTES
             + "]; total += chunk.length; } return (double) total;";
         Request search = new Request("POST", "/" + INDEX + "/_search");
-        search.setJsonEntity("""
-            {
-              "query": {
-                "function_score": {
-                  "query": { "match_all": {} },
-                  "script_score": { "script": { "source": "%s" } }
-                }
-              }
-            }
-            """.formatted(script));
+        search.setJsonEntity(
+            "{\"query\":{\"function_score\":{\"query\":{\"match_all\":{}},"
+                + "\"script_score\":{\"script\":{\"source\":\""
+                + script
+                + "\"}}}}}"
+        );
         return search;
     }
 }

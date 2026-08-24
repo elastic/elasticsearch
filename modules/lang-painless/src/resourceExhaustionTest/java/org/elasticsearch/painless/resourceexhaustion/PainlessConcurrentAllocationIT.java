@@ -139,16 +139,12 @@ public class PainlessConcurrentAllocationIT extends ResourceExhaustionPainlessTe
             + CHUNK_BYTES
             + "]; t += c.length; } return (double) t;";
         Request search = new Request("POST", "/" + INDEX + "/_search");
-        search.setJsonEntity("""
-            {
-              "query": {
-                "function_score": {
-                  "query": { "match_all": {} },
-                  "script_score": { "script": { "source": "%s" } }
-                }
-              }
-            }
-            """.formatted(script));
+        search.setJsonEntity(
+            "{\"query\":{\"function_score\":{\"query\":{\"match_all\":{}},"
+                + "\"script_score\":{\"script\":{\"source\":\""
+                + script
+                + "\"}}}}}"
+        );
         return search;
     }
 }

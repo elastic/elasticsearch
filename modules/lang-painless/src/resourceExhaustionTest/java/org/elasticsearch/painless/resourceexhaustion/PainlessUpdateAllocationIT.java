@@ -81,9 +81,7 @@ public class PainlessUpdateAllocationIT extends ResourceExhaustionPainlessTestCa
             + CHUNK_BYTES
             + "]; total += chunk.length; } ctx._source.value = total;";
         Request update = new Request("POST", "/" + INDEX + "/_update/" + DOC_ID);
-        update.setJsonEntity("""
-            { "script": { "source": "%s" } }
-            """.formatted(script));
+        update.setJsonEntity("{\"script\":{\"source\":\"" + script + "\"}}");
         return update;
     }
 }

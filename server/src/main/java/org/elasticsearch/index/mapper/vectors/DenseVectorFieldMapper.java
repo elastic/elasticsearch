@@ -3374,7 +3374,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (vectorType != null && vectorType != VectorType.DENSE_VECTOR) {
                 return null;
             }
-            return new EmbeddingsField(new FieldAndFormat(name(), null), EmbeddingsFieldSource.FIELDS);
+            return new EmbeddingsField(new FieldAndFormat(name(), null), EmbeddingsFieldSource.DOC_VALUES);
         }
 
         @Override

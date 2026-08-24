@@ -18,6 +18,7 @@ import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Reads a string column written by {@link StringColumnWriter}.
@@ -47,7 +48,11 @@ public final class StringColumnReader {
 
     private final BytesRef value = new BytesRef();
 
+    /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
+    private final IndexInput data;
+
     public StringColumnReader(StringColumnMetadata meta, IndexInput data) throws IOException {
+        this.data = data;
         assert meta.multiValued() == false : "multi-valued string columns are not implemented yet";
         this.meta = meta;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
@@ -129,6 +134,38 @@ public final class StringColumnReader {
             }
         }
         return rank;
+    }
+
+    /** Whether this column recorded what it surveyed, so a merge need not read its values again. */
+    public boolean hasSummary() {
+        return meta.hasSummary();
+    }
+
+    /** The values the summary's counts are a share of. */
+    public long summaryValues() {
+        return meta.hasSummary() ? meta.summary().numValues() : 0;
+    }
+
+    /**
+     * The summarised terms and how often each was seen. The counts are the survey's and so are lower
+     * bounds, which is what makes a vocabulary combined from several of them under-state its coverage
+     * rather than over-state it.
+     */
+    public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
+        final StringColumnMetadata.Summary summary = meta.summary();
+        final ValueStream.Reader source = summary.terms() == null ? dictionary : summary.terms().open(data);
+        final int size = summary.terms() == null ? meta.dictionarySize() : Math.toIntExact(summary.terms().numValues());
+        final BytesRef term = new BytesRef();
+        for (int ordinal = 0; ordinal < size; ordinal++) {
+            source.get(ordinal, term);
+            terms.add(BytesRef.deepCopyOf(term));
+        }
+        // Cloned rather than read in place: the caller's own reads are interleaved with these.
+        final IndexInput in = data.clone();
+        in.seek(summary.countsOffset());
+        for (int ordinal = 0; ordinal < size; ordinal++) {
+            counts.add(in.readVLong());
+        }
     }
 
     /** How many terms the dictionary holds, or zero on a column that stores its values. */

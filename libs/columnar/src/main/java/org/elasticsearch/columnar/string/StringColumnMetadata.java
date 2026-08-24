@@ -46,8 +46,23 @@ public record StringColumnMetadata(
     NumericColumnMetadata ordinals,
     ValueStream.Metadata exceptions,
     MonotonicWriter.Table escapeRanks,
-    int dictionarySize
+    int dictionarySize,
+    Summary summary
 ) implements ColumnMetadata {
+
+    /**
+     * What a column records of the terms it holds most, so a merge can work out a vocabulary from its
+     * inputs instead of reading their values again. The counts are the survey's, and so are lower bounds.
+     *
+     * <p>A dictionary column's summary terms are its dictionary; only the counts are written beside it.
+     *
+     * @param terms        the summarised terms in term order, or null when they are the dictionary
+     * @param countsOffset where the counts, one vlong per term, begin
+     * @param countsLength how many bytes they occupy
+     * @param numValues    the values the survey saw, which the counts are a share of
+     */
+    public record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
+
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
         return plain(iterator, 0, 0, ValueStream.Metadata.empty());
     }
@@ -70,7 +85,8 @@ public record StringColumnMetadata(
             null,
             null,
             MonotonicWriter.Table.NONE,
-            0
+            0,
+            null
         );
     }
 
@@ -100,8 +116,32 @@ public record StringColumnMetadata(
             ordinals,
             exceptions,
             escapeRanks,
-            dictionarySize
+            dictionarySize,
+            null
         );
+    }
+
+    /** The same column, with what it surveyed recorded beside it. */
+    public StringColumnMetadata withSummary(Summary summary) {
+        return new StringColumnMetadata(
+            iterator,
+            numDocsWithField,
+            numValues,
+            valueBytes,
+            layout,
+            values,
+            dictionary,
+            ordinals,
+            exceptions,
+            escapeRanks,
+            dictionarySize,
+            summary
+        );
+    }
+
+    /** Whether this column recorded what it surveyed. */
+    public boolean hasSummary() {
+        return summary != null;
     }
 
     /** Whether any value escaped the dictionary. */
@@ -139,6 +179,17 @@ public record StringColumnMetadata(
                 }
             }
         }
+        out.writeByte((byte) (summary == null ? 0 : 1));
+        if (summary != null) {
+            // A dictionary column's summary terms are its dictionary, so only the counts are written.
+            out.writeByte((byte) (summary.terms() == null ? 0 : 1));
+            if (summary.terms() != null) {
+                summary.terms().writeTo(out);
+            }
+            out.writeVLong(summary.countsOffset());
+            out.writeVLong(summary.countsLength());
+            out.writeVLong(summary.numValues());
+        }
     }
 
     /**
@@ -162,7 +213,7 @@ public record StringColumnMetadata(
         long numValues = in.readVLong();
         long valueBytes = in.readVLong();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
-        return switch (layout) {
+        final StringColumnMetadata column = switch (layout) {
             case PLAIN -> plain(iterator, numDocsWithField, numValues, ValueStream.Metadata.readFrom(in));
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();
@@ -190,6 +241,11 @@ public record StringColumnMetadata(
                 );
             }
         };
+        if (in.readByte() == 0) {
+            return column;
+        }
+        final ValueStream.Metadata summaryTerms = in.readByte() == 0 ? null : ValueStream.Metadata.readFrom(in);
+        return column.withSummary(new Summary(summaryTerms, in.readVLong(), in.readVLong(), in.readVLong()));
     }
 
 }

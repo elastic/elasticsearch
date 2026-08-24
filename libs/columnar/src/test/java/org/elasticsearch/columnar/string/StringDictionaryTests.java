@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * A column stored as an ordinal per value into a dictionary of its terms.
@@ -211,6 +213,79 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         metadata.writeTo(out);
         final org.apache.lucene.store.ByteArrayDataInput in = new org.apache.lucene.store.ByteArrayDataInput(buffer, 0, out.getPosition());
         return StringColumnMetadata.readFrom(in, Math.max(maxDoc, 1), org.elasticsearch.columnar.FormatVersion.CURRENT);
+    }
+
+    /** A dictionary column's summary terms are its dictionary, so only the counts are stored beside it. */
+    public void testDictionaryColumnKeepsASummary() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO" };
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(terms[d % terms.length]);
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertTrue("kept a summary", reader.hasSummary());
+            assertNull("terms are the dictionary", metadata.summary().terms());
+            assertEquals("values the counts are a share of", docValues.length, reader.summaryValues());
+            final List<BytesRef> summaryTerms = new ArrayList<>();
+            final List<Long> counts = new ArrayList<>();
+            reader.readSummary(summaryTerms, counts);
+            assertEquals("one count per term", terms.length, summaryTerms.size());
+            assertEquals(summaryTerms.size(), counts.size());
+            long total = 0;
+            for (Long count : counts) {
+                total += count;
+            }
+            // Counts are the survey's, so lower bounds: they never claim more than the column holds.
+            assertThat("counts never overstate", total, lessThanOrEqualTo((long) docValues.length));
+        });
+    }
+
+    /**
+     * A column that stayed plain keeps a summary too. The survey already ran, and the segment this one is
+     * merged into may well be worth a dictionary even where this one was not.
+     */
+    public void testPlainColumnKeepsASummary() throws IOException {
+        // Every term twice, so the vocabulary is complete but too large a share of the column to keep.
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("value-" + (d / 2));
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.PLAIN, metadata.layout());
+            assertTrue("kept a summary anyway", reader.hasSummary());
+            assertNotNull("a plain column writes its summary terms", metadata.summary().terms());
+            final List<BytesRef> summaryTerms = new ArrayList<>();
+            final List<Long> counts = new ArrayList<>();
+            reader.readSummary(summaryTerms, counts);
+            assertEquals("one count per term", summaryTerms.size(), counts.size());
+            assertThat("found the repeated terms", summaryTerms.size(), greaterThan(0));
+        });
+    }
+
+    /** A column with nothing worth naming records no summary. */
+    public void testAllDistinctValuesKeepNoSummary() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(200, 800)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef("id-" + d);
+        }
+        withDictionary(docValues, (metadata, reader) -> assertFalse("nothing repeats", reader.hasSummary()));
+    }
+
+    /** What a column recorded of its survey survives the round trip through its metadata. */
+    public void testSummaryRoundTrip() throws IOException {
+        final BytesRef[] docValues = new BytesRef[800];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 40 == 3 ? new BytesRef("rare-" + d) : new BytesRef(d % 2 == 0 ? "up" : "down");
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertTrue("kept a summary", metadata.hasSummary());
+            final StringColumnMetadata read = roundTrip(metadata, docValues.length);
+            assertTrue("summary survives", read.hasSummary());
+            assertEquals("counts offset", metadata.summary().countsOffset(), read.summary().countsOffset());
+            assertEquals("counts length", metadata.summary().countsLength(), read.summary().countsLength());
+            assertEquals("values", metadata.summary().numValues(), read.summary().numValues());
+        });
     }
 
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {

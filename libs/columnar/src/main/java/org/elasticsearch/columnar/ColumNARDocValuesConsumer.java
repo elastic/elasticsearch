@@ -47,7 +47,9 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 /**
@@ -155,8 +157,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
-                final Vocabulary.Terms known = unionOfDictionaries(field, mergeState);
-                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, known), known);
+                Vocabulary.Terms known = unionOfDictionaries(field, mergeState);
+                if (known == null) {
+                    // No union to take, but the segments may have recorded what they surveyed.
+                    known = combinedSummaries(field, mergeState);
+                }
+                final Vocabulary.Terms vocabulary = known;
+                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, vocabulary), vocabulary);
             }
         }
     }
@@ -301,6 +308,111 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         // counts. It does not need them: it names every value, and a merge of these segments always
         // prefers it to a survey.
         return Vocabulary.known(new ArrayList<>(union), columnBytes, 1.0, null);
+    }
+
+    /**
+     * A vocabulary combined from the segments' summaries, which every string column keeps. Counts are
+     * summed across segments and the result trimmed to the policy's bound the same way a survey trims, so
+     * the guarantee carries: a term the merged column holds often enough survives, and the coverage worked
+     * out from the summed counts is an under-estimate because each of them was.
+     */
+    private Vocabulary.Terms combinedSummaries(FieldInfo field, MergeState mergeState) throws IOException {
+        if (dictionaryPolicy.enabled() == false) {
+            return null;
+        }
+        final Map<BytesRef, Long> combined = new HashMap<>();
+        // What the combined summaries may hold while they are being combined. Without it the map would grow
+        // with the number of segments merged rather than with the dictionary any one of them can describe.
+        // Trimming the least frequent keeps the guarantee the summaries carry: a term the merged column
+        // holds often enough is in every summary that saw it, so it outlives the terms that are not.
+        final long combinedBound = 4L * dictionaryPolicy.maxBytes();
+        long combinedBytes = 0;
+        long numValues = 0;
+        long columnBytes = 0;
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            final DocValuesProducer producer = mergeState.docValuesProducers[i];
+            if (producer == null) {
+                continue;
+            }
+            final FieldInfo readerField = mergeState.fieldInfos[i].fieldInfo(field.name);
+            if (readerField == null || readerField.getDocValuesType() != DocValuesType.BINARY) {
+                continue;
+            }
+            final BinaryDocValues binary = producer.getBinary(readerField);
+            if ((binary instanceof ColumnarStringBinaryDocValues) == false) {
+                return null;
+            }
+            final StringColumnReader reader = ((ColumnarStringBinaryDocValues) binary).reader();
+            if (reader.numValues() == 0) {
+                continue;
+            }
+            if (reader.hasSummary() == false) {
+                return null;
+            }
+            final List<BytesRef> terms = new ArrayList<>();
+            final List<Long> counts = new ArrayList<>();
+            reader.readSummary(terms, counts);
+            for (int t = 0; t < terms.size(); t++) {
+                if (combined.merge(terms.get(t), counts.get(t), Long::sum).equals(counts.get(t))) {
+                    combinedBytes += terms.get(t).length;
+                }
+            }
+            numValues += reader.summaryValues();
+            columnBytes += reader.valueBytes();
+            if (combinedBytes > combinedBound) {
+                combinedBytes = trimToBound(combined, combinedBound);
+            }
+        }
+        if (combined.isEmpty() || numValues == 0) {
+            return null;
+        }
+        // Keep the terms seen most; the rest are what the merged column lets escape. Terms seen equally
+        // often are ordered by term, so the same inputs always yield the same column.
+        final List<Map.Entry<BytesRef, Long>> ranked = new ArrayList<>(combined.entrySet());
+        ranked.sort(Map.Entry.<BytesRef, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey));
+        final TreeSet<BytesRef> kept = new TreeSet<>();
+        long bytes = 0;
+        long covered = 0;
+        final long budget = dictionaryPolicy.budgetFor(columnBytes);
+        for (Map.Entry<BytesRef, Long> entry : ranked) {
+            // As at flush: a term the merged column holds once does not repay a dictionary entry.
+            if (entry.getValue() <= 1) {
+                break;
+            }
+            if (bytes + entry.getKey().length > budget) {
+                break;
+            }
+            kept.add(entry.getKey());
+            bytes += entry.getKey().length;
+            covered += entry.getValue();
+        }
+        if (kept.isEmpty()) {
+            return null;
+        }
+        // Whether this is worth a dictionary is left to the same gate a surveyed vocabulary passes. One
+        // that does not clear it still leaves the merged column its summary, sparing the next merge too.
+        final List<BytesRef> sorted = new ArrayList<>(kept);
+        final long[] countsPerTerm = new long[sorted.size()];
+        for (int t = 0; t < sorted.size(); t++) {
+            countsPerTerm[t] = combined.get(sorted.get(t));
+        }
+        return Vocabulary.known(sorted, columnBytes, (double) covered / numValues, countsPerTerm);
+    }
+
+    /** Drops the least frequent terms until the terms held fit {@code bound}, and returns what they weigh. */
+    private static long trimToBound(Map<BytesRef, Long> combined, long bound) {
+        final List<Map.Entry<BytesRef, Long>> ranked = new ArrayList<>(combined.entrySet());
+        ranked.sort(Map.Entry.<BytesRef, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey));
+        long bytes = 0;
+        int kept = 0;
+        while (kept < ranked.size() && bytes + ranked.get(kept).getKey().length <= bound) {
+            bytes += ranked.get(kept).getKey().length;
+            kept++;
+        }
+        for (int i = kept; i < ranked.size(); i++) {
+            combined.remove(ranked.get(i).getKey());
+        }
+        return bytes;
     }
 
     /**

@@ -95,18 +95,29 @@ public final class StringColumnWriter {
             return StringColumnMetadata.empty(iterator);
         }
 
+        Vocabulary.Terms surveyed = null;
         if (policy.enabled()) {
             // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-            final Vocabulary.Terms vocabulary = known != null ? known : Vocabulary.survey(cursors.get(), policy, numValues);
+            surveyed = known != null ? known : Vocabulary.survey(cursors.get(), policy, numValues);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
-            if (vocabulary != null && policy.worthKeeping(vocabulary.coverage(), vocabulary.dictionaryBytes(), vocabulary.columnBytes())) {
-                return writeDictionary(
-                    iterator,
-                    numDocsWithField,
+            if (surveyed != null && policy.worthKeeping(surveyed.coverage(), surveyed.dictionaryBytes(), surveyed.columnBytes())) {
+                return withSummary(
+                    writeDictionary(
+                        iterator,
+                        numDocsWithField,
+                        numValues,
+                        cursors,
+                        surveyed,
+                        surveyed.columnBytes(),
+                        valuesPerBlock,
+                        chunkCodec,
+                        targetChunkBytes,
+                        directory,
+                        context,
+                        data
+                    ),
+                    surveyed,
                     numValues,
-                    cursors,
-                    vocabulary,
-                    vocabulary.columnBytes(),
                     valuesPerBlock,
                     chunkCodec,
                     targetChunkBytes,
@@ -138,7 +149,70 @@ public final class StringColumnWriter {
             }
             written = stream.finish();
         }
-        return StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written);
+        return withSummary(
+            StringColumnMetadata.plain(iterator, numDocsWithField, numValues, written),
+            surveyed,
+            numValues,
+            valuesPerBlock,
+            chunkCodec,
+            targetChunkBytes,
+            directory,
+            context,
+            data
+        );
+    }
+
+    /**
+     * Records the terms the survey found and how often it saw them, so a merge of this segment can work out
+     * a vocabulary without reading its values again. A column that stayed plain keeps one too: the survey
+     * already ran, and the segment merged into may well be worth a dictionary even where this one was not.
+     *
+     * <p>A dictionary column's terms are already on disk as its dictionary, so only the counts are added.
+     */
+    private static StringColumnMetadata withSummary(
+        StringColumnMetadata metadata,
+        Vocabulary.Terms vocabulary,
+        long numValues,
+        int valuesPerBlock,
+        ChunkCodec chunkCodec,
+        int targetChunkBytes,
+        Directory directory,
+        IOContext context,
+        IndexOutput data
+    ) throws IOException {
+        if (vocabulary == null || vocabulary.counted() == false || vocabulary.size() == 0) {
+            return metadata;
+        }
+        final int size = vocabulary.size();
+        ValueStream.Metadata terms = null;
+        if (metadata.layout() != StringColumnLayout.DICTIONARY) {
+            final BytesRef term = new BytesRef();
+            try (
+                ValueStream.Writer writer = new ValueStream.Writer(
+                    chunkCodec,
+                    targetChunkBytes,
+                    valuesPerBlock,
+                    size,
+                    directory,
+                    context,
+                    data.getName(),
+                    data
+                )
+            ) {
+                for (int ordinal = 0; ordinal < size; ordinal++) {
+                    vocabulary.terms().get(vocabulary.sortedIds()[ordinal], term);
+                    writer.add(term);
+                }
+                terms = writer.finish();
+            }
+        } else {
+            assert metadata.dictionarySize() == size : metadata.dictionarySize() + " != " + size;
+        }
+        final long countsOffset = data.getFilePointer();
+        for (int ordinal = 0; ordinal < size; ordinal++) {
+            data.writeVLong(vocabulary.countOf(ordinal));
+        }
+        return metadata.withSummary(new StringColumnMetadata.Summary(terms, countsOffset, data.getFilePointer() - countsOffset, numValues));
     }
 
     /**

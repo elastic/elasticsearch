@@ -16,6 +16,7 @@ import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.IntroSelector;
 import org.apache.lucene.util.IntroSorter;
 
 import java.io.IOException;
@@ -215,9 +216,7 @@ public final class Vocabulary {
         // bound is unchanged: a round of decrements absorbs as many occurrences as there are terms held, so
         // across the column they can absorb at most one term's worth of n/k, which is the error a count
         // already carries.
-        final int[] sorted = ArrayUtil.copyOfSubArray(counts, 0, size);
-        Arrays.sort(sorted);
-        final int decrement = Math.max(1, sorted[size / 2]);
+        final int decrement = Math.max(1, medianCount(counts, size));
 
         final BytesRef scratch = new BytesRef();
         final List<BytesRef> survivors = new ArrayList<>();
@@ -251,6 +250,33 @@ public final class Vocabulary {
             rebuilt[id] = survivorCounts.get(i);
         }
         return rebuilt;
+    }
+
+    /** The median of the first {@code size} counts, by selection: only the middle one is needed. */
+    private static int medianCount(int[] counts, int size) {
+        final int[] scratch = ArrayUtil.copyOfSubArray(counts, 0, size);
+        final int middle = size / 2;
+        new IntroSelector() {
+            private int pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                final int tmp = scratch[i];
+                scratch[i] = scratch[j];
+                scratch[j] = tmp;
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = scratch[i];
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                return Integer.compare(pivot, scratch[j]);
+            }
+        }.select(0, size, middle);
+        return scratch[middle];
     }
 
     /**

@@ -168,18 +168,7 @@ public abstract class SimdVecLibrary {
         if (isNativeVectorLibSupported() == false) {
             return null;
         }
-        SimdVecLibrary lib = tryLoad();
-        if (lib != null) {
-            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-        }
-        return lib;
-    }
 
-    /**
-     * Loads the native vector library, or returns {@code null} if this host CPU/OS does not
-     * support vector functions. Callers have already established that the library is supported here.
-     */
-    private static SimdVecLibrary tryLoad() {
         int capability = VecCaps.caps();
         if (capability < 0) {
             logger.warn("""
@@ -195,6 +184,7 @@ public abstract class SimdVecLibrary {
         // lookupLibrary must succeed here, we already checked requirements
         // (and loaded the native library to call vec_caps)
         assert lib != null;
+        logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
         return lib;
     }
 

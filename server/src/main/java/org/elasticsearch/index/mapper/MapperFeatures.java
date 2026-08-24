@@ -48,9 +48,6 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
     public static final NodeFeature FLATTENED_PASSTHROUGH_FEATURE = new NodeFeature("mapper.flattened.passthrough");
     public static final NodeFeature FLATTENED_COLUMNAR_DOCUMENT_ORDER = new NodeFeature("mapper.flattened.columnar_document_order");
-    public static final NodeFeature FLATTENED_KEYED_UNSUPPORTED_QUERIES_BAD_REQUEST = new NodeFeature(
-        "mapper.flattened.keyed_unsupported_queries.bad.request"
-    );
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
     public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
         "mapper.dense_vector.rescore_zero_vector"
@@ -238,7 +235,6 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
             FLATTENED_MAPPED_SUBFIELDS_FEATURE,
             FLATTENED_COLUMNAR_DOCUMENT_ORDER,
-            FLATTENED_KEYED_UNSUPPORTED_QUERIES_BAD_REQUEST,
             ARRAY_OBJECTS_LIMIT,
             ES940_DISK_BBQ,
             FLATTENED_PASSTHROUGH_FEATURE,

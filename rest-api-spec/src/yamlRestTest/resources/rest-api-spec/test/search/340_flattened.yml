@@ -706,8 +706,12 @@ setup:
 ---
 "Unsupported queries on keyed flattened fields are client errors":
   - requires:
-      cluster_features: ["mapper.flattened.keyed_unsupported_queries.bad.request"]
-      reason: "before this feature, unsupported queries on keyed flattened fields returned a 5xx"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ keyed_flattened_unsupported_queries_bad_request ]
+      reason: "before this capability, unsupported queries on keyed flattened fields returned a 5xx"
   - do:
       indices.create:
         index:  keyed_unsupported

@@ -136,6 +136,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
+        final LongAccumulator longAccumulator = indexSearcher.getIndexReader().leaves().size() > 1
+            ? new LongAccumulator(Long::max, LEAST_COMPETITIVE)
+            : null;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         float maxRescoreOversampleAcrossLeaves = 1f;
@@ -152,7 +155,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
             IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
                 IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
-                indexSearcher
+                longAccumulator
             );
 
             // Preconditioning might differ per segment when they are calibrated, so, potentially,
@@ -249,8 +252,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean usePrecondition
     ) throws IOException;
 
-    protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new IVFCollectorManager(k, searcher);
+    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
+        return new IVFCollectorManager(k, longAccumulator);
     }
 
     @Override
@@ -262,9 +265,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         private final int k;
         final LongAccumulator longAccumulator;
 
-        IVFCollectorManager(int k, IndexSearcher searcher) {
+        IVFCollectorManager(int k, LongAccumulator longAccumulator) {
             this.k = k;
-            longAccumulator = searcher.getIndexReader().leaves().size() > 1 ? new LongAccumulator(Long::max, LEAST_COMPETITIVE) : null;
+            this.longAccumulator = longAccumulator;
         }
 
         @Override

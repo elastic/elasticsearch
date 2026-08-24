@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobRead
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -93,6 +95,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,6 +117,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
@@ -178,7 +182,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 vbcc.getTotalSizeInBytes(),
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(vbcc.getTotalSizeInBytes()));
@@ -227,7 +232,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // Verify all regions are warmed
@@ -294,7 +300,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // Regions within the prewarm limit should be warmed with correct data
@@ -357,7 +364,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // ALL regions should be warmed with correct data
@@ -618,7 +626,17 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
             fakeNode.warmingService.warmCacheForBCCHeadersRead(indexShard, directory, lastCommitBlobFiles, warmFuture);
             safeGet(warmFuture);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "region0PreWarm");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "es_primary_shard",
+                    true,
+                    "es_prewarming_type",
+                    SharedBlobCacheWarmingService.Type.INDEXING_BCC_HEADER_PREWARM.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "region0PreWarm"
+                )
+            );
 
             PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
             ObjectStoreService.readReferencedCompoundCommitsUsingCache(
@@ -814,7 +832,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             public SharedBlobCacheService.CacheMissHandler copy() {
                                 return this;
                             }
-                        }
+                        },
+                        randomRegionTimestampMillis()
                     );
                     // this read should be served up from the warmed cache
                     var read = cacheFile.populateAndRead(
@@ -1370,7 +1389,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = fakeNode.sharedCacheService.getCacheFile(
                 cacheKey,
                 vbcc.getTotalSizeInBytes(),
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             var writeBuffer = ByteBuffer.allocate(8192);
@@ -1561,7 +1581,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final var cacheFile = node.sharedCacheService.getCacheFile(
                     new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                     minimizedEnd,
-                    SharedBlobCacheService.CacheMissHandler.NOOP
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
                 );
                 assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(minimizedEnd - rangeStart)), rangeStart));
             }
@@ -1624,7 +1645,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                 rangeSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
             assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(rangeSize)), 0));
         }
@@ -1680,7 +1702,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobFile.primaryTerm(), blobFile.blobName()),
                 currentOffset,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup and ratio.
@@ -2047,7 +2070,15 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 warmListener
             );
             safeGet(warmListener);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "offline");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "es_prewarming_type",
+                    SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "offline"
+                )
+            );
 
             final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, vbcc.getBlobName());
             final var captured = capturingPolicy.capturedTimestamps(cacheKey);
@@ -2060,7 +2091,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
-    public void testOfflineWarmingRecordsRatioMetric() throws Exception {
+    public void testOfflineWarmingRatioAndBytesMetrics() throws Exception {
         final long primaryTerm = randomLongBetween(1, 42);
         final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
         final long cacheSizeBytes = ByteSizeValue.ofMb(9).getBytes();
@@ -2186,14 +2217,270 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .filter(
                             measurement -> Double.compare(measurement.getDouble(), blobSpec.ratio()) == 0
                                 && measurement.attributes()
-                                    .get(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY)
-                                    .equals(StatelessCommitService.bccSizeBucket(blobSpec.blobSize()))
+                                    .get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY)
+                                    .equals(BccUploadMetrics.bccSizeBucket(blobSpec.blobSize()))
                         )
                         .count(),
                     is(1L)
                 );
             }
+
+            // requested bytes counter: one measurement per blob with the requested range length and BCC size bucket label
+            List<Measurement> requestedBytesMeasurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_REQUESTED_BYTES_TOTAL_METRIC
+                );
+            assertThat(requestedBytesMeasurements, hasSize(numBlobs));
+            Comparator<Map.Entry<Long, String>> byValueThenBucket = Comparator.<Map.Entry<Long, String>, Long>comparing(Map.Entry::getKey)
+                .thenComparing(Map.Entry::getValue);
+            assertThat(
+                requestedBytesMeasurements.stream()
+                    .map(m -> Map.entry(m.getLong(), m.attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY).toString()))
+                    .sorted(byValueThenBucket)
+                    .toList(),
+                equalTo(
+                    blobSpecs.stream()
+                        .map(spec -> Map.entry(spec.endOffset(), BccUploadMetrics.bccSizeBucket(spec.blobSize())))
+                        .sorted(byValueThenBucket)
+                        .toList()
+                )
+            );
+
+            // page-aligned bytes counter: one measurement per blob carrying the warmer-type label
+            List<Measurement> pageAlignedBytesMeasurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
+                );
+            assertThat(pageAlignedBytesMeasurements, hasSize(numBlobs));
+            for (var measurement : pageAlignedBytesMeasurements) {
+                assertThat(
+                    measurement.attributes(),
+                    equalTo(
+                        Map.of(
+                            "prewarming_type",
+                            SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                            "es_prewarming_type",
+                            SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                            SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                            "offline"
+                        )
+                    )
+                );
+            }
+            assertThat(
+                pageAlignedBytesMeasurements.stream().mapToLong(Measurement::getLong).sorted().boxed().toList(),
+                equalTo(
+                    blobSpecs.stream()
+                        .mapToLong(spec -> BlobCacheUtils.roundUpToAlignedSize(spec.endOffset(), SharedBytes.PAGE_SIZE))
+                        .sorted()
+                        .boxed()
+                        .toList()
+                )
+            );
         }
+    }
+
+    public void testWarmBlobByteRangeTaskMetrics() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final long cacheSizeBytes = ByteSizeValue.ofMb(9).getBytes();
+        final int numBlobs = randomIntBetween(2, 5);
+        final var capturedTasks = new ArrayList<AbstractWarmingTask>();
+        final var readBlocker = new CountDownLatch(1);
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                recordingMeterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSizeBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .build();
+                }
+
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return new SharedBlobCacheWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider(recordingMeterRegistry),
+                        clusterSettings,
+                        warmingRatioProvider
+                    ) {
+                        // Capture tasks instead of submitting them so we control exactly when each starts.
+                        @Override
+                        protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                            capturedTasks.add(task);
+                        }
+                    };
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    // Always use the object-store reader so warming proceeds through the blob container.
+                    return new CacheBlobReaderService(
+                        nodeSettings,
+                        cacheService,
+                        client,
+                        threadPool,
+                        TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                    ) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobFile blobFile,
+                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing,
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                            Executor objectStoreFetchExecutor,
+                            String fileName,
+                            boolean speculativeFill
+                        ) {
+                            return new ObjectStoreCacheBlobReader(
+                                blobContainer.apply(blobFile.primaryTerm()),
+                                blobFile.blobName(),
+                                cacheService.getRangeSize(),
+                                objectStoreFetchExecutor
+                            );
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    // Stall every readBlob until readBlocker is released so that tasks remain in
+                    // the running state long enough for us to assert the non-zero counter value.
+                    return new FilterBlobContainer(FakeStatelessNode.syntheticBytesContainer(innerContainer)) {
+                        @Override
+                        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length)
+                            throws IOException {
+                            safeAwait(readBlocker);
+                            return super.readBlob(purpose, blobName, position, length);
+                        }
+
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+                    };
+                }
+            }
+        ) {
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            final Map<BlobFile, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();
+            for (int i = 0; i < numBlobs; i++) {
+                final long gen = i + 1L;
+                final long blobSize = randomLongBetween(1, 1024 * 1024);
+                final long endOffset = randomLongBetween(1, blobSize);
+                warmTargets.put(
+                    new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(endOffset, blobSize)
+                );
+            }
+
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(indexShard, fakeNode.searchDirectory, warmTargets, warmListener);
+
+            // warmBlobOffsets schedules tasks synchronously, so all numBlobs tasks are already captured.
+            // No task has started yet: enqueued == numBlobs, running == 0.
+            int enqueuedCount = numBlobs;
+            assertThat(capturedTasks.size(), equalTo(enqueuedCount));
+            assertThat(
+                "enqueued must equal number of blobs before any task starts",
+                measurementsTotal(
+                    recordingMeterRegistry,
+                    InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
+                ),
+                equalTo((long) enqueuedCount)
+            );
+
+            // Execute the captured tasks. onResponse calls deque() synchronously (enqueued-=1, running+=1),
+            // then dispatches the actual reads asynchronously. readBlocker keeps those reads stalled,
+            // so the running counter stays elevated until we release it.
+            int runningCount = 0;
+            for (var task : capturedTasks) {
+                task.onResponse(() -> {});
+                assertThat(
+                    measurementsTotal(
+                        recordingMeterRegistry,
+                        InstrumentType.LONG_UP_DOWN_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC
+                    ),
+                    equalTo((long) ++runningCount)
+                );
+                assertThat(
+                    "enqueued must equal number of blobs before any task starts",
+                    measurementsTotal(
+                        recordingMeterRegistry,
+                        InstrumentType.LONG_UP_DOWN_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
+                    ),
+                    equalTo((long) --enqueuedCount)
+                );
+            }
+
+            // Unblock all reads; tasks complete and counters return to zero.
+            readBlocker.countDown();
+            safeGet(warmListener);
+
+            assertThat(
+                "enqueued must return to zero after all tasks complete",
+                measurementsTotal(
+                    recordingMeterRegistry,
+                    InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_ENQUEUED_CURRENT_METRIC
+                ),
+                equalTo(0L)
+            );
+            assertThat(
+                "running must return to zero after all tasks complete",
+                measurementsTotal(
+                    recordingMeterRegistry,
+                    InstrumentType.LONG_UP_DOWN_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_RUNNING_CURRENT_METRIC
+                ),
+                equalTo(0L)
+            );
+            assertThat(
+                "done counter must equal the number of warmed blobs",
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(
+                        InstrumentType.LONG_COUNTER,
+                        SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_BCC_BLOBS_DONE_TOTAL_METRIC
+                    )
+                    .stream()
+                    .mapToLong(Measurement::getLong)
+                    .sum(),
+                equalTo((long) numBlobs)
+            );
+        }
+    }
+
+    private static long measurementsTotal(RecordingMeterRegistry registry, InstrumentType type, String name) {
+        return registry.getRecorder().getMeasurements(type, name).stream().mapToLong(Measurement::getLong).sum();
     }
 
     public void testShardRecoveryWarmingPropagatesTimestamp() throws Exception {
@@ -2221,14 +2508,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.sharedCacheService.getRegionSize(),
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
-            appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+            // Mirror recovery: build the BCC first, then a single updateCommit with file ranges.
+            for (StatelessCommitRef statelessCommitRef : indexCommits) {
+                assertTrue(vbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
             vbcc.freeze();
 
-            // Force a single, known timestamp for every file in the recovered commit so the ShardWarmer's per-file resolution is
-            // deterministic regardless of which segment/region ends up being warmed.
             final StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             final var timestampRange = new StatelessCompoundCommit.TimestampFieldValueRange(knownTimestamp, knownTimestamp);
             final Map<String, BlobFileRanges> timestampOverride = new HashMap<>();
+            // Artificially stamp every file in the recovered commit with the same known timestamp so we can assert deterministically.
             for (var entry : lastCommit.commitFiles().entrySet()) {
                 timestampOverride.put(entry.getKey(), new BlobFileRanges(entry.getValue(), timestampRange));
             }
@@ -2240,7 +2529,17 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // warms region 0 of every segment via maybeFetchRange (the call we capture).
             fakeNode.warmingService.warmCache(SEARCH, indexShard, lastCommit, fakeNode.searchDirectory, null, false, warmListener);
             safeGet(warmListener);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "headerFooter");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "es_primary_shard",
+                    true,
+                    "es_prewarming_type",
+                    SharedBlobCacheWarmingService.Type.SEARCH.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "headerFooter"
+                )
+            );
 
             assertFalse("ShardWarmer recovery prewarming should have warmed at least one region", capturedTimestamps.isEmpty());
             for (var entry : capturedTimestamps.entrySet()) {
@@ -2452,16 +2751,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         };
     }
 
-    private static void assertWarmingDurationMetricRecorded(RecordingMeterRegistry meterRegistry, String expectedWarmingType) {
+    private static void assertWarmingDurationMetricRecorded(RecordingMeterRegistry meterRegistry, Map<String, Object> expectedLabels) {
         List<Measurement> measurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_DURATION_METRIC);
         assertThat(measurements, hasSize(1));
         Measurement measurement = measurements.get(0);
         assertThat(measurement.getDouble(), greaterThanOrEqualTo(0.0));
-        assertThat(
-            measurement.attributes(),
-            equalTo(Map.of(SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY, expectedWarmingType))
-        );
+        assertThat(measurement.attributes(), equalTo(expectedLabels));
     }
 
     public void testMergeWarmingRecordsDurationMetric() throws Exception {
@@ -2505,7 +2801,37 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 future
             );
             safeGet(future);
-            assertWarmingDurationMetricRecorded(recordingMeterRegistry, "merge");
+            assertWarmingDurationMetricRecorded(
+                recordingMeterRegistry,
+                Map.of(
+                    "es_prewarming_type",
+                    SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
+                    SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                    "merge"
+                )
+            );
+
+            // page-aligned bytes counter carries the warmer-type label (value is 0 since no files are warmed)
+            List<Measurement> pageAlignedBytesMeasurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_COUNTER,
+                    SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
+                );
+            assertThat(pageAlignedBytesMeasurements, hasSize(1));
+            assertThat(pageAlignedBytesMeasurements.get(0).getLong(), equalTo(0L));
+            assertThat(
+                pageAlignedBytesMeasurements.get(0).attributes(),
+                equalTo(
+                    Map.of(
+                        "prewarming_type",
+                        SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
+                        "es_prewarming_type",
+                        SharedBlobCacheWarmingService.Type.INDEXING_MERGE.name(),
+                        SharedBlobCacheWarmingService.WARMING_TYPE_ATTRIBUTE_KEY,
+                        "merge"
+                    )
+                )
+            );
         }
     }
 

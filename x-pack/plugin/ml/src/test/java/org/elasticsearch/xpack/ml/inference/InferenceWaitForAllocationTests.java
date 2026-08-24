@@ -54,7 +54,11 @@ public class InferenceWaitForAllocationTests extends ESTestCase {
     private static final String DEPLOYMENT_ID = "deployment-1";
     private static final TimeValue INFERENCE_TIMEOUT = TimeValue.timeValueSeconds(10);
 
-    private record CapturedWaiter(Predicate<ClusterState> predicate, TrainedModelAssignmentService.WaitForAssignmentListener listener) {}
+    private record CapturedWaiter(
+        Predicate<ClusterState> predicate,
+        TimeValue timeout,
+        TrainedModelAssignmentService.WaitForAssignmentListener listener
+    ) {}
 
     private final List<CapturedWaiter> waiters = new ArrayList<>();
     private final AtomicInteger inferredCount = new AtomicInteger();
@@ -69,7 +73,7 @@ public class InferenceWaitForAllocationTests extends ESTestCase {
         // drive the predicate and listener directly, mirroring waitForAssignmentCondition's behaviour.
         TrainedModelAssignmentService assignmentService = mock(TrainedModelAssignmentService.class);
         doAnswer(invocation -> {
-            waiters.add(new CapturedWaiter(invocation.getArgument(1), invocation.getArgument(3)));
+            waiters.add(new CapturedWaiter(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3)));
             return null;
         }).when(assignmentService).waitForAssignmentCondition(any(), any(), any(), any());
 
@@ -204,7 +208,7 @@ public class InferenceWaitForAllocationTests extends ESTestCase {
         List<TrainedModelAssignment> queued = new ArrayList<>();
         TrainedModelAssignmentService assignmentService = mock(TrainedModelAssignmentService.class);
         doAnswer(invocation -> {
-            waiters.add(new CapturedWaiter(invocation.getArgument(1), invocation.getArgument(3)));
+            waiters.add(new CapturedWaiter(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3)));
             return null;
         }).when(assignmentService).waitForAssignmentCondition(any(), any(), any(), any());
         InferenceWaitForAllocation waiter = new InferenceWaitForAllocation(
@@ -253,17 +257,45 @@ public class InferenceWaitForAllocationTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
+    public void testNullInferenceTimeout_defaultsAndDoesNotHangOrNpe() {
+        PlainActionFuture<InferModelAction.Response> responseFuture = new PlainActionFuture<>();
+        // A request built without a ?timeout param carries a null inference timeout.
+        waitForAllocation.waitForAssignment(waitingRequest(responseFuture, null));
+
+        CapturedWaiter waiter = waiters.get(0);
+        // The observer must get a finite deadline (defaulted), otherwise a never-allocated deployment waits forever.
+        assertThat(waiter.timeout(), equalTo(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API));
+
+        ClusterState allFailed = clusterStateWithRoutes(Map.of("node-1", failedRoute()));
+        // A null failureTimeout would NPE here on failureTimeout.millis(); it must not.
+        assertFalse("still within the defaulted grace window at clock=0", waiter.predicate().test(allFailed));
+
+        clock.addAndGet(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API.millis() + 1);
+        assertTrue("the defaulted grace window has elapsed, so the wait should end", waiter.predicate().test(allFailed));
+
+        waiter.listener().onResponse(null);
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, responseFuture::actionGet);
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+    }
+
     private InferenceWaitForAllocation.WaitingRequest waitingRequest(AtomicReference<Exception> failure) {
         return waitingRequest(ActionListener.wrap(response -> {}, failure::set));
     }
 
     private InferenceWaitForAllocation.WaitingRequest waitingRequest(ActionListener<InferModelAction.Response> listener) {
+        return waitingRequest(listener, INFERENCE_TIMEOUT);
+    }
+
+    private InferenceWaitForAllocation.WaitingRequest waitingRequest(
+        ActionListener<InferModelAction.Response> listener,
+        TimeValue inferenceTimeout
+    ) {
         InferModelAction.Request request = InferModelAction.Request.forTextInput(
             DEPLOYMENT_ID,
             new EmptyConfigUpdate(),
             List.of("input"),
             true,
-            INFERENCE_TIMEOUT
+            inferenceTimeout
         );
         return new InferenceWaitForAllocation.WaitingRequest(
             DEPLOYMENT_ID,

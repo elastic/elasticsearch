@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentSer
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -109,7 +110,10 @@ public class InferenceWaitForAllocation {
             return;
         }
 
-        TimeValue inferenceTimeout = request.request().getInferenceTimeout();
+        TimeValue inferenceTimeout = Objects.requireNonNullElse(
+            request.request().getInferenceTimeout(),
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+        );
         var predicate = new DeploymentHasAtLeastOneAllocation(request.deploymentId(), relativeTimeInMillisSupplier, inferenceTimeout);
 
         assignmentService.waitForAssignmentCondition(

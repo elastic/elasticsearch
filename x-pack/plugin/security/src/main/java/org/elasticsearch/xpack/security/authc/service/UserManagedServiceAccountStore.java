@@ -129,6 +129,10 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         } else {
             this.accountCache = null;
         }
+        // Always register: the TTL is node-scope, so another node may still cache. A write
+        // clears the principal on every node and fails if that clear fails, and an
+        // unregistered name is an error rather than a no-op. invalidate() does nothing
+        // when this node has no cache.
         cacheInvalidatorRegistry.registerCacheInvalidator(CACHE_NAME, this);
     }
 

@@ -1069,6 +1069,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             private void cleanup() {
+                assert commitState.recentlyUploadedVbccs.containsKey(virtualBcc.primaryTermAndGeneration().generation()) == false;
+                // production fallback for assertion failure
+                commitState.recentlyUploadedVbccs.remove(virtualBcc.primaryTermAndGeneration().generation());
                 IOUtils.closeWhileHandlingException(virtualBcc);
                 blobReference.decRef();
             }

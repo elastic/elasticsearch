@@ -61,8 +61,10 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
         // registry_installed is an internal marker hide it by default
         request.params()
-            .putIfAbsent(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM,
-                Boolean.toString(request.paramAsBoolean(INCLUDE_MANAGED_FIELDS, false) == false));
+            .putIfAbsent(
+                ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM,
+                Boolean.toString(request.paramAsBoolean(INCLUDE_MANAGED_FIELDS, false) == false)
+            );
 
         final boolean implicitAll = getRequest.name() == null;
 

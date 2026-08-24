@@ -35,6 +35,7 @@ public class FilesEntitlementsValidationTests extends ESTestCase {
 
     private static Path TEST_PLUGINS_DIR;
     private static Path TEST_LIBS_DIR;
+    private static Path TEST_NATIVE_LIBS_DIR;
 
     @BeforeClass
     public static void beforeClass() {
@@ -43,6 +44,7 @@ public class FilesEntitlementsValidationTests extends ESTestCase {
             TEST_CONFIG_DIR = testBaseDir.resolve("config");
             TEST_PLUGINS_DIR = testBaseDir.resolve("plugins");
             TEST_LIBS_DIR = testBaseDir.resolve("libs");
+            TEST_NATIVE_LIBS_DIR = testBaseDir.resolve("libs/native");
 
             TEST_PATH_LOOKUP = new PathLookupImpl(
                 testBaseDir.resolve("user/home"),
@@ -51,6 +53,7 @@ public class FilesEntitlementsValidationTests extends ESTestCase {
                 Path.of("/shareddata"),
                 new Path[] { testBaseDir.resolve("shared1"), testBaseDir.resolve("shared2") },
                 TEST_LIBS_DIR,
+                TEST_NATIVE_LIBS_DIR,
                 testBaseDir.resolve("modules"),
                 TEST_PLUGINS_DIR,
                 testBaseDir.resolve("logs"),

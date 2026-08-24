@@ -36,10 +36,6 @@ module org.elasticsearch.nativeaccess {
             // invisible to other plugins.
             org.elasticsearch.xpack.esql.datasource.compress;
 
-    // The POSIX C library binding is required by the guard-page allocator that lives in the
-    // simdvec test fixtures (PosixGuardPageAllocator needs PosixCLibrary.getPageSize and errno).
-    exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.simdvec;
-
     uses org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
     provides org.elasticsearch.nativeaccess.lib.NativeLibraryProvider with org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;

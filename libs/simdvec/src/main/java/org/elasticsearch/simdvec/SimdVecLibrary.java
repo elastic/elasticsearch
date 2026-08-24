@@ -129,13 +129,15 @@ public abstract class SimdVecLibrary {
      */
     static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
 
+    private static final SimdVecLibrary INSTANCE = load();
+
     /**
-     * Returns the (lazily loaded) native vector library, or an empty {@code Optional} if this host
-     * CPU/OS does not support it, or if the user has explicitly disabled it via
+     * Returns the native vector library, or an empty {@code Optional} if this host CPU/OS does not
+     * support it, or if the user has explicitly disabled it via
      * {@code -D} {@value #ENABLE_JDK_VECTOR_LIBRARY} {@code =false}.
      */
     public static Optional<SimdVecLibrary> instance() {
-        return Holder.INSTANCE;
+        return Optional.ofNullable(INSTANCE);
     }
 
     /** Whether the host CPU/OS/JDK combination can run the native vector library. */
@@ -162,45 +164,38 @@ public abstract class SimdVecLibrary {
         return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }
 
+    private static SimdVecLibrary load() {
+        if (isNativeVectorLibSupported() == false) {
+            return null;
+        }
+        SimdVecLibrary lib = tryLoad();
+        if (lib != null) {
+            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
+        }
+        return lib;
+    }
+
     /**
-     * Loads the native vector library, or returns an empty {@code Optional} if this host CPU/OS does not
+     * Loads the native vector library, or returns {@code null} if this host CPU/OS does not
      * support vector functions. Callers have already established that the library is supported here.
      */
-    private static Optional<SimdVecLibrary> tryLoad() {
+    private static SimdVecLibrary tryLoad() {
         int capability = VecCaps.caps();
         if (capability < 0) {
             logger.warn("""
                 Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
                 enable them in your OS/Hypervisor/VM/container""");
-            return Optional.empty();
+            return null;
         }
 
         if (capability == 0) {
-            return Optional.empty();
+            return null;
         }
         var lib = LibraryProvider.lookupLibrary(SimdVecLibrary.class);
         // lookupLibrary must succeed here, we already checked requirements
         // (and loaded the native library to call vec_caps)
         assert lib != null;
-        return Optional.of(lib);
-    }
-
-    /** Lazy holder for the singleton {@link SimdVecLibrary}. */
-    private static final class Holder {
-        private Holder() {}
-
-        static final Optional<SimdVecLibrary> INSTANCE = load();
-
-        private static Optional<SimdVecLibrary> load() {
-            if (isNativeVectorLibSupported() == false) {
-                return Optional.empty();
-            }
-            Optional<SimdVecLibrary> lib = tryLoad();
-            if (lib.isPresent()) {
-                logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-            }
-            return lib;
-        }
+        return lib;
     }
 
     // --- INT7U: dot product and square distance ---

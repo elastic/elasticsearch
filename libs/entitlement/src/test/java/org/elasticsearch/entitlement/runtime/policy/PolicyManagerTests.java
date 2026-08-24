@@ -79,6 +79,7 @@ public class PolicyManagerTests extends ESTestCase {
                 Path.of("/shareddata"),
                 new Path[] { baseDir.resolve("/shared1"), baseDir.resolve("/shared2") },
                 baseDir.resolve("/lib"),
+                baseDir.resolve("/lib/native"),
                 baseDir.resolve("/modules"),
                 baseDir.resolve("/plugins"),
                 baseDir.resolve("/logs"),

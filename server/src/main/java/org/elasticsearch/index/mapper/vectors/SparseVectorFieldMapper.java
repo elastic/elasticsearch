@@ -250,7 +250,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public EmbeddingsField embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        public EmbeddingsField embeddingsField(@Nullable VectorType vectorType) {
             if (vectorType != null && vectorType != VectorType.SPARSE_VECTOR) {
                 return null;
             }

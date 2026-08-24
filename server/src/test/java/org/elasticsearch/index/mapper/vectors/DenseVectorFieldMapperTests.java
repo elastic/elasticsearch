@@ -127,16 +127,16 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
-    public void testEmbeddingsFieldAndFormat() throws IOException {
+    public void testEmbeddingsField() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
         MappedFieldType.EmbeddingsField expected = new MappedFieldType.EmbeddingsField(
             new FieldAndFormat("field", null),
             MappedFieldType.EmbeddingsFieldSource.FIELDS
         );
-        assertEquals(expected, fieldType.embeddingsFieldAndFormat(null));
-        assertEquals(expected, fieldType.embeddingsFieldAndFormat(VectorType.DENSE_VECTOR));
-        assertNull(fieldType.embeddingsFieldAndFormat(VectorType.SPARSE_VECTOR));
+        assertEquals(expected, fieldType.embeddingsField(null));
+        assertEquals(expected, fieldType.embeddingsField(VectorType.DENSE_VECTOR));
+        assertNull(fieldType.embeddingsField(VectorType.SPARSE_VECTOR));
         assertParseMinimalWarnings();
     }
 

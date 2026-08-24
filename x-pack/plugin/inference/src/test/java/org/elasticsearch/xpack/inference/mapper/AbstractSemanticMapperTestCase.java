@@ -225,7 +225,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     @Override
-    public void testEmbeddingsFieldAndFormat() throws IOException {
+    public void testEmbeddingsField() throws IOException {
         MappedFieldType.EmbeddingsField expected = new MappedFieldType.EmbeddingsField(
             new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT),
             MappedFieldType.EmbeddingsFieldSource.FIELDS
@@ -235,9 +235,9 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
         // is accepted.
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
-        assertEquals(expected, fieldType.embeddingsFieldAndFormat(null));
+        assertEquals(expected, fieldType.embeddingsField(null));
         for (VectorType vectorType : VectorType.values()) {
-            assertEquals(expected, fieldType.embeddingsFieldAndFormat(vectorType));
+            assertEquals(expected, fieldType.embeddingsField(vectorType));
         }
 
         // With model_settings, only the matching vector type is accepted.
@@ -249,12 +249,12 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
             MappedFieldType ftWithSettings = msWithSettings.fieldType("field");
 
             VectorType producedType = VectorType.fromTaskType(taskType);
-            assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(null));
+            assertEquals(expected, ftWithSettings.embeddingsField(null));
             for (VectorType vectorType : VectorType.values()) {
                 if (vectorType != producedType) {
-                    assertNull(ftWithSettings.embeddingsFieldAndFormat(vectorType));
+                    assertNull(ftWithSettings.embeddingsField(vectorType));
                 } else {
-                    assertEquals(expected, ftWithSettings.embeddingsFieldAndFormat(vectorType));
+                    assertEquals(expected, ftWithSettings.embeddingsField(vectorType));
                 }
             }
         }

@@ -3370,7 +3370,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public EmbeddingsField embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        public EmbeddingsField embeddingsField(@Nullable VectorType vectorType) {
             if (vectorType != null && vectorType != VectorType.DENSE_VECTOR) {
                 return null;
             }

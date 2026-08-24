@@ -2246,7 +2246,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
                     continue;
                 }
-                MappedFieldType.EmbeddingsField embeddings = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
+                MappedFieldType.EmbeddingsField embeddings = fieldType.embeddingsField(embeddingsField.getValue());
                 if (embeddings == null) {
                     // The field cannot produce embeddings of the requested type — skip, as with an unmapped field.
                     continue;

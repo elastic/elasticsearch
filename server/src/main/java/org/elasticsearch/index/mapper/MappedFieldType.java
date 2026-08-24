@@ -230,7 +230,7 @@ public abstract class MappedFieldType {
      * @return the embeddings field, or {@code null} if this field cannot produce embeddings of the requested type.
      */
     @Nullable
-    public EmbeddingsField embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+    public EmbeddingsField embeddingsField(@Nullable VectorType vectorType) {
         return null;
     }
 

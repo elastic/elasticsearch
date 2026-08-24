@@ -392,7 +392,7 @@ public final class DataTypeConverter {
     }
 
     public static long safeDoubleToLong(double x) {
-        if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
+        if (x >= 0x1.0p63 || x < Long.MIN_VALUE) {
             throw new InvalidArgumentException("[{}] out of [long] range", x);
         }
         return Math.round(x);

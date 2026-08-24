@@ -76,6 +76,9 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(10L, conversion.convert(10.0));
             assertEquals(10L, conversion.convert(10.1));
             assertEquals(11L, conversion.convert(10.6));
+            assertEquals(Math.round(Math.nextDown(0x1.0p63)), conversion.convert(Math.nextDown(0x1.0p63)));
+            Exception boundary = expectThrows(InvalidArgumentException.class, () -> conversion.convert(0x1.0p63));
+            assertEquals("[" + 0x1.0p63 + "] out of [long] range", boundary.getMessage());
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
@@ -414,8 +417,9 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(10, conversion.convert(10.0));
             assertEquals(10, conversion.convert(10.1));
             assertEquals(11, conversion.convert(10.6));
-            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
-            assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
+            long outOfRange = (long) Integer.MAX_VALUE + 1;
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert((double) outOfRange));
+            assertEquals("[" + outOfRange + "] out of [integer] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);

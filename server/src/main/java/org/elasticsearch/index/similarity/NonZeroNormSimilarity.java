@@ -17,6 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A {@link Similarity} wrapper that prevents {@code computeNorm} from returning zero for
@@ -42,8 +43,21 @@ final class NonZeroNormSimilarity extends Similarity {
 
     private static final long WARN_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
 
-    /** Last time a zero-norm warning was emitted, in {@link System#nanoTime()} units. */
-    private static volatile long lastWarnNanos = 0;
+    /**
+     * Timestamp of the last emitted zero-norm warning, in {@link System#nanoTime()} units. Seeded a
+     * full interval in the past so that the first zero norm always warns without a sentinel branch.
+     */
+    private static final AtomicLong lastWarnNanos = new AtomicLong(System.nanoTime() - WARN_INTERVAL_NANOS);
+
+    private static boolean shouldWarn() {
+        final long last = lastWarnNanos.get();
+        final long now = System.nanoTime();
+        if (now - last < WARN_INTERVAL_NANOS) {
+            return false;
+        }
+        // Exactly one racing thread wins the CAS and logs; the losers fall through silently.
+        return lastWarnNanos.compareAndSet(last, now);
+    }
 
     private final Similarity in;
 
@@ -63,12 +77,10 @@ final class NonZeroNormSimilarity extends Similarity {
             // Lucene only calls computeNorm when the field has tokens (length > 0), so a zero
             // return here always indicates a similarity that cannot represent the effective field
             // length (e.g. BM25 with discountOverlaps=true on a field whose only tokens all have
-            // positionIncrement == 0). Log a warning (rate-limited to once per minute) to help
+            // positionIncrement == 0). Log a rate-limited warning to help
             // identify the root cause, then clamp to 1 rather than letting Lucene throw an
             // IllegalStateException that corrupts the shard.
-            final long now = System.nanoTime();
-            if (lastWarnNanos == 0 || now - lastWarnNanos >= WARN_INTERVAL_NANOS) {
-                lastWarnNanos = now;
+            if (shouldWarn()) {
                 logger.warn(
                     "Similarity [{}] returned 0 from computeNorm for field [{}] with length {}; "
                         + "clamping to 1 to prevent shard corruption. "

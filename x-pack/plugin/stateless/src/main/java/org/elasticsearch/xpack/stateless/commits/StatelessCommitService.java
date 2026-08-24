@@ -2785,10 +2785,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
-            recentlyUploadedCleanups.values().forEach(Releasables::close);
+            Releasables.close(new ArrayList<>(recentlyUploadedCleanups.values()));
             assert recentlyUploadedVbccs.isEmpty();
             // production fallback for assertion failure, do nothing is expected
-            recentlyUploadedVbccs.values().forEach(VirtualBatchedCompoundCommit::close);
+            IOUtils.closeWhileHandlingException(recentlyUploadedVbccs.values());
 
             if (listenersToFail.isEmpty() == false) {
                 // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.

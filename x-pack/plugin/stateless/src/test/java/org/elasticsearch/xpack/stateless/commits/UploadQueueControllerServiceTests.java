@@ -11,6 +11,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.ThrottleCalculator;
 import org.elasticsearch.xpack.stateless.commits.UploadQueueControllerService.ThrottleSettings;
@@ -35,7 +36,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
 
         var time = new AtomicLong(0);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         var stats = new ShardCommitUploadStats() {
             long oldestCommitUploadStartTime = 0;
@@ -88,7 +89,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         long initialTime = 1000;
         var time = new AtomicLong(initialTime);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         // With empty current state we can throttle if conditions are met.
         var stats = new ShardCommitUploadStats() {
@@ -148,7 +149,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         long initialTime = 1000;
         var time = new AtomicLong(initialTime);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         var stats = new ShardCommitUploadStats() {
             long oldestCommitUploadStartTime = 0;
@@ -221,7 +222,7 @@ public class UploadQueueControllerServiceTests extends ESTestCase {
         long initialTime = 1000;
         var time = new AtomicLong(initialTime);
         var throttler = new MemorizingThrottler();
-        var calculator = new ThrottleCalculator(time::get, throttler);
+        var calculator = new ThrottleCalculator(time::get, throttler, MeterRegistry.NOOP);
 
         var stats = new ShardCommitUploadStats() {
             Long oldestCommitUploadStartTime = 0L;

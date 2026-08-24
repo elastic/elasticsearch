@@ -21,6 +21,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -163,7 +165,8 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
             var indexingThrottler = throttlingEnabled ? new IndexingThrottler(indicesService) : new NoopThrottler();
             this.indexingThrottleCalculator = new ThrottleCalculator(
                 threadPool::relativeTimeInMillis,
-                new MonitoringThrottler(indexingThrottler, telemetryProvider, "indexing")
+                new MonitoringThrottler(indexingThrottler, telemetryProvider, "indexing"),
+                telemetryProvider.getMeterRegistry()
             );
 
             ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -214,12 +217,20 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
         private static final Logger logger = LogManager.getLogger(ThrottleCalculator.class);
 
+        private static final String OLDEST_COMMIT_AGE_HISTOGRAM_METRIC = "es.stateless.upload_queue.oldest_commit_age.histogram";
+
         private final Supplier<Long> relativeTimeMillis;
         private final Throttler throttler;
+        private final LongHistogram oldestCommitAgeSecondsHistogram;
 
-        ThrottleCalculator(Supplier<Long> relativeTimeMillis, Throttler throttler) {
+        ThrottleCalculator(Supplier<Long> relativeTimeMillis, Throttler throttler, MeterRegistry meterRegistry) {
             this.relativeTimeMillis = relativeTimeMillis;
             this.throttler = throttler;
+            this.oldestCommitAgeSecondsHistogram = meterRegistry.registerLongHistogram(
+                OLDEST_COMMIT_AGE_HISTOGRAM_METRIC,
+                "Age of the oldest commit in the upload queue",
+                "seconds"
+            );
         }
 
         Map<ShardId, ThrottleState> newState(
@@ -243,11 +254,19 @@ public class UploadQueueControllerService extends AbstractLifecycleComponent {
 
                 // Otherwise we can make a new decision.
                 Long oldestCommitUploadStartTime = stats.oldestCommitUploadStartTimeRelativeMillis();
-                // When `oldestCommitUploadStartTime` is null it means that there are commits pending upload
-                // and as such we can remove throttling (TimeValue.ZERO should always be smaller than `settings.deactivationThreshold`).
-                var ageOfTheOldestCommitPendingUpload = oldestCommitUploadStartTime == null
-                    ? TimeValue.ZERO
-                    : TimeValue.timeValueMillis(relativeTimeMillis.get() - stats.oldestCommitUploadStartTimeRelativeMillis());
+
+                TimeValue ageOfTheOldestCommitPendingUpload;
+                if (oldestCommitUploadStartTime == null) {
+                    // When `oldestCommitUploadStartTime` is null it means that there are commits pending upload
+                    // and as such we can remove throttling (TimeValue.ZERO should always be smaller than `settings.deactivationThreshold`).
+                    ageOfTheOldestCommitPendingUpload = TimeValue.ZERO;
+                } else {
+                    ageOfTheOldestCommitPendingUpload = TimeValue.timeValueMillis(
+                        relativeTimeMillis.get() - stats.oldestCommitUploadStartTimeRelativeMillis()
+                    );
+                    oldestCommitAgeSecondsHistogram.record(ageOfTheOldestCommitPendingUpload.seconds());
+                }
+
                 if (ageOfTheOldestCommitPendingUpload.compareTo(settings.activationThreshold) > 0) {
                     // This is a throttle condition.
                     if (shardState != null && shardState.latestDecision() == Type.THROTTLED) {

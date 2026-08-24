@@ -210,13 +210,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    // Unused.
-    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
-        "stateless.upload.average_throughput_initial_value",
-        ByteSizeValue.ofGb(1),
-        Setting.Property.NodeScope
-    );
-
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
     private final IndicesService indicesService;

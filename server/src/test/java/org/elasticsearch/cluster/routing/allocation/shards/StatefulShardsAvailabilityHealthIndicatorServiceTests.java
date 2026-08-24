@@ -77,6 +77,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
@@ -84,6 +85,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -91,6 +93,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -148,23 +151,37 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
         .build();
 
+    private boolean multiProject;
+    private Set<ProjectId> projectIds;
+
+    @Before
+    public void chooseProjects() {
+        multiProject = randomBoolean();
+        if (multiProject) {
+            int projectCount = randomIntBetween(1, 5);
+            projectIds = new HashSet<>();
+            while (projectIds.size() < projectCount) {
+                projectIds.add(randomUniqueProjectId());
+            }
+        } else {
+            projectIds = Set.of(randomProjectIdOrDefault());
+        }
+    }
+
     /// Available shards keep the indicator green. Relocating shards are still considered available and are counted
     /// in the started_* detail fields together with fully started shards.
     public void testShouldBeGreenWhenAllPrimariesAndReplicasAreStartedOrRelocating() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        var clusterState = createClusterStateWith(
-            projectId,
-            List.of(
+        var clusterState = clusterStateWith(
+            () -> List.of(
                 index(
                     "replicated-index",
                     new ShardAllocation(randomNodeId(), randomFrom(AVAILABLE, RELOCATING)),
                     new ShardAllocation(randomNodeId(), randomFrom(AVAILABLE, RELOCATING))
                 ),
                 index("unreplicated-index", new ShardAllocation(randomNodeId(), randomFrom(AVAILABLE, RELOCATING)))
-            ),
-            List.of()
+            )
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
+        var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -172,7 +189,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
-                    Map.of("started_primaries", 2, "started_replicas", 1),
+                    Map.of("started_primaries", scale(2), "started_replicas", projectIds.size()),
                     emptyList(),
                     emptyList()
                 )
@@ -3054,6 +3071,20 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
+    /**
+     * TODO: Multi project specific test coverage still to be added, either as unit or integ tests:
+     * - A MP cluster with N green projects (randomly distributed from possible green project types)
+     *     -> assert all counters are as expected
+     * - A MP cluster with N green and M yellow projects
+     *     -> Assert the indicator is yellow, and diagnosis, impacts and counts are as expected
+     * - A MP cluster with N green and M red projects
+     *     -> assert the indicator is red, and diagnosis, impacts and counts are as expected
+     * - A MP cluster with N yellow and M red projects
+     *     -> assert the indicator is red, and diagnosis, impacts and counts are as expected
+     * - A MP cluster with 1 green, yellow and red project
+     *    -> assert the indicator is red, and diagnosis, impacts and counts are as expected
+     */
+
     public void testDeterministicShardAvailabilityKeyOrder() {
         final ProjectId projectId = randomProjectIdOrDefault();
         final ClusterState clusterState = createClusterStateWith(projectId, List.of(), List.of());
@@ -3104,6 +3135,30 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String symptom, List<HealthIndicatorImpact> impacts) {
         return new HealthIndicatorResult(NAME, status, symptom, HealthIndicatorDetails.EMPTY, impacts, emptyList());
+    }
+
+    private ProjectResolver projectResolver() {
+        return multiProject ? TestProjectResolvers.allProjects() : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next());
+    }
+
+    private int scale(int perProject) {
+        return perProject * projectIds.size();
+    }
+
+    private Map<ProjectId, List<IndexRoutingTable>> routes(Supplier<List<IndexRoutingTable>> perProject) {
+        Map<ProjectId, List<IndexRoutingTable>> map = new HashMap<>();
+        for (ProjectId id : projectIds) {
+            map.put(id, perProject.get());
+        }
+        return map;
+    }
+
+    private ClusterState clusterStateWith(Supplier<List<IndexRoutingTable>> perProjectRoutes) {
+        return clusterStateWith(perProjectRoutes, List.of());
+    }
+
+    private ClusterState clusterStateWith(Supplier<List<IndexRoutingTable>> perProjectRoutes, List<NodeShutdown> shutdowns) {
+        return createClusterStateWith(routes(perProjectRoutes), shutdowns);
     }
 
     private static ClusterState createClusterStateWith(
@@ -3497,6 +3552,20 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         ClusterState clusterState
     ) {
         return createShardsAvailabilityIndicatorService(projectId, clusterState, Collections.emptyMap());
+    }
+
+    private ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(
+        Settings nodeSettings,
+        ClusterState clusterState,
+        final Map<ShardRoutingKey, ShardAllocationDecision> decisions
+    ) {
+        return createAllocationHealthIndicatorService(
+            nodeSettings,
+            clusterState,
+            decisions,
+            new SystemIndices(List.of()),
+            projectResolver()
+        );
     }
 
     private static ShardsAvailabilityHealthIndicatorService createShardsAvailabilityIndicatorService(

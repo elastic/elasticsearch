@@ -63,8 +63,6 @@ import java.util.stream.Collectors;
  */
 public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static final MatchNoDocsQuery REWRITE_TIMEOUT = new MatchNoDocsQuery("rewrite timed out");
-
-    // Shared no-op used when there is no point-range accounting to enter/exit for a leaf.
     private static final Releasable NOOP_RELEASABLE = () -> {};
 
     /**
@@ -313,14 +311,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
         if (circuitBreaker != null && pointRangeQuery != null) {
-            return new PointRangeBreakerWeight(
-                getOrCreatePointRangeAccounting(),
-                weight,
-                pointRangeQuery,
-                query instanceof IndexOrDocValuesQuery
-            );
+            getOrCreatePointRangeAccounting();
+            return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
         return weight;
+    }
+
+    void chargeLeaf(LeafReaderContext ctx, long bytes) {
+        getOrCreatePointRangeAccounting().charge(ctx, bytes);
     }
 
     private PointRangeExecutionAccounting getOrCreatePointRangeAccounting() {

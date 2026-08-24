@@ -30,23 +30,19 @@ import java.util.Arrays;
  * {@link ContextIndexSearcher#searchLeaf}. The charge is applied only when the bitset-allocating
  * points branch runs: always for a bare {@link PointRangeQuery}, and for an
  * {@link org.apache.lucene.search.IndexOrDocValuesQuery} only on the path Lucene routes to points
- * (otherwise doc values run and allocate no bitset).
+ * (otherwise doc values run and allocate no bitset). Charges go through {@link ContextIndexSearcher#chargeLeaf}
+ * rather than a cached accounting reference, so this survives a {@link ContextIndexSearcher#setCircuitBreaker} swap.
  */
 final class PointRangeBreakerWeight extends Weight {
 
-    private final PointRangeExecutionAccounting accounting;
+    private final ContextIndexSearcher searcher;
     private final Weight in;
     private final PointRangeQuery pointRangeQuery;
     private final boolean indexOrDocValues;
 
-    PointRangeBreakerWeight(
-        PointRangeExecutionAccounting accounting,
-        Weight in,
-        PointRangeQuery pointRangeQuery,
-        boolean indexOrDocValues
-    ) {
+    PointRangeBreakerWeight(ContextIndexSearcher searcher, Weight in, PointRangeQuery pointRangeQuery, boolean indexOrDocValues) {
         super(in.getQuery());
-        this.accounting = accounting;
+        this.searcher = searcher;
         this.in = in;
         this.pointRangeQuery = pointRangeQuery;
         this.indexOrDocValues = indexOrDocValues;
@@ -79,14 +75,14 @@ final class PointRangeBreakerWeight extends Weight {
             @Override
             public Scorer get(long leadCost) throws IOException {
                 if (indexOrDocValues == false || (cost >>> 3) <= leadCost) {
-                    accounting.charge(context, charge);
+                    searcher.chargeLeaf(context, charge);
                 }
                 return inner.get(leadCost);
             }
 
             @Override
             public BulkScorer bulkScorer() throws IOException {
-                accounting.charge(context, charge);
+                searcher.chargeLeaf(context, charge);
                 return inner.bulkScorer();
             }
 

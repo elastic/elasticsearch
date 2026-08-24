@@ -354,6 +354,26 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("closing after the swap must not touch the old breaker again", firstBreaker.getUsed(), equalTo(0L));
     }
 
+    public void testStaleWeightChargesCurrentBreakerAfterSwap() throws Exception {
+        TrackingCircuitBreaker firstBreaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, firstBreaker);
+
+        TrackingCircuitBreaker secondBreaker = new TrackingCircuitBreaker(-1L);
+        ContextIndexSearcher searcher = denseSearch.searcher();
+        searcher.setCircuitBreaker(secondBreaker);
+
+        chargeAgainst(denseSearch.weight(), reader.leaves().get(0));
+        assertThat("a stale weight must not charge the breaker it was originally built against", firstBreaker.getUsed(), equalTo(0L));
+        assertThat(
+            "a stale weight must charge whichever breaker is current when it actually runs",
+            secondBreaker.getUsed(),
+            greaterThan(0L)
+        );
+
+        searcher.close();
+        assertThat("closing must release the charge from the currently tracked breaker", secondBreaker.getUsed(), equalTo(0L));
+    }
+
     public void testKnnWithPointRangeFilterChargesOutOfBandThenReleasesToBaseline() throws Exception {
         try (Directory vectorDirectory = newDirectory()) {
             writeMultiSegmentIndex(vectorDirectory, true);

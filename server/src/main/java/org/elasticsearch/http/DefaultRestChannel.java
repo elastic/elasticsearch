@@ -29,6 +29,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -157,6 +158,8 @@ public class DefaultRestChannel extends AbstractRestChannel {
             // Add all custom headers
             addCustomHeaders(httpResponse, restResponse.getHeaders());
             addCustomHeaders(httpResponse, restResponse.filterHeaders(threadContext.getResponseHeaders()));
+
+            HttpUtils.addDateHeader(httpResponse, Instant.now());
 
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);

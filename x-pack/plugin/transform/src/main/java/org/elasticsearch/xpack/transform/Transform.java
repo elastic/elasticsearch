@@ -346,7 +346,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             clock,
             configManager,
             auditor,
-            crossProjectModeDecider,
             cloudCredentialManager
         );
         TransformScheduler scheduler = new TransformScheduler(

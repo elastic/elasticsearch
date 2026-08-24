@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -20,6 +19,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * A builder for constructing an {@link ObjectParser} for parsing requests and persisted configuration for service settings.
@@ -86,7 +87,7 @@ public class ServiceSettingsOPBuilder<Value> {
 
     public ObjectParser<Value, ConfigurationParseContext> build() {
         var objectParser = new ObjectParser<Value, ConfigurationParseContext>(
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             valueSupplier
         );

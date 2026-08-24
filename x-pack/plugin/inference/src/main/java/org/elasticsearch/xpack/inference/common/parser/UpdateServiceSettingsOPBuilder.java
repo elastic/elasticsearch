@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -19,6 +18,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * A builder for constructing an {@link ObjectParser} for parsing update requests for service settings.
@@ -72,7 +73,7 @@ public class UpdateServiceSettingsOPBuilder<Value> {
     }
 
     public ObjectParser<Value, Void> build() {
-        var objectParser = new ObjectParser<Value, Void>(ModelConfigurations.SERVICE_SETTINGS, valueSupplier);
+        var objectParser = new ObjectParser<Value, Void>(SERVICE_SETTINGS.toString(), valueSupplier);
 
         if (rateLimitSettingsSetter != null) {
             RateLimitSettings.declareUpdatableRateLimitSettings(objectParser, rateLimitSettingsSetter);

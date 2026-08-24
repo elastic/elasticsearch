@@ -45,17 +45,19 @@ public class InternalResourceExhaustionTestPlugin implements Plugin<Project> {
         SourceSet sourceSet = sourceSets.create(SOURCE_SET_NAME);
 
         if (project.findProject(":test:resource-exhaustion-framework") != null) {
-            project.getDependencies().add(
-                sourceSet.getImplementationConfigurationName(),
-                project.getDependencies().project(Map.of("path", ":test:resource-exhaustion-framework"))
-            );
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    project.getDependencies().project(Map.of("path", ":test:resource-exhaustion-framework"))
+                );
         }
 
         if (project.findProject(":test:test-clusters") != null) {
-            project.getDependencies().add(
-                sourceSet.getImplementationConfigurationName(),
-                project.getDependencies().project(Map.of("path", ":test:test-clusters"))
-            );
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    project.getDependencies().project(Map.of("path", ":test:test-clusters"))
+                );
         }
 
         TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, sourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);

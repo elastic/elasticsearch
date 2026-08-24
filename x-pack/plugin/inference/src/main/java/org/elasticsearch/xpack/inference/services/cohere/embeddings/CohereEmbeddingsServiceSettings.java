@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 
@@ -96,7 +97,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             () -> new Builder(context)
         );

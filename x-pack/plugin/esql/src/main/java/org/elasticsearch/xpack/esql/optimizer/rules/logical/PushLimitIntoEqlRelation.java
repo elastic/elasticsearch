@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.eql.parser.EqlQueryMode;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
@@ -66,7 +66,7 @@ public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimi
         // The query is a folded string literal by the time this rule runs (ResolveEqlRelation requires it); if for any
         // reason it is not, be conservative and do not push.
         if (relation.query() instanceof Literal literal && literal.value() instanceof BytesRef bytesRef) {
-            boolean noExplicitLimit = EqlQueryMode.hasExplicitLimit(BytesRefs.toString(bytesRef)) == false;
+            boolean noExplicitLimit = EqlQueryIntrospection.hasExplicitLimit(BytesRefs.toString(bytesRef)) == false;
             // result_position defaults to "head" in EqlRequests; only an explicit tail override makes the push unstable.
             boolean tailRequested = "tail".equals(relation.options().get("result_position"));
             return noExplicitLimit && tailRequested == false;

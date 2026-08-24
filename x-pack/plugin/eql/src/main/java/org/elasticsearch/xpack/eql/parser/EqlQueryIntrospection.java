@@ -17,22 +17,27 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * The result mode of an EQL query — event, sequence, or sample — derivable purely by parsing the
- * query string.
+ * Structural facts about an EQL query string, derivable purely by parsing it: its {@link Mode result mode} and whether
+ * it carries its own explicit limit.
  *
- * <p>This is a small, dependency-light API intended for callers outside the EQL engine (notably the
- * ES|QL {@code EQL} source command) that need to fix an output schema at plan time without pulling in
- * the {@code ql} logical-plan types. All {@code ql}/{@code eql} plan references are confined to this
- * class; callers see only this enum. Only the mode is exposed — no per-stage structural detail — so
- * consumers cannot come to depend on the query's internal shape.
+ * <p>A small, dependency-light facade for callers outside the EQL engine (notably the ES|QL {@code EQL} source command)
+ * that need to reason about a query at plan time without pulling in the {@code ql} logical-plan types. All
+ * {@code ql}/{@code eql} plan references are confined to this class; callers see only {@link Mode} and primitive
+ * results — never the query's internal shape, so consumers cannot come to depend on it.
  */
-public enum EqlQueryMode {
-    /** A plain event query — returns a flat list of matching events. */
-    EVENT,
-    /** A {@code sequence}/{@code join} query — returns ordered groups of events with join keys. */
-    SEQUENCE,
-    /** A {@code sample} query — returns groups of events sharing join-key values. */
-    SAMPLE;
+public final class EqlQueryIntrospection {
+
+    private EqlQueryIntrospection() {}
+
+    /** The result mode of an EQL query — event, sequence, or sample. */
+    public enum Mode {
+        /** A plain event query — returns a flat list of matching events. */
+        EVENT,
+        /** A {@code sequence}/{@code join} query — returns ordered groups of events with join keys. */
+        SEQUENCE,
+        /** A {@code sample} query — returns groups of events sharing join-key values. */
+        SAMPLE
+    }
 
     /**
      * Parses {@code query} and returns its result mode. Throws the same exceptions as
@@ -41,7 +46,7 @@ public enum EqlQueryMode {
      * @param query the raw EQL query string
      * @return the result mode
      */
-    public static EqlQueryMode of(String query) {
+    public static Mode mode(String query) {
         LogicalPlan plan = new EqlParser().createStatement(query);
         // The join node (sequence/sample) is wrapped by top-level nodes (e.g. head/tail ordering, projection),
         // so search down the tree rather than inspecting the root. forEachDown visits top-down; the first match
@@ -49,10 +54,10 @@ public enum EqlQueryMode {
         List<AbstractJoin> joins = new ArrayList<>(1);
         plan.forEachDown(AbstractJoin.class, joins::add);
         if (joins.isEmpty()) {
-            return EVENT;
+            return Mode.EVENT;
         }
         // Sample extends AbstractJoin, so it must be distinguished explicitly.
-        return joins.get(0) instanceof Sample ? SAMPLE : SEQUENCE;
+        return joins.get(0) instanceof Sample ? Mode.SAMPLE : Mode.SEQUENCE;
     }
 
     /**

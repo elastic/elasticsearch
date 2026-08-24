@@ -26,7 +26,7 @@ import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.eql.parser.EqlQueryMode;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -879,9 +879,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Not a simple literal yet (e.g. a parameter reference); leave unresolved for the verifier.
                 return plan;
             }
-            EqlQueryMode queryMode;
+            EqlQueryIntrospection.Mode queryMode;
             try {
-                queryMode = EqlQueryMode.of(queryString);
+                queryMode = EqlQueryIntrospection.mode(queryString);
             } catch (Exception e) {
                 throw new ParsingException(plan.source(), "cannot parse EQL query [{}]: {}", queryString, e.getMessage());
             }

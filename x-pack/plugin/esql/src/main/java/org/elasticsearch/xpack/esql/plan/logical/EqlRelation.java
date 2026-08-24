@@ -53,8 +53,9 @@ public class EqlRelation extends LeafPlan {
     /**
      * EQL result mode, determined by a shallow parse of the query string at plan time. This is the plan-node-owned
      * enum that travels with the physical plan ({@code EqlSourceExec} serializes it via {@code writeEnum}). It is
-     * derived from {@code EqlQueryMode} — the eql-module facade that confines the {@code ql}/{@code eql} parse-tree
-     * types — and kept deliberately distinct from it: this one is an ES|QL plan concern, that one an EQL-engine boundary.
+     * derived from {@code EqlQueryIntrospection.Mode} — the eql-module facade that confines the {@code ql}/{@code eql}
+     * parse-tree types — and kept deliberately distinct from it: this one is an ES|QL plan concern, that one an
+     * EQL-engine boundary.
      */
     public enum Mode {
         EVENT,

@@ -79,6 +79,14 @@ setup:
         name: .kibana-reporting
 
 ---
+"Test registry_installed field is hidden in GET index template response":
+  - do:
+      indices.get_index_template:
+        name: logs
+
+  - is_false: index_templates.0.index_template.registry_installed
+
+---
 "Test logs index auto creation":
   - do:
       index:

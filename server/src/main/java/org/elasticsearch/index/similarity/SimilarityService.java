@@ -115,10 +115,14 @@ public final class SimilarityService {
     }
 
     /**
-     * The similarity to use in searches, which takes into account per-field configuration.
+     * The similarity to use at index time, wrapped in {@link NonZeroNormSimilarity} to prevent
+     * shard corruption when a similarity returns {@code 0} from {@code computeNorm} for a
+     * non-empty field. When a field lookup is provided the result dispatches per-field; otherwise
+     * the default similarity is used for all fields.
      */
     public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
-        return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) : defaultSimilarity;
+        Similarity base = (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) : defaultSimilarity;
+        return new NonZeroNormSimilarity(base);
     }
 
     public SimilarityProvider getSimilarity(String name) {

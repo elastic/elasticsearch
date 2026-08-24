@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.backwards;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -15,9 +17,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,10 +33,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
 
     private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
-    private static final String NEW_NODES_VERSION = System.getProperty("tests.new_nodes_version");
 
     private static String index = "test_min_version";
     private static int numShards;
@@ -38,6 +44,14 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     private static int numDocs;
     private static MixedClusterTestNodes nodes;
     private static List<MixedClusterTestNode> allNodes;
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Before
     public void prepareTestData() throws IOException {
@@ -68,7 +82,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         ) {
             Request newVersionRequest = new Request(
                 "POST",
-                index + "/_search?min_compatible_shard_node=" + NEW_NODES_VERSION + "&ccs_minimize_roundtrips=false"
+                index + "/_search?min_compatible_shard_node=" + Version.CURRENT + "&ccs_minimize_roundtrips=false"
             );
             assertBusy(() -> {
                 ResponseException responseException = expectThrows(ResponseException.class, () -> client.performRequest(newVersionRequest));
@@ -80,7 +94,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                     {"error":{"root_cause":[],"type":"search_phase_execution_exception\""""));
                 assertThat(responseException.getMessage(), containsString(Strings.format("""
                     caused_by":{"type":"version_mismatch_exception",\
-                    "reason":"One of the shards is incompatible with the required minimum version [%s]\"""", NEW_NODES_VERSION)));
+                    "reason":"One of the shards is incompatible with the required minimum version [%s]\"""", Version.CURRENT)));
             });
         }
     }
@@ -119,7 +133,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                 allNodes.stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
             )
         ) {
-            String version = randomBoolean() ? NEW_NODES_VERSION : BWC_NODES_VERSION;
+            String version = randomBoolean() ? Version.CURRENT : BWC_NODES_VERSION;
 
             Request request = new Request(
                 "POST",

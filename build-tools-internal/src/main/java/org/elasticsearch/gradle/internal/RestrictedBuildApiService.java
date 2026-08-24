@@ -28,13 +28,10 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
     private static ListMultimap<Class<?>, String> createLegacyRestTestBasePluginUsage() {
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
         // Projects that apply LegacyRestTestBasePlugin directly via the legacy-yaml-rest-test or legacy-java-rest-test plugins.
-        map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:xpack-prefix-rest-compat");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:single-node-tests");
 
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
-        map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
         return map;
     }

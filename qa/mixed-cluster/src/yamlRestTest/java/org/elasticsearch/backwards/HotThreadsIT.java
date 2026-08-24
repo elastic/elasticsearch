@@ -9,16 +9,30 @@
 
 package org.elasticsearch.backwards;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class HotThreadsIT extends ESRestTestCase {
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = Clusters.CLUSTER;
+
     private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     public void testHotThreads() throws Exception {
         final MixedClusterTestNodes nodes = MixedClusterTestNodes.buildNodes(client(), BWC_NODES_VERSION);

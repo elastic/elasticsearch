@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.backwards;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -20,11 +22,14 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,8 +43,17 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class IndexingIT extends ESRestTestCase {
     private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -234,7 +248,7 @@ public class IndexingIT extends ESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("location", Clusters.REPO_DIR.toString())
                     .endObject()
                     .endObject()
             )

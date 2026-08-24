@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.FetchHandle;
+import org.elasticsearch.xpack.esql.plugin.LateMaterializationPlanner;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -207,9 +208,20 @@ public final class ReductionPlanner {
                 localNodeId,
                 retainedSessionId
             );
-            // Not a TopN - must be an agg or a limit
+            case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization
+                && LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled() -> LateMaterializationPlanner
+                    .planReduceDriverTopNBy(contextFactory, originalPlan)
+                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
+            case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
+            case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization
+                && LateMaterializationPlanner.ESQL_LATE_MATERIALIZATION_LIMIT_BY_FEATURE_FLAG.isEnabled() -> LateMaterializationPlanner
+                    .planReduceDriverLimitBy(contextFactory, originalPlan)
+                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
+            case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
+            // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
             case PlannerUtils.ReducedPlan rp -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(rp.plan()) : passThroughReduction;
             case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> passThroughReduction;
+            default -> throw new IllegalStateException("unexpected plan reduction [" + planReduction.getClass().getName() + "]");
         };
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);

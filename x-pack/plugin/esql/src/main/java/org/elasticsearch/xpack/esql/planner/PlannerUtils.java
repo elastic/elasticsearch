@@ -69,10 +69,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -196,6 +198,12 @@ public class PlannerUtils {
     /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopN. */
     public record TopNReduction(PhysicalPlan plan) implements PlanReduction {}
 
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after TopNBy. */
+    public record TopNByReduction(PhysicalPlan plan) implements PlanReduction {}
+
+    /** The plan here is used as a fallback if the reduce driver cannot be planned in a way that avoids field extraction after LimitBy. */
+    public record LimitByReduction(PhysicalPlan plan) implements PlanReduction {}
+
     public record ReducedPlan(PhysicalPlan plan) implements PlanReduction {}
 
     public static PlanReduction reductionPlan(PhysicalPlan plan) {
@@ -216,6 +224,8 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
+            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
+            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,

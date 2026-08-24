@@ -3766,7 +3766,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             name(),
                             queryVector,
                             k,
-                            adjustedNumCandsForRescoring,
+                            numCands,
                             cachedFilter,
                             parentFilter,
                             visitRatio,
@@ -3778,7 +3778,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             name(),
                             queryVector,
                             k,
-                            adjustedNumCandsForRescoring,
+                            numCands,
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
@@ -3791,21 +3791,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             name(),
                             queryVector,
                             k,
-                            adjustedNumCandsForRescoring,
+                            numCands,
                             cachedFilter,
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver
                         )
-                        : new IVFKnnByteVectorQuery(
-                            name(),
-                            queryVector,
-                            k,
-                            adjustedNumCandsForRescoring,
-                            cachedFilter,
-                            visitRatio,
-                            ivfQueryConfigResolver
-                        );
+                        : new IVFKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null
@@ -3813,7 +3805,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         name(),
                         queryVector,
                         cachedFilter,
-                        k,
+                        adjustedKForRescoring,
                         adjustedNumCandsForRescoring,
                         parentFilter,
                         searchStrategy,
@@ -3822,7 +3814,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new ESKnnByteVectorQuery(
                         name(),
                         queryVector,
-                        k,
+                        adjustedKForRescoring,
                         adjustedNumCandsForRescoring,
                         cachedFilter,
                         searchStrategy,
@@ -3905,7 +3897,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             name(),
                             queryVector,
                             k,
-                            adjustedNumCandsForRescoring,
+                            numCands,
                             cachedFilter,
                             parentFilter,
                             visitRatio,
@@ -3917,7 +3909,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             name(),
                             queryVector,
                             k,
-                            adjustedNumCandsForRescoring,
+                            numCands,
                             cachedFilter,
                             visitRatio,
                             ivfQueryConfigResolver,
@@ -3930,21 +3922,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             name(),
                             queryVector,
                             k,
-                            adjustedNumCandsForRescoring,
+                            numCands,
                             cachedFilter,
                             parentFilter,
                             visitRatio,
                             ivfQueryConfigResolver
                         )
-                        : new IVFKnnFloatVectorQuery(
-                            name(),
-                            queryVector,
-                            k,
-                            adjustedNumCandsForRescoring,
-                            cachedFilter,
-                            visitRatio,
-                            ivfQueryConfigResolver
-                        );
+                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, cachedFilter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null

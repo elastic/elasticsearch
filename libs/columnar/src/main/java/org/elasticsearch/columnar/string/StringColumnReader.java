@@ -136,6 +136,35 @@ public final class StringColumnReader {
         return meta.dictionarySize();
     }
 
+    /** Whether this column names its values with ordinals rather than storing them. */
+    public boolean hasDictionary() {
+        return dictionary != null;
+    }
+
+    /** How many values the dictionary did not name. */
+    public long exceptionCount() {
+        return meta.hasEscapes() ? meta.exceptions().numValues() : 0;
+    }
+
+    /** What this column's values would occupy stored plainly, which a decision about it is weighed against. */
+    public long valueBytes() {
+        return meta.valueBytes();
+    }
+
+    /** The term at {@code ordinal}, on a column that has a dictionary. */
+    public BytesRef termAt(int ordinal, BytesRef dst) throws IOException {
+        dictionary.get(ordinal, dst);
+        return dst;
+    }
+
+    /**
+     * The ordinal the value at {@code valueAddress} takes, or {@link #dictionarySize()} when it escaped.
+     * Only meaningful on a column that has a dictionary.
+     */
+    public int ordinalAt(long valueAddress) throws IOException {
+        return Math.toIntExact(ordinals.valueAt(valueAddress));
+    }
+
     /** Values behind one offset in the byte stream. */
     public int blockSize() {
         return meta.layout() == StringColumnLayout.DICTIONARY ? meta.dictionary().valuesPerBlock() : meta.values().valuesPerBlock();

@@ -85,6 +85,7 @@ public final class StringColumnWriter {
         ChunkCodec chunkCodec,
         int targetChunkBytes,
         DictionaryPolicy policy,
+        Vocabulary.Terms known,
         Directory directory,
         IOContext context,
         IndexOutput data
@@ -95,7 +96,8 @@ public final class StringColumnWriter {
         }
 
         if (policy.enabled()) {
-            final Vocabulary.Terms vocabulary = Vocabulary.survey(cursors.get(), policy, numValues);
+            // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
+            final Vocabulary.Terms vocabulary = known != null ? known : Vocabulary.survey(cursors.get(), policy, numValues);
             // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
             if (vocabulary != null && policy.worthKeeping(vocabulary.coverage(), vocabulary.dictionaryBytes(), vocabulary.columnBytes())) {
                 return writeDictionary(
@@ -104,6 +106,7 @@ public final class StringColumnWriter {
                     numValues,
                     cursors,
                     vocabulary,
+                    vocabulary.columnBytes(),
                     valuesPerBlock,
                     chunkCodec,
                     targetChunkBytes,
@@ -152,6 +155,7 @@ public final class StringColumnWriter {
         long numValues,
         IOSupplier<StringColumnValues> cursors,
         Vocabulary.Terms vocabulary,
+        long valueBytes,
         int valuesPerBlock,
         ChunkCodec chunkCodec,
         int targetChunkBytes,
@@ -206,6 +210,14 @@ public final class StringColumnWriter {
                             if (index % ESCAPE_RANK_BLOCK == 0) {
                                 ranks.add(escapes);
                             }
+                            // A cursor that already knows the ordinal saves resolving the value's bytes
+                            // only to look them up again, which is most of what merging such a column costs.
+                            final int mapped = values.nextOrdinal();
+                            if (mapped >= 0) {
+                                ordinalTemp.writeVInt(mapped);
+                                index++;
+                                continue;
+                            }
                             final BytesRef value = values.nextValue();
                             final int id = vocabulary.terms().find(value);
                             final int ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
@@ -255,6 +267,7 @@ public final class StringColumnWriter {
                 iterator,
                 numDocsWithField,
                 numValues,
+                valueBytes,
                 dictionary,
                 ordinals,
                 exceptions,

@@ -35,10 +35,10 @@ import java.util.function.IntBinaryOperator;
  * first would keep the leading values rather than the common ones. What this costs is exactness: a count
  * is a lower bound, under-stating by at most the total charged away.
  */
-final class Vocabulary {
+public final class Vocabulary {
 
     /** An id the survey saw but left out; its values escape like any unknown term. */
-    static final int DROPPED = -1;
+    public static final int DROPPED = -1;
 
     private Vocabulary() {}
 
@@ -53,7 +53,7 @@ final class Vocabulary {
      * @param columnBytes    the value bytes the whole column occupies
      * @param counts         how often each id was seen, as a lower bound, or null when unknown
      */
-    record Terms(
+    public record Terms(
         BytesRefHash terms,
         int[] sortedIds,
         int[] ordinalOfId,
@@ -63,25 +63,56 @@ final class Vocabulary {
         int[] counts
     ) {
         /** Whether this vocabulary knows how often it saw each of its terms. */
-        boolean counted() {
+        public boolean counted() {
             return counts != null;
         }
 
         /** How often the term at {@code ordinal} was seen, as a lower bound. */
-        int countOf(int ordinal) {
+        public int countOf(int ordinal) {
             return counts[sortedIds[ordinal]];
         }
 
-        int size() {
+        public int size() {
             return sortedIds.length;
         }
+    }
+
+    /**
+     * A vocabulary worked out from what other columns recorded rather than from values: the union of their
+     * dictionaries, or the sum of their summaries. Either way their values need not be read again to
+     * discover what they contain.
+     *
+     * @param sortedTerms the vocabulary, in term order
+     * @param coverage    the share of the merged column's values these terms hold. One for a union of
+     *                    dictionaries that let nothing escape, and otherwise an under-estimate, since the
+     *                    counts a summary carries are themselves lower bounds.
+     */
+    public static Terms known(List<BytesRef> sortedTerms, long columnBytes, double coverage, long[] countsPerTerm) {
+        final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
+        final int[] sortedIds = new int[sortedTerms.size()];
+        final int[] ordinalOfId = new int[sortedTerms.size()];
+        final int[] counts = countsPerTerm == null ? null : new int[sortedTerms.size()];
+        long dictionaryBytes = 0;
+        for (int ordinal = 0; ordinal < sortedTerms.size(); ordinal++) {
+            int id = terms.add(sortedTerms.get(ordinal));
+            if (id < 0) {
+                id = -1 - id;
+            }
+            sortedIds[ordinal] = id;
+            ordinalOfId[id] = ordinal;
+            dictionaryBytes += sortedTerms.get(ordinal).length;
+            if (counts != null) {
+                counts[id] = (int) Math.min(Integer.MAX_VALUE, countsPerTerm[ordinal]);
+            }
+        }
+        return new Terms(terms, sortedIds, ordinalOfId, coverage, dictionaryBytes, columnBytes, counts);
     }
 
     /**
      * Surveys {@code values}, returning the terms worth a dictionary entry, or null when the column holds
      * nothing worth naming.
      */
-    static Terms survey(StringColumnValues values, DictionaryPolicy policy, long numValues) throws IOException {
+    public static Terms survey(StringColumnValues values, DictionaryPolicy policy, long numValues) throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         int[] counts = new int[64];
         long tableBytes = 0;

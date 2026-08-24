@@ -60,6 +60,38 @@ public class StringColumnMergeTests extends ESTestCase {
         });
     }
 
+    /**
+     * A head of repeated terms over a tail seen once each, so every segment carries a dictionary that let
+     * values escape. The union of those dictionaries cannot stand for the merged column — it would not name
+     * the escaped values — so the merge surveys instead of carrying ordinals over.
+     */
+    public void testDictionaryWithEscapesRoundTripsAndMerges() throws IOException {
+        String[] head = { "GET", "POST", "PUT", "DELETE" };
+        assertRoundTripAndMerge(numDocs -> {
+            String[] values = new String[numDocs];
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = rarely() ? "rare-" + d + "-" + randomAlphaOfLength(between(1, 12)) : randomFrom(head);
+            }
+            return values;
+        });
+    }
+
+    /**
+     * Terms that differ between segments, so the merged vocabulary is a union of dictionaries none of which
+     * holds it all, and each segment's ordinals mean something different in the merged column.
+     */
+    public void testDisjointDictionariesMerge() throws IOException {
+        assertRoundTripAndMerge(numDocs -> {
+            String[] values = new String[numDocs];
+            for (int d = 0; d < numDocs; d++) {
+                // Terms drift as documents are added, so segments flushed at different times disagree.
+                int band = d / Math.max(1, numDocs / 4);
+                values[d] = "band" + band + "-" + (d % 3);
+            }
+            return values;
+        });
+    }
+
     /** Every value distinct, so nothing repeats within or across segments. */
     public void testDistinctValuesRoundTripAndMerge() throws IOException {
         assertRoundTripAndMerge(numDocs -> {

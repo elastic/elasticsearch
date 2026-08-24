@@ -145,6 +145,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 chunkCodec,
                 targetChunkBytes,
                 policy,
+                null,
                 dir,
                 IOContext.DEFAULT,
                 out

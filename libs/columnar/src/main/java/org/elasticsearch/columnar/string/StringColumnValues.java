@@ -30,4 +30,17 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /** The next value of the current document; call exactly {@link #valueCount()} times per document. */
     public abstract BytesRef nextValue() throws IOException;
+
+    /**
+     * The ordinal this value takes in the column being written, when the cursor already knows it, or
+     * {@code -1} when it does not and {@link #nextValue()} has to be asked instead.
+     *
+     * <p>A merge whose inputs are the dictionaries the vocabulary was built from knows it: the value's
+     * ordinal in its own segment maps to one in the merged column, which costs a table per segment rather
+     * than resolving every value's bytes only to look them up again. Exactly one of this and
+     * {@link #nextValue()} advances the cursor.
+     */
+    public int nextOrdinal() throws IOException {
+        return -1;
+    }
 }

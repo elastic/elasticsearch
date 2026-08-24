@@ -39,6 +39,7 @@ public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
     long numValues,
+    long valueBytes,
     StringColumnLayout layout,
     ValueStream.Metadata values,
     ValueStream.Metadata dictionary,
@@ -62,6 +63,7 @@ public record StringColumnMetadata(
             iterator,
             numDocsWithField,
             numValues,
+            values.valueBytes(),
             StringColumnLayout.PLAIN,
             values,
             null,
@@ -80,6 +82,7 @@ public record StringColumnMetadata(
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
+        long valueBytes,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
         ValueStream.Metadata exceptions,
@@ -90,6 +93,7 @@ public record StringColumnMetadata(
             iterator,
             numDocsWithField,
             numValues,
+            valueBytes,
             StringColumnLayout.DICTIONARY,
             ValueStream.Metadata.empty(),
             dictionary,
@@ -118,6 +122,7 @@ public record StringColumnMetadata(
             return;
         }
         out.writeVLong(numValues);
+        out.writeVLong(valueBytes);
         out.writeByte(layout.id());
         switch (layout) {
             case PLAIN -> values.writeTo(out);
@@ -155,6 +160,7 @@ public record StringColumnMetadata(
             return empty(iterator);
         }
         long numValues = in.readVLong();
+        long valueBytes = in.readVLong();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
         return switch (layout) {
             case PLAIN -> plain(iterator, numDocsWithField, numValues, ValueStream.Metadata.readFrom(in));
@@ -171,7 +177,17 @@ public record StringColumnMetadata(
                     in.readBytes(meta, 0, meta.length);
                     escapeRanks = new MonotonicWriter.Table(dataOffset, dataLength, meta);
                 }
-                yield dictionary(iterator, numDocsWithField, numValues, dictionary, ordinals, exceptions, escapeRanks, dictionarySize);
+                yield dictionary(
+                    iterator,
+                    numDocsWithField,
+                    numValues,
+                    valueBytes,
+                    dictionary,
+                    ordinals,
+                    exceptions,
+                    escapeRanks,
+                    dictionarySize
+                );
             }
         };
     }

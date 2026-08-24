@@ -36,9 +36,11 @@ import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
+import org.elasticsearch.columnar.string.StringColumnReader;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
 import org.elasticsearch.columnar.string.ValueStream;
+import org.elasticsearch.columnar.string.Vocabulary;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
@@ -46,6 +48,7 @@ import org.elasticsearch.columnar.substrate.ColumnarCodecUtil;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
 
 /**
  * Writes tagged columns onto the binary substrate; numeric types decode their {@code NumericBinaryPayload}
@@ -151,7 +154,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         ColumnarFieldType type = ColumnarFieldType.fromField(field);
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
-            case STRING -> writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState));
+            case STRING -> {
+                final Vocabulary.Terms known = unionOfDictionaries(field, mergeState);
+                writeStringColumn(field, type, () -> stringMergeCursor(field, mergeState, known), known);
+            }
         }
     }
 
@@ -242,7 +248,89 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * {@link ColumnarStringBinaryDocValues#directValues}, in merged doc order. A fresh cursor is built per
      * pass — the count, the iterator, then the values.
      */
-    private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState) throws IOException {
+    /**
+     * The union of the segments' dictionaries, or null when it cannot stand for the merged column: a
+     * segment without a dictionary, or one that let values escape, holds values the union would not name.
+     * The union is bounded by the same policy as a surveyed vocabulary, and abandoned once it exceeds it.
+     */
+    private Vocabulary.Terms unionOfDictionaries(FieldInfo field, MergeState mergeState) throws IOException {
+        if (dictionaryPolicy.enabled() == false) {
+            return null;
+        }
+        final TreeSet<BytesRef> union = new TreeSet<>();
+        long unionBytes = 0;
+        long columnBytes = 0;
+        final BytesRef term = new BytesRef();
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            final DocValuesProducer producer = mergeState.docValuesProducers[i];
+            if (producer == null) {
+                continue;
+            }
+            final FieldInfo readerField = mergeState.fieldInfos[i].fieldInfo(field.name);
+            if (readerField == null || readerField.getDocValuesType() != DocValuesType.BINARY) {
+                continue;
+            }
+            final BinaryDocValues binary = producer.getBinary(readerField);
+            if ((binary instanceof ColumnarStringBinaryDocValues) == false) {
+                return null;
+            }
+            final StringColumnReader reader = ((ColumnarStringBinaryDocValues) binary).reader();
+            if (reader.numValues() == 0) {
+                // A segment the field never appeared in has nothing to contribute and nothing to disagree
+                // with; it must not decide the shape of the merged column.
+                continue;
+            }
+            if (reader.hasDictionary() == false || reader.exceptionCount() > 0) {
+                return null;
+            }
+            for (int ordinal = 0; ordinal < reader.dictionarySize(); ordinal++) {
+                reader.termAt(ordinal, term);
+                if (union.add(BytesRef.deepCopyOf(term))) {
+                    unionBytes += term.length;
+                    if (unionBytes > dictionaryPolicy.maxBytes()) {
+                        return null;
+                    }
+                }
+            }
+            columnBytes += reader.valueBytes();
+        }
+        if (union.isEmpty()) {
+            return null;
+        }
+        // How often each term is used is not recorded in a dictionary column, so the union carries no
+        // counts. It does not need them: it names every value, and a merge of these segments always
+        // prefers it to a survey.
+        return Vocabulary.known(new ArrayList<>(union), columnBytes, 1.0, null);
+    }
+
+    /**
+     * What each of a segment's dictionary ordinals becomes in the merged column, or null when the segment
+     * has no dictionary the merged vocabulary was built from.
+     */
+    private static int[] ordinalMap(BinaryDocValues values, Vocabulary.Terms vocabulary) throws IOException {
+        if (vocabulary == null || (values instanceof ColumnarStringBinaryDocValues) == false) {
+            return null;
+        }
+        final StringColumnReader reader = ((ColumnarStringBinaryDocValues) values).reader();
+        if (reader.hasDictionary() == false) {
+            return null;
+        }
+        final int[] map = new int[reader.dictionarySize()];
+        final BytesRef term = new BytesRef();
+        for (int ordinal = 0; ordinal < map.length; ordinal++) {
+            reader.termAt(ordinal, term);
+            final int id = vocabulary.terms().find(term);
+            if (id < 0 || vocabulary.ordinalOfId()[id] == Vocabulary.DROPPED) {
+                // The merged vocabulary was built from these dictionaries, so every term should be in it.
+                return null;
+            }
+            map[ordinal] = vocabulary.ordinalOfId()[id];
+        }
+        return map;
+    }
+
+    private static StringColumnValues stringMergeCursor(FieldInfo field, MergeState mergeState, Vocabulary.Terms vocabulary)
+        throws IOException {
         List<ColumnMergeSub<StringColumnValues>> subs = new ArrayList<>();
         long cost = 0;
         for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
@@ -260,7 +348,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
             // Read decoded values directly for our own columns; fall back to the payload for anything else.
             StringColumnValues values = binary instanceof ColumnarStringBinaryDocValues columnar
-                ? columnar.directValues()
+                ? columnar.directValues(ordinalMap(binary, vocabulary))
                 : ColumnarStringBinaryDocValues.singleValues(binary);
             cost += values.cost();
             subs.add(new ColumnMergeSub<>(mergeState.docMaps[i], values));
@@ -282,6 +370,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 current = merger.next();
                 docID = current == null ? DocIdSetIterator.NO_MORE_DOCS : current.mappedDocID;
                 return docID;
+            }
+
+            @Override
+            public int nextOrdinal() throws IOException {
+                return current.values.nextOrdinal();
             }
 
             @Override
@@ -342,6 +435,11 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * buffering the whole field on-heap.
      */
     private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors) throws IOException {
+        writeStringColumn(field, type, cursors, null);
+    }
+
+    private void writeStringColumn(FieldInfo field, ColumnarFieldType type, IOSupplier<StringColumnValues> cursors, Vocabulary.Terms known)
+        throws IOException {
         int numDocsWithField = 0;
         long numValues = 0;
         StringColumnValues counter = cursors.get();
@@ -362,6 +460,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ChunkCodec.ZSTD,
             TARGET_CHUNK_BYTES,
             dictionaryPolicy,
+            known,
             directory,
             context,
             data

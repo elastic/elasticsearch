@@ -51,6 +51,11 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
         return reader.valueAt(reader.firstValueAddress(rank));
     }
 
+    /** The column behind this surface, so a merge can read what it recorded rather than its values. */
+    public StringColumnReader reader() {
+        return reader;
+    }
+
     @Override
     public boolean advanceExact(int target) throws IOException {
         return iterator.advanceExact(target);
@@ -86,6 +91,15 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
      * a payload round-trip. Used on merge to feed one segment's values into the writer.
      */
     public StringColumnValues directValues() {
+        return directValues(null);
+    }
+
+    /**
+     * As {@link #directValues()}, but reporting each value's ordinal translated through {@code ordinalMap}
+     * so a merge can carry it over instead of resolving the value's bytes and looking them up again. A null
+     * map, or a value that escaped this column's dictionary, falls back to the bytes.
+     */
+    public StringColumnValues directValues(int[] ordinalMap) {
         return new StringColumnValues() {
             private long first;
             private long count;
@@ -94,6 +108,20 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             @Override
             public int valueCount() {
                 return (int) count;
+            }
+
+            @Override
+            public int nextOrdinal() throws IOException {
+                if (ordinalMap == null) {
+                    return -1;
+                }
+                final int ordinal = reader.ordinalAt(first + upto);
+                if (ordinal >= ordinalMap.length) {
+                    // Escaped this column's dictionary, so only its bytes say what it is.
+                    return -1;
+                }
+                upto++;
+                return ordinalMap[ordinal];
             }
 
             @Override

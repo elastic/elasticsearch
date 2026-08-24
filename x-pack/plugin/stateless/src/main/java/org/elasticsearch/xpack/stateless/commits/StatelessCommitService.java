@@ -1104,6 +1104,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public boolean hasBccUploadInProgress(ShardId shardId) {
         try {
             ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+            // either pending or recent uploads should be considered in progress for the disk controller - we cannot free the files yet.
             return commitState.pendingUploadBccGenerations.isEmpty() == false || commitState.recentlyUploadedVbccs.isEmpty() == false;
         } catch (AlreadyClosedException ace) {
             return false;

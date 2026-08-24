@@ -123,6 +123,35 @@ public class AnalyzerEqlTests extends ESTestCase {
             );
     }
 
+    public void testMappedFieldCollidingWithDeclaredMetadataFails() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // A mapped field named _id collides with a declared METADATA _id column (the metadata arm of the guard).
+        IndexResolution resolution = indexWith("eql_meta_collide", Map.of("_id", field("_id", KEYWORD), "name", field("name", KEYWORD)));
+        analyzer().addIndex("eql_meta_collide", resolution)
+            .error(
+                "EQL eql_meta_collide \"process where true\" METADATA _id",
+                containsString("[_id] collides with the EQL command's reserved column")
+            );
+    }
+
+    public void testMappedSequenceFieldAllowedInEventMode() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        // In EVENT mode there is no _sequence synthetic, so a mapped field named _sequence is an ordinary column, not
+        // a collision — the guard must not reject it.
+        IndexResolution resolution = indexWith(
+            "eql_event_seq",
+            Map.of("_sequence", field("_sequence", KEYWORD), "name", field("name", KEYWORD))
+        );
+        List<Attribute> output = eqlLeafOutput(
+            analyzer().addIndex("eql_event_seq", resolution)
+                .buildAnalyzer()
+                .analyze(TEST_PARSER.parseQuery("EQL eql_event_seq \"process where true\""))
+        );
+        assertThat(names(output), containsInAnyOrder("_sequence", "name"));
+    }
+
     public void testUnconvertibleTypeBecomesUnsupportedColumn() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 

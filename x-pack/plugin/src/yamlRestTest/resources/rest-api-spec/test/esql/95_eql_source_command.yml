@@ -5,8 +5,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [eql_command]
-      reason: "EQL source command is snapshot-only, gated on the eql_command capability"
+          capabilities: [eql_command, eql_command_metadata]
+      reason: "EQL source command (with METADATA) is snapshot-only, gated on the eql_command capabilities"
 
   - do:
       indices.create:

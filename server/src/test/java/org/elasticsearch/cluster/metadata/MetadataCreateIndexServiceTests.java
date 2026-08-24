@@ -875,6 +875,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -927,6 +928,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -971,6 +973,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -1015,6 +1018,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -1060,6 +1064,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
+                    boolean registryInstalledTemplate,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
@@ -2219,6 +2224,127 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         verify(indicesService).withTempIndexService(captor.capture(), any());
         IndexMetadata indexMetadata = captor.getValue();
         assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), equalTo("private_setting"));
+    }
+
+    /**
+     * When an index is created via a registry-installed (managed) composable template,
+     * {@code IndexSettingProvider} must receive {@code registryInstalledTemplate=true}.
+     * This verifies that {@code applyCreateIndexRequestWithV2Template} propagates the
+     * matching template to the request before calling {@code aggregateIndexSettings}.
+     */
+    public void testRegistryInstalledTemplatePassedToProviderForManagedTemplate() throws Exception {
+        ComposableIndexTemplate managedTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("te*"))
+            .registryInstalled(true)
+            .build();
+
+        boolean[] captured = new boolean[1];
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                .put("managed-template", managedTemplate)
+                .build();
+            ClusterState clusterState = ClusterState.builder(clusterService.state())
+                .putProjectMetadata(projectMetadataWithTemplate)
+                .build();
+
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+                    @Override
+                    public void provideAdditionalSettings(
+                        String indexName,
+                        String dataStreamName,
+                        IndexMode templateIndexMode,
+                        boolean registryInstalledTemplate,
+                        ProjectMetadata projectMetadata,
+                        Instant resolvedAt,
+                        Settings indexTemplateAndCreateRequestSettings,
+                        List<CompressedXContent> combinedTemplateMappings,
+                        IndexVersion indexVersion,
+                        Settings.Builder additionalSettings
+                    ) {
+                        captured[0] = registryInstalledTemplate;
+                    }
+                }))
+            );
+
+            try {
+                service.applyCreateIndexRequest(clusterState, request, false, RerouteBehavior.PERFORM_REROUTE, ActionListener.noop());
+            } catch (Exception e) {
+                fail(e, "unexpected exception creating index with managed template");
+            }
+        });
+
+        assertThat("registry-installed template must pass registryInstalledTemplate=true", captured[0], is(true));
+    }
+
+    /**
+     * When an index is created via a user-installed (non-managed) composable template,
+     * {@code IndexSettingProvider} must receive {@code registryInstalledTemplate=false}.
+     */
+    public void testRegistryInstalledTemplateIsFalseForNonManagedTemplate() throws Exception {
+        ComposableIndexTemplate nonManagedTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("te*")).build();
+
+        boolean[] captured = new boolean[] { true };
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            ProjectMetadata projectMetadataWithTemplate = ProjectMetadata.builder(clusterService.state().metadata().getProject(projectId))
+                .put("non-managed-template", nonManagedTemplate)
+                .build();
+            ClusterState clusterState = ClusterState.builder(clusterService.state())
+                .putProjectMetadata(projectMetadataWithTemplate)
+                .build();
+
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                new IndexSettingProviders(Set.of(new IndexSettingProvider() {
+                    @Override
+                    public void provideAdditionalSettings(
+                        String indexName,
+                        String dataStreamName,
+                        IndexMode templateIndexMode,
+                        boolean registryInstalledTemplate,
+                        ProjectMetadata projectMetadata,
+                        Instant resolvedAt,
+                        Settings indexTemplateAndCreateRequestSettings,
+                        List<CompressedXContent> combinedTemplateMappings,
+                        IndexVersion indexVersion,
+                        Settings.Builder additionalSettings
+                    ) {
+                        captured[0] = registryInstalledTemplate;
+                    }
+                }))
+            );
+
+            try {
+                service.applyCreateIndexRequest(clusterState, request, false, RerouteBehavior.PERFORM_REROUTE, ActionListener.noop());
+            } catch (Exception e) {
+                fail(e, "unexpected exception creating index with non-managed template");
+            }
+        });
+
+        assertThat("user-installed template must pass registryInstalledTemplate=false", captured[0], is(false));
     }
 
     public void testBatchedIndexCreationAndReroute() {

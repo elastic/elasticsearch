@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.util.LSBRadixSorter;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
@@ -38,7 +39,7 @@ final class AshSphericalScalarQuantizer {
     /**
      * Result of batch quantization.
      *
-     * @param centeredCodes codes centered around zero, row-major (n x nDims)
+     * @param centeredCodes codes centered around zero, row-major matrix (n x nDims)
      * @param codeNorms L2 norm of each code vector, length n
      */
     record QuantizeResult(float[] centeredCodes, float[] codeNorms) {}
@@ -92,6 +93,8 @@ final class AshSphericalScalarQuantizer {
      * row-major matrix in place.
      */
     private float quantizeExact(float[] z, int zOffset, float[] out, int outOffset, int d) {
+        assert assertAllFinite(z);  // all vector values must be finite for the maths to work
+
         int numAbsLevels = 1 << (bitsPerDim - 1);
         int nSteps = numAbsLevels - 1;
 
@@ -100,6 +103,13 @@ final class AshSphericalScalarQuantizer {
             case 1 -> quantizeExact2Bit(z, zOffset, out, outOffset, d);
             default -> quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
         };
+    }
+
+    private static boolean assertAllFinite(float[] value) {
+        for (float v : value) {
+            assert Float.isFinite(v) : "value must be finite";
+        }
+        return true;
     }
 
     /**
@@ -114,6 +124,11 @@ final class AshSphericalScalarQuantizer {
     }
 
     /**
+     * Thread-local reusable radix sorter, to reduce buffer allocations when handling lots of vectors of the same dimension.
+     */
+    private static final ThreadLocal<LSBRadixSorter> SORTER = ThreadLocal.withInitial(LSBRadixSorter::new);
+
+    /**
      * Specialized fast path for 2-bit quantization (nSteps=1).
      * <p>
      * Each dimension is either at level 0.5 or 1.5. The optimal assignment sorts magnitude values
@@ -123,15 +138,19 @@ final class AshSphericalScalarQuantizer {
      */
     static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
-        float[] absZ = new float[d];
+        int[] absZF = new int[d];
         double dot = 0;
         for (int j = 0; j < d; j++) {
-            absZ[j] = Math.abs(z[zOffset + j]);
-            dot = Math.fma(0.5, absZ[j], dot);
+            float abs = Math.abs(z[zOffset + j]);
+            absZF[j] = Float.floatToRawIntBits(abs);
+            dot = Math.fma(0.5, abs, dot);
         }
 
         // Sorted ascending; the iteration is then done backwards
-        Arrays.sort(absZ);
+        // sort as ints, as all values are positive and finite
+        // and that eliminates some float-specific handling of NaN/Inf values
+        // this also allows us to use radix sort, which is faster and less branch-y than Arrays.sort
+        SORTER.get().sort(31, absZF, d);
 
         double normSq = 0.25 * d;
         double bestValue = dot / Math.sqrt(normSq);
@@ -140,11 +159,12 @@ final class AshSphericalScalarQuantizer {
         int bestK = 0; // number of dimensions to upgrade to level 1.5
         for (int k = 0; k < d; k++) {
             int i = d - 1 - k;
-            dot += absZ[i];  // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
+            float abs = Float.intBitsToFloat(absZF[i]);
+            dot += abs;  // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
             normSq += 2.0;   // 1.5^2 - 0.5^2 = 2.0
 
             // Handle ties: skip evaluation if next dim has the same |z|
-            if (i > 0 && absZ[i] == absZ[i - 1]) {
+            if (i > 0 && absZF[i] == absZF[i - 1]) {
                 continue;
             }
 
@@ -161,7 +181,7 @@ final class AshSphericalScalarQuantizer {
                 out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
             }
         } else {
-            float threshold = absZ[d - bestK];
+            float threshold = Float.intBitsToFloat(absZF[d - bestK]);
             for (int j = 0; j < d; j++) {
                 // The tie rule above only ever sets bestK at the end of a run of equal magnitudes, so
                 // selecting every dimension at or above the smallest upgraded magnitude picks out exactly

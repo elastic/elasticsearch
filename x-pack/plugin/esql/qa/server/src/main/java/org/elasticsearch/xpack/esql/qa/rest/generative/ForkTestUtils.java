@@ -19,9 +19,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_UNMAPPED_LOAD_NULL_FALLBACK;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
@@ -50,13 +47,6 @@ public class ForkTestUtils {
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
         );
 
-        // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
-        assumeFalse(
-            "FORK is not supported with unmapped_fields=\"load\"",
-            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_UNMAPPED_LOAD_NULL_FALLBACK.capabilityName())
-        );
         assumeFalse(
             "LOAD_ALL doesn't currently support fork",
             testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL.capabilityName())

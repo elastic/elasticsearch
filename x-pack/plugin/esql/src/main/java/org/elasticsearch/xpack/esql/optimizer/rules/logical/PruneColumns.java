@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -56,12 +57,12 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
     private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
         // while going top-to-bottom (upstream)
         return plan.transformDownSkipBranch((p, skipBranch) -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
-            // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
-            // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
-            // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
-            // same index fields will have different name ids in the left and right hand sides - as in the extreme example
-            // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS and MARK JOIN. It is
+            // perfectly fine that transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and
+            // then descends into the right side - even though the `used` set will contain stuff only used in the left hand side. That's
+            // because any attribute that is used in the left hand side must have been created in the left side as well. Even field
+            // attributes belonging to the same index fields will have different name ids in the left and right hand sides - as in the
+            // extreme example `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
             // TODO: revisit with every new command
             // skip nodes that simply pass the input through and use no references
@@ -77,6 +78,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
                     case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
+                    case MarkJoin markJoin -> pruneUnusedMarkJoin(markJoin, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
                     case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
@@ -156,6 +158,14 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    private static LogicalPlan pruneUnusedMarkJoin(MarkJoin markJoin, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        if (used.contains(markJoin.markAttribute())) {
+            return markJoin;
+        }
+        recheck.set(true);
+        return markJoin.left();
+    }
+
     /*
      * InlineJoin updates the order of the output, so even if the right side is dropped, the groups need to be pulled to the end.
      * So we keep just the left side of the join (i.e. drop the right agg), but place a Project on top to keep the correct columns order.
@@ -196,13 +206,21 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    /**
+     * Prunes unreferenced attributes for the two index modes where {@code InsertFieldExtraction} doesn't already trim to the
+     * fields the query needs.
+     * <p>
+     * {@link IndexMode#LOOKUP}: the right-hand index of a LOOKUP JOIN extracts every field except the join key.
+     * <p>
+     * {@link IndexMode#TIME_SERIES}: a {@code TS} relation resolves all of the index's dimensions, so a wide metrics mapping carries
+     * hundreds of unreferenced attributes into the plan fragment shipped to every data node. Besides the wasted bandwidth, an
+     * unreferenced field drags its sub-fields along in {@code EsField#properties}, and a sub-field whose type conflicts across indices
+     * cannot be serialized (#152322). Rules that read dimensions run earlier in the analyzer, so anything they need is already referenced.
+     */
     private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
-        if (esr.indexMode() == IndexMode.LOOKUP) {
-            // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
-            // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
-            // it works differently as we extract all fields (other than the join key) that the EsRelation has.
+        if (esr.indexMode() == IndexMode.LOOKUP || esr.indexMode() == IndexMode.TIME_SERIES) {
             var remaining = pruneUnusedAndAddReferences(esr.output(), used);
             if (remaining != null) {
                 p = esr.withAttributes(remaining);

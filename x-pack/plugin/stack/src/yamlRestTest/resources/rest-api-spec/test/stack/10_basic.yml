@@ -89,7 +89,7 @@ setup:
   - do:
       indices.get_index_template:
         name: logs
-        hide_registry_installed: false
+        include_managed_fields: true
 
   - is_true: index_templates.0.index_template.registry_installed
 

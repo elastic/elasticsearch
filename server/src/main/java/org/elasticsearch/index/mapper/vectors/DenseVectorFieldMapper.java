@@ -3886,11 +3886,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryOversample
                 );
                 final BytesRef[] sliceIds = extractSliceRouting(sliceRouting, sliceEnabled);
-                // IVF takes the user's k, never the oversampled one: it expands its own candidate pool from
-                // the per-segment rescore oversample (IvfSegmentConfig#leafCollectorBudget /
-                // #shardMergeBudget), and that pool is what the outer rescore below consumes. Handing it
-                // adjustedKForRescoring would apply the oversample twice - inflating the per-leaf collector
-                // and, because IVF derives its visit ratio from numCands/k, shrinking how much it scans.
                 if (sliceIds != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(

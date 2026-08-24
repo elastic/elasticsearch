@@ -134,12 +134,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
         ScoreDoc[][] matching = filtered.matchingPerLeaf();
         int[][] filteredOut = filtered.filteredOutPerLeaf();
-        ScoreDoc[] scoreDocs = dedupAndSelectTopK(
-            flattenPerLeaf(matching),
-            searcher.getIndexReader(),
-            parentsFilter,
-            expectedBaseQueryDocMatches
-        );
+        ScoreDoc[] scoreDocs = dedupAndSelectTopK(flattenPerLeaf(matching), expectedBaseQueryDocMatches);
 
         long vectorOps = postFilterQuery.totalVectorOps();
 
@@ -179,12 +174,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 vectorOps += retryQuery.totalVectorOps();
                 ScoreDoc[][] retryCandidates = retryQuery.getPostFilterCandidates();
                 ScoreDoc[] retryPassing = flattenPerLeaf(applyFilter(retryCandidates, filterWeight, leaves).matchingPerLeaf());
-                scoreDocs = dedupAndSelectTopK(
-                    mergeScoreDocArrays(scoreDocs, retryPassing),
-                    searcher.getIndexReader(),
-                    parentsFilter,
-                    expectedBaseQueryDocMatches
-                );
+                scoreDocs = dedupAndSelectTopK(mergeScoreDocArrays(scoreDocs, retryPassing), expectedBaseQueryDocMatches);
             }
         }
 

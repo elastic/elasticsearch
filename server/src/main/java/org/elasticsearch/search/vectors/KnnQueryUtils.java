@@ -13,7 +13,6 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -102,48 +101,16 @@ public final class KnnQueryUtils {
     }
 
     /**
-     * Deduplicates {@code docs} and returns the top {@code k} hits sorted by score descending.
-     * When {@code parentsFilter} is non-null, dedup is by parent doc (highest-scoring child per
-     * parent wins); otherwise it is by global doc id (highest-scoring duplicate wins). Top-k is
-     * found via {@link ArrayUtil#select} (introselect), so only the chosen k are sorted at the end
-     * rather than the full deduplicated array.
-     *
-     * <p>Input order is irrelevant — both the dedup pass and the partition pass treat candidates
-     * symmetrically.
+     * Deduplicates {@code docs} by global doc id (highest-scoring duplicate wins) and returns the top
+     * {@code k} hits sorted by score descending. Top-k is found via {@link ArrayUtil#select} (introselect),
+     * so only the chosen k are sorted at the end rather than the full deduplicated array.
+
      */
-    public static ScoreDoc[] dedupAndSelectTopK(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter, int k)
-        throws IOException {
+    public static ScoreDoc[] dedupAndSelectTopK(ScoreDoc[] docs, int k) {
         if (docs.length == 0 || k == 0) {
             return new ScoreDoc[0];
         }
-        ScoreDoc[] deduped = parentsFilter != null ? dedupByParent(docs, reader, parentsFilter) : dedupByDocId(docs);
-        return selectTopK(deduped, k);
-    }
-
-    private static ScoreDoc[] dedupByParent(ScoreDoc[] docs, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
-        List<LeafReaderContext> leaves = reader.leaves();
-        BitSet[] bitSetByLeaf = new BitSet[leaves.size()];
-        boolean[] resolved = new boolean[leaves.size()];
-        IntObjectHashMap<ScoreDoc> bestByParent = new IntObjectHashMap<>(docs.length);
-        for (ScoreDoc sd : docs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            if (resolved[leafOrd] == false) {
-                bitSetByLeaf[leafOrd] = parentsFilter.getBitSet(ctx);
-                resolved[leafOrd] = true;
-            }
-            BitSet parentBitSet = bitSetByLeaf[leafOrd];
-            if (parentBitSet == null) continue;
-            int localDoc = sd.doc - ctx.docBase;
-            int parentDoc = parentBitSet.nextSetBit(localDoc);
-            if (parentDoc == DocIdSetIterator.NO_MORE_DOCS) continue;
-            int globalParent = parentDoc + ctx.docBase;
-            ScoreDoc existing = bestByParent.get(globalParent);
-            if (existing == null || sd.score > existing.score) {
-                bestByParent.put(globalParent, sd);
-            }
-        }
-        return toArray(bestByParent);
+        return selectTopK(dedupByDocId(docs), k);
     }
 
     /**

@@ -164,14 +164,6 @@ public interface PostFilterableKnnQuery {
     /**
      * Estimated fraction of the vectors this query can actually return that pass {@code filterWeight} -
      * the input to both the post-filter gate and the round-1 sizing in {@link #computeScaledK}.
-     * <p>
-     * Numerator and denominator must describe the same population, which is why this is one method rather
-     * than a count paired with a separate ratio: a query that searches only part of a leaf (a slice) has to
-     * narrow both halves together, or the ratio silently drifts - narrowing only the denominator pushes the
-     * estimate towards 1 and makes the pool too small.
-     * <p>
-     * Returns {@code 0} when there is no usable estimate (no vectors visible for the field, or a filter that
-     * matches nothing); callers treat that as "do not post-filter" rather than as "perfectly selective".
      */
     default float estimateFilterSelectivity(Weight filterWeight, List<LeafReaderContext> leaves) throws IOException {
         return KnnQueryUtils.computeSelectivity(filterWeight, leaves, countTotalVectors(leaves));

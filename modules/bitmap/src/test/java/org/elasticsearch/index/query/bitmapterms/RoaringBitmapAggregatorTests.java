@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -164,6 +165,45 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> reducer.accept(longResult));
             assertThat(exception.getMessage(), containsString("cannot reduce [integer] and [long] field results together"));
         }
+    }
+
+    // The reduce path must reserve before deserializing, not after, so a bitmap too large for the
+    // breaker is refused instead of being fully allocated and only then accounted for. Asserting that
+    // the trip requested exactly the pre-deserialization estimate is what distinguishes the two
+    // orderings: a post-deserialization trip would request the deserialized ramBytesUsed() instead.
+    public void testReduceTripsBreakerBeforeDeserializing() throws Exception {
+        InternalRoaringBitmap result = aggregate(NumberFieldMapper.NumberType.LONG, sparseLongValues(2_000));
+        long expectedReservation = result.bitmap().length * InternalRoaringBitmap.DESERIALIZATION_EXPANSION_FACTOR;
+        assertThat(expectedReservation, greaterThan(0L));
+
+        CircuitBreakerService breakerService = LimitedBreaker.service(
+            CircuitBreaker.REQUEST,
+            ByteSizeValue.ofBytes(expectedReservation - 1)
+        );
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
+            new BigArrays(null, breakerService, CircuitBreaker.REQUEST),
+            null,
+            () -> false,
+            AggregatorFactories.builder(),
+            ignored -> {},
+            null
+        );
+
+        try (AggregatorReducer reducer = result.getReducer(reduceContext, 1)) {
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> reducer.accept(result));
+            assertThat(exception.getBytesWanted(), equalTo(expectedReservation));
+        }
+        // The refused reservation must not be left charged to the breaker.
+        assertThat(breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+    }
+
+    private static long[] sparseLongValues(int count) {
+        long[] values = new long[count];
+        for (int i = 0; i < count; i++) {
+            // Spread across high words so the bitmap stays sparse rather than collapsing into runs.
+            values[i] = ((long) i << 32) | i;
+        }
+        return values;
     }
 
     private InternalRoaringBitmap aggregate(NumberFieldMapper.NumberType type, long... values) throws Exception {

@@ -69,18 +69,21 @@ public final class InternalRoaringBitmap extends InternalAggregation {
     }
 
     // Roaring's own size accounting (getLongSizeInBytes()) is a payload-only estimate: it excludes
-    // object headers, array headers, the Container[] reference array, and char[] slack. Code review
-    // measured actual heap use exceeding this by up to ~6.9x for sparse INT bitmaps and ~3.7x for
-    // sparse LONG bitmaps (JDK 25). Apply a conservative correction, rounded up from those
-    // measurements, so callers sizing circuit breaker reservations from ramBytesUsed() don't under-reserve.
+    // object headers, array headers, the Container[] reference array, and char[] slack. Measured heap
+    // use exceeded it by up to ~6.9x for sparse INT bitmaps and ~3.7x for sparse LONG bitmaps on
+    // JDK 25, so correct by these factors before sizing circuit breaker reservations.
+    //
+    // These are empirical safety margins rounded up from those measurements, not proven upper bounds:
+    // they are calibrated against specific sparse workloads on one JDK, and a container layout change
+    // in Roaring or a different object layout could move the real ratio.
     private static final long INT_RAM_OVERHEAD_FACTOR = 7;
     private static final long LONG_RAM_OVERHEAD_FACTOR = 4;
 
-    // Deserializing a portable Roaring bitmap expands well past its serialized size (the same review
-    // observed 7-9x from serialized bytes to heap). Reserve against that estimate before deserializing
-    // so the breaker sees the cost before the allocation happens, then true up against the corrected
-    // ramBytesUsed() above once the real object exists.
-    private static final long DESERIALIZATION_EXPANSION_FACTOR = 9;
+    // Deserializing a portable Roaring bitmap expands well past its serialized size (7-9x from
+    // serialized bytes to heap in the same measurements). Reserve against that estimate before
+    // deserializing so the breaker sees the cost before the allocation happens, then true up against
+    // the corrected ramBytesUsed() above once the real object exists.
+    static final long DESERIALIZATION_EXPANSION_FACTOR = 9;
 
     private final BitmapFormat width;
     private final byte[] bitmap;

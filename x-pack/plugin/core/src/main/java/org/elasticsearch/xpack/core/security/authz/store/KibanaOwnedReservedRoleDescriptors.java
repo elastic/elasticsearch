@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -718,6 +719,14 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*reset*")
                     .privileges("create_index", "manage", "read", "write")
+                    .build(),
+                // Product aliases (entities-latest-{space}, etc.) are not .entities.* names.
+                // ES authorizes indices:admin/aliases against the alias name as well as the
+                // concrete index, so the upgrade migration cannot retarget
+                // entities-latest-{space} with only manage on .entities.*.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("entities-latest-*", "entities-updates-*", "entities-metadata-*")
+                    .privileges(TransportIndicesAliasesAction.NAME, GetAliasesAction.NAME)
                     .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()

@@ -532,9 +532,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Opens a Parquet reader, mapping parquet-mr failures (checked and unchecked) to an
-     * {@link IllegalArgumentException} that includes the storage object URI. This ensures
-     * invalid/corrupt Parquet files produce HTTP 400 rather than 500.
+     * Opens a Parquet reader. I/O is routed through {@link ParquetReadFailures#wrap} so a closed
+     * storage client stays {@code ExternalUnavailableException} (503) rather than becoming an IAE.
+     * parquet-mr {@link RuntimeException}s (corrupt footer/magic) become {@link IllegalArgumentException}
+     * so invalid files stay HTTP 400; {@link CircuitBreakingException} and other
+     * {@link ElasticsearchException}s pass through.
      */
     private static ParquetFileReader openParquetFile(
         StorageObject object,
@@ -546,7 +548,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         try {
             return ParquetFileReader.open(inputFile, cachedFooter, options, inputFile.newStream());
         } catch (IOException e) {
-            throw newInvalidParquetFileException(uri, e);
+            throw ParquetReadFailures.wrap(e, "Could not read [" + uri + "] as a Parquet file");
         } catch (RuntimeException e) {
             if (e instanceof CircuitBreakingException) {
                 throw e;
@@ -3020,9 +3022,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 return advanceRowGroup();
             } catch (IOException e) {
-                throw new IllegalArgumentException(
-                    "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
-                    e
+                throw ParquetReadFailures.wrap(
+                    e,
+                    "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
                 );
             }
         }
@@ -3142,12 +3144,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                                     blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
                                 }
                             } catch (CircuitBreakingException e) {
-                                Releasables.closeExpectNoException(blocks);
                                 throw e;
                             } catch (Exception e) {
-                                Releasables.closeExpectNoException(blocks);
                                 Attribute attr = attributes.get(col);
-                                throw new IllegalArgumentException(
+                                throw ParquetReadFailures.wrap(
+                                    e,
                                     "Failed to read Parquet column ["
                                         + attr.name()
                                         + "] (type "
@@ -3158,27 +3159,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                                         + pageBatchIndexInRowGroup
                                         + "] in file ["
                                         + fileLocation
-                                        + "]: "
-                                        + e.getMessage(),
-                                    e
+                                        + "]"
                                 );
                             }
                         }
                     }
-                } catch (IllegalArgumentException | CircuitBreakingException e) {
+                } catch (CircuitBreakingException e) {
+                    Releasables.closeExpectNoException(blocks);
                     throw e;
                 } catch (Exception e) {
                     Releasables.closeExpectNoException(blocks);
-                    throw new IllegalArgumentException(
+                    throw ParquetReadFailures.wrap(
+                        e,
                         "Failed to create Page batch at row group ["
                             + (rowGroupOrdinal + 1)
                             + "] page batch ["
                             + pageBatchIndexInRowGroup
                             + "] in file ["
                             + fileLocation
-                            + "]: "
-                            + e.getMessage(),
-                        e
+                            + "]"
                     );
                 }
 

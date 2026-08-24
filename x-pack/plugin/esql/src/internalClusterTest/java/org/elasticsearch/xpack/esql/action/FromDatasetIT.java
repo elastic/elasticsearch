@@ -225,6 +225,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_extensionless",
         "logs_id_partition",
         "logs_partition_collide_nonstrict",
+        "logs_partition_collide_none",
         "logs_partition_collide_path",
         "employees_strict_coerce",
         "employees_strict_uncoercible",
@@ -5471,6 +5472,57 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("region"));
         // Pin the partition branch specifically, not the sibling "no such column exists" reject (both embed [_id]+path).
         assertThat(e.getMessage(), containsString("not a data column"));
+    }
+
+    /**
+     * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
+     * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
+     * {@code partition_detection: none} could not avoid that rejection because the setting never reached the read
+     * path — so a user whose data sat under {@code something=value/} could not declare a column of that name at
+     * all. With the setting honoured, {@code none} suppresses the detection that creates the collision, and the
+     * declaration resolves.
+     *
+     * <p>The fixture carries a physical {@code region} column holding {@code emea} while the directory says
+     * {@code region=east}, so the assertion distinguishes which one was read.
+     */
+    public void testPartitionKeyCollisionAcceptedWithDetectionNone() throws Exception {
+        Path root = createTempDir();
+        Path east = Files.createDirectories(root.resolve("region=east"));
+        // The file carries a real region column AND sits under region=east/. That is the shape the defect covers:
+        // on main the path-derived region shadowed the physical one and the declaration was rejected, with no
+        // opt-out. The physical values differ from the directory's so the assertion can tell which one was read.
+        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword,region:keyword\n1,Alice,emea\n2,Bob,emea\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("region", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_partition_collide_none",
+                    "local_ds",
+                    root.toUri() + "**/*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "none")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_partition_collide_none | KEEP region | LIMIT 5"), TIMEOUT)) {
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).toList();
+            assertThat("the declared column must resolve rather than be rejected", columnNames, hasItem("region"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expect the file's rows", rows.size(), greaterThanOrEqualTo(2));
+            for (List<Object> row : rows) {
+                assertEquals("with detection off the file's own region is read, not the directory's", "emea", row.get(0));
+            }
+        }
     }
 
     public void testNonStrictPartitionKeyCollisionRejected() throws Exception {

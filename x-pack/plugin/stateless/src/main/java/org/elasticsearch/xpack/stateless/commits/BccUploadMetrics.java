@@ -74,7 +74,7 @@ public class BccUploadMetrics {
             "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
             "count"
         );
-        meterRegistry.registerDoubleGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
             "moving average of batch compound commit upload throughput",
             "MiB/s",

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -59,7 +59,7 @@ public class ComputeSearchContextTests extends MapperServiceTestCase {
                 @Override
                 protected Query doToQuery(SearchExecutionContext context) {
                     actual.set(((EsqlSearchExecutionContext) context).queryWarnings());
-                    return new MatchAllDocsQuery();
+                    return Queries.ALL_DOCS_INSTANCE;
                 }
             });
         }

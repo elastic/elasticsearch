@@ -31,7 +31,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:snapshot-repo-test-kit:qa:rest");
 
         // Projects that apply LegacyRestTestBasePlugin transitively via the standalone-rest-test plugin.
-        map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
 

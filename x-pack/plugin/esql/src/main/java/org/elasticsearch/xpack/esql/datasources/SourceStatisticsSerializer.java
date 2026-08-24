@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -351,7 +352,12 @@ public final class SourceStatisticsSerializer {
             return statsMap;
         }
         Map<String, Object> out = new HashMap<>(statsMap);
-        for (String column : pinnedColumns) {
+        // A dropped row is not column-scoped damage. Every column's counts and extrema are computed over the rows
+        // that SURVIVED, so when the narrow read dropped whole rows, no column's statistics describe the row set
+        // this read would produce — not just the pinned ones. Poison the file's whole column vocabulary in that
+        // case; poisoning only `pinnedColumns` would leave an untouched column serving a value harvested over a
+        // smaller row set (a wrong MIN/COUNT, not a stale one).
+        for (String column : dropRowCount ? columnsPresentIn(out) : pinnedColumns) {
             poisonColumnExtrema(out, column);
             out.remove(columnValueCountKey(column));
             out.remove(columnNullCountKey(column));
@@ -360,6 +366,27 @@ public final class SourceStatisticsSerializer {
             out.remove(STATS_ROW_COUNT);
         }
         return out;
+    }
+
+    /**
+     * The column names a flat stats map carries, recovered by matching the statistic SUFFIX rather than splitting on
+     * the first dot: a column name can itself contain dots (an {@code id.path} rename reaches arbitrary physical
+     * names), so a name-first split would truncate them.
+     */
+    private static Set<String> columnsPresentIn(Map<String, Object> statsMap) {
+        Set<String> columns = new HashSet<>();
+        for (String key : statsMap.keySet()) {
+            if (key.startsWith(STATS_COL_PREFIX) == false) {
+                continue;
+            }
+            for (String suffix : COLUMN_STAT_SUFFIXES) {
+                if (key.endsWith(suffix)) {
+                    columns.add(key.substring(STATS_COL_PREFIX.length(), key.length() - suffix.length()));
+                    break;
+                }
+            }
+        }
+        return columns;
     }
 
     /**
@@ -393,7 +420,10 @@ public final class SourceStatisticsSerializer {
             return statsMap;
         }
         Map<String, Object> out = new HashMap<>(statsMap);
-        for (String column : pinnedColumns) {
+        // Row-scope, as on the serve side: when this read dropped whole rows, every column's harvested counts and
+        // extrema describe a row set the sharing reads never saw, so none of them may commit — not only the pinned
+        // columns'.
+        for (String column : dropRowCount ? columnsPresentIn(out) : pinnedColumns) {
             String prefix = STATS_COL_PREFIX + column;
             for (String suffix : COLUMN_STAT_SUFFIXES) {
                 out.remove(prefix + suffix);

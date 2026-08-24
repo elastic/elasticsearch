@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
-import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -169,14 +169,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * otherwise a new range is fetched via {@link StorageObject#newStream(long, long)}.
      *
      * <p>Window fills use {@link StorageObject#newStream(long, long)} with chunked
-     * {@link InputStream#read(byte[], int, int)} calls capped to {@link #STREAM_READ_CHUNK_SIZE}
-     * to prevent the JDK's thread-local direct ByteBuffer pool from growing to window size.
-     * The window is invalidated before each I/O so a partial-read failure never leaves
-     * stale data visible to subsequent reads.
+     * {@link InputStream#read(byte[], int, int)} into {@code window}. The chunk cap bounds the
+     * JDK's temporary direct buffer, not a heap destination — {@code read(byte[], off, len)}
+     * never allocates {@code len} heap bytes. The window is invalidated before each I/O so a
+     * partial-read failure never leaves stale data visible to subsequent reads.
      */
     private static class WindowedSeekableInputStream extends SeekableInputStream {
 
-        /** Caps each stream-read iteration to limit per-chunk heap allocation. */
+        /** Caps each stream-read iteration so the JDK's thread-local direct buffer stays bounded. */
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
 
         private static final String WINDOW_BREAKER_LABEL = "parquet sliding window";
@@ -187,9 +187,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private final int windowSize;
         private final CircuitBreaker breaker;
         private final byte[] window;
-        // Staging buffer filled from the InputStream then copied into {@link #window}. Caps each
-        // stream-read iteration so a single read() cannot allocate a window-sized heap array.
-        private final byte[] streamReadBuf = UninitializedArrays.newByteArray(STREAM_READ_CHUNK_SIZE);
 
         /**
          * Supplier that returns the adapter's current pre-warmed chunks map (or {@code null}).
@@ -217,7 +214,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
-            this.breaker = DirectBufferFactory.forAsyncIo(breaker);
+            this.breaker = LocalCircuitBreaker.forAsyncIo(breaker);
             this.breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
             byte[] allocated;
             try {
@@ -298,7 +295,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 int totalRead = 0;
                 while (totalRead < target) {
                     int chunk = Math.min(STREAM_READ_CHUNK_SIZE, target - totalRead);
-                    int n = in.read(streamReadBuf, 0, chunk);
+                    int n = in.read(window, totalRead, chunk);
                     if (n < 0) {
                         throw new IOException(
                             "Unexpected end of stream while filling window at position " + pos + "; read " + totalRead + " of " + target
@@ -307,7 +304,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     if (n == 0 && chunk > 0) {
                         throw new IOException("InputStream.read returned 0 while " + chunk + " bytes were requested");
                     }
-                    System.arraycopy(streamReadBuf, 0, window, totalRead, n);
                     totalRead += n;
                 }
                 windowStart = pos;
@@ -387,14 +383,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // visible if a later step throws.
             windowStart = -1;
             windowLength = 0;
-            ByteBuffer src = chunk.data().duplicate();
-            int srcIndex = src.position() + offsetInChunk;
-            if (src.hasArray()) {
-                System.arraycopy(src.array(), src.arrayOffset() + srcIndex, window, 0, copyLen);
-            } else {
-                src.position(srcIndex);
-                src.get(window, 0, copyLen);
-            }
+            ByteBuffer src = chunk.data();
+            src.get(src.position() + offsetInChunk, window, 0, copyLen);
             windowStart = pos;
             windowLength = copyLen;
             return true;

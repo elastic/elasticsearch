@@ -698,9 +698,9 @@ final class PrefetchedRowGroupBuilder {
         if (buffer.hasArray()) {
             return BytesInput.from(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        // Direct buffer: wrap as-is so uncompressed pages can alias I/O (no copy) and compressed
-        // codecs see the original slice. Heap codecs may still copy via toByteArray() until
-        // prefetch itself is heap-backed.
+        // Heap buffer: wrap as-is so uncompressed pages alias I/O (no copy). Compressed codecs
+        // see the original slice; production prefetch is heap-backed so hasArray() always wins
+        // here. This fall-through is for test stubs that still hand out direct buffers.
         return BytesInput.from(buffer.duplicate());
     }
 

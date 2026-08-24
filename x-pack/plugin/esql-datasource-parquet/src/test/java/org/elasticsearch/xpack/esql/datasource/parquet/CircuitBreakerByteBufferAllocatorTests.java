@@ -56,7 +56,7 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         setup.join();
 
         try {
-            var parquetAllocator = allocator(local);
+            var parquetAllocator = allocator(LocalCircuitBreaker.forAsyncIo(local));
             ByteBuffer buf = parquetAllocator.allocate(64);
             assertEquals(64, parent.getUsed());
             parquetAllocator.release(buf);

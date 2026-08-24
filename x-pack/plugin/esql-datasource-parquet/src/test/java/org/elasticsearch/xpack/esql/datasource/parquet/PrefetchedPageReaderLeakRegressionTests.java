@@ -29,8 +29,7 @@ import java.util.List;
  *
  * <p>Loops {@link PrefetchedPageReader#readPage} over a few hundred small zstd-compressed pages
  * and asserts the request breaker returns to zero after every read-close cycle. Heap codecs
- * allocate {@code byte[]}s that GC owns; this test does not claim JVM-wide direct RSS is flat
- * (prefetch I/O still uses native buffers until a follow-up).
+ * allocate {@code byte[]}s that GC owns; this test does not claim JVM-wide RSS is flat.
  */
 public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
 

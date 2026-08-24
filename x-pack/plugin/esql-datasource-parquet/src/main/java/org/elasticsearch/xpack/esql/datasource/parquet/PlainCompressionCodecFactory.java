@@ -50,8 +50,10 @@ import java.util.zip.GZIPOutputStream;
  * <ul>
  *   <li>{@code PrefetchedPageReader} calls {@code decompress(BytesInput, int)} so compressed
  *       pages land on a heap {@code byte[]}. Uncompressed pages alias the prefetched I/O
- *       {@link BytesInput} (still a direct slice until prefetch itself is heap-backed).
- *       Heap output is charged to the request breaker for the current page.</li>
+ *       {@link BytesInput}. Heap output is charged to the request breaker
+ *       for the current page. Snappy's heap JNI still uses {@code GetPrimitiveArrayCritical};
+ *       that is the cost of a heap destination versus glibc RSS from direct malloc. LZ4/Zstd
+ *       do not take that JNI pin path.</li>
  *   <li>Parquet-MR's {@code ColumnChunkPageReadStore.ColumnChunkPageReader.readPage()} (the
  *       non-prefetched path) invokes only the {@code decompress(BytesInput, int)} overload — it
  *       never reaches the {@code ByteBuffer} overload, regardless of the allocator or the
@@ -190,16 +192,11 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
     }
 
     /**
-     * Snappy decompressor. Two JNI overloads are used depending on input shape:
-     * <ul>
-     *   <li>{@code Snappy.uncompress(byte[], int, int, byte[], int)} when the compressed input is
-     *       backed by a Java heap array (the common case for the prefetch path: column chunks
-     *       arrive as {@link ByteBuffer#wrap(byte[], int, int)}-style {@code BytesInput}s).</li>
-     *   <li>{@code Snappy.uncompress(ByteBuffer, ByteBuffer)} when both input and output are
-     *       direct buffers — the only case where the JNI binding can avoid a copy.</li>
-     * </ul>
-     * The JNI call returns the number of decompressed bytes written but does not advance the
-     * output buffer position; we advance it manually for the {@code ByteBuffer} overload.
+     * Snappy decompressor. Heap {@code BytesInput} uses
+     * {@code Snappy.uncompress(byte[], ...)} ({@code GetPrimitiveArrayCritical}). That G1 pin is
+     * the cost of a heap destination versus glibc RSS from the old direct malloc path.
+     * Direct-to-direct {@code Snappy.uncompress(ByteBuffer, ByteBuffer)} remains on the
+     * {@code ByteBuffer} overload for tests and the parquet-mr SPI.
      */
     private static class SnappyBytesDecompressor implements BytesInputDecompressor {
         @Override
@@ -271,10 +268,10 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * <p>The hot path for {@code PrefetchedPageReader} and parquet-mr's
      * {@code ColumnChunkPageReadStore} is {@code BytesInput}/{@code byte[]} via
      * {@link PanamaZstd#decompressHeap}, bound with {@code Linker.Option.critical(true)} so heap
-     * segments cross into libzstd without an off-heap staging copy — equivalent to zstd-jni's
-     * {@code GetPrimitiveArrayCritical} path but without G1's region pinning. The
-     * {@code ByteBuffer} overload still takes a direct-to-direct Panama path when both sides are
-     * direct.
+     * segments cross into libzstd without an off-heap staging copy and without zstd-jni's G1
+     * region pinning. Production readers use this {@code BytesInput} overload.
+     * The {@code ByteBuffer} overload remains for the parquet-mr SPI and tests; it still uses a
+     * direct-to-direct Panama path when both sides are direct.
      *
      * <p>When the Panama binding is unavailable on a platform ({@link PanamaZstd#isAvailable()}
      * returns {@code false}), both paths fail with the same {@link IllegalStateException} from
@@ -351,9 +348,14 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
 
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
-            byte[] in = bytes.toByteArray();
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
-            lz4.decompress(in, 0, in.length, out, 0, decompressedSize);
+            ByteBuffer input = bytes.toByteBuffer();
+            if (input.hasArray()) {
+                lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), out, 0, decompressedSize);
+            } else {
+                byte[] in = bytes.toByteArray();
+                lz4.decompress(in, 0, in.length, out, 0, decompressedSize);
+            }
             return BytesInput.from(out);
         }
 

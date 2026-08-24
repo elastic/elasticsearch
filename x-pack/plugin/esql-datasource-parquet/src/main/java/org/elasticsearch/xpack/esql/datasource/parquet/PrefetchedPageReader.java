@@ -23,6 +23,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * {@link PageReader} backed by an in-memory queue of compressed {@link DataPage}s plus an
@@ -40,8 +41,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code breaker} for the life of the current page (and the cached dictionary, if any) and
  * released before the next page or on {@link #close()}. Uncompressed pages alias the
  * prefetched I/O bytes and are not charged — those bytes are already accounted by the
- * prefetch circuit breaker. Heap {@code byte[]}s remain valid after the next {@link #readPage()};
- * the breaker tracks only the current page plus dictionary so peak residency is O(one page).
+ * prefetch circuit breaker.
+ *
+ * <p>{@link #readPage()} / {@link #readDictionaryPage()} run on the iterator thread.
+ * {@link #close()} may race another {@link #close()} (hence {@link #closed}) and may race
+ * a read on cancel. Charge counters are {@link java.util.concurrent.atomic.AtomicLong} so
+ * that race cannot silently skew the breaker.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 
@@ -64,8 +69,8 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
-    private long dataPageCharge;
-    private long dictCharge;
+    private final AtomicLong dataPageCharge = new AtomicLong();
+    private final AtomicLong dictCharge = new AtomicLong();
     // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
     // on a single compareAndSet and only one thread actually releases the breaker charge.
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -91,6 +96,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     @Override
     public DataPage readPage() {
+        if (closed.get()) {
+            throw new ParquetDecodingException("PrefetchedPageReader closed");
+        }
         CompressedPage entry = compressedPages.poll();
         if (entry == null) {
             // Queue drained. The last page's breaker charge stays until close(); there is no new
@@ -107,7 +115,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // its level/value readers from the new page before any further read, and its consumers
         // (ParquetColumnDecoding#readListRow) copy each value to the heap before the consume()
         // that can cross a page boundary.
-        dataPageCharge = releaseCharge(dataPageCharge);
+        releaseCharge(dataPageCharge);
         DataPage page = entry.page();
         if (page instanceof DataPageV1 v1) {
             return decompressV1(v1);
@@ -148,8 +156,13 @@ final class PrefetchedPageReader implements PageReader, Releasable {
                 compressedDictionaryPage.getDictionarySize(),
                 compressedDictionaryPage.getEncoding()
             );
-            dictCharge = charge ? uncompressedSize : 0;
+            dictCharge.set(charge ? uncompressedSize : 0);
+            // Charge is owned by dictCharge now; close() or releaseCharge below uncharges it.
             success = true;
+            if (closed.get()) {
+                releaseCharge(dictCharge);
+                throw new ParquetDecodingException("PrefetchedPageReader closed");
+            }
         } catch (IOException e) {
             throw new ParquetDecodingException("Could not decompress dictionary page", e);
         } finally {
@@ -267,8 +280,13 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         boolean success = false;
         try {
             BytesInput decompressed = decompressor.decompress(compressed, decompressedSize);
-            dataPageCharge = decompressedSize;
+            dataPageCharge.set(decompressedSize);
+            // Charge is owned by dataPageCharge now; close() or releaseCharge below uncharges it.
             success = true;
+            if (closed.get()) {
+                releaseCharge(dataPageCharge);
+                throw new ParquetDecodingException("PrefetchedPageReader closed");
+            }
             return decompressed;
         } finally {
             if (success == false) {
@@ -281,11 +299,11 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         return decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor;
     }
 
-    private long releaseCharge(long bytes) {
+    private void releaseCharge(AtomicLong charge) {
+        long bytes = charge.getAndSet(0);
         if (bytes != 0) {
             breaker.addWithoutBreaking(-bytes);
         }
-        return 0;
     }
 
     @Override
@@ -296,7 +314,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         // Drop the cached dictionary page reference. It is heap-backed (see readDictionaryPage),
         // so this is reference hygiene plus breaker release, not a native-buffer lifetime.
         cachedDictionaryPage = null;
-        dataPageCharge = releaseCharge(dataPageCharge);
-        dictCharge = releaseCharge(dictCharge);
+        releaseCharge(dataPageCharge);
+        releaseCharge(dictCharge);
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
@@ -516,13 +517,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
         // active in addition to row-group level statistics, dictionary, and bloom filter checks.
         // Footer prefetch and parquet-mr allocations can complete on generic/HTTP threads.
-        // CircuitBreakerByteBufferAllocator unwraps a LocalCircuitBreaker to the parent request breaker.
+        // Unwrap a LocalCircuitBreaker here so the allocator stays a pass-through.
         //
         // Keep the delegate heap-backed. parquet-mr's DirectByteBufferAllocator.release() is empty, so a
         // direct delegate returns the breaker charge but leaves the memory to a Cleaner -- reclamation
         // becomes a function of GC frequency, which a large heap starves. Nothing reads these buffers
         // natively either: they are footers and dictionary-page copies, both copied to the heap next step.
-        var breaker = blockFactory.breaker();
+        var breaker = LocalCircuitBreaker.forAsyncIo(blockFactory.breaker());
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }

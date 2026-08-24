@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 
 import java.nio.ByteBuffer;
@@ -87,18 +89,18 @@ public final class DirectReadBuffer implements Releasable {
      * before propagating so callers can distinguish a circuit-breaker rejection (eligible for a
      * 429 response) from an I/O error.
      *
-     * <p>Charges go through {@link DirectBufferFactory#forAsyncIo(CircuitBreaker)}: a
+     * <p>Charges go through {@link LocalCircuitBreaker#forAsyncIo(CircuitBreaker)}: a
      * driver-local breaker is not safe to touch from HTTP/S3 completion threads.
      */
     public static DirectReadBuffer allocate(CircuitBreaker breaker, int length) {
         if (length < 0) {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
-        CircuitBreaker ioBreaker = DirectBufferFactory.forAsyncIo(breaker);
+        CircuitBreaker ioBreaker = LocalCircuitBreaker.forAsyncIo(breaker);
         ioBreaker.addEstimateBytesAndMaybeBreak(length, STORAGE_READ_BREAKER_LABEL);
         final byte[] bytes;
         try {
-            bytes = new byte[length];
+            bytes = UninitializedArrays.newByteArray(length);
         } catch (Throwable t) {
             ioBreaker.addWithoutBreaking(-length);
             throw t;

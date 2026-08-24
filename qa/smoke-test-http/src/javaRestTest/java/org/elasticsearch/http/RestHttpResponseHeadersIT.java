@@ -13,6 +13,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.List;

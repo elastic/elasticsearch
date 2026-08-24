@@ -149,9 +149,11 @@ import org.elasticsearch.xpack.esql.evaluator.command.UserAgentFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -206,6 +208,7 @@ import org.elasticsearch.xpack.esql.plan.physical.UnpackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -422,6 +425,8 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
+        } else if (node instanceof DenseVectorExec denseVector) {
+            return planDenseVector(denseVector, context);
         } else if (node instanceof SampleExec Sample) {
             return planSample(Sample, context);
         } else if (node instanceof IpLocationExec ipLoc) {
@@ -586,6 +591,34 @@ public class LocalExecutionPlanner {
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
             outputLayout
         );
+    }
+
+    private PhysicalOperation planDenseVector(DenseVectorExec denseVector, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(denseVector.child(), context);
+        String inferenceId = BytesRefs.toString(denseVector.inferenceId().fold(context.foldCtx()));
+
+        List<NamedExpression> fields = denseVector.fields();
+        List<Attribute> generatedFields = denseVector.generatedFields();
+
+        // One TextEmbeddingOperator per input field: each embeds its field and appends its <field>_dense_vector column.
+        // Chained so the page accumulates all generated columns. Evaluators read from the growing layout; the original
+        // input fields are never removed, so appending output columns doesn't disturb earlier channels.
+        PhysicalOperation operation = source;
+        for (int i = 0; i < fields.size(); i++) {
+            ExpressionEvaluator.Factory inputEvaluatorFactory = EvalMapper.toEvaluator(
+                context.foldCtx(),
+                fields.get(i),
+                operation.layout,
+                context.analysisRegistry()
+            );
+            Layout outputLayout = operation.layout.builder().append(generatedFields.get(i)).build();
+            operation = operation.with(
+                new TextEmbeddingOperator.Factory(inferenceService, inferenceId, inputEvaluatorFactory, denseVector.timeout()),
+                outputLayout
+            );
+        }
+
+        return operation;
     }
 
     private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
@@ -974,8 +1007,8 @@ public class LocalExecutionPlanner {
      * <ul>
      *     <li>Exactly one sort {@link Order} (Tier 1 is single-key).</li>
      *     <li>The sort attribute is a plain {@link Attribute} (no expressions over the field) of
-     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, or
-     *         DATE_NANOS. FLOAT, UNSIGNED_LONG, HALF_FLOAT, and SCALED_FLOAT are deferred to a
+     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME,
+     *         DATE_NANOS, or UNSIGNED_LONG. FLOAT, HALF_FLOAT, and SCALED_FLOAT are deferred to a
      *         follow-up PR; they need a tiny encoding addition but no operator surface change.</li>
      *     <li>The limit is a literal foldable to a positive {@code int}. Non-literal limits go
      *         to the generic operator (the bytes-encoding path doesn't need a literal).</li>
@@ -1079,12 +1112,14 @@ public class LocalExecutionPlanner {
      * go through the LONG path. Keeping the predicate here rather than on the operator lets the
      * planner cleanly skip the optimisation without instantiating the factory.
      *
+     * <p>{@code UNSIGNED_LONG} is included: ESQL stores it sign-flip-encoded
+     * ({@code raw ^ Long.MIN_VALUE}) so that signed-long ordering over the encoded form already
+     * matches unsigned ordering over the true value. The operator's own
+     * {@code ~raw} ASC/DESC bit flip then applies on top of that encoding exactly as it does for
+     * a plain {@code LONG} sort key — no operator change needed.
+     *
      * <p>Deliberately excluded:
      * <ul>
-     *     <li>{@code UNSIGNED_LONG}: maps to {@link ElementType#LONG} but the operator's
-     *         {@code ~raw} encoding does not preserve unsigned ordering. Supporting it needs a
-     *         different encoding ({@code raw ^ Long.MIN_VALUE}, sign-bit flip) and is parked for
-     *         a follow-up.</li>
      *     <li>{@code FLOAT}, {@code HALF_FLOAT}, {@code SCALED_FLOAT}: ESQL widens these to
      *         {@link DataType#DOUBLE} at load time, so a sort attribute with one of these data
      *         types never reaches this predicate in practice — {@link PlannerUtils#toElementType}
@@ -1098,7 +1133,8 @@ public class LocalExecutionPlanner {
             || dataType == DataType.DOUBLE
             || dataType == DataType.BOOLEAN
             || dataType == DataType.DATETIME
-            || dataType == DataType.DATE_NANOS;
+            || dataType == DataType.DATE_NANOS
+            || dataType == DataType.UNSIGNED_LONG;
     }
 
     /**
@@ -1521,11 +1557,11 @@ public class LocalExecutionPlanner {
         // After enabling remote joins, we can have one of the two situations here:
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
-        Map.Entry<String, IndexMode> entry;
-        if (esRelation.indexNameWithModes().size() == 1) {
-            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
+        Map.Entry<String, IndexProperties> entry;
+        if (esRelation.indexProperties().size() == 1) {
+            entry = esRelation.indexProperties().entrySet().iterator().next();
         } else {
-            var maybeEntry = esRelation.indexNameWithModes()
+            var maybeEntry = esRelation.indexProperties()
                 .entrySet()
                 .stream()
                 .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
@@ -1537,8 +1573,8 @@ public class LocalExecutionPlanner {
             );
         }
 
-        if (entry.getValue() != IndexMode.LOOKUP) {
-            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
+        if (entry.getValue().indexMode() != IndexMode.LOOKUP) {
+            throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue().indexMode() + "]");
         }
         var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
@@ -2122,7 +2158,19 @@ public class LocalExecutionPlanner {
 
             int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
-                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
+                new ScoreOperator.ScoreOperatorFactory(
+                    ScoreMapper.toScorer(
+                        filter.condition(),
+                        context.shardContexts,
+                        EvalMapper.toEvaluatorContext(
+                            context.foldCtx(),
+                            filterOperation.layout,
+                            context.shardContexts,
+                            context.analysisRegistry()
+                        )
+                    ),
+                    scoreBlock
+                ),
                 filterOperation.layout
             );
         }

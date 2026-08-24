@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -76,7 +78,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MatchPhrase.class)
         .ternary(MatchPhrase::new)
-        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options", "runtime_analyzer")
+        .capabilities("runtime_filter", "unmapped_fields_pushdown_fix", "runtime_options", "runtime_analyzer", "runtime_score")
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -115,8 +117,9 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             values row by row, which may be slower on large datasets.
             On a `keyword` expression the whole query string must equal a value exactly, matching
             the term query semantics of `match_phrase` on an indexed keyword field.
-            Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
-            when using `METADATA _score`.
+            When using `METADATA _score`, `MATCH_PHRASE` on an expression contributes to the relevance
+            score: a matching row scores the `boost` option (1.0 by default). Unlike indexed fields,
+            expressions are not scored with BM25, as there are no index statistics for an expression.
 
             When searching `text` expressions, <<esql-function-named-params,function named parameters>>
             (match_phrase query options) are supported. The `analyzer` option must name a registered
@@ -299,9 +302,17 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             // This isn't a field in the index, so the expression is evaluated at runtime, row by row.
             return true;
         }
-        // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
-        // indices where the field is unmapped, so it is matched at runtime instead.
-        return fieldAttribute.isPotentiallyUnmapped();
+        if (fieldAttribute.isPotentiallyUnmapped()) {
+            // A potentially unmapped field cannot be pushed down: the Lucene query would silently miss the rows of the
+            // indices where the field is unmapped, so it is matched at runtime instead.
+            return true;
+        }
+        if (fieldAttribute.field() instanceof FunctionEsField functionEsField) {
+            // This is a pushed block loader. There is no indexed Lucene field behind it, so the match must run at
+            // runtime. We can only support FIELD_EXTRACT(flattened, "constant"), here named EXTRACT_FLATTENED_SUBFIELD.
+            return functionEsField.functionConfig().function() == BlockLoaderFunctionConfig.Function.EXTRACT_FLATTENED_SUBFIELD;
+        }
+        return false;
     }
 
     @Override
@@ -397,9 +408,11 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         // When options are used, we build a Lucene query
         if (field.dataType() == TEXT) {
             Map<String, Object> opts = matchPhraseQueryOptions();
-            var matchPhraseQuery = new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts);
-            var analyzer = RuntimeSearch.resolveNamedAnalyzer(opts, toEvaluator);
-            return RuntimeSearch.textEvaluatorForQuery(source(), toEvaluator.apply(field()), matchPhraseQuery, analyzer);
+            return textEvaluatorForQueryWithOptions(
+                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toEvaluator
+            );
         }
         // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
         // falling through to exact matching would silently give it the wrong semantics. NULL fields never get
@@ -416,5 +429,35 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             (BytesRef) Foldables.queryAsObject(query(), sourceText()),
             context -> new BytesRef()
         );
+    }
+
+    @Override
+    public boolean contributesToScore() {
+        return true;
+    }
+
+    /**
+     * Scores runtime phrase matches with {@link RuntimeSearch}'s boolean-similarity semantics — there are no corpus
+     * statistics to feed BM25 (for now ...) — so a matched phrase scores its boost, 1.0 by default. Keyword exact matches
+     * score 1.0.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toScorer(ToScorer toScorer) {
+        if (false == isRuntimeSearch()) {
+            // Pushed-down match_phrase is scored by running the Lucene query on the shard.
+            return super.toScorer(toScorer);
+        }
+
+        // With options, score through the same Lucene query the boolean evaluator runs.
+        if (field.dataType() == TEXT && options() != null) {
+            Map<String, Object> opts = matchPhraseQueryOptions();
+            return textScoreEvaluatorForQueryWithOptions(
+                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
+                opts,
+                toScorer.toEvaluator()
+            );
+        }
+        // No options, so both the text phrase matcher and the keyword exact matcher both score 1.0 on hits.
+        return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));
     }
 }

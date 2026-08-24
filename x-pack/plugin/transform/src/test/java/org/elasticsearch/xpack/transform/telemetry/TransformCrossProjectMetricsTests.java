@@ -45,11 +45,8 @@ public class TransformCrossProjectMetricsTests extends ESTestCase {
 
     private TransformCrossProjectMetrics component;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
+    public void initTransformCrossProjectMetrics() throws Exception {
         var meterRegistry = mock(MeterRegistry.class);
         when(meterRegistry.registerLongsGauge(anyString(), anyString(), anyString(), any())).thenAnswer(inv -> {
             observersByMetricName.put(inv.getArgument(0), inv.getArgument(3));

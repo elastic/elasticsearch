@@ -191,7 +191,7 @@ book_no:keyword
 ;
 
 matchWithFunctionPushedToLucene
-skip_flattened_rewrite: match_family_rejects_field_extract
+skip_flattened_rewrite: runtime_search_reorders_conjunct_warnings
 required_capability: match_function
 
 from hosts 
@@ -2337,4 +2337,95 @@ FROM books
 
 book_no:keyword | new_title:text
 2675            | TITLE: The Lord of the Rings - Boxed Set
+;
+
+matchOnRuntimeTextWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// a runtime match scores one point per matched query term, not BM25: expressions have no index statistics
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2130            | 1.0
+2301            | 1.0
+;
+
+matchOnRuntimeTextMultipleTermsWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// books matching both terms score 2.0, books matching one score 1.0
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| STATS max_score = max(_score), min_score = min(_score)
+;
+
+max_score:double | min_score:double
+2.0              | 1.0
+;
+
+matchOnRuntimeTextWithOptionsAndScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// with operator AND both terms must match, and each matched term scores the boost
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings", {"operator": "AND", "boost": 1.5})
+| STATS max_score = max(_score), min_score = min(_score)
+;
+
+max_score:double | min_score:double
+3.0              | 3.0
+;
+
+matchOnRuntimeKeywordWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// keyword expressions match by exact value equality and score 1.0
+FROM employees METADATA _score
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match(full_name, "Anneke Preusig") OR match(full_name, "Berni Genin")
+| SORT emp_no
+| KEEP emp_no, _score
+;
+
+emp_no:integer | _score:double
+10006          | 1.0
+10014          | 1.0
+;
+
+matchOnRuntimeTextAndIndexedFieldWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// the pushed-down side scores BM25 and the runtime side adds its term count: every matched row has a positive score
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien") OR match(title, "Brothers Karamazov")
+| EVAL scored = _score > 0.0
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, scored
+;
+
+book_no:keyword | scored:boolean
+1211            | true
+1463            | true
+1985            | true
 ;

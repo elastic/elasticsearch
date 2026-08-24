@@ -28,9 +28,10 @@ import org.elasticsearch.logging.Logger;
  *
  * <p>This wrapper clamps a zero return value to {@code 1}, the smallest valid norm encoding
  * (equivalent to the shortest possible field length), so that the document is accepted and
- * the flush completes normally. It is applied to every {@link Similarity} registered in
- * {@link SimilarityService}, including built-in ones, so that analysis chains which produce
- * only overlap tokens ({@code positionIncrement == 0}) for some input cannot corrupt a shard.
+ * the flush completes normally. In {@link SimilarityService} it is applied at the per-field
+ * level (inside {@link SimilarityService.PerFieldSimilarity#get}) so that the outer
+ * {@code PerFieldSimilarity} class name is preserved in Lucene's explain API (which uses
+ * {@link Class#getSimpleName()} rather than {@link Object#toString()}).
  */
 // package-private; exposed for testing via NonZeroNormSimilarityTests
 final class NonZeroNormSimilarity extends Similarity {
@@ -76,12 +77,4 @@ final class NonZeroNormSimilarity extends Similarity {
         return in.scorer(boost, collectionStats, termStats);
     }
 
-    /**
-     * Delegates to the wrapped similarity so that the explain API reports the actual
-     * similarity name rather than this wrapper's class name.
-     */
-    @Override
-    public String toString() {
-        return in.toString();
-    }
 }

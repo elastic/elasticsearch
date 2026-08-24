@@ -115,14 +115,22 @@ public final class SimilarityService {
     }
 
     /**
-     * The similarity to use at index time, wrapped in {@link NonZeroNormSimilarity} to prevent
-     * shard corruption when a similarity returns {@code 0} from {@code computeNorm} for a
-     * non-empty field. When a field lookup is provided the result dispatches per-field; otherwise
-     * the default similarity is used for all fields.
+     * The similarity to use at index time. When a field lookup is provided the result dispatches
+     * per-field and wraps each field's similarity in {@link NonZeroNormSimilarity} to prevent shard
+     * corruption when a similarity returns {@code 0} from {@code computeNorm} for a non-empty
+     * field. When no field lookup is provided, the default similarity is wrapped directly in
+     * {@link NonZeroNormSimilarity}.
+     *
+     * <p>The wrapping is applied at the per-field level (inside {@link PerFieldSimilarity#get})
+     * rather than around the outer {@link PerFieldSimilarity} so that the class seen by Lucene's
+     * explain API remains {@code PerFieldSimilarity}, matching the pre-fix behaviour.
      */
     public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
-        Similarity base = (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) : defaultSimilarity;
-        return new NonZeroNormSimilarity(base);
+        if (fieldTypeLookup != null) {
+            return new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup);
+        }
+        // No per-field dispatch: wrap directly so the zero-norm guard is still applied.
+        return new NonZeroNormSimilarity(defaultSimilarity);
     }
 
     public SimilarityProvider getSimilarity(String name) {
@@ -154,9 +162,12 @@ public final class SimilarityService {
         @Override
         public Similarity get(String name) {
             MappedFieldType fieldType = fieldTypeLookup.apply(name);
-            return (fieldType != null && fieldType.getTextSearchInfo().similarity() != null)
+            Similarity sim = (fieldType != null && fieldType.getTextSearchInfo().similarity() != null)
                 ? fieldType.getTextSearchInfo().similarity().get()
                 : defaultSimilarity;
+            // Wrap at the per-field level so that the outer PerFieldSimilarity class name is
+            // preserved in Lucene's explain API (TermQuery uses getClass().getSimpleName()).
+            return new NonZeroNormSimilarity(sim);
         }
     }
 

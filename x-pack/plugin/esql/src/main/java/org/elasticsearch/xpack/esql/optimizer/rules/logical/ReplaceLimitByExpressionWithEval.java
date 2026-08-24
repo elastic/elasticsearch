@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -45,10 +46,29 @@ public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.Optim
             if (g.foldable()) {
                 continue;
             }
-            if (Alias.unwrap(g) instanceof GroupingFunction.NonEvaluatableGroupingFunction) {
+            Expression unwrapped = Alias.unwrap(g);
+            if (unwrapped instanceof GroupingFunction.NonEvaluatableGroupingFunction gf) {
                 // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) cannot be evaluated row-by-row; the
                 // physical planner handles them via a dedicated operator (e.g. CategorizeEvalOperator).
-                // Leave them in the groupings list so the planner can find and handle them.
+                // But non-attribute children of the function (e.g. CATEGORIZE(CONCAT(a, b))) must be
+                // extracted into a synthetic Eval so the planner receives an attribute reference.
+                List<Expression> newChildren = new ArrayList<>(gf.children().size());
+                boolean childChanged = false;
+                for (Expression child : gf.children()) {
+                    if (child instanceof Attribute || child instanceof MapExpression) {
+                        newChildren.add(child);
+                    } else {
+                        var name = rawTemporaryName("limit_by", String.valueOf(i), String.valueOf(counter++));
+                        var alias = new Alias(child.source(), name, child, null, true);
+                        evals.add(alias);
+                        newChildren.add(alias.toAttribute());
+                        childChanged = true;
+                    }
+                }
+                if (childChanged) {
+                    Expression newGf = gf.replaceChildren(newChildren);
+                    newGroupings.set(i, g instanceof Alias as ? as.replaceChild(newGf) : newGf);
+                }
                 continue;
             }
             if (g instanceof Attribute == false) {

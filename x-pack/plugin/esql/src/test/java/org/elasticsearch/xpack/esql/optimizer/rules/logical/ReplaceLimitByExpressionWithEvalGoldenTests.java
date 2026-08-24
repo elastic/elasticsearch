@@ -168,4 +168,18 @@ public class ReplaceLimitByExpressionWithEvalGoldenTests extends GoldenTestCase 
             | LIMIT 5 BY languages * 2, 42
             """, STAGES);
     }
+
+    public void testCategorizeWithAttributeFieldUnchanged() {
+        runGoldenTest("""
+            FROM employees
+            | LIMIT 1 BY CATEGORIZE(first_name)
+            """, STAGES);
+    }
+
+    public void testCategorizeWithFunctionFieldExtractsEval() {
+        runGoldenTest("""
+            FROM employees
+            | LIMIT 1 BY CATEGORIZE(CONCAT(first_name, " "))
+            """, STAGES);
+    }
 }

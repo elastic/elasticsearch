@@ -1011,3 +1011,42 @@ Connection error      | 172.21.3.15
 Connection error      | 172.21.3.15
 Connected to 10.1.0.1 | 172.21.3.15
 ;
+
+limitByCategorizeWithFunctionArg
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_function_arg_in_limit_by
+
+// CONCAT adds a trailing space which is ignored by the ML tokenizer → same categories as plain CATEGORIZE(message)
+FROM sample_data
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(CONCAT(message, " "))
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.3
+Connection error
+Disconnected
+;
+
+sortLimitByCategorizeWithFunctionArg
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_function_arg_in_limit_by
+
+// Top 2 per category using a function expression; DESC sort picks most-recent two per group
+FROM sample_data
+  | SORT @timestamp DESC
+  | LIMIT 2 BY CATEGORIZE(CONCAT(message, " "))
+  | KEEP message
+  | SORT message ASC
+;
+
+message:keyword
+Connected to 10.1.0.1
+Connected to 10.1.0.2
+Connection error
+Connection error
+Disconnected
+;

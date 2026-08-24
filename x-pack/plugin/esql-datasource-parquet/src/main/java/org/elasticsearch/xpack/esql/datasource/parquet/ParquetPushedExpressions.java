@@ -445,14 +445,14 @@ final class ParquetPushedExpressions {
         // IS NULL / IS NOT NULL (null-valued EQ/NOT_EQ) over a list column (resolves to a LIST group,
         // not a primitive) must decline: pushing notEq(column("v"), null) names a leaf-absent column
         // that parquet-mr drops entirely. The null-mask evaluator that answers instead is multivalue-safe.
-        // esql-planning#1056. Value predicates (comparisons/IN/LIKE) are deliberately NOT declined here —
-        // their decoded-block evaluator reads by position index and is not multivalue-safe.
+        // esql-planning#1056.
         if (value == null && resolveNestedPrimitive(schema, columnName) == null) {
             return null;
         }
         return switch (dataType) {
             case INTEGER -> buildIntPredicate(columnName, value, op, schema);
             case LONG -> buildLongPredicate(columnName, value, op, schema);
+            case UNSIGNED_LONG -> buildUnsignedLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
@@ -593,6 +593,37 @@ final class ParquetPushedExpressions {
             }
             default -> null;
         };
+    }
+
+    /**
+     * Builds a predicate for an ESQL {@code UNSIGNED_LONG} column — the mirror image of
+     * {@link #buildLongPredicate}'s UNSIGNED_64 arm. ESQL stores {@code UNSIGNED_LONG} values sign-flip-encoded
+     * ({@code value ^ 2^63}, see {@link ParquetColumnDecoding#encodeUnsignedLong}), which is the domain the literal
+     * arrives in here; un-flipping it (the encode is its own inverse) recovers the file's raw physical {@code INT64}
+     * bits to push.
+     * <p>
+     * {@code eq}/{@code notEq} are bit-pattern exact regardless of which comparator parquet-mr applies (row-group
+     * min/max always bounds the group's raw values under whatever consistent order computed them, so a point
+     * membership test against that same order can never produce a false negative) and always push. An ORDERED
+     * comparison (lt/lte/gt/gte), however, needs parquet-mr to apply an UNSIGNED comparator over the row-group
+     * RANGE to agree with ESQL's true-unsigned ordering — which only happens when the physical column carries the
+     * {@code UINT_64} annotation ({@link ParquetColumnDecoding#isUnsignedInt64}). A physical column WITHOUT that
+     * annotation (e.g. a plain signed {@code INT64} declared {@code unsigned_long}) has footer stats computed under
+     * the file's own SIGNED comparator, which disagrees with ESQL's unsigned semantics for a row group spanning both
+     * bit-pattern halves — pushing an ordered predicate there would silently skip row groups holding the true
+     * unsigned extrema, so those decline. IS NULL/IS NOT NULL (value == null) is exempt,
+     * matching {@link #buildLongPredicate}: nullability is comparator-agnostic.
+     */
+    private static FilterPredicate buildUnsignedLongPredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        if (value != null && op != PredicateOp.EQ && op != PredicateOp.NOT_EQ && ParquetColumnDecoding.isUnsignedInt64(ptype) == false) {
+            return null;
+        }
+        Long rawValue = value != null ? ParquetColumnDecoding.encodeUnsignedLong(((Number) value).longValue()) : null;
+        return orderedPredicate(FilterApi.longColumn(columnName), rawValue, op);
     }
 
     /**
@@ -983,6 +1014,7 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> translateIntIn(columnName, rawValues, schema);
             case LONG -> translateLongIn(columnName, rawValues, schema);
+            case UNSIGNED_LONG -> translateUnsignedLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
                 if (isPhysicalDouble(schema, columnName)) {
                     yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
@@ -1043,6 +1075,42 @@ final class ParquetPushedExpressions {
             }
             default -> null;
         };
+    }
+
+    /**
+     * {@code IN} counterpart to {@link #buildUnsignedLongPredicate}: rawValues arrive sign-flip-encoded (ESQL's
+     * canonical {@code UNSIGNED_LONG} domain) and are un-flipped back to raw physical {@code INT64} bits before
+     * pushing (the encode is its own inverse). Mirrors {@link #translateLongIn}'s combined-min/max sign-mix decline:
+     * parquet-mr reduces the pushed set to one min/max pair using natural (signed) {@code Long} ordering, which
+     * only disagrees with the row-group stats' own comparator when the physical column carries the {@code UINT_64}
+     * annotation — so the raw-bit sign-mix decline applies only in that case (same-sign sets, including
+     * all-negative, and any set over a non-annotated physical column stay exact and pushable).
+     */
+    private static FilterPredicate translateUnsignedLongIn(String columnName, List<Object> rawValues, MessageType schema) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null || ptype.getPrimitiveTypeName() != PrimitiveType.PrimitiveTypeName.INT64) {
+            return null;
+        }
+        if (ParquetColumnDecoding.isUnsignedInt64(ptype)) {
+            boolean hasNegativeRaw = false;
+            boolean hasNonNegativeRaw = false;
+            for (Object v : rawValues) {
+                long raw = ParquetColumnDecoding.encodeUnsignedLong(((Number) v).longValue());
+                if (raw < 0) {
+                    hasNegativeRaw = true;
+                } else {
+                    hasNonNegativeRaw = true;
+                }
+            }
+            if (hasNegativeRaw && hasNonNegativeRaw) {
+                return null;
+            }
+        }
+        return inPredicate(
+            FilterApi.longColumn(columnName),
+            rawValues,
+            v -> ParquetColumnDecoding.encodeUnsignedLong(((Number) v).longValue())
+        );
     }
 
     /**
@@ -1469,6 +1537,14 @@ final class ParquetPushedExpressions {
             }
             WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask, dictCache);
             if (inner != null) {
+                // For value predicates on a single column, MV positions were correctly set to bit 0
+                // by the inner evaluator. A plain negate() would flip them to bit 1 (survivors),
+                // causing unnecessary Parquet decoding for every MV row. The RECHECK safety net
+                // still corrects results, but tvlNegate avoids the decoding cost.
+                Block valueBlock = valueColumnBlockForNot(not.field(), blocks);
+                if (valueBlock != null) {
+                    return tvlNegate(inner, valueBlock, rowCount);
+                }
                 inner.negate();
                 return inner;
             }
@@ -1506,6 +1582,27 @@ final class ParquetPushedExpressions {
         return null;
     }
 
+    /**
+     * Returns the single column block referenced by a value predicate so the generic {@code Not}
+     * handler can call {@link #tvlNegate} and avoid materialising MV rows unnecessarily.
+     * Returns {@code null} for position-level predicates ({@code IsNull}/{@code IsNotNull}) whose
+     * MV semantics are already correct without zeroing, and for compound sub-expressions where no
+     * single block dominates.
+     */
+    @Nullable
+    private static Block valueColumnBlockForNot(Expression inner, Map<String, Block> blocks) {
+        if (inner instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
+            return blocks.get(ne.name());
+        }
+        if (inner instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            return blocks.get(ne.name());
+        }
+        if (inner instanceof Range range && range.value() instanceof NamedExpression ne) {
+            return blocks.get(ne.name());
+        }
+        return null;
+    }
+
     private static WordMask evaluateComparison(
         EsqlBinaryComparison bc,
         Block block,
@@ -1517,9 +1614,17 @@ final class ParquetPushedExpressions {
         mask.reset(rowCount);
         if (block instanceof IntBlock ib) {
             int val = ((Number) literal).intValue();
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && compareResult(Integer.compare(ib.getInt(i), val), bc)) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && compareResult(Integer.compare(ib.getInt(block.getFirstValueIndex(i)), val), bc)) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && compareResult(Integer.compare(ib.getInt(i), val), bc)) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof LongBlock lb) {
@@ -1528,16 +1633,32 @@ final class ParquetPushedExpressions {
                 return null;
             }
             long val = boxed;
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && compareResult(Long.compare(lb.getLong(i), val), bc)) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && compareResult(Long.compare(lb.getLong(block.getFirstValueIndex(i)), val), bc)) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && compareResult(Long.compare(lb.getLong(i), val), bc)) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof DoubleBlock db) {
             double val = ((Number) literal).doubleValue();
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && compareResult(Double.compare(db.getDouble(i), val), bc)) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && compareResult(Double.compare(db.getDouble(block.getFirstValueIndex(i)), val), bc)) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && compareResult(Double.compare(db.getDouble(i), val), bc)) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
@@ -1555,16 +1676,33 @@ final class ParquetPushedExpressions {
             BytesRef val = toByteRef(literal);
             Predicate<BytesRef> matcher = bytesRefComparisonMatcher(bc, val);
             BytesRef scratch = new BytesRef();
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && matcher.test(bb.getBytesRef(i, scratch))) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && matcher.test(bb.getBytesRef(block.getFirstValueIndex(i), scratch))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && matcher.test(bb.getBytesRef(i, scratch))) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof BooleanBlock boolBlock) {
             boolean val = (Boolean) literal;
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && compareResult(Boolean.compare(boolBlock.getBoolean(i), val), bc)) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1
+                        && compareResult(Boolean.compare(boolBlock.getBoolean(block.getFirstValueIndex(i)), val), bc)) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && compareResult(Boolean.compare(boolBlock.getBoolean(i), val), bc)) {
+                        mask.set(i);
+                    }
                 }
             }
         } else {
@@ -1644,9 +1782,17 @@ final class ParquetPushedExpressions {
             for (Object v : values) {
                 intSet.add(((Number) v).intValue());
             }
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && intSet.contains(ib.getInt(i))) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && intSet.contains(ib.getInt(block.getFirstValueIndex(i)))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && intSet.contains(ib.getInt(i))) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof LongBlock lb) {
@@ -1654,9 +1800,17 @@ final class ParquetPushedExpressions {
             for (Object v : values) {
                 longSet.add(((Number) v).longValue());
             }
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && longSet.contains(lb.getLong(i))) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && longSet.contains(lb.getLong(block.getFirstValueIndex(i)))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && longSet.contains(lb.getLong(i))) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof DoubleBlock db) {
@@ -1664,9 +1818,17 @@ final class ParquetPushedExpressions {
             for (Object v : values) {
                 doubleSet.add(((Number) v).doubleValue());
             }
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && doubleSet.contains(db.getDouble(i))) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && doubleSet.contains(db.getDouble(block.getFirstValueIndex(i)))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && doubleSet.contains(db.getDouble(i))) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
@@ -1682,9 +1844,17 @@ final class ParquetPushedExpressions {
                 refSet.add(toByteRef(v));
             }
             BytesRef scratch = new BytesRef();
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && refSet.contains(bb.getBytesRef(i, scratch))) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && refSet.contains(bb.getBytesRef(block.getFirstValueIndex(i), scratch))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && refSet.contains(bb.getBytesRef(i, scratch))) {
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof BooleanBlock boolBlock) {
@@ -1692,9 +1862,17 @@ final class ParquetPushedExpressions {
             for (Object v : values) {
                 boolSet.add((Boolean) v);
             }
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false && boolSet.contains(boolBlock.getBoolean(i))) {
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1 && boolSet.contains(boolBlock.getBoolean(block.getFirstValueIndex(i)))) {
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false && boolSet.contains(boolBlock.getBoolean(i))) {
+                        mask.set(i);
+                    }
                 }
             }
         } else {
@@ -1718,12 +1896,23 @@ final class ParquetPushedExpressions {
             boolean hasHi = upper != null;
             int lo = hasLo ? ((Number) lower).intValue() : 0;
             int hi = hasHi ? ((Number) upper).intValue() : 0;
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false) {
-                    int val = ib.getInt(i);
-                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
-                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1) {
+                        int val = ib.getInt(block.getFirstValueIndex(i));
+                        if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                        if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false) {
+                        int val = ib.getInt(i);
+                        if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                        if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof LongBlock lb) {
@@ -1731,12 +1920,23 @@ final class ParquetPushedExpressions {
             boolean hasHi = upper != null;
             long lo = hasLo ? ((Number) lower).longValue() : 0;
             long hi = hasHi ? ((Number) upper).longValue() : 0;
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false) {
-                    long val = lb.getLong(i);
-                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
-                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1) {
+                        long val = lb.getLong(block.getFirstValueIndex(i));
+                        if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                        if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false) {
+                        long val = lb.getLong(i);
+                        if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                        if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                        mask.set(i);
+                    }
                 }
             }
         } else if (block instanceof DoubleBlock db) {
@@ -1744,12 +1944,23 @@ final class ParquetPushedExpressions {
             boolean hasHi = upper != null;
             double lo = hasLo ? ((Number) lower).doubleValue() : 0;
             double hi = hasHi ? ((Number) upper).doubleValue() : 0;
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i) == false) {
-                    double val = db.getDouble(i);
-                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
-                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
-                    mask.set(i);
+            if (block.mayHaveMultivaluedFields()) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.getValueCount(i) == 1) {
+                        double val = db.getDouble(block.getFirstValueIndex(i));
+                        if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                        if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                        mask.set(i);
+                    }
+                }
+            } else {
+                for (int i = 0; i < rowCount; i++) {
+                    if (block.isNull(i) == false) {
+                        double val = db.getDouble(i);
+                        if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                        if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                        mask.set(i);
+                    }
                 }
             }
         } else {
@@ -1857,21 +2068,7 @@ final class ParquetPushedExpressions {
             return mask;
         }
         if (block instanceof BytesRefBlock bb) {
-            WordMask mask = new WordMask();
-            mask.reset(rowCount);
-            BytesRef scratch = new BytesRef();
-            for (int i = 0; i < rowCount; i++) {
-                if (intermediateMask != null && intermediateMask.get(i) == false) {
-                    continue;
-                }
-                if (block.isNull(i) == false) {
-                    BytesRef val = bb.getBytesRef(i, scratch);
-                    if (matcher.test(val)) {
-                        mask.set(i);
-                    }
-                }
-            }
-            return mask;
+            return applyMatcherToBytesRefBlock(bb, rowCount, intermediateMask, matcher);
         }
         return null;
     }
@@ -1888,12 +2085,12 @@ final class ParquetPushedExpressions {
         if (likeMask == null) {
             return null;
         }
-        // Set bit i for null rows so the subsequent negate turns them into 0 (filtered out).
-        // mayHaveNulls() is a cheap pre-check that lets the all-non-nulls common case skip
-        // the per-row scan; matches the WildcardLike scalar path.
-        if (block.mayHaveNulls()) {
+        // Set bit i for null/MV rows so the subsequent negate turns them into 0 (filtered out).
+        // mayHaveNulls()/mayHaveMultivaluedFields() are cheap pre-checks that let the common
+        // case (all single-valued, non-null) skip the per-row scan entirely.
+        if (block.mayHaveNulls() || block.mayHaveMultivaluedFields()) {
             for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i)) {
+                if (block.getValueCount(i) != 1) {
                     likeMask.set(i);
                 }
             }
@@ -1954,7 +2151,7 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (compiled.matchesAll) {
-            return maskNonNullRows(block, rowCount);
+            return maskSingleValuedRows(block, rowCount);
         }
         // Use the affix-contains dispatch when the pattern matches that shape; see CompiledWildcard.
         Predicate<BytesRef> matcher = matcherFor(compiled);
@@ -1966,21 +2163,7 @@ final class ParquetPushedExpressions {
             return mask;
         }
         if (block instanceof BytesRefBlock bb) {
-            WordMask mask = new WordMask();
-            mask.reset(rowCount);
-            BytesRef scratch = new BytesRef();
-            for (int i = 0; i < rowCount; i++) {
-                if (intermediateMask != null && intermediateMask.get(i) == false) {
-                    continue;
-                }
-                if (block.isNull(i) == false) {
-                    BytesRef val = bb.getBytesRef(i, scratch);
-                    if (matcher.test(val)) {
-                        mask.set(i);
-                    }
-                }
-            }
-            return mask;
+            return applyMatcherToBytesRefBlock(bb, rowCount, intermediateMask, matcher);
         }
         return null;
     }
@@ -2080,6 +2263,26 @@ final class ParquetPushedExpressions {
     }
 
     /**
+     * Returns a mask with bit {@code i} set iff position {@code i} holds exactly one value
+     * (i.e. {@code getValueCount(i) == 1}). Null positions (count 0) and multivalue positions
+     * (count &gt; 1) are excluded. For flat blocks ({@code mayHaveMultivaluedFields() == false})
+     * this is equivalent to {@link #maskNonNullRows} and delegates to it.
+     */
+    private static WordMask maskSingleValuedRows(Block block, int rowCount) {
+        if (block.mayHaveMultivaluedFields() == false) {
+            return maskNonNullRows(block, rowCount);
+        }
+        WordMask mask = new WordMask();
+        mask.reset(rowCount);
+        for (int i = 0; i < rowCount; i++) {
+            if (block.getValueCount(i) == 1) {
+                mask.set(i);
+            }
+        }
+        return mask;
+    }
+
+    /**
      * Populates {@code mask} so that bit {@code i} is set iff {@code block.isNull(i)} is
      * false. The caller owns the mask; this method does not allocate. Mirrors
      * {@link #maskNonNullRows} which is the allocating wrapper. Both the {@code IsNotNull}
@@ -2174,7 +2377,7 @@ final class ParquetPushedExpressions {
      * The minimum of 10 positions avoids the boolean[] allocation overhead for tiny blocks.
      */
     private static boolean shouldShortCircuitOnDictionary(OrdinalBytesRefBlock block) {
-        return block.getPositionCount() >= 10;
+        return block.getPositionCount() >= 10 && block.getOrdinalsBlock().mayHaveMultivaluedFields() == false;
     }
 
     /**
@@ -2249,11 +2452,13 @@ final class ParquetPushedExpressions {
      * without compromising correctness — we are looking at the actual per-row-group
      * dictionary, not at file-level metadata.
      *
-     * <p>This relies on the ordinals block being <strong>single-valued</strong>: position
-     * {@code i} maps directly to value index {@code i}. The Parquet reader's dictionary
-     * path always satisfies this — see {@code PageColumnReader#buildOrdinalsBlock}, which
-     * constructs the ordinals block with {@code firstValueIndexes == null}. The assertion
-     * below documents and guards the invariant for any future producer.
+     * <p>The ordinals block must be <strong>single-valued per position</strong> (no MV):
+     * the assertion below guards this. It may, however, be a non-vector block (i.e.
+     * {@link IntBlock#asVector()} returns {@code null}): nullable Parquet columns produce
+     * null entries in the ordinals block, and null positions consume no slot in the values
+     * array, so {@code getFirstValueIndex(i) != i} for positions after a null. Each
+     * position is therefore looked up via {@link IntBlock#getFirstValueIndex} before
+     * calling {@link IntBlock#getInt}.
      */
     private static void applyDictionaryMatches(OrdinalBytesRefBlock block, boolean[] dictMatches, WordMask mask, int rowCount) {
         IntBlock ordinals = block.getOrdinalsBlock();
@@ -2273,10 +2478,56 @@ final class ParquetPushedExpressions {
             return;
         }
         for (int i = 0; i < rowCount; i++) {
-            if (block.isNull(i) == false && dictMatches[ordinals.getInt(i)]) {
+            // ordinals.getInt takes a VALUE index, not a position index. When the ordinals
+            // block is non-flat (null gaps present), getFirstValueIndex(i) != i.
+            if (block.isNull(i) == false && dictMatches[ordinals.getInt(ordinals.getFirstValueIndex(i))]) {
                 mask.set(i);
             }
         }
+    }
+
+    /**
+     * Scans a {@link BytesRefBlock} row-by-row, setting the survivor bit for each
+     * single-valued non-null position where {@code matcher} returns {@code true}.
+     *
+     * <p>Shared by {@link #evaluateLiteralPredicate} and {@link #evaluateWildcardLike} to
+     * avoid duplicating the MV-guarded dual-loop pattern.
+     */
+    private static WordMask applyMatcherToBytesRefBlock(
+        BytesRefBlock bb,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        Predicate<BytesRef> matcher
+    ) {
+        WordMask mask = new WordMask();
+        mask.reset(rowCount);
+        BytesRef scratch = new BytesRef();
+        if (bb.mayHaveMultivaluedFields()) {
+            for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
+                if (bb.getValueCount(i) == 1) {
+                    BytesRef val = bb.getBytesRef(bb.getFirstValueIndex(i), scratch);
+                    if (matcher.test(val)) {
+                        mask.set(i);
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
+                if (bb.isNull(i) == false) {
+                    BytesRef val = bb.getBytesRef(i, scratch);
+                    if (matcher.test(val)) {
+                        mask.set(i);
+                    }
+                }
+            }
+        }
+        return mask;
     }
 
     /**

@@ -7,25 +7,35 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 
 /**
  * Defines the service settings for interacting with Anthropic's chat completion models.
@@ -37,33 +47,91 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
     public static final String NAME = "anthropic_completion_service_settings";
 
+    static final TransportVersion ANTHROPIC_COMPLETION_URL_ADDED = TransportVersion.fromName(
+        "inference_api_anthropic_completion_url_added"
+    );
+
     // The rate limit for build tier 1 is 50 request per minute
     // Details are here https://docs.anthropic.com/en/api/rate-limits
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(50);
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
+    /**
+     * Creates an {@link ObjectParser} for the Anthropic chat completion service settings.
+     *
+     * @param ignoreUnknownFields {@code false} for request parsing (reject unexpected fields),
+     *                            {@code true} for persisted configuration (tolerate fields from other versions).
+     */
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
+        parser.declareString(Builder::setUrl, new ParseField(URL));
+        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
+        parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+        return parser;
+    }
+
+    static class Builder {
+        private String modelId;
+        private String url;
+        private RateLimitSettings rateLimitSettings;
+
+        public void setModelId(String modelId) {
+            this.modelId = modelId;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        public AnthropicChatCompletionServiceSettings build() {
+            validateStringIsNotNullOrEmpty(modelId, MODEL_ID);
+            if (url != null) {
+                validateStringIsNotNullOrEmpty(url, URL);
+            }
+            return new AnthropicChatCompletionServiceSettings(modelId, createOptionalUri(url), rateLimitSettings);
+        }
+    }
+
     public static AnthropicChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
+            return parser.apply(xParser, context).build();
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
     }
 
     private final String modelId;
-
+    @Nullable
+    private final URI url;
     private final RateLimitSettings rateLimitSettings;
 
-    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings ratelimitSettings) {
+    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable URI url, @Nullable RateLimitSettings ratelimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
+        this.url = url;
         this.rateLimitSettings = Objects.requireNonNullElse(ratelimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+    }
+
+    public AnthropicChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings ratelimitSettings) {
+        this(modelId, null, ratelimitSettings);
     }
 
     public AnthropicChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
+        this.url = in.getTransportVersion().supports(ANTHROPIC_COMPLETION_URL_ADDED) ? createOptionalUri(in.readOptionalString()) : null;
         rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -77,20 +145,49 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
         return modelId;
     }
 
+    @Nullable
+    public URI url() {
+        return url;
+    }
+
     @Override
     public AnthropicChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse Anthropic chat completion service settings update", e);
+        }
 
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
+    }
 
-        validationException.throwIfValidationErrorsExist();
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field.
+     * Including any immutable field (such as {@code model_id} or {@code url}) causes the strict parser to reject the request.
+     */
+    private static class Update {
 
-        return new AnthropicChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            RateLimitSettings.declareUpdatableRateLimitSettings(PARSER, Update::setRateLimitSettings);
+            // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+            // Declare it here as a no-op so the strict parser does not reject it as an unknown field.
+            PARSER.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
+        }
+
+        private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
+
+        public AnthropicChatCompletionServiceSettings mergeInto(AnthropicChatCompletionServiceSettings existing) {
+            return new AnthropicChatCompletionServiceSettings(
+                existing.modelId(),
+                existing.url(),
+                applyUpdate(rateLimitSettings, existing.rateLimitSettings(), DEFAULT_RATE_LIMIT_SETTINGS)
+            );
+        }
     }
 
     @Override
@@ -106,7 +203,9 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-
+        if (url != null) {
+            builder.field(URL, url.toString());
+        }
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -125,6 +224,9 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
+        if (out.getTransportVersion().supports(ANTHROPIC_COMPLETION_URL_ADDED)) {
+            out.writeOptionalString(url != null ? url.toString() : null);
+        }
         rateLimitSettings.writeTo(out);
     }
 
@@ -133,11 +235,13 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AnthropicChatCompletionServiceSettings that = (AnthropicChatCompletionServiceSettings) object;
-        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(url, that.url)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings);
+        return Objects.hash(modelId, url, rateLimitSettings);
     }
 }

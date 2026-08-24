@@ -230,6 +230,15 @@ public class BlobFileRanges implements Writeable {
     }
 
     /**
+     * Returns {@code first} when it is known, otherwise returns {@code second}.
+     */
+    public static long firstKnownTimestamp(long first, long second) {
+        assert first >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || first == SharedBlobCacheService.UNKNOWN_TIMESTAMP : first;
+        assert second >= SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP || second == SharedBlobCacheService.UNKNOWN_TIMESTAMP : second;
+        return first != SharedBlobCacheService.UNKNOWN_TIMESTAMP ? first : second;
+    }
+
+    /**
      * Returns the most recent known timestamp between two timestamps, treating {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} as the
      * lesser-known value so any known timestamp wins.
      */

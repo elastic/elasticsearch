@@ -22,7 +22,6 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,25 +41,6 @@ public class ES940v1DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
     @Override
     protected boolean supportsFloatVectorFallback() {
         return false;
-    }
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        format = new ES940DiskBBQVectorsFormat(
-            ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED,
-            64,
-            2,
-            DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
-            null,
-            1,
-            false,
-            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-            0,
-            ES940DiskBBQVectorsFormat.VERSION_START
-        );
-        super.setUp();
     }
 
     @Override
@@ -87,6 +67,21 @@ public class ES940v1DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCa
 
     @Override
     protected Codec getCodec() {
+        if (format == null) {
+            format = new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_STRIPED,
+                64,
+                2,
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                0,
+                ES940DiskBBQVectorsFormat.VERSION_START
+            );
+        }
         return TestUtil.alwaysKnnVectorsFormat(format);
     }
 

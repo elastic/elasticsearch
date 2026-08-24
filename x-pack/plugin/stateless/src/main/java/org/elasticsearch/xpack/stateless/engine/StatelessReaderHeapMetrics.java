@@ -26,13 +26,13 @@ public record StatelessReaderHeapMetrics(LongCounter refreshDeferredCounter) {
     );
 
     public static StatelessReaderHeapMetrics register(MeterRegistry registry, CircuitBreaker breaker) {
-        registry.registerLongGauge(
+        registry.registerLongAsyncGauge(
             RESERVED_SIZE,
             "Stateless reader-heap bytes currently reserved",
             "bytes",
             () -> new LongWithAttributes(breaker.getUsed())
         );
-        registry.registerLongGauge(
+        registry.registerLongAsyncGauge(
             BUDGET_SIZE,
             "Configured stateless reader-heap limit",
             "bytes",

@@ -11,6 +11,8 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.elasticsearch.columnar.ColumnMetadata;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 
@@ -18,14 +20,14 @@ import java.io.IOException;
 
 /**
  * Describes a numeric column — single- or multi-valued, in one format. Values live in one
- * ordinal-indexed, block-encoded store in the order they were written (never reordered). Two compact
+ * value-address-indexed, block-encoded store in the order they were written (never reordered). Two compact
  * {@code DirectMonotonic} tables address it:
  *
  * <ul>
  *   <li><b>block offsets</b> — the byte position of each value block; always present.</li>
- *   <li><b>value addresses</b> — the first value ordinal of each document, present only when the
+ *   <li><b>value addresses</b> — the first value address of each document, present only when the
  *       column is multi-valued ({@code numValues > numDocsWithField}). When every document has one
- *       value the table is dropped and a document's ordinal is its rank.</li>
+ *       value the table is dropped and a document's value address is its rank.</li>
  * </ul>
  *
  * Each table stores its data in the data file (read off-heap from the mapped input) and its small
@@ -34,7 +36,7 @@ import java.io.IOException;
 public record NumericColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
-    int numValues,
+    long numValues,
     int blockSize,
     byte blockBytesCodecId,
     byte terminalId,
@@ -47,7 +49,7 @@ public record NumericColumnMetadata(
     long valueAddressesDataLength,
     byte[] valueAddressesMeta,
     Skipper skipper
-) {
+) implements ColumnMetadata {
     private static final byte[] NONE = new byte[0];
 
     /** Descriptor of the default pipeline, stored on empty columns that serialize no block payload. */
@@ -149,13 +151,14 @@ public record NumericColumnMetadata(
         return numValues > numDocsWithField;
     }
 
+    @Override
     public void writeTo(DataOutput out) throws IOException {
         iterator.writeTo(out);
         out.writeVInt(numDocsWithField);
         if (numDocsWithField == 0) {
             return;
         }
-        out.writeVInt(numValues);
+        out.writeVLong(numValues);
         out.writeVInt(blockSize);
         out.writeByte(blockBytesCodecId);
         out.writeByte(terminalId);
@@ -172,13 +175,30 @@ public record NumericColumnMetadata(
         }
     }
 
-    public static NumericColumnMetadata readFrom(DataInput in, int maxDoc) throws IOException {
-        ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc);
+    /**
+     * Reads a column metadata record previously written by {@link #writeTo}.
+     *
+     * <p>{@code formatVersion} is the on-disk version returned by
+     * {@link org.elasticsearch.columnar.substrate.ColumnarCodecUtil#checkHeader}; it has already
+     * been validated to be in {@code [BASELINE, CURRENT]}. When a future version adds a field
+     * to this layout, gate the read on a {@code VERSION_*} constant from
+     * {@link org.elasticsearch.columnar.FormatVersion}:
+     * <pre>{@code
+     * int flags = 0;
+     * if (formatVersion.onOrAfter(FormatVersion.V1_EXTRA_FLAGS)) {
+     *     flags = in.readVInt();
+     * }
+     * }</pre>
+     * Without this branch, an old reader decoding a next-version segment would consume the flag
+     * bytes as part of the next field and corrupt every subsequent offset.
+     */
+    public static NumericColumnMetadata readFrom(DataInput in, int maxDoc, final FormatVersion formatVersion) throws IOException {
+        ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc, formatVersion);
         int numDocsWithField = in.readVInt();
         if (numDocsWithField == 0) {
             return empty(iterator, BlockBytesCodec.IDENTITY_ID);
         }
-        int numValues = in.readVInt();
+        long numValues = in.readVLong();
         int blockSize = in.readVInt();
         byte blockBytesCodecId = in.readByte();
         byte terminalId = in.readByte();
@@ -228,7 +248,7 @@ public record NumericColumnMetadata(
         return bytes;
     }
 
-    int numBlocks() {
+    long numBlocks() {
         return numValues == 0 ? 0 : (numValues + blockSize - 1) / blockSize;
     }
 }

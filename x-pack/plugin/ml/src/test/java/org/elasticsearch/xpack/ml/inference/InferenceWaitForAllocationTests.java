@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,9 +62,8 @@ public class InferenceWaitForAllocationTests extends ESTestCase {
 
     private InferenceWaitForAllocation waitForAllocation;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initWaitForAllocation() throws Exception {
         // The real TrainedModelAssignmentService resolves the condition through a ClusterStateObserver on a
         // started ClusterService, which a unit test does not have; the mock records each waiter so the test can
         // drive the predicate and listener directly, mirroring waitForAssignmentCondition's behaviour.

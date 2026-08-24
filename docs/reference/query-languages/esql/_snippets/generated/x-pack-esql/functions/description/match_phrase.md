@@ -22,10 +22,16 @@ When the target is not an indexed field, the search evaluates by scanning
 values row by row, which may be slower on large datasets.
 On a `keyword` expression the whole query string must equal a value exactly, matching
 the term query semantics of `match_phrase` on an indexed keyword field.
-When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
-(match_phrase query options) are not supported.
-Additionally, `MATCH_PHRASE` on an expression does not contribute to the relevance score
-when using `METADATA _score`.
+When using `METADATA _score`, `MATCH_PHRASE` on an expression contributes to the relevance
+score: a matching row scores the `boost` option (1.0 by default). Unlike indexed fields,
+expressions are not scored with BM25, as there are no index statistics for an expression.
+
+When searching `text` expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
+(match_phrase query options) are supported. The `analyzer` option must name a registered
+analyzer (prebuilt or plugin-contributed); per-index custom analyzers cannot be used because
+the expression is not backed by an index. Unlike on an indexed field, the analyzer is applied
+to both the query and the expression values; when no analyzer is specified, the `standard`
+analyzer is used. On `keyword` expressions options are not supported.
 
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

@@ -24,6 +24,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -88,6 +89,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, "esql-error-surface-encryption-password")
         .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
         .environment("AWS_REGION", regionSupplier)

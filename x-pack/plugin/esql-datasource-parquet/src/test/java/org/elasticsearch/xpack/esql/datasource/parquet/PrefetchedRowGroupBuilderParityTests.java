@@ -23,14 +23,19 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -46,6 +51,8 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
@@ -111,6 +118,60 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     public void testV2NoDictionary() throws IOException {
         assertParity(WriterVersion.PARQUET_2_0, CompressionCodecName.SNAPPY, false);
+    }
+
+    public void testSequentialOpenStreamIoExceptionIsClient400NotIae() throws Exception {
+        byte[] file = writeIntFile(WriterVersion.PARQUET_1_0, CompressionCodecName.UNCOMPRESSED, false, true);
+        try (ParquetFileReader reader = openReader(file)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            IOException injected = new IOException("injected storage read failure");
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> PrefetchedRowGroupBuilder.build(
+                    block,
+                    0,
+                    schema,
+                    Set.of("id"),
+                    null,
+                    PreloadedRowGroupMetadata.empty(),
+                    null,
+                    throwingOnStream(injected),
+                    codecFactory,
+                    blockFactory.arrowAllocator()
+                )
+            );
+            assertThat(ex, instanceOf(ExternalClientException.class));
+            assertFalse(ex instanceof IllegalArgumentException);
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(ex)));
+            assertSame(injected, ex.getCause());
+        }
+    }
+
+    public void testSequentialOpenStreamExternalUnavailableStays503() throws Exception {
+        byte[] file = writeIntFile(WriterVersion.PARQUET_1_0, CompressionCodecName.UNCOMPRESSED, false, true);
+        try (ParquetFileReader reader = openReader(file)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            ExternalUnavailableException injected = new ExternalUnavailableException("store 503", new IOException("pool"));
+            ExternalUnavailableException ex = expectThrows(
+                ExternalUnavailableException.class,
+                () -> PrefetchedRowGroupBuilder.build(
+                    block,
+                    0,
+                    schema,
+                    Set.of("id"),
+                    null,
+                    PreloadedRowGroupMetadata.empty(),
+                    null,
+                    throwingOnStream(injected),
+                    codecFactory,
+                    blockFactory.arrowAllocator()
+                )
+            );
+            assertSame(injected, ex);
+            assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ex));
+        }
     }
 
     /**
@@ -545,6 +606,41 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             public void write(byte[] b, int off, int len) {
                 outputStream.write(b, off, len);
                 pos += len;
+            }
+        };
+    }
+
+    private static StorageObject throwingOnStream(Exception failure) {
+        return new StorageObject() {
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://throwing.parquet");
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public long length() {
+                return 1L;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                if (failure instanceof IOException io) {
+                    throw io;
+                }
+                if (failure instanceof RuntimeException re) {
+                    throw re;
+                }
+                throw new IOException(failure);
             }
         };
     }

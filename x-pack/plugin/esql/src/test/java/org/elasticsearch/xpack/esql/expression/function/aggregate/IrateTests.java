@@ -41,7 +41,7 @@ public class IrateTests extends AbstractIrateTests {
                 }
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, NullTypeExpectation.OUTPUT_KEEPS_TYPE);
     }
 
     @Override

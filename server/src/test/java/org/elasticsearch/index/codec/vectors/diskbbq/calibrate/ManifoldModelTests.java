@@ -42,7 +42,7 @@ public class ManifoldModelTests extends ESTestCase {
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, 3);
         int[] ordinals = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
-        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
+        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(ManifoldModel.isDotLike(VectorSimilarityFunction.EUCLIDEAN), 6);
         addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, false);
 
         float d1 = topK.ithDistance(1);
@@ -65,7 +65,7 @@ public class ManifoldModelTests extends ESTestCase {
         }
         Arrays.sort(expected);
 
-        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
+        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(ManifoldModel.isDotLike(VectorSimilarityFunction.EUCLIDEAN), 6);
         addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, false);
 
         for (int rank = 1; rank <= expected.length; rank++) {
@@ -85,7 +85,7 @@ public class ManifoldModelTests extends ESTestCase {
         }
         Arrays.sort(expected);
 
-        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.DOT_PRODUCT, 6);
+        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(ManifoldModel.isDotLike(VectorSimilarityFunction.DOT_PRODUCT), 6);
         addTopKCorpusSlice(topK, query, fvv, ordinals, 0, corpus.length, true);
 
         for (int rank = 1; rank <= expected.length; rank++) {
@@ -114,11 +114,12 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
-        double[] params = ManifoldModel.estimateManifoldParameters(source);
-        assertTrue(Double.isFinite(params[0]));
-        assertTrue(Double.isFinite(params[1]));
+        ManifoldModel.ManifoldParams params = ManifoldModel.estimateManifoldParameters(source);
+        assertTrue(Double.isFinite(params.alpha()));
+        assertTrue(Double.isFinite(params.invDim()));
     }
 
     /**
@@ -143,11 +144,12 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            calibrationK
+            calibrationK,
+            fixture.fvv().size()
         );
-        double[] params = ManifoldModel.estimateManifoldParameters(source);
-        double logAlpha = params[0];
-        double invDim = params[1];
+        ManifoldModel.ManifoldParams params = ManifoldModel.estimateManifoldParameters(source);
+        double logAlpha = params.alpha();
+        double invDim = params.invDim();
 
         assertThat(invDim, greaterThan(0.0));
 
@@ -212,12 +214,13 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             fixture.corpusOrdinals(),
-            calibrationK
+            calibrationK,
+            fixture.fvv().size()
         );
-        double[] params = ManifoldModel.estimateManifoldParameters(cosineSource);
-        assertTrue(Double.isFinite(params[0]));
-        assertTrue(Double.isFinite(params[1]));
-        assertThat(params[1], greaterThan(0.0));
+        ManifoldModel.ManifoldParams params = ManifoldModel.estimateManifoldParameters(cosineSource);
+        assertTrue(Double.isFinite(params.alpha()));
+        assertTrue(Double.isFinite(params.invDim()));
+        assertThat(params.invDim(), greaterThan(0.0));
     }
 
     /**
@@ -234,7 +237,7 @@ public class ManifoldModelTests extends ESTestCase {
 
         CalibrationSource neyshaburSource = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
-            dim,
+            liftedDim,
             fixture.fvv(),
             fixture.queryOrdinals(),
             dim,
@@ -242,12 +245,13 @@ public class ManifoldModelTests extends ESTestCase {
             true,
             null,
             fixture.corpusOrdinals(),
-            calibrationK
+            calibrationK,
+            fixture.fvv().size()
         );
-        double[] params = ManifoldModel.estimateManifoldParameters(neyshaburSource);
-        assertTrue(Double.isFinite(params[0]));
-        assertTrue(Double.isFinite(params[1]));
-        assertThat(params[1], greaterThan(0.0));
+        ManifoldModel.ManifoldParams params = ManifoldModel.estimateManifoldParameters(neyshaburSource);
+        assertTrue(Double.isFinite(params.alpha()));
+        assertTrue(Double.isFinite(params.invDim()));
+        assertThat(params.invDim(), greaterThan(0.0));
     }
 
     public void testExpectedRankDistanceIncreasesWithRankForEuclidean() {
@@ -313,7 +317,8 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
         CalibrationSource largeSource = new CalibrationSource(
             VectorSimilarityFunction.EUCLIDEAN,
@@ -325,16 +330,17 @@ public class ManifoldModelTests extends ESTestCase {
             false,
             null,
             corpusOrdinals,
-            10
+            10,
+            fvv.size()
         );
 
-        double[] paramsSmall = ManifoldModel.estimateManifoldParameters(smallSource);
-        double[] paramsLarge = ManifoldModel.estimateManifoldParameters(largeSource);
+        ManifoldModel.ManifoldParams paramsSmall = ManifoldModel.estimateManifoldParameters(smallSource);
+        ManifoldModel.ManifoldParams paramsLarge = ManifoldModel.estimateManifoldParameters(largeSource);
 
-        double invDimSmall = paramsSmall[1];
-        double invDimLarge = paramsLarge[1];
-        double alphaSmall = paramsSmall[0];
-        double alphaLarge = paramsLarge[0];
+        double invDimSmall = paramsSmall.invDim();
+        double invDimLarge = paramsLarge.invDim();
+        double alphaSmall = paramsSmall.alpha();
+        double alphaLarge = paramsLarge.alpha();
 
         assertTrue("invDim must be finite with 256 queries", Double.isFinite(invDimSmall));
         assertTrue("invDim must be finite with 1024 queries", Double.isFinite(invDimLarge));
@@ -508,7 +514,7 @@ public class ManifoldModelTests extends ESTestCase {
         float[] queryScratch = new float[dimWork];
         ManifoldModel.ManifoldTopK[] topKs = new ManifoldModel.ManifoldTopK[queryOrdinals.length];
         for (int qi = 0; qi < queryOrdinals.length; qi++) {
-            topKs[qi] = new ManifoldModel.ManifoldTopK(similarityFunction, 6 * calibrationK);
+            topKs[qi] = new ManifoldModel.ManifoldTopK(ManifoldModel.isDotLike(similarityFunction), 6 * calibrationK);
         }
         for (int i = 0; i < m; i++) {
             int sampleEnd = ManifoldModel.SAMPLE_SIZES[i];

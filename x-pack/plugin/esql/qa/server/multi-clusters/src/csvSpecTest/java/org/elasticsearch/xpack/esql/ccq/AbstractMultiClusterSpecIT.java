@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
@@ -105,7 +106,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         RERANK.capabilityName(),
         COMPLETION.capabilityName(),
         TEXT_EMBEDDING_FUNCTION.capabilityName(),
-        EMBEDDING_FUNCTION.capabilityName()
+        EMBEDDING_FUNCTION.capabilityName(),
+        DENSE_VECTOR_COMMAND.capabilityName()
     );
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
@@ -181,6 +183,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
+
+        // Slice tests need the slice dataset, which is not loaded when either cluster predates the current (renamed)
+        // slice parameter (see clusterHasCapability). Slice indexing is unreleased, so skip them in a bwc CCS cluster.
+        assumeFalse(
+            "Slice indexing is unreleased and unsupported on the older bwc cluster",
+            slicesSupportedByBothClusters() == false
+                && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SLICE.capabilityName())
+        );
 
         assumeTrue(
             "Local cluster must not support " + testCase.missingCapabilitiesLocalCluster + " for test " + testName,
@@ -436,6 +446,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
+        // To make warnings optional for some version, uncomment this. Tests might also
+        // need changing, but that's fine.
+        // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
+        // testCase.makeWarningsOptional();
+        // }
         return testCase;
     }
 
@@ -492,11 +507,20 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        // Skip loading the slice dataset when a cluster predates the current (renamed) slice parameter: slice indexing
+        // is unreleased, so the older bwc cluster cannot ingest it via the `slice` bulk parameter.
+        if (capability == EsqlCapabilities.Cap.METADATA_SLICE && slicesSupportedByBothClusters() == false) {
+            return false;
+        }
         try {
             return super.clusterHasCapability(capability) && hasCapabilities(remoteClusterClient(), List.of(capability.capabilityName()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean slicesSupportedByBothClusters() {
+        return Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion()).before(Version.CURRENT) == false;
     }
 
     /**

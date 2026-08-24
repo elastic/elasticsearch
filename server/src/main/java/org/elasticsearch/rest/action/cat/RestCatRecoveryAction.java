@@ -90,6 +90,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             .addCell("time", "alias:t,ti;desc:recovery time")
             .addCell("type", "alias:ty;desc:recovery type")
             .addCell("stage", "alias:st;desc:recovery stage")
+            .addCell("priority", "alias:pr;desc:recovery priority")
             .addCell("source_host", "alias:shost;desc:source host")
             .addCell("source_node", "alias:snode;desc:source node name")
             .addCell("target_host", "alias:thost;desc:target host")
@@ -144,6 +145,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
+                t.addCell(state.getRecoveryPriority().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());

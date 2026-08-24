@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
@@ -71,6 +72,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
@@ -228,7 +230,13 @@ public class CacheBlobReaderTests extends ESTestCase {
 
         @Override
         protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-            return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+            return new CacheBlobReaderService(
+                nodeSettings,
+                cacheService,
+                client,
+                threadPool,
+                TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+            ) {
 
                 @Override
                 protected CacheBlobReader getIndexingShardCacheBlobReader(
@@ -285,7 +293,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         sharedCacheService.getCacheFile(
                             new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
                             virtualBatchedCompoundCommit.getTotalSizeInBytes(),
-                            SharedBlobCacheService.CacheMissHandler.NOOP
+                            SharedBlobCacheService.CacheMissHandler.NOOP,
+                            randomRegionTimestampMillis()
                         ),
                         cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -321,7 +330,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             bytesReadFromIndexing -> {},
                             BlobCacheMetrics.CachePopulationReason.CacheMiss,
                             threadPool.executor(SHARD_READ_THREAD_POOL),
-                            "fileName"
+                            "fileName",
+                            false
                         ),
                         new BlobFileRanges(getLastInternalLocation().getValue()),
                         BlobCacheMetrics.NOOP,
@@ -667,7 +677,8 @@ public class CacheBlobReaderTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 fileCacheKey,
                 regionSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
             final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(
                 internalLocation.getKey(),
@@ -723,7 +734,13 @@ public class CacheBlobReaderTests extends ESTestCase {
             @Override
             protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
                 var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-                return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                return new CacheBlobReaderService(
+                    nodeSettings,
+                    cacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -734,7 +751,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         LongConsumer totalBytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                         Executor objectStoreFetchExecutor,
-                        String fileName
+                        String fileName,
+                        boolean speculativeFill
                     ) {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -745,7 +763,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             totalBytesReadFromIndexing,
                             cachePopulationReason,
                             objectStoreFetchExecutor,
-                            fileName
+                            fileName,
+                            speculativeFill
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -796,7 +815,13 @@ public class CacheBlobReaderTests extends ESTestCase {
 
                 @Override
                 protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                    return new CacheBlobReaderService(
+                        nodeSettings,
+                        cacheService,
+                        client,
+                        threadPool,
+                        TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                    ) {
 
                         @Override
                         protected CacheBlobReader getObjectStoreCacheBlobReader(

@@ -31,6 +31,7 @@ public class RestPutViewAction extends BaseRestHandler {
     // cluster will not report it, making /_capabilities?capabilities=views_put_serverless_scope
     // return supported=false for any cluster where any node predates the annotation.
     public static final String VIEWS_PUT_SERVERLESS_SCOPE = "views_put_serverless_scope";
+    public static final String VIEW_DESCRIPTION = "view_description";
 
     @Override
     public List<Route> routes() {
@@ -56,6 +57,6 @@ public class RestPutViewAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(VIEW_INDEX_ABSTRACTION, VIEWS_PUT_SERVERLESS_SCOPE);
+        return Set.of(VIEW_INDEX_ABSTRACTION, VIEWS_PUT_SERVERLESS_SCOPE, VIEW_DESCRIPTION);
     }
 }

@@ -26,6 +26,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 
@@ -53,9 +55,8 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     private Directory directory;
     private IndexReader reader;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initIndex() throws Exception {
         directory = newDirectory();
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
             for (int i = 0; i < NUM_DOCS; i++) {
@@ -70,10 +71,9 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         reader = DirectoryReader.open(directory);
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeIndex() throws Exception {
         IOUtils.close(reader, directory);
-        super.tearDown();
     }
 
     // --- no-limit (STATS): the cost threshold applies, same as TopN/count ---

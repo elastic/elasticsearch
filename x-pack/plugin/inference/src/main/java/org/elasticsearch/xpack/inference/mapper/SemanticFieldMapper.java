@@ -59,12 +59,14 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -111,6 +113,9 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
 
+    public static final String CHUNKS_FORMAT = "chunks";
+    public static final String EMBEDDINGS_FORMAT = "embeddings";
+
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
     private static final DenseVectorMapperConfigurator DENSE_VECTOR_MAPPER_CONFIGURATOR = new DenseVectorMapperConfigurator(
@@ -156,7 +161,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         protected final Parameter<String> inferenceId;
         protected final Parameter<String> searchInferenceId;
-        protected final Parameter<MinimalServiceSettings> modelSettings;
+        protected final Parameter<EndpointClusterState> modelSettings;
         protected final Parameter<SemanticIndexOptions> indexOptions;
         protected final Parameter<ChunkingSettings> chunkingSettings;
         protected final Parameter<Map<String, String>> meta;
@@ -202,7 +207,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return this;
         }
 
-        public Builder setModelSettings(MinimalServiceSettings value) {
+        public Builder setModelSettings(EndpointClusterState value) {
             this.modelSettings.setValue(value);
             return this;
         }
@@ -252,7 +257,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             });
         }
 
-        protected Parameter<MinimalServiceSettings> configureModelSettingsParam() {
+        protected Parameter<EndpointClusterState> configureModelSettingsParam() {
             return new Parameter<>(
                 MODEL_SETTINGS_FIELD,
                 true,
@@ -261,7 +266,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 mapper -> ((SemanticFieldType) mapper.fieldType()).modelSettings,
                 (b, n, v) -> {
                     if (v != null) {
-                        b.field(MODEL_SETTINGS_FIELD, v.getFilteredXContentObject());
+                        b.field(MODEL_SETTINGS_FIELD, v, EndpointClusterState.withoutEndpointMetadata());
                     }
                 },
                 Objects::toString
@@ -280,7 +285,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * to {@code bfloat16} when explicit dense_vector index options are set.
          */
         protected Parameter<SemanticIndexOptions> buildIndexOptionsParam(
-            Function<MinimalServiceSettings, SemanticIndexOptions> defaultIndexOptionsResolver,
+            Function<EndpointClusterState, SemanticIndexOptions> defaultIndexOptionsResolver,
             Predicate<DenseVectorFieldMapper.ElementType> bfloat16Resolver
         ) {
             return new Parameter<>(
@@ -298,7 +303,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
                     SemanticIndexOptions value = getValue();
                     if (includeDefaults || isConfigured()) {
-                        MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
+                        EndpointClusterState resolvedModelSettings = getResolvedModelSettings(null, false);
                         if (value == null) {
                             // Default value, serialize resolved defaults
                             value = defaultIndexOptionsResolver.apply(resolvedModelSettings);
@@ -351,7 +356,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         /**
-         * Returns the {@link MinimalServiceSettings} defined in this builder if set;
+         * Returns the {@link EndpointClusterState} defined in this builder if set;
          * otherwise, resolves and returns the settings from the registry.
          * <p>
          * Returns {@code null} when the settings cannot be resolved (during mapping recovery, or when
@@ -359,7 +364,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * some defer (e.g. embedding field creation waits until the endpoint exists), while others
          * fail loudly (e.g. explicit index options validation requires a resolvable model).
          */
-        protected MinimalServiceSettings getResolvedModelSettings(@Nullable MapperService.MergeReason mergeReason, boolean logWarning) {
+        protected EndpointClusterState getResolvedModelSettings(@Nullable MapperService.MergeReason mergeReason, boolean logWarning) {
             if (modelSettings.get() != null) {
                 return modelSettings.get();
             }
@@ -370,7 +375,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             }
 
             try {
-                return modelRegistry.getMinimalServiceSettings(inferenceId.get());
+                return modelRegistry.getEndpointClusterState(inferenceId.get());
             } catch (ResourceNotFoundException exc) {
                 if (logWarning) {
                     logger().warn(
@@ -385,7 +390,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             }
         }
 
-        protected NestedObjectMapper.Builder createChunksField(@Nullable MinimalServiceSettings resolvedModelSettings) {
+        protected NestedObjectMapper.Builder createChunksField(@Nullable EndpointClusterState resolvedModelSettings) {
             NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(
                 CHUNKS_FIELD,
                 indexVersionCreated,
@@ -400,7 +405,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return chunksField;
         }
 
-        protected Mapper.Builder createEmbeddingsField(MinimalServiceSettings modelSettings) {
+        protected Mapper.Builder createEmbeddingsField(EndpointClusterState modelSettings) {
             if (modelSettings.taskType() != TaskType.EMBEDDING) {
                 throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType() + "]");
             }
@@ -439,7 +444,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 // As the mapper previously had explicit model settings, we need to apply to the new merged mapper
                 // the resolved model settings if not explicitly set.
                 if (semanticIncoming.modelSettings.get() == null) {
-                    semanticIncoming.setModelSettings(modelRegistry.getMinimalServiceSettings(semanticIncoming.inferenceId.get()));
+                    semanticIncoming.setModelSettings(modelRegistry.getEndpointClusterState(semanticIncoming.inferenceId.get()));
                 }
             } else if (semanticIncoming.modelSettings.get() == null && modelSettings.get() != null) {
                 semanticIncoming.setModelSettings(modelSettings.get());
@@ -457,8 +462,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         private void validateModelsAreCompatibleWhenInferenceIdIsUpdated(String newInferenceId, Conflicts conflicts) {
-            MinimalServiceSettings currentModelSettings = modelSettings.get();
-            MinimalServiceSettings updatedModelSettings = modelRegistry.getMinimalServiceSettings(newInferenceId);
+            EndpointClusterState currentModelSettings = modelSettings.get();
+            EndpointClusterState updatedModelSettings = modelRegistry.getEndpointClusterState(newInferenceId);
             if (currentModelSettings != null && updatedModelSettings == null) {
                 throw new IllegalArgumentException(
                     "Cannot update ["
@@ -539,15 +544,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return buildMapper(fullName, inferenceField, builderParams(this, context));
         }
 
-        protected void validateTaskType(MinimalServiceSettings modelSettings) {
+        protected void validateTaskType(EndpointClusterState modelSettings) {
             if (modelSettings.taskType() != EMBEDDING) {
                 throw new IllegalArgumentException(
-                    "Wrong [" + MinimalServiceSettings.TASK_TYPE_FIELD + "], expected " + EMBEDDING + ", got " + modelSettings.taskType()
+                    "Wrong [" + EndpointClusterState.TASK_TYPE_FIELD + "], expected " + EMBEDDING + ", got " + modelSettings.taskType()
                 );
             }
         }
 
-        protected void validateIndexOptions(MinimalServiceSettings modelSettings) {
+        protected void validateIndexOptions(EndpointClusterState modelSettings) {
             SemanticIndexOptions indexOptions = this.indexOptions.get();
             String inferenceId = this.inferenceId.get();
 
@@ -890,7 +895,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 ) {
                     DocumentParserContext subContext = nestedContext.switchParser(subParser);
                     subParser.nextToken();
-                    embeddingsField.parse(subContext);
+                    var embeddingsParseResult = embeddingsField.parse(subContext);
+                    assert embeddingsParseResult instanceof FieldMapper.ParseResult.Indexed;
                 }
 
                 parseChunkValueReference(nestedContext, mapper.fieldType(), entry.getKey(), chunk);
@@ -925,7 +931,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             ) {
                 DocumentParserContext subContext = context.switchParser(subParser);
                 subParser.nextToken();
-                offsetsField.parse(subContext);
+                var offsetsParseResult = offsetsField.parse(subContext);
+                assert offsetsParseResult instanceof FieldMapper.ParseResult.Indexed;
             }
         }
     }
@@ -958,7 +965,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     public static class SemanticFieldType extends SimpleMappedFieldType {
         protected final String inferenceId;
         protected final String searchInferenceId;
-        protected final MinimalServiceSettings modelSettings;
+        protected final EndpointClusterState modelSettings;
         protected final ChunkingSettings chunkingSettings;
         protected final SemanticIndexOptions indexOptions;
         protected final ObjectMapper inferenceField;
@@ -968,7 +975,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             String name,
             String inferenceId,
             String searchInferenceId,
-            MinimalServiceSettings modelSettings,
+            EndpointClusterState modelSettings,
             ChunkingSettings chunkingSettings,
             SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
@@ -1003,7 +1010,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return searchInferenceId == null ? inferenceId : searchInferenceId;
         }
 
-        public MinimalServiceSettings getModelSettings() {
+        public EndpointClusterState getModelSettings() {
             return modelSettings;
         }
 
@@ -1064,16 +1071,54 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format != null && "chunks".equals(format) == false) {
-                throw new IllegalArgumentException(
-                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
-                );
-            }
-            if (format != null) {
-                return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
+            if (format == null) {
+                return valueFetcher(context);
             }
 
-            return valueFetcher(context);
+            return switch (format) {
+                case CHUNKS_FORMAT -> new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
+                case EMBEDDINGS_FORMAT -> new EmbeddingsSemanticFieldValueFetcher(
+                    this,
+                    getChunksField().bitsetProducer(),
+                    context.searcher()
+                );
+                default -> throw new IllegalArgumentException(
+                    "Unknown format ["
+                        + format
+                        + "] for field ["
+                        + name()
+                        + "], only ["
+                        + CHUNKS_FORMAT
+                        + "] and ["
+                        + EMBEDDINGS_FORMAT
+                        + "] are supported."
+                );
+            };
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
+            // the field has no indexed values and has never seen inference results from the endpoint; the fetcher will short-circuit at
+            // fetch time and return empty.
+            if (vectorType != null && modelSettings != null) {
+                VectorType producedVectorType = VectorType.fromTaskType(modelSettings.taskType());
+                if (producedVectorType == null) {
+                    throw new IllegalStateException(
+                        "Field ["
+                            + name()
+                            + "] is configured to use an inference endpoint with an unsupported task type ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                }
+
+                if (vectorType != producedVectorType) {
+                    return null;
+                }
+            }
+
+            return new FieldAndFormat(name(), EMBEDDINGS_FORMAT);
         }
 
         @Override
@@ -1219,7 +1264,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
-    public static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
+    public static boolean canMergeModelSettings(EndpointClusterState previous, EndpointClusterState current, Conflicts conflicts) {
         if (previous != null && current != null && previous.canMergeWith(current)) {
             return true;
         }
@@ -1267,7 +1312,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         return modelElementType == DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
-    private static SemanticIndexOptions defaultIndexOptions(MinimalServiceSettings modelSettings) {
+    private static SemanticIndexOptions defaultIndexOptions(EndpointClusterState modelSettings) {
         if (modelSettings != null && defaultElementTypeToBfloat16(modelSettings.elementType())) {
             return new SemanticIndexOptions(
                 SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,

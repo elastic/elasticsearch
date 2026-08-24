@@ -6,20 +6,28 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.search.SearchContextMissingNodesException;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,6 +88,53 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
                 quantilesUsed + " should contain " + intermediateWaitPoint,
                 quantilesUsed.contains(Integer.toString(intermediateWaitPoint))
             );
+        } finally {
+            threadpool.shutdown();
+        }
+        assertTrue(threadpool.awaitTermination(1, TimeUnit.SECONDS));
+    }
+
+    public void testNormalize_GivenSearchContextMissingNodesException_LogsWarnNotError() throws InterruptedException {
+        // A node holding the renormalization scroll context left the cluster (e.g. rolling restart / node churn).
+        assertLostSearchContextLoggedAsWarn(
+            new SearchContextMissingNodesException(SearchContextMissingNodesException.ContextType.SCROLL, Set.of("node-1"))
+        );
+    }
+
+    public void testNormalize_GivenSearchContextMissingException_LogsWarnNotError() throws InterruptedException {
+        // The scroll context expired or was otherwise no longer present on a node still in the cluster.
+        assertLostSearchContextLoggedAsWarn(new SearchContextMissingException(new ShardSearchContextId("session", 1L)));
+    }
+
+    private void assertLostSearchContextLoggedAsWarn(Exception lostContextException) throws InterruptedException {
+        doThrow(lostContextException).when(scoresUpdater).update(anyString(), anyLong(), anyLong());
+
+        ExecutorService threadpool = Executors.newScheduledThreadPool(1);
+        try (var mockLog = MockLog.capture(ShortCircuitingRenormalizer.class)) {
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    "warn on lost search context, with the exception attached for diagnostics",
+                    ShortCircuitingRenormalizer.class.getCanonicalName(),
+                    Level.WARN,
+                    "*search context was lost*",
+                    lostContextException.getClass(),
+                    lostContextException.getMessage()
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no error on lost search context",
+                    ShortCircuitingRenormalizer.class.getCanonicalName(),
+                    Level.ERROR,
+                    "*Normalization failed*"
+                )
+            );
+
+            ShortCircuitingRenormalizer renormalizer = new ShortCircuitingRenormalizer(JOB_ID, scoresUpdater, threadpool);
+            renormalizer.renormalize(new Quantiles(JOB_ID, new Date(), "foo"), () -> {});
+            renormalizer.waitUntilIdle();
+
+            mockLog.assertAllExpectationsMatched();
         } finally {
             threadpool.shutdown();
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -35,6 +36,9 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
@@ -43,13 +47,19 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -123,9 +133,13 @@ public class Verifier {
             return failures.failures();
         }
 
-        if (unmappedResolution == UnmappedResolution.LOAD) {
-            checkLoadModeDisallowedCommands(plan, failures);
-            checkFlattenedSubFieldLoad(plan, failures);
+        if (unmappedResolution.loadsUnmappedFields()) {
+            checkLoadModeDisallowedCommands(plan, failures, unmappedResolution);
+            checkFlattenedSubFieldLoad(plan, failures, unmappedResolution);
+        }
+
+        if (unmappedResolution.loadsAllUnmappedFields()) {
+            checkLoadAllModeSupportedCommands(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -154,6 +168,8 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkLimitBeforeInlineStats(p, failures);
             checkTimeSeriesWithoutOnlyInTimeSeriesAggregate(p, failures);
+            checkBucketIncludeEmptyBucketsIsGrouping(p, failures);
+            checkBucketIncludeEmptyBucketsNotInInlineStats(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -296,7 +312,7 @@ public class Verifier {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
             if (p instanceof PostAnalysisPlanVerificationAware pva) {
-                planCheckers.add(pva.postAnalysisPlanVerification());
+                planCheckers.add(pva.postAnalysisPlanVerification(analysisRegistry));
             }
         };
         plan.forEachDown(p -> {
@@ -327,6 +343,67 @@ public class Verifier {
                 failures.add(f);
             }
         });
+    }
+
+    /**
+     * {@code include_empty_buckets} can only be honored when the bucketing grouping function is a top-level grouping key: the operator
+     * fills gaps by enumerating the bucket boundaries and reading the raw bucket column off the grouping. Nested inside another
+     * expression (e.g. {@code STATS ... BY SIN(BUCKET(..., {"include_empty_buckets": true}))}) that column is not available as a
+     * grouping, and non-injective wrappers make "one row per empty bucket" ambiguous. So it's rejected here.
+     * <p>
+     * This covers both {@code BUCKET} and the not-yet-rewritten {@code TBUCKET} (surrogated to {@code BUCKET} later, in the optimizer):
+     * the Verifier runs at analysis time, so both forms can still carry the option here and must be checked.
+     */
+    private static void checkBucketIncludeEmptyBucketsIsGrouping(LogicalPlan p, Failures failures) {
+        if (p instanceof Aggregate aggregate) {
+            Set<GroupingFunction> topLevelGroupingFunctions = new HashSet<>();
+            for (Expression grouping : aggregate.groupings()) {
+                if (Alias.unwrap(grouping) instanceof GroupingFunction groupingFunction) {
+                    topLevelGroupingFunctions.add(groupingFunction);
+                }
+            }
+            aggregate.forEachExpression(GroupingFunction.class, groupingFunction -> {
+                if (topLevelGroupingFunctions.contains(groupingFunction)) {
+                    return;
+                }
+                if (groupingFunction instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [BUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+                if (groupingFunction instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(
+                        fail(
+                            groupingFunction,
+                            "[{}] is only supported when [TBUCKET] is used directly as a grouping key",
+                            Bucket.INCLUDE_EMPTY_BUCKETS
+                        )
+                    );
+                }
+            });
+        }
+    }
+
+    /**
+     * {@code include_empty_buckets} fills missing histogram rows after aggregation. That does not fit {@link InlineStats},
+     * which left-joins aggregate results back onto the input rows: synthesizing empty buckets would invent join keys that
+     * have no matching input rows (or change join cardinality in surprising ways). Reject the option on INLINE STATS.
+     */
+    private static void checkBucketIncludeEmptyBucketsNotInInlineStats(LogicalPlan p, Failures failures) {
+        if (p instanceof InlineStats inlineStats) {
+            inlineStats.aggregate().forEachExpression(e -> {
+                if (e instanceof Bucket bucket && bucket.includeEmptyBuckets()) {
+                    failures.add(fail(bucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+                if (e instanceof TBucket tBucket && tBucket.includeEmptyBuckets()) {
+                    failures.add(fail(tBucket, "[{}] is not supported with [INLINE STATS]", Bucket.INCLUDE_EMPTY_BUCKETS));
+                }
+            });
+        }
     }
 
     private static void checkBinaryComparison(LogicalPlan p, Failures failures) {
@@ -437,22 +514,59 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support PROMQL
+     * Neither loading mode yet supports PROMQL. This is checked separately from
+     * {@link #checkLoadAllModeSupportedCommands}, which the PROMQL command escapes: it is rewritten into a {@code TS} before
+     * verification runs, so only its {@link TimeSeriesAggregate.Origin} still tells the two apart.
      */
-    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
+    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
         plan.forEachDown(p -> {
             if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
-                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
+                failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"{}\"", unmappedResolution.settingValue()));
             }
         });
     }
 
     /**
-     * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
-     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
-     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
+     * Temporary MVP guardrail for {@code unmapped_fields="LOAD_ALL"} until the interaction of all commands with
+     * {@code _unmapped_fields} is designed and implemented.
      */
-    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
+    private static void checkLoadAllModeSupportedCommands(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> {
+            if (supportedInLoadAllMode(p) == false) {
+                failures.add(
+                    fail(
+                        p,
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
+                            + "and STATS commands; [{}] is not supported yet",
+                        p instanceof EsRelation esr && esr.indexMode().isTsdb() ? "TS"
+                            : p instanceof TelemetryAware ta ? ta.telemetryLabel()
+                            : p.nodeName()
+                    )
+                );
+            }
+        });
+    }
+
+    private static boolean supportedInLoadAllMode(LogicalPlan plan) {
+        // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false)
+            || plan instanceof Project
+            || plan instanceof Keep
+            || plan instanceof Drop
+            || plan instanceof Rename
+            || plan instanceof Eval
+            || plan instanceof Filter
+            || plan instanceof OrderBy
+            || plan instanceof Limit
+            || plan instanceof Aggregate;
+    }
+
+    /**
+     * Reject loading sub-fields of flattened fields in either loading mode, by checking if any
+     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
+     * flattened subfields resolution may eventually differ from what happens when unmapped fields are loaded from {@code _source}.
+     */
+    private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures, UnmappedResolution unmappedResolution) {
         plan.forEachDown(EsRelation.class, esRelation -> {
             Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
 
@@ -473,9 +587,10 @@ public class Verifier {
                         Failure failure = fail(
                             fa,
                             "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
-                                + "unmapped_fields=\"load\"",
+                                + "unmapped_fields=\"{}\"",
                             name,
-                            parent
+                            parent,
+                            unmappedResolution.settingValue()
                         );
                         failures.add(failure);
                         break;

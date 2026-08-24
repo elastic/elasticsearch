@@ -129,7 +129,7 @@ public class PartitionMetadataTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://b/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet"), 100, Instant.EPOCH)
         );
 
-        PartitionMetadata pm = HivePartitionDetector.detect(files);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(files);
         assertFalse(pm.isEmpty());
         assertEquals(Set.of("month"), pm.nullablePartitionColumns());
     }
@@ -140,7 +140,7 @@ public class PartitionMetadataTests extends ESTestCase {
             new StorageEntry(StoragePath.of("s3://b/year=2024/month=02/f2.parquet"), 100, Instant.EPOCH)
         );
 
-        PartitionMetadata pm = HivePartitionDetector.detect(files);
+        PartitionMetadata pm = HivePartitionDetector.INSTANCE.detect(files);
         assertFalse(pm.isEmpty());
         assertEquals(Set.of(), pm.nullablePartitionColumns());
     }

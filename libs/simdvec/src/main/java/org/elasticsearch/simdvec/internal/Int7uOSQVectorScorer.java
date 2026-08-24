@@ -156,7 +156,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         checkOrdinal(node);
         long vectorOffset = (long) node * vectorPitch;
         input.seek(vectorOffset);
-        return IndexInputUtils.withSlice(input, (int) vectorPitch, scratch::getScratch, seg -> {
+        return IndexInputUtils.withFloatSlice(input, (int) vectorPitch, scratch, seg -> {
             int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
             return applyCorrections(dotProduct, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
         });
@@ -174,24 +174,29 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         }
 
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, (int) vectorPitch, numNodes, addrsScratch::get, addrs -> {
+        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, (int) vectorPitch, numNodes, addrsScratch, addrs -> {
             var scoresSeg = MemorySegment.ofArray(scores);
             DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, scoresSeg);
             maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes);
         });
         if (resolved == false) {
-            // fallback to per-vector scorer
-            for (int i = 0; i < numNodes; i++) {
-                input.seek(offsets[i]);
-                scores[i] = IndexInputUtils.withSlice(input, (int) vectorPitch, scratch::getScratch, seg -> {
-                    int rawScore = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
-                    float adjustedScore = applyCorrections(rawScore, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
-                    maxScore[0] = Math.max(maxScore[0], adjustedScore);
-                    return adjustedScore;
-                });
-            }
+            return scorePerVectorFallback(scores, numNodes, offsets);
         }
         return maxScore[0];
+    }
+
+    private float scorePerVectorFallback(float[] scores, int numNodes, long[] offsets) throws IOException {
+        float maxScore = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < numNodes; i++) {
+            final int idx = i;
+            input.seek(offsets[i]);
+            IndexInputUtils.withVoidSlice(input, (int) vectorPitch, scratch, seg -> {
+                int rawScore = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
+                scores[idx] = applyCorrections(rawScore, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
+            });
+            maxScore = Math.max(maxScore, scores[idx]);
+        }
+        return maxScore;
     }
 
     final void checkOrdinal(int ord) {

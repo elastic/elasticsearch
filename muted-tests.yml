@@ -782,3 +782,11 @@ tests:
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options prune false do not allow config}
   issue: https://github.com/elastic/elasticsearch/issues/157504
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/157508
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/157521
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/157535

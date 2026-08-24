@@ -36,7 +36,7 @@ public class SearchableSnapshotsClientYamlTestSuiteIT extends ESClientYamlSuiteT
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    public static final TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     public SearchableSnapshotsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

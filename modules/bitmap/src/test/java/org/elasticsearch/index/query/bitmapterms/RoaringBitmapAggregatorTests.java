@@ -129,6 +129,11 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         assertThat(exception.getMessage(), containsString("integer field produced out-of-range value"));
     }
 
+    // This checks that the reservation rate stays clear of ramBytesUsed()'s own worst-case growth for
+    // these patterns, with real margin -- not that ramBytesUsed() itself tracks true JVM heap use. That
+    // latter guarantee comes from the overhead-correction factors on IntMutableBitmap/LongMutableBitmap
+    // #ramBytesUsed, calibrated against JVM heap measurements from code review, which this in-JVM test
+    // has no portable way to re-verify independently.
     public void testBreakerReservationsCoverWorstCaseContainerGrowth() {
         assertReservationCoversReportedGrowth(
             InternalRoaringBitmap.BitmapFormat.INT,

@@ -1835,8 +1835,8 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && token != XContentParser.Token.VALUE_NULL;
     }
 
     @Override

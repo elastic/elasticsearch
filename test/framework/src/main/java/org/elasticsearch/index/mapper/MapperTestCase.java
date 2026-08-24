@@ -2390,7 +2390,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     /**
      * A {@code null} with no {@code null_value} configured is silently discarded and does not consume the single-value slot,
      * so {@code [null, value]} is treated identically to {@code [value]} — no multi-value violation. Asserts the
-     * {@link FieldMapper#nullIsAbsent()} contract across all mapper types that support {@code multi_value=false}.
+     * null-token exemption in {@link FieldMapper#shouldEnforceSingleValue(org.elasticsearch.xcontent.XContentParser.Token)}
+     * across all mapper types that support {@code multi_value=false}.
      */
     public void testMultiValueFalseAcceptsNullThenValue() throws Exception {
         assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());

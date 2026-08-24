@@ -323,13 +323,8 @@ public abstract class FieldMapper extends Mapper {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
             }
-            if (isSingleValueEnforced()) {
-                // A null token that would be silently discarded (no null_value configured) contributes
-                // nothing to the document and must not consume the single-value slot.
-                boolean isAbsentNull = context.parser().currentToken() == XContentParser.Token.VALUE_NULL && nullIsAbsent();
-                if (isAbsentNull == false) {
-                    redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
-                }
+            if (shouldEnforceSingleValue(context.parser().currentToken())) {
+                redirectedToFailureColumn = context.enforceSingleValue(fullPath(), onFailureBehavior());
             }
             if (redirectedToFailureColumn == false) {
                 if (isNullable() == false && context.parser().currentToken().isValue()) {
@@ -428,11 +423,13 @@ public abstract class FieldMapper extends Mapper {
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
     /**
-     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the
-     * same document violates the constraint: it either throws or is redirected to a failure column, depending on {@link
-     * #onFailureBehavior()}. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     * Whether the current token should consume the single-value slot enforced by {@link #onFailureBehavior()}. Returns {@code true}
+     * when single-value semantics are active (ie. {@code multi_value=false}) and the token is a genuine value. Mappers that support a
+     * {@code null_value} parameter must override this to exempt {@link XContentParser.Token#VALUE_NULL} when no {@code null_value} is
+     * configured — a bare null is silently discarded and must not occupy the slot so that {@code [null, value]} is treated as
+     * {@code [value]}. Mappers without {@code null_value} support (eg. text) should exempt {@code VALUE_NULL} unconditionally.
      */
-    protected boolean isSingleValueEnforced() {
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
         return false;
     }
 
@@ -446,18 +443,9 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * Whether a {@code null} token is silently discarded by this mapper. When {@code true}, a leading null does not consume
-     * the single-value slot enforced by {@link #isSingleValueEnforced()}, so {@code [null, "val"]} is treated as {@code ["val"]}.
-     * Overridden by mappers with {@code null_value} support to return {@code nullValue == null}.
-     */
-    protected boolean nullIsAbsent() {
-        return true;
-    }
-
-    /**
      * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column; when {@code true}, append
      * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} <em>last</em> so encounter order is preserved.
-     * Uses {@link #onFailureBehavior()} not {@link #isSingleValueEnforced()} because {@code NumberFieldMapper} diverges the two;
+     * Uses {@link #onFailureBehavior()} not {@link #shouldEnforceSingleValue(XContentParser.Token)} because {@code NumberFieldMapper} diverges the two;
      * FALLBACK excluded because those fields reconstruct from {@code _ignored_source} and have no composite loader.
      */
     protected final boolean writesOnFailureColumn() {

@@ -340,7 +340,7 @@ serial_event_id:long
 75303
 ;
 
-// LIMIT directly above the source is pushed as the EQL request size, lifting the default of 10.
+// LIMIT directly above the source is pushed as the EQL request size (here 100) instead of the ES|QL truncation cap.
 eventQueryLimitPushedAsSize
 required_capability: eql_command
 EQL endgame-140 "process where serial_event_id <= 12" | LIMIT 100 | SORT serial_event_id | KEEP serial_event_id;

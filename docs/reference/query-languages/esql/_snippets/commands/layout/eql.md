@@ -58,7 +58,9 @@ mapped fields to identify the match each row belongs to:
 
 Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. A mapped field literally named
 `_sequence`, `_sequence_stage` or `join_keys` is rejected for a `sequence`/`sample` query, because it would
-collide with the synthetic column of the same name and make the output schema ambiguous.
+collide with the synthetic column of the same name and make the output schema ambiguous. In any mode, a
+mapped field is likewise rejected when it collides with a name requested in `METADATA` (for example a field
+named `_id` alongside `METADATA _id`), for the same reason.
 
 ### Coordinator-only execution
 
@@ -78,7 +80,8 @@ CPU therefore bound the query, sized by the EQL result set. Keep that result set
 * `WITH { "size": n }` bounds whole **matches** — events, sequences or samples — and takes precedence over
   `LIMIT`. Use it when you want complete matches rather than a row count.
 * If neither a pushed `LIMIT` nor `WITH { "size": … }` sets the size, the request falls back to the
-  {{esql}} result-truncation limit. In that case the command warns that the results may be incomplete.
+  {{esql}} result-truncation limit, and the command warns that the results may be incomplete only if the
+  response actually fills that limit.
 
 ### Partial results
 

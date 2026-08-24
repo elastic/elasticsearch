@@ -141,7 +141,7 @@ If `null_value` is also defined on the field, it serves as a sentinel value for 
 
 The index-level setting `index.mapping.doc_values.nullability` will control the default for all fields in the index. It will default to `true` (null values allowed).
 
-## Handling doc_values constraint violations [doc-values-on-failure]
+## Handling constraint violations [doc-values-on-failure]
 
 ```{applies_to}
 stack: preview 9.5

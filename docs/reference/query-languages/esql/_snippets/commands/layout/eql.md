@@ -75,8 +75,10 @@ CPU therefore bound the query, sized by the EQL result set. Keep that result set
 `LIMIT` and the `size` option bound different things:
 
 * A `LIMIT n` placed directly after the command is folded into the EQL request in **every mode**, so only
-  about `n` matches are fetched. `LIMIT` bounds **rows**: for a `sequence` or `sample` query, whose rows are
-  unnested per event, it can return a partial match (some events of a match without the rest).
+  about `n` matches are fetched — unless the EQL query carries its own explicit `head`/`tail` pipe or asks for
+  `result_position: tail`, in which case the fold is skipped (a pushed size would change which events come
+  back) and the `LIMIT` simply trims the result. `LIMIT` bounds **rows**: for a `sequence` or `sample` query,
+  whose rows are unnested per event, it can return a partial match (some events of a match without the rest).
 * `WITH { "size": n }` bounds whole **matches** — events, sequences or samples — and takes precedence over
   `LIMIT`. Use it when you want complete matches rather than a row count.
 * If neither a pushed `LIMIT` nor `WITH { "size": … }` sets the size, the request falls back to the
@@ -136,7 +138,9 @@ wrong-typed value, is rejected when the query is parsed.
     in `process where …`). Defaults to `event.category`.
 
 `result_position`
-:   Whether to return results from the beginning (`head`) or the end (`tail`) of the timeline. Defaults to `tail`.
+:   Whether to return results from the beginning (`head`) or the end (`tail`) of the timeline. Unlike a standalone
+    EQL search (which defaults to `tail`), the `EQL` command defaults to `head`, so a `LIMIT n` returns the first
+    n matches — a stable prefix — rather than the last n. Set `tail` to override.
 
 `allow_partial_sequence_results`
 :   Whether a `sequence` that spanned a failed shard may still be returned. Defaults to `false`

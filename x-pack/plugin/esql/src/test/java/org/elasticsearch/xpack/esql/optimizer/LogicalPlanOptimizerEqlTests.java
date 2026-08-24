@@ -75,6 +75,17 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
         assertPushedLimit("EQL eql_test \"process where true | tail 3\" | LIMIT 2", null);
     }
 
+    public void testTailResultPositionBlocksPush() {
+        // WITH {"result_position":"tail"} is the same lever as an explicit | tail: a pushed size would fetch the last n
+        // while the kept LIMIT trims the first n, so the rows would depend on whether the push fired. Do not push.
+        assertPushedLimit("EQL eql_test \"process where true\" WITH {\"result_position\": \"tail\"} | LIMIT 2", null);
+    }
+
+    public void testHeadResultPositionStillPushes() {
+        // An explicit head (the default anyway) returns a stable prefix, so the push stays sound.
+        assertPushedLimit("EQL eql_test \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 2", 2);
+    }
+
     public void testLimitPushdownPreservesMetadataColumns() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
         LogicalPlan optimized = optimizer().addIndex("eql_test", "mapping-eql_test.json")

@@ -31,7 +31,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.IndexVersion;
@@ -39,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,9 +50,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_INITIALIZATION;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.health.HealthStatus.RED;
+import static org.elasticsearch.xpack.stateless.health.StatelessShardsAvailabilityHealthIndicatorService.ALL_REPLICAS_UNASSIGNED_IMPACT_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -113,7 +122,8 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
      */
     public void testShouldBeGreenWhenThereAreNoReplicasExpected() {
         int projectCount = randomIntBetween(1, 5);
-        Set<ProjectId> projectIds = randomProjectIds(projectCount);;
+        Set<ProjectId> projectIds = randomProjectIds(projectCount);
+        ;
         Set<ProjectId> primariesOnlyProjects = randomProjects(projectIds);
         int replicatedCount = projectCount - primariesOnlyProjects.size();
 
@@ -147,6 +157,57 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         );
     }
 
+    /**
+     * An initializing replica in any project, with no other started replica copy of that shard, is treated as
+     * all replicas unassigned. Stateless reports RED for unassigned replicas
+     */
+    public void testShouldBeRedWhenReplicaIsInitializing() {
+        int projectCount = randomIntBetween(1, 5);
+        Set<ProjectId> projectIds = randomProjectIds(projectCount);
+        final var indexName = randomIndexName();
+        Set<ProjectId> redProjects = randomProjects(projectIds);
+        int redCount = redProjects.size();
+        List<String> redIndices = prefixedIndexNames(redProjects, indexName);
+
+        Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes = new HashMap<>();
+        for (ProjectId projectId : projectIds) {
+            if (redProjects.contains(projectId)) {
+                projectIndexRoutes.put(projectId, List.of(index(indexName, STARTED, INITIALIZING)));
+            } else {
+                projectIndexRoutes.put(projectId, List.of(index(indexName, STARTED, STARTED)));
+            }
+        }
+
+        Map<String, Object> details = new HashMap<>(
+            detailsWithDefaults(
+                Map.of("started_primaries", projectCount, "started_replicas", projectCount - redCount, "initializing_replicas", redCount)
+            )
+        );
+        details.put("indices_with_unavailable_replicas", String.join(", ", redIndices));
+
+        var service = createStatelessIndicator(NO_GRACE_PERIOD_SETTINGS, clusterState(projectIndexRoutes));
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                new HealthIndicatorResult(
+                    ShardsAvailabilityHealthIndicatorService.NAME,
+                    RED,
+                    "This cluster has " + countPhrase(redCount, "initializing replica shard", "initializing replica shards") + ".",
+                    new SimpleHealthIndicatorDetails(details),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            ShardsAvailabilityHealthIndicatorService.NAME,
+                            ALL_REPLICAS_UNASSIGNED_IMPACT_ID,
+                            1,
+                            "Not all data is searchable. No searchable copies of the data exist on " + indexImpactPhrase(redIndices) + ".",
+                            List.of(ImpactArea.SEARCH)
+                        )
+                    ),
+                    List.of(new Diagnosis(DIAGNOSIS_WAIT_FOR_INITIALIZATION, List.of(new Diagnosis.Resource(INDEX, redIndices))))
+                )
+            )
+        );
+    }
 
     private static Set<ProjectId> randomProjectIds(int projectCount) {
         Set<ProjectId> projectIds = new HashSet<>();
@@ -203,13 +264,19 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
 
     private static ShardRouting shardRouting(ShardId shardId, boolean primary, ShardRoutingState state) {
         assert state == STARTED || state == RELOCATING : state;
-        return TestShardRouting.newShardRouting(
-            shardId,
-            randomNodeId(),
-            state == RELOCATING ? randomNodeId() : null,
-            primary,
-            state
-        );
+        return TestShardRouting.newShardRouting(shardId, randomNodeId(), state == RELOCATING ? randomNodeId() : null, primary, state);
+    }
+
+    private static List<String> prefixedIndexNames(Collection<ProjectId> projectIds, String indexName) {
+        return projectIds.stream().map(projectId -> projectId.id() + "/" + indexName).sorted().toList();
+    }
+
+    private static String countPhrase(int count, String singular, String plural) {
+        return count == 1 ? "1 " + singular : count + " " + plural;
+    }
+
+    private static String indexImpactPhrase(List<String> indices) {
+        return indices.size() == 1 ? "1 index [" + indices.get(0) + "]" : indices.size() + " indices [" + String.join(", ", indices) + "]";
     }
 
     private static ClusterState clusterState(Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes) {

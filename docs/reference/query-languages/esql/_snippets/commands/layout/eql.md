@@ -231,9 +231,9 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
 * **Coordinator-bound compute.** The EQL source and everything downstream of it run on the coordinating
   node (see [Coordinator-only execution](#coordinator-only-execution)); there is no data-node parallelism.
   Bound the result set with `LIMIT` or `WITH { "size": … }`.
-* **No runtime fields in the EQL predicate.** The EQL query can reference only fields present in the index
-  mapping. Compute derived columns *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md)
-  rather than inside the EQL predicate.
+* **Compute derived columns after the command, not inside it.** The EQL predicate matches against the index
+  mapping; there is no way to define an {{esql}}-computed field for use inside it. Compute derived columns
+  *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md).
 * **The request `filter` is rejected.** A query that combines an enclosing {{esql}} request `filter` with an
   EQL source is rejected rather than silently ignoring the filter, because it is not yet bridged into the EQL
   source. Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.

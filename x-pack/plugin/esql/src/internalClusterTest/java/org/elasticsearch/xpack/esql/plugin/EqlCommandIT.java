@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end integration test for the {@code EQL <indexPattern> "<query>"} source command. Loads the EQL plugin
@@ -244,6 +245,9 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             () -> run("EQL " + INDEX + " \"process where true\" WITH {\"timestamp_field\": \"no_such_ts\"}").close()
         );
         assertThat(e.getMessage(), containsString("no_such_ts"));
+        // ES|QL passes timestamp_field through opaquely, so the error must originate in the EQL delegate, not ES|QL
+        // analysis — pin that origin so a future change that resolves the field ES|QL-side does not silently pass here.
+        assertThat(e, not(instanceOf(VerificationException.class)));
     }
 
     public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {

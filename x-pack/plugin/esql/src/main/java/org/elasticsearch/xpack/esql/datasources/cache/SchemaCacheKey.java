@@ -176,6 +176,18 @@ public record SchemaCacheKey(
     }
 
     /**
+     * Whether {@code key} participates in the cache identity: it changes how rows are interpreted (or whether
+     * inference fails on the same bytes) and is not a credential. The single predicate behind
+     * {@link #buildFormatConfig}, exposed so each format module can assert that every key its reader consumes is
+     * either identity-affecting here or explicitly declared inert on that module's side. Without that assertion a
+     * newly added reader option defaults to "does not affect identity" silently, and two queries that read the same
+     * bytes differently collide on one cache entry.
+     */
+    public static boolean affectsIdentity(String key) {
+        return FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false;
+    }
+
+    /**
      * Canonical, node-stable identity of the row-interpretation-affecting config: the format-affecting
      * params (credentials and non-format keys excluded), sorted and rendered {@code key=value,...}.
      * Deterministic across JVMs and independent of column projection, so a coordinator and a data node
@@ -189,7 +201,7 @@ public record SchemaCacheKey(
         TreeMap<String, String> sorted = new TreeMap<>();
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             String key = entry.getKey();
-            if (FORMAT_AFFECTING_PARAMS.contains(key) && CREDENTIAL_PARAMS.contains(key) == false) {
+            if (affectsIdentity(key)) {
                 sorted.put(key, String.valueOf(entry.getValue()));
             }
         }

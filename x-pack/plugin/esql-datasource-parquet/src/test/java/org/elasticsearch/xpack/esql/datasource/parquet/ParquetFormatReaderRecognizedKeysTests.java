@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -128,6 +129,46 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
                 "FormatSpec for [" + spec.format() + "] must declare FORMAT_CONFIG_KEYS",
                 ParquetDataSourcePlugin.FORMAT_CONFIG_KEYS,
                 spec.configKeys()
+            );
+        }
+    }
+
+    /**
+     * Every key the reader consumes must either participate in the cache identity
+     * ({@link SchemaCacheKey#affectsIdentity}) or be declared inert here with a justification.
+     * <ul>
+     *   <li>{@code optimized_reader} — selects the reader implementation; both decode the same values from the
+     *       same footer-described pages.</li>
+     *   <li>{@code late_materialization} — selects when projected columns are materialised relative to filtering;
+     *       the rows and values produced are identical either way.</li>
+     * </ul>
+     */
+    private static final Set<String> IDENTITY_INERT_KEYS = Set.of(
+        ParquetFormatReader.CONFIG_OPTIMIZED_READER,
+        ParquetFormatReader.CONFIG_LATE_MATERIALIZATION
+    );
+
+    public void testEveryRecognizedKeyIsIdentityAffectingOrDeclaredInert() {
+        for (String key : ParquetFormatReader.RECOGNIZED_KEYS) {
+            boolean affects = SchemaCacheKey.affectsIdentity(key);
+            boolean inert = IDENTITY_INERT_KEYS.contains(key);
+            assertTrue(
+                "key ["
+                    + key
+                    + "] is consumed by the reader but neither participates in the cache identity nor is declared "
+                    + "inert: add it to SchemaCacheKey's identity params, or declare it in IDENTITY_INERT_KEYS with "
+                    + "a justification that it cannot change which rows survive or what values they hold",
+                affects || inert
+            );
+            assertFalse("key [" + key + "] cannot be both identity-affecting and declared inert", affects && inert);
+        }
+    }
+
+    public void testDeclaredInertKeysAreStillRecognized() {
+        for (String key : IDENTITY_INERT_KEYS) {
+            assertTrue(
+                "stale IDENTITY_INERT_KEYS entry [" + key + "]: the reader no longer consumes it",
+                ParquetFormatReader.RECOGNIZED_KEYS.contains(key)
             );
         }
     }

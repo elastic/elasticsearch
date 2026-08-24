@@ -37,7 +37,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     static final long LONG_BYTES_PER_VALUE = 72;
 
     private final ValuesSource.Numeric valuesSource;
-    private final InternalRoaringBitmap.Width width;
+    private final InternalRoaringBitmap.BitmapFormat width;
     private final LongObjectPagedHashMap<AccountedBitmap> bitmaps;
     private long accountedBitmapBytes;
     private int valuesUntilNextBreakerReservation;
@@ -46,7 +46,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
     RoaringBitmapAggregator(
         String name,
         ValuesSource.Numeric valuesSource,
-        InternalRoaringBitmap.Width width,
+        InternalRoaringBitmap.BitmapFormat width,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -97,7 +97,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
-        if (width == InternalRoaringBitmap.Width.UNMAPPED) {
+        if (width == InternalRoaringBitmap.BitmapFormat.UNMAPPED) {
             return InternalRoaringBitmap.unmapped(name, metadata());
         }
         AccountedBitmap accountedBitmap = bitmaps.get(owningBucketOrd);
@@ -121,7 +121,7 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        if (width == InternalRoaringBitmap.Width.UNMAPPED) {
+        if (width == InternalRoaringBitmap.BitmapFormat.UNMAPPED) {
             return InternalRoaringBitmap.unmapped(name, metadata());
         }
         return InternalRoaringBitmap.empty(name, width, metadata());

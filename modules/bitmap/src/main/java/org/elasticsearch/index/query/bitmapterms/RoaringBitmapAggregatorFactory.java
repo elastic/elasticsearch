@@ -41,7 +41,7 @@ final class RoaringBitmapAggregatorFactory extends ValuesSourceAggregatorFactory
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new RoaringBitmapAggregator(name, null, InternalRoaringBitmap.Width.UNMAPPED, context, parent, metadata);
+        return new RoaringBitmapAggregator(name, null, InternalRoaringBitmap.BitmapFormat.UNMAPPED, context, parent, metadata);
     }
 
     @Override
@@ -55,9 +55,9 @@ final class RoaringBitmapAggregatorFactory extends ValuesSourceAggregatorFactory
             throw new IllegalArgumentException("[roaring_bitmap] aggregation requires a mapped [integer] or [long] field");
         }
         NumberFieldMapper.NumberFieldType numberFieldType = (NumberFieldMapper.NumberFieldType) config.fieldType();
-        InternalRoaringBitmap.Width width = switch (numberFieldType.numberType()) {
-            case INTEGER -> InternalRoaringBitmap.Width.INT;
-            case LONG -> InternalRoaringBitmap.Width.LONG;
+        InternalRoaringBitmap.BitmapFormat width = switch (numberFieldType.numberType()) {
+            case INTEGER -> InternalRoaringBitmap.BitmapFormat.INT;
+            case LONG -> InternalRoaringBitmap.BitmapFormat.LONG;
             default -> throw new IllegalArgumentException(
                 "[roaring_bitmap] aggregation is not supported on field ["
                     + numberFieldType.name()

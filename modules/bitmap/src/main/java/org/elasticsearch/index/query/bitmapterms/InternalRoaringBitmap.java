@@ -33,18 +33,18 @@ import java.util.Objects;
 /** A shard or reduced result containing a portable serialized Roaring bitmap. */
 public final class InternalRoaringBitmap extends InternalAggregation {
 
-    enum Width {
+    enum BitmapFormat {
         UNMAPPED((byte) 0),
         INT((byte) 1),
         LONG((byte) 2);
 
         private final byte id;
 
-        Width(byte id) {
+        BitmapFormat(byte id) {
             this.id = id;
         }
 
-        static Width read(byte id) throws IOException {
+        static BitmapFormat read(byte id) throws IOException {
             return switch (id) {
                 case 0 -> UNMAPPED;
                 case 1 -> INT;
@@ -65,13 +65,13 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
         long ramBytesUsed();
 
-        Width width();
+        BitmapFormat width();
     }
 
-    private final Width width;
+    private final BitmapFormat width;
     private final byte[] bitmap;
 
-    InternalRoaringBitmap(String name, Width width, byte[] bitmap, Map<String, Object> metadata) {
+    InternalRoaringBitmap(String name, BitmapFormat width, byte[] bitmap, Map<String, Object> metadata) {
         super(name, metadata);
         this.width = Objects.requireNonNull(width);
         this.bitmap = Objects.requireNonNull(bitmap);
@@ -79,15 +79,15 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
     public InternalRoaringBitmap(StreamInput in) throws IOException {
         super(in);
-        width = Width.read(in.readByte());
+        width = BitmapFormat.read(in.readByte());
         bitmap = in.readByteArray();
     }
 
     static InternalRoaringBitmap unmapped(String name, Map<String, Object> metadata) {
-        return new InternalRoaringBitmap(name, Width.UNMAPPED, new byte[0], metadata);
+        return new InternalRoaringBitmap(name, BitmapFormat.UNMAPPED, new byte[0], metadata);
     }
 
-    static InternalRoaringBitmap empty(String name, Width width, Map<String, Object> metadata) {
+    static InternalRoaringBitmap empty(String name, BitmapFormat width, Map<String, Object> metadata) {
         try {
             return new InternalRoaringBitmap(name, width, mutable(width).serialize(), metadata);
         } catch (IOException e) {
@@ -95,7 +95,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         }
     }
 
-    static MutableBitmap mutable(Width width) {
+    static MutableBitmap mutable(BitmapFormat width) {
         return switch (width) {
             case INT -> new IntMutableBitmap(new RoaringBitmap());
             case LONG -> new LongMutableBitmap(new Roaring64NavigableMap());
@@ -103,7 +103,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         };
     }
 
-    private static MutableBitmap deserialize(Width width, byte[] bytes) throws IOException {
+    private static MutableBitmap deserialize(BitmapFormat width, byte[] bytes) throws IOException {
         return switch (width) {
             case INT -> {
                 RoaringBitmap bitmap = new RoaringBitmap();
@@ -123,7 +123,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         return bitmap;
     }
 
-    Width width() {
+    BitmapFormat width() {
         return width;
     }
 
@@ -147,7 +147,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
             @Override
             public void accept(InternalAggregation aggregation) {
                 InternalRoaringBitmap next = (InternalRoaringBitmap) aggregation;
-                if (next.width == Width.UNMAPPED) {
+                if (next.width == BitmapFormat.UNMAPPED) {
                     return;
                 }
                 try {
@@ -231,7 +231,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (width == Width.UNMAPPED) {
+        if (width == BitmapFormat.UNMAPPED) {
             return builder.nullField(CommonFields.VALUE.getPreferredName());
         }
         return builder.field(CommonFields.VALUE.getPreferredName(), bitmap);
@@ -248,7 +248,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
             return this;
         }
         if (path.size() == 1 && CommonFields.VALUE.getPreferredName().equals(path.get(0))) {
-            return width == Width.UNMAPPED ? null : bitmap;
+            return width == BitmapFormat.UNMAPPED ? null : bitmap;
         }
         throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }
@@ -310,8 +310,8 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         }
 
         @Override
-        public Width width() {
-            return Width.INT;
+        public BitmapFormat width() {
+            return BitmapFormat.INT;
         }
     }
 
@@ -352,8 +352,8 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         }
 
         @Override
-        public Width width() {
-            return Width.LONG;
+        public BitmapFormat width() {
+            return BitmapFormat.LONG;
         }
     }
 }

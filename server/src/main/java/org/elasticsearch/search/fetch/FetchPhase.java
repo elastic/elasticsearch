@@ -263,15 +263,10 @@ public final class FetchPhase {
     }
 
     /**
-     * Creates the docs iterator that handles per-document fetching and sub-phase processing.
-     * Shared between sync and streaming modes.
-     *
-     * <p>In non-streaming mode per-hit source/script-field bytes are accounted against the request circuit breaker and held
-     * until the fetch response is released. In streaming mode ({@code streaming == true}) the same bytes are charged when the
-     * hit is built and released again as soon as the hit has been serialized into a chunk (see
-     * {@link StreamingFetchPhaseDocsIterator#onHitSerialized()}), because a hit's decompressed source is short-lived on the data
-     * node. This restores the early-tripping behaviour that protects against fetching many very large documents concurrently,
-     * which the page-level {@code RecyclerBytesStreamOutput} accounting alone does not cover.
+     * Creates the docs iterator that handles per-document fetching and sub-phase processing, shared between sync and
+     * streaming modes. In streaming mode per-hit source/script-field bytes are charged to the request circuit breaker and
+     * released once the hit is serialized (see {@link StreamingFetchPhaseDocsIterator#onHitSerialized()}); otherwise they are
+     * held until the fetch response is released.
      *
      * @param memoryChecker optional caller-supplied per-hit source byte accounting used in non-streaming mode; may be {@code null}
      * @param streaming whether the fetch runs in streaming (chunked) mode
@@ -315,9 +310,6 @@ public final class FetchPhase {
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         final long[] scriptFieldsBreakerBytes = new long[1];
-        // Streaming mode holds per-hit source (and script-field) bytes only until the hit is serialized into a chunk; this
-        // accumulator tracks the currently reserved amount so it can be released in onHitSerialized (and on failure via
-        // getRequestBreakerBytes).
         final long[] streamingHeldBytes = new long[1];
         LongConsumer scriptFieldsByteChecker;
         if (streaming) {
@@ -374,8 +366,6 @@ public final class FetchPhase {
             IdLoader.Leaf leafIdLoader;
 
             IntConsumer memChecker = streaming ? bytes -> {
-                // Streaming mode: charge the decompressed source immediately so a single oversized document, or many large
-                // documents fetched concurrently, trip the breaker before the heap is exhausted. Released in onHitSerialized.
                 if (bytes > 0) {
                     context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
                     streamingHeldBytes[0] += bytes;
@@ -610,8 +600,6 @@ public final class FetchPhase {
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     Releasables.closeWhileHandlingException(lastChunkBytes);
 
-                    // Release any per-hit source/script-field bytes still reserved for a hit that failed to build or serialize
-                    // (successfully serialized hits are already released in onHitSerialized).
                     long leakedBytes = docsIterator.getRequestBreakerBytes();
                     if (leakedBytes > 0) {
                         context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);

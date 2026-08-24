@@ -125,10 +125,15 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         } finally {
             addRequestCircuitBreakerBytes(-serializationBytes);
         }
-        // The returned array is retained by the result tree (e.g. once per bucket under a parent
-        // `terms` aggregation) well past this call, unlike the transient serialization scratch above.
-        // Give it its own standing reservation so it isn't invisible to the breaker; this aggregator's
-        // own close() releases it along with the rest of requestBytesUsed.
+        // Reserve the retained array's length. MetricsAggregator#buildAggregations calls this once per
+        // owning bucket ord and close() only runs once the whole tree is built, so under a parent
+        // `terms` aggregation these reservations accumulate across buckets for the whole build.
+        //
+        // This does NOT cover the array's full lifetime: AggregatorCollector calls
+        // releaseAggregations() immediately after buildTopLevel(), and AggregatorBase#close() then
+        // drops all of requestBytesUsed while the array stays reachable from the result tree. That
+        // gap is not specific to this aggregation -- every InternalAggregation outlives its
+        // aggregator -- so it is left open rather than worked around here.
         addRequestCircuitBreakerBytes(serialized.length);
         return new InternalRoaringBitmap(name, width, serialized, metadata());
     }

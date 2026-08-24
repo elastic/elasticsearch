@@ -190,21 +190,29 @@ public final class ColumnarOffsetsBuilder {
     }
 
     /**
-     * Returns each element's rank among the batch's distinct values, in element order. Ranks are unsigned
-     * byte order, which is what {@code BytesRef#compareTo} implements and therefore the order
-     * {@code SortedSetDocValues} assigns its ordinals in.
+     * Returns each element's rank among the batch's distinct values in element order (unsigned byte /
+     * {@code BytesRef} order). Elements from documents with fewer than {@link #MIN_RECORDED_SLOTS} slots
+     * are drained without hashing.
      */
-    private static int[] batchRanksPerSlot(EscfArrayColumn source, int slotCount) {
+    private static int[] batchRanksPerSlot(EscfArrayColumn source, int[] rowOffsets, int docCount) {
+        final int totalSlots = rowOffsets[docCount];
         final BytesRefHash values = new BytesRefHash();
-        final int[] termIds = new int[slotCount];
+        final int[] termIds = new int[totalSlots];
         // retainValues=false: add() copies each value into the hash's pool before the cursor advances.
         final ObjectTupleCursor<BytesRef> cursor = source.bytesRefCursor(false);
-        for (int slot = 0; slot < slotCount; slot++) {
-            final int advanced = cursor.nextDoc();
-            assert advanced != DocIdSetIterator.NO_MORE_DOCS : "cursor exhausted at slot " + slot + " of " + slotCount;
-            final int id = values.add(cursor.value());
-            // add() returns -(id)-1 for a value it has already interned.
-            termIds[slot] = id < 0 ? -id - 1 : id;
+        for (int doc = 0; doc < docCount; doc++) {
+            final int slotStart = rowOffsets[doc];
+            final int slotCount = rowOffsets[doc + 1] - slotStart;
+            final boolean needsHash = slotCount >= MIN_RECORDED_SLOTS;
+            for (int slot = 0; slot < slotCount; slot++) {
+                final int advanced = cursor.nextDoc();
+                assert advanced == doc : "cursor desynchronized from row offsets: at doc " + advanced + ", expected " + doc;
+                if (needsHash) {
+                    final int id = values.add(cursor.value());
+                    // add() returns -(id)-1 for a value it has already interned.
+                    termIds[slotStart + slot] = id < 0 ? -id - 1 : id;
+                }
+            }
         }
 
         // sort() returns ids in lexicographic order, so inverting it maps an id to its rank. It also
@@ -214,8 +222,8 @@ public final class ColumnarOffsetsBuilder {
         for (int rank = 0; rank < rankPerId.length; rank++) {
             rankPerId[sortedIds[rank]] = rank;
         }
-        for (int slot = 0; slot < slotCount; slot++) {
-            termIds[slot] = rankPerId[termIds[slot]];
+        for (int i = 0; i < totalSlots; i++) {
+            termIds[i] = rankPerId[termIds[i]];
         }
         return termIds;
     }
@@ -225,7 +233,7 @@ public final class ColumnarOffsetsBuilder {
      * produces: one doc id per element, with empty and absent rows skipped by their zero-width offset range.
      */
     private static LongTupleCursor batchRankCursor(EscfArrayColumn source, int[] rowOffsets, int docCount) {
-        final int[] slotRanks = batchRanksPerSlot(source, rowOffsets[docCount]);
+        final int[] slotRanks = batchRanksPerSlot(source, rowOffsets, docCount);
         return new LongTupleCursor() {
             private int currentDoc = -1;
             private int rowEnd = 0;

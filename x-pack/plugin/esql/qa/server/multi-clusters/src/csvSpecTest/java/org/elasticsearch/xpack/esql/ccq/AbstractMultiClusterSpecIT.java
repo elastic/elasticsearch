@@ -367,8 +367,10 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 // whenever it can host the test service. The local response is the one callers see.
                 if (Clusters.remoteClusterSupportsInferenceTestService()) {
                     Request[] inferenceClones = cloneRequests(request, 2);
-                    remoteClient.performRequest(inferenceClones[0]);
-                    return localClient.performRequest(inferenceClones[1]);
+                    Response resp1 = remoteClient.performRequest(inferenceClones[0]);
+                    Response resp2 = localClient.performRequest(inferenceClones[1]);
+                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
+                    return resp2;
                 }
                 return localClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {

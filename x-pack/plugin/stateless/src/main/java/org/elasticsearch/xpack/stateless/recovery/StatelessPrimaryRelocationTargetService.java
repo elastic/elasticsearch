@@ -92,6 +92,7 @@ public class StatelessPrimaryRelocationTargetService {
     }
 
     void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
+        logger.debug("[{}] received primary context handoff request", request.shardId());
         final var statelessCommitService = statelessCommitServiceProvider.get();
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
@@ -99,7 +100,6 @@ public class StatelessPrimaryRelocationTargetService {
 
         final var targetAllocationId = indexShard.routingEntry().allocationId().getId();
         final var threadDumpListener = SlowRelocationLogger.slowShardOperationListener(
-            logger,
             indexShard,
             targetAllocationId,
             slowRelocationWarningThreshold,

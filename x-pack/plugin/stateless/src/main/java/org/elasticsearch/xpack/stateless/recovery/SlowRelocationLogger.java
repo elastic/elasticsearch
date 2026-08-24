@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -25,6 +26,8 @@ import static org.elasticsearch.common.Strings.format;
 /// Shared by [StatelessPrimaryRelocationSourceService] and [StatelessPrimaryRelocationTargetService].
 class SlowRelocationLogger {
 
+    private static final Logger logger = LogManager.getLogger(SlowRelocationLogger.class);
+
     private SlowRelocationLogger() {}
 
     static final int MAX_SLOW_OPERATION_THREAD_DUMPS = 5;
@@ -34,7 +37,6 @@ class SlowRelocationLogger {
     ///
     /// @param activeOperationsCount if non-null, the current count is appended to each dump message
     static ActionListener<Void> slowShardOperationListener(
-        Logger logger,
         IndexShard indexShard,
         String targetAllocationId,
         TimeValue timeout,
@@ -44,7 +46,6 @@ class SlowRelocationLogger {
         final var threadDumpListener = new SubscribableListener<Void>();
         if (logger.isInfoEnabled()) {
             scheduleSlowShardOperationThreadDump(
-                logger,
                 indexShard,
                 targetAllocationId,
                 timeout,
@@ -58,7 +59,6 @@ class SlowRelocationLogger {
     }
 
     private static void scheduleSlowShardOperationThreadDump(
-        Logger logger,
         IndexShard indexShard,
         String targetAllocationId,
         TimeValue delay,
@@ -90,7 +90,6 @@ class SlowRelocationLogger {
                 );
                 if (sample < MAX_SLOW_OPERATION_THREAD_DUMPS) {
                     scheduleSlowShardOperationThreadDump(
-                        logger,
                         indexShard,
                         targetAllocationId,
                         TimeValue.timeValueMillis(delay.millis() * 2),

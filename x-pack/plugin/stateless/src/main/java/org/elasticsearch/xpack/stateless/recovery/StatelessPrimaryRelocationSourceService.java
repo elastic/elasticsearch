@@ -132,6 +132,8 @@ public class StatelessPrimaryRelocationSourceService {
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
     public void registerRecoverySchedulingListeners(CompositeRecoverySchedulingListener schedulingListeners) {
+        // This service is a Guice singleton constructed before TransportStatelessPrimaryRelocationAction, so this method
+        // is called exactly once. The assert is a test-time safety net — assertions are disabled in production JVMs.
         assert this.schedulingListeners == null : "already registered scheduling listeners";
         this.schedulingListeners = schedulingListeners;
     }
@@ -141,6 +143,7 @@ public class StatelessPrimaryRelocationSourceService {
         TargetPrewarmTrigger targetPrewarmTrigger,
         PrimaryContextHandoffTrigger primaryContextHandoffTrigger
     ) {
+        // Same Guice singleton guarantee as registerRecoverySchedulingListeners: called exactly once.
         assert this.targetPrewarmTrigger == null && this.primaryContextHandoffTrigger == null : "already registered target triggers";
         this.targetPrewarmTrigger = targetPrewarmTrigger;
         this.primaryContextHandoffTrigger = primaryContextHandoffTrigger;
@@ -183,9 +186,9 @@ public class StatelessPrimaryRelocationSourceService {
             }
 
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            final var engine = indexService.getShard(shardId.id()).getEngineOrNull();
-            boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
             final IndexShard indexShard = indexService.getShard(shardId.id());
+            final var engine = indexShard.getEngineOrNull();
+            boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
 
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
             // Note that if the shard is already hollow, the target warming will just read a single region.
@@ -239,7 +242,6 @@ public class StatelessPrimaryRelocationSourceService {
         logShardStats("flushing before acquiring all primary operation permits", indexShard, preFlushEngine);
 
         final var threadDumpListener = SlowRelocationLogger.slowShardOperationListener(
-            logger,
             indexShard,
             request.targetAllocationId(),
             slowRelocationWarningThreshold,

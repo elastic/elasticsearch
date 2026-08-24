@@ -135,7 +135,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             false, // canTripCircuitBreaker
             PrimaryContextHandoffRequest::new,
             (request, channel, task) -> {
-                logger.debug("[{}] received primary context", request.shardId());
                 final var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId());
                 boolean success = false;
                 try {

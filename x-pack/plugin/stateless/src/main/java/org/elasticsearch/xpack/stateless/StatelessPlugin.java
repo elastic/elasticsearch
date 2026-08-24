@@ -933,8 +933,9 @@ public class StatelessPlugin extends Plugin
             new PluginComponentBinding<>(SearchShardSizeCollector.class, setAndGet(this.searchShardSizeCollector, searchShardSizeCollector))
         );
 
-        // We need to inject HollowShardsService into TransportStatelessPrimaryRelocationAction via DI, so it has to be
-        // available on all nodes despite being useful only on indexing nodes
+        // HollowShardsService is passed to StatelessPrimaryRelocationSourceService, which is injected into
+        // TransportStatelessPrimaryRelocationAction via DI. That's why it's constructed on all nodes, despite being useful
+        // only on indexing nodes.
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
             createHollowShardsService(

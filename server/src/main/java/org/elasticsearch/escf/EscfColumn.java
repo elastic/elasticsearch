@@ -121,6 +121,11 @@ public abstract class EscfColumn implements SliceableColumn {
         return isAbsent(row) == false;
     }
 
+    /** Returns {@code true} if every document in this column is present (no validity bitset). */
+    public final boolean isDense() {
+        return validity == null;
+    }
+
     final byte getTypeByte(int row) {
         if (row < 0 || row >= docCount || isAbsent(row)) {
             return SourceValueType.ABSENT;

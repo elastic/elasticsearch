@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,10 +36,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.After;
@@ -49,6 +52,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,6 +66,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -88,6 +93,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
 
     @After
     public void tearDownComponents() throws Exception {
+        InferenceEndpointRegistry.setInstance(project -> Set.of());
         service.clusterChanged(
             new ClusterChangedEvent(
                 "test",
@@ -96,6 +102,51 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
             )
         );
         terminate(threadPool);
+    }
+
+    public void testInferenceEndpointReferenceShouldNotBeTracked() throws Exception {
+        InferenceEndpointRegistry.setInstance(project -> Set.of("my-endpoint"));
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "my-endpoint")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertThat(service.getGlobalModelSizeForTests("my-endpoint"), nullValue());
+        assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
+        assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        assertThat(service.isTrackingModelForProjectForTests(PROJECT_A, "my-endpoint"), is(false));
+        verify(trainedModelProvider, never()).getTrainedModel(eq("my-endpoint"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+    }
+
+    public void testResolvedNlpModelShouldNotContributeHeap() throws Exception {
+        stubModelConfig("nlp-model", 100L, TrainedModelType.PYTORCH);
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "nlp-model")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> {
+            assertThat(service.getGlobalModelSizeForTests("nlp-model"), nullValue());
+            assertThat(service.getRequiredHeapBytes().heapBytes(), equalTo(0L));
+            assertThat(service.getRequiredHeapBytes().isExact(), is(true));
+        });
+    }
+
+    public void testNotYetIndexedModelShouldRetryAfterNotFound() throws Exception {
+        AtomicInteger fetchAttempts = new AtomicInteger();
+        doAnswer(invocation -> {
+            fetchAttempts.incrementAndGet();
+            ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
+            listener.onFailure(new ResourceNotFoundException("Could not find trained model [model-a]"));
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(eq("model-a"), eq(GetTrainedModelsAction.Includes.empty()), any(), any());
+
+        ClusterState current = masterClusterState(withIngestModels(Map.of(PROJECT_A, "model-a")));
+        service.clusterChanged(new ClusterChangedEvent("test", current, masterClusterState(ClusterState.EMPTY_STATE.metadata())));
+
+        assertBusy(() -> assertThat(fetchAttempts.get(), equalTo(1)));
+        assertThat(service.getGlobalModelSizeForTests("model-a"), notNullValue());
+        assertThat(service.getGlobalModelSizeForTests("model-a").isPresent(), is(false));
+        assertThat(service.getRequiredHeapBytes().isExact(), is(false));
+
+        reconcileWhenIdle();
+        assertThat(fetchAttempts.get(), equalTo(2));
     }
 
     public void testMasterFetchPopulatesHeapRequirement() throws Exception {
@@ -423,6 +474,7 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
                 )
             );
             service.reconcileModelSizesForTests();
+            service.reconcileModelSizesForTests();
             mockLog.assertAllExpectationsMatched();
         }
     }
@@ -487,8 +539,13 @@ public class IngestModelMemoryServiceTests extends ESTestCase {
     }
 
     private void stubModelConfig(String modelId, long modelSize) {
+        stubModelConfig(modelId, modelSize, null);
+    }
+
+    private void stubModelConfig(String modelId, long modelSize, TrainedModelType modelType) {
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelSize()).thenReturn(modelSize);
+        when(trainedModelConfig.getModelType()).thenReturn(modelType);
         doAnswer(invocation -> {
             ActionListener<TrainedModelConfig> listener = invocation.getArgument(3);
             listener.onResponse(trainedModelConfig);

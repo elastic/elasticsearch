@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,13 +23,18 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.IngestModelMemoryProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,6 +58,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     private final ConcurrentHashMap<String, OptionalLong> globalModelSizes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> unresolvedSinceNanos = new ConcurrentHashMap<>();
     private final Set<String> fetchScheduledModelIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> staleWarnEmitted = ConcurrentHashMap.newKeySet();
     private final AtomicReference<HeapRequirement> cachedRequirement = new AtomicReference<>(new HeapRequirement(0L, true));
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private volatile TimeValue unresolvedModelSizeRetryInterval = UNRESOLVED_MODEL_SIZE_RETRY_INTERVAL;
@@ -134,6 +141,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         globalModelSizes.clear();
         unresolvedSinceNanos.clear();
         fetchScheduledModelIds.clear();
+        staleWarnEmitted.clear();
         recomputeHeapRequirement();
     }
 
@@ -189,6 +197,9 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         if (isUnresolvedLongerThanWarnThreshold(modelId) == false) {
             return;
         }
+        if (staleWarnEmitted.add(modelId) == false) {
+            return;
+        }
         logger.warn(
             "Ingest model [{}] heap size has been unresolved for over {}; heap contribution is now treated as exact zero so "
                 + "ingest-tier autoscaling quality is no longer pinned at MINIMUM for this reason, but the model is still "
@@ -223,7 +234,13 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
     }
 
     private void refreshProjectFromFullScan(ProjectId projectId, ClusterState state) {
+        ProjectMetadata project = state.metadata().getProject(projectId);
         Set<String> nowReferenced = IngestPipelineModelReferences.resolveReferencedModelsForProject(state, projectId);
+        Set<String> endpointIds = InferenceEndpointRegistry.getInstance().inferenceEndpointIds(project);
+        if (endpointIds.isEmpty() == false) {
+            nowReferenced = new HashSet<>(nowReferenced);
+            nowReferenced.removeAll(endpointIds);
+        }
         Set<String> perProject = referencedModelsByProject.computeIfAbsent(projectId, k -> ConcurrentHashMap.newKeySet());
         Set<String> current = new HashSet<>(perProject);
         Set<String> added = Sets.difference(nowReferenced, current);
@@ -248,6 +265,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
             globalModelSizes.remove(modelId);
             unresolvedSinceNanos.remove(modelId);
             fetchScheduledModelIds.remove(modelId);
+            staleWarnEmitted.remove(modelId);
             recomputeHeapRequirement();
         }
     }
@@ -279,13 +297,24 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
                     GetTrainedModelsAction.Includes.empty(),
                     null,
                     ActionListener.wrap(config -> {
-                        propagateModelSize(modelId, toStoredSize(config.getModelSize()));
                         fetchScheduledModelIds.remove(modelId);
+                        if (isDfaModel(config)) {
+                            propagateModelSize(modelId, toStoredSize(config.getModelSize()));
+                        } else {
+                            untrackModel(modelId);
+                        }
                     }, e -> {
-                        logger.warn("Could not fetch config for ingest model [{}]: {}", modelId, e.getMessage());
                         fetchScheduledModelIds.remove(modelId);
-                        if (wasResolved) {
-                            handleRevalidationFetchFailure(modelId);
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            logger.debug("Ingest model [{}] config not found yet; will retry", modelId);
+                            if (wasResolved) {
+                                handleRevalidationFetchFailure(modelId);
+                            }
+                        } else {
+                            logger.warn("Could not fetch config for ingest model [{}]: {}", modelId, e.getMessage());
+                            if (wasResolved) {
+                                handleRevalidationFetchFailure(modelId);
+                            }
                         }
                     })
                 )
@@ -297,6 +326,7 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         if (stillReferenced == false) {
             globalModelSizes.remove(modelId);
             unresolvedSinceNanos.remove(modelId);
+            staleWarnEmitted.remove(modelId);
             recomputeHeapRequirement();
             return;
         }
@@ -309,18 +339,32 @@ public class IngestModelMemoryService implements ClusterStateListener, IngestMod
         return OptionalLong.of(modelSizeBytes);
     }
 
+    private static boolean isDfaModel(TrainedModelConfig config) {
+        return Optional.ofNullable(config.getModelType()).orElse(TrainedModelType.TREE_ENSEMBLE) == TrainedModelType.TREE_ENSEMBLE;
+    }
+
+    private void untrackModel(String modelId) {
+        globalModelSizes.remove(modelId);
+        unresolvedSinceNanos.remove(modelId);
+        fetchScheduledModelIds.remove(modelId);
+        staleWarnEmitted.remove(modelId);
+        recomputeHeapRequirement();
+    }
+
     private void propagateModelSize(String modelId, OptionalLong size) {
         boolean stillReferenced = referencedModelsByProject.values().stream().anyMatch(set -> set.contains(modelId));
         if (stillReferenced == false) {
             globalModelSizes.remove(modelId);
             unresolvedSinceNanos.remove(modelId);
             fetchScheduledModelIds.remove(modelId);
+            staleWarnEmitted.remove(modelId);
             recomputeHeapRequirement();
             return;
         }
         globalModelSizes.put(modelId, size);
         if (size.isPresent()) {
             unresolvedSinceNanos.remove(modelId);
+            staleWarnEmitted.remove(modelId);
         } else {
             recordUnresolvedModel(modelId);
         }

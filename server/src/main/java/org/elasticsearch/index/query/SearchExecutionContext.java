@@ -75,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -142,6 +143,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
     private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
+    private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
 
     public SearchExecutionContext(
         int shardId,
@@ -490,7 +492,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
-        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), null);
     }
 
     /**
@@ -549,7 +551,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
     }
 
     /**
@@ -763,6 +765,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
+        if (bitsetFilterCache == null) {
+            return null;
+        }
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 
@@ -861,10 +866,34 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
+     */
+    public void markQueryMemoryPreCharged(Query query) {
+        if (query != null) {
+            preChargedQueries.add(query);
+        }
+    }
+
+    /**
+     * @return {@code true} if {@code query} was already charged at construction time (see {@link #markQueryMemoryPreCharged}).
+     */
+    public boolean isQueryMemoryPreCharged(Query query) {
+        return preChargedQueries.contains(query);
+    }
+
+    /**
+     * Drops all pre-charge markers.
+     */
+    protected final void clearPreChargedQueries() {
+        preChargedQueries.clear();
+    }
+
+    /**
      * Release all accumulated query construction memory back to the circuit breaker. Safe to
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
+        clearPreChargedQueries();
         if (circuitBreaker == null) {
             return;
         }

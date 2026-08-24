@@ -76,7 +76,7 @@ public class EstimatedHeapUsageMonitor {
             return;
         }
 
-        final var nodeIdsExceedingLowWatermark = clusterInfo.getEstimatedHeapUsages()
+        final var nodeIdsExceedingLowWatermark = clusterInfo.getNodeHeapMetrics()
             .entrySet()
             .stream()
             .filter(entry -> entry.getValue().estimatedUsageAsPercentage() > estimatedHeapLowWatermark.getAsPercent())
@@ -106,7 +106,7 @@ public class EstimatedHeapUsageMonitor {
         }
 
         if (highWatermarkEnabled) {
-            final var nodeIdsExceedingHighWatermark = clusterInfo.getEstimatedHeapUsages()
+            final var nodeIdsExceedingHighWatermark = clusterInfo.getNodeHeapMetrics()
                 .entrySet()
                 .stream()
                 .filter(entry -> entry.getValue().estimatedUsageAsPercentage() > estimatedHeapHighWatermark.getAsPercent())

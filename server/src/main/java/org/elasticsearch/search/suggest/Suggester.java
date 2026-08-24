@@ -11,6 +11,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
 
@@ -41,6 +42,12 @@ public abstract class Suggester<T extends SuggestionSearchContext.SuggestionCont
             return emptySuggestion(name, suggestion, spare);
         }
         return innerExecute(name, suggestion, searcher, spare);
+    }
+
+    protected static long priorityQueueRamBytesUsed(int size) {
+        return RamUsageEstimator.alignObjectSize(
+            (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (size + 1L) * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
     }
 
 }

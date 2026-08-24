@@ -128,6 +128,18 @@ public class DatasetResolverTests extends ESTestCase {
         assertEquals("no datasets registered → no dispatch", 0, localCalls.get());
     }
 
+    public void testFederationUnavailableReturnsPlanUnchanged() {
+        AtomicInteger localCalls = new AtomicInteger();
+        DatasetResolver resolver = resolver(crossProjectEnabled(true), localCalls, false);
+
+        // A node without federation performs no dataset resolution at all: the plan is returned untouched and no
+        // EsqlResolveDatasetAction dispatch happens, even though datasets are registered in project state.
+        UnresolvedRelation relation = relationOf(DATASET_NAME);
+        LogicalPlan rewritten = replaceDatasets(resolver, relation);
+        assertSame(relation, rewritten);
+        assertEquals("federation unavailable, so no dispatch", 0, localCalls.get());
+    }
+
     // --- harness ---
 
     private LogicalPlan replaceDatasets(DatasetResolver resolver, UnresolvedRelation relation) {
@@ -141,7 +153,11 @@ public class DatasetResolverTests extends ESTestCase {
     }
 
     private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls) {
-        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider);
+        return resolver(decider, localCalls, true);
+    }
+
+    private DatasetResolver resolver(CrossProjectModeDecider decider, AtomicInteger localCalls, boolean federationAvailable) {
+        return new DatasetResolver(localActionClient(localCalls), EsExecutors.DIRECT_EXECUTOR_SERVICE, decider, federationAvailable);
     }
 
     private static CrossProjectModeDecider crossProjectEnabled(boolean enabled) {

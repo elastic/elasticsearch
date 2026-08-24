@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
@@ -91,6 +92,12 @@ import java.util.function.Consumer;
  *                         {@code is_partial} flag (see {@code AsyncExternalSourceBuffer#recordWarning} for
  *                         the one warning that does) — so the warning is relayed back and re-emitted on
  *                         the correct thread instead of being silently dropped.
+ * @param fileHeaderColumns the file's own column names, in file order, read from its leading bytes.
+ *                         {@code null} for every read that owns the file's start, and for formats that do
+ *                         not name their columns in a header. Set only for a read that cannot see the
+ *                         header but still has to know what the columns are called — a chunk after the
+ *                         first of a header-bearing file whose declared schema binds by name. Binding such
+ *                         a chunk by position instead would shift every column silently.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -107,7 +114,9 @@ public record FormatReadContext(
     long statsStripeSize,
     boolean statsFileFinal,
     StripeColumnScope statsColumnScope,
-    @Nullable Consumer<String> informationalWarningSink
+    @Nullable Consumer<String> informationalWarningSink,
+    @Nullable List<String> fileHeaderColumns,
+    @Nullable CircuitBreaker breaker
 ) {
 
     public FormatReadContext {
@@ -152,7 +161,9 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink
+            informationalWarningSink,
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -175,7 +186,9 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink
+            informationalWarningSink,
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -198,7 +211,9 @@ public record FormatReadContext(
             statsStripeSize,
             statsFileFinal,
             statsColumnScope,
-            informationalWarningSink
+            informationalWarningSink,
+            fileHeaderColumns,
+            breaker
         );
     }
 
@@ -223,10 +238,14 @@ public record FormatReadContext(
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsBaseOffset = 0L;
         private long statsStripeSize = -1L;
+        @Nullable
+        private List<String> fileHeaderColumns = null;
         private boolean statsFileFinal = false;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
         @Nullable
         private Consumer<String> informationalWarningSink = null;
+        @Nullable
+        private CircuitBreaker breaker = null;
 
         private Builder() {}
 
@@ -318,6 +337,30 @@ public record FormatReadContext(
             return this;
         }
 
+        /**
+         * The file's own column names, in file order, read from its leading bytes.
+         * <p>
+         * Only set for a read that does NOT own the file's start but still needs to know what its columns
+         * are called — a chunk after the first of a header-bearing file whose declared schema binds by name.
+         * Such a chunk cannot see the header itself, and binding by position instead would silently shift
+         * every column. The component that cut the file into chunks reads the header once and states it here.
+         */
+        public Builder fileHeaderColumns(@Nullable List<String> fileHeaderColumns) {
+            this.fileHeaderColumns = fileHeaderColumns;
+            return this;
+        }
+
+        /**
+         * Circuit breaker for the decompression codec's native footprint accounting. Set when the
+         * read path goes through a {@link DecompressionCodec} that supports per-stream breaker wiring.
+         * {@code null} (the default) means the codec's native footprint is not accounted by a breaker
+         * on this read path.
+         */
+        public Builder breaker(@Nullable CircuitBreaker breaker) {
+            this.breaker = breaker;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -337,7 +380,9 @@ public record FormatReadContext(
                 statsStripeSize,
                 statsFileFinal,
                 statsColumnScope,
-                informationalWarningSink
+                informationalWarningSink,
+                fileHeaderColumns,
+                breaker
             );
         }
     }

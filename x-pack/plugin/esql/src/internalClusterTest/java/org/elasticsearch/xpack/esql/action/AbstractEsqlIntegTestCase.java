@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -43,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -157,6 +159,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            // Federation is only on by default in snapshot builds; set it here so the external data source and dataset
+            // suites run in a release build too. The unavailable surface is covered by the federation REST ITs.
+            .put(Federation.FEDERATION_ENABLED.getKey(), true)
             .build();
     }
 
@@ -297,5 +302,27 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             case 3 -> new Tuple<>(null, Boolean.FALSE);
             default -> throw new AssertionError("should not get here");
         };
+    }
+
+    public static void assertOk(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(false));
+    }
+
+    public static void assertPartial(EsqlQueryResponse response) {
+        assertThat(response.isPartial(), equalTo(true));
+    }
+
+    public static void assertColumnContainsInAnyOrder(EsqlQueryResponse response, String column, Object... indices) {
+        var indexColumn = findColumnIndex(response, column);
+        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
+    }
+
+    public static int findColumnIndex(EsqlQueryResponse response, String column) {
+        for (int c = 0; c < response.columns().size(); c++) {
+            if (Objects.equals(response.columns().get(c).name(), column)) {
+                return c;
+            }
+        }
+        throw new AssertionError("no _index column found");
     }
 }

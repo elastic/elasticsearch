@@ -20,8 +20,28 @@ public final class ConfigKeyValidator {
     private ConfigKeyValidator() {}
 
     /**
+     * Keys the framework injects into the config map itself, which no user ever typed. The dataset layer wraps a
+     * dataset's parent data-source settings under {@code _datasource} before handing the map to a factory, so the key
+     * is present on every dataset-originated query.
+     * <p>
+     * They are excluded from the unknown-key report because this check exists to tell a user which of <em>their</em>
+     * settings was not understood. A factory that claims no per-query options at all (the table catalogs pass an empty
+     * claimed-set) would otherwise report {@code unknown option [_datasource] in data source configuration; no options
+     * are recognised in this context} for a perfectly ordinary dataset — naming a key the user cannot remove, and
+     * describing a configuration problem where the real one is that the format could not be resolved.
+     * <p>
+     * Matched by the leading underscore rather than by an explicit list, so a framework key added later is covered
+     * without having to remember this file. The underscore prefix is already the convention for these
+     * ({@code ExternalSourceResolver#DATASOURCE_CONFIG_KEY}), and no user-facing setting uses it.
+     */
+    private static boolean isFrameworkKey(String key) {
+        return key.startsWith("_");
+    }
+
+    /**
      * Throws {@link IllegalArgumentException} listing the unknown keys (sorted) and the recognised
      * options (sorted union of all {@code claimed} sets). No-op for null or empty {@code config}.
+     * Framework-injected keys (see {@link #isFrameworkKey}) are never reported.
      */
     public static void check(Map<String, Object> config, Collection<Set<String>> claimed) {
         if (config == null || config.isEmpty()) {
@@ -29,6 +49,9 @@ public final class ConfigKeyValidator {
         }
         List<String> unknown = null;
         for (String key : config.keySet()) {
+            if (isFrameworkKey(key)) {
+                continue;
+            }
             boolean recognised = false;
             for (Set<String> set : claimed) {
                 if (set.contains(key)) {

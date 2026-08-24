@@ -1072,6 +1072,7 @@ public enum IndexMode {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
@@ -1083,11 +1084,20 @@ public enum IndexMode {
             if (indexMode == null) {
                 String modeName = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());
                 if (modeName != null) {
-                    indexMode = IndexMode.valueOf(modeName.toUpperCase(Locale.ROOT));
+                    indexMode = IndexMode.fromString(modeName);
                 }
             }
             if (indexMode == LOOKUP) {
                 additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            }
+            // Disable sequence numbers on columnar data-stream backing indices, whose append-only, time-based data does not need them,
+            // unless the setting was provided explicitly. Standalone columnar indices keep sequence numbers and support updates.
+            if (dataStreamName != null
+                && indexMode != null
+                && indexMode.isStrictColumnar()
+                && indexVersion.onOrAfter(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
+                && IndexSettings.DISABLE_SEQUENCE_NUMBERS.exists(indexTemplateAndCreateRequestSettings) == false) {
+                additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }
             if (indexMode == VECTORDB_DOCUMENT) {
                 // Force index.mapping.exclude_source_vectors to true

@@ -887,6 +887,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DENSE_VECTOR);
         shouldBeSupported.remove(DataType.EXPONENTIAL_HISTOGRAM); // TODO(b/133393): add support when blockloader is implemented
         shouldBeSupported.remove(DataType.DATE_RANGE);
+        shouldBeSupported.remove(DataType.DOUBLE_RANGE);
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
         if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {

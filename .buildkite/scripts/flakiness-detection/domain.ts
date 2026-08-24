@@ -77,6 +77,20 @@ export function toFqcn(javaPath: string): string {
   return javaPath.replace(/\//g, ".");
 }
 
+/**
+ * Inverse of {@link toGradleProject}: maps a Gradle project path back to its
+ * source directory (e.g. `:x-pack:plugin:logsdb:qa:rolling-upgrade` ->
+ * `x-pack/plugin/logsdb/qa/rolling-upgrade`), undoing the `:test:external-modules`
+ * `test-` rename. Used to locate a project's `build.gradle` for BWC detection.
+ */
+export function toProjectDir(gradleProject: string): string {
+  const segments = gradleProject.replace(/^:/, "").split(":");
+  if (segments[0] === "test" && segments[1] === "external-modules" && segments.length >= 3 && segments[2].startsWith("test-")) {
+    segments[2] = segments[2].slice("test-".length);
+  }
+  return segments.join("/");
+}
+
 export const KIND_ORDER: TestKind[] = [
   "test",
   "internalClusterTest",
@@ -114,7 +128,7 @@ export interface RunnableCommand {
 export interface BatchingConfig {
   capByKind: Record<TestKind, number>;
   itersByKind: Record<"test" | "internalClusterTest", number>;
-  // Loop count passed to .ci/scripts/repeat-rest-test.sh for all REST test kinds.
+  // Loop count passed to runners/repeat-rest-test.sh for all REST test kinds.
   // Shared across javaRestTest / yamlRestTestRunner / yamlRestTestSuite / yamlRestTestCase
   // because the bash wrapper has one knob and there's no operator scenario justifying
   // per-kind values.
@@ -123,7 +137,7 @@ export interface BatchingConfig {
   // "buildkite" emits `.ci/scripts/run-gradle.sh ...` (the BK-agent wrapper that
   // copies init.gradle, computes MAX_WORKERS, reads ldd version, etc. — Linux-only).
   // "local" emits `./gradlew ...` directly, suitable for a developer laptop.
-  // The `.ci/scripts/repeat-rest-test.sh` wrapper is portable bash and is used
+  // The `runners/repeat-rest-test.sh` wrapper is portable bash and is used
   // for both targets.
   target: "buildkite" | "local";
 }

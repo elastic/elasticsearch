@@ -11,6 +11,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
@@ -383,7 +384,19 @@ public final class StringUtils {
         return value;
     }
 
+    // Bounds the numeric string length before parsing, whose cost grows with the digit count.
+    private static void checkNumericStringLength(String string) {
+        if (string.length() > Numbers.MAX_NUMERIC_STRING_LENGTH) {
+            throw new InvalidArgumentException(
+                "Numeric value length [{}] exceeds the maximum of [{}]",
+                string.length(),
+                Numbers.MAX_NUMERIC_STRING_LENGTH
+            );
+        }
+    }
+
     public static long parseLong(String string) throws InvalidArgumentException {
+        checkNumericStringLength(string);
         try {
             return Long.parseLong(string);
         } catch (NumberFormatException nfe) {
@@ -402,6 +415,7 @@ public final class StringUtils {
     }
 
     public static Number parseIntegral(String string) throws InvalidArgumentException {
+        checkNumericStringLength(string);
         BigInteger bi;
         try {
             bi = new BigInteger(string);

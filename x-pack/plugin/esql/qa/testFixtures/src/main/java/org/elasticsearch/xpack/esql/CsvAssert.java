@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Types;
@@ -274,8 +275,9 @@ public final class CsvAssert {
                     }
                     return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 } else if (value instanceof String s) {
-                    if ("NaN".equals(s)) {
-                        return Double.NaN;
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
                     }
                     return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
                 }
@@ -286,8 +288,11 @@ public final class CsvAssert {
                 }
             }
             if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
+                if (value instanceof String s) {
+                    Double nonFinite = nonFiniteDouble(s);
+                    if (nonFinite != null) {
+                        return nonFinite;
+                    }
                 }
                 return ((Number) value).doubleValue();
             }
@@ -298,6 +303,19 @@ public final class CsvAssert {
                 return ((Number) value).longValue();
             }
             return value.toString();
+        }
+
+        /**
+         * JSON has no representation for non-finite doubles, so REST responses serialize them as the
+         * strings {@code "NaN"}, {@code "Infinity"} and {@code "-Infinity"}; map those back to doubles.
+         */
+        private static Double nonFiniteDouble(String s) {
+            return switch (s) {
+                case "NaN" -> Double.NaN;
+                case "Infinity" -> Double.POSITIVE_INFINITY;
+                case "-Infinity" -> Double.NEGATIVE_INFINITY;
+                default -> null;
+            };
         }
 
         private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
@@ -601,6 +619,11 @@ public final class CsvAssert {
                 expectedValue,
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
+            );
+            case DOUBLE_RANGE -> rebuildExpected(
+                expectedValue,
+                DoubleRangeBlockBuilder.DoubleRange.class,
+                x -> EsqlDataTypeConverter.doubleRangeToString((DoubleRangeBlockBuilder.DoubleRange) x)
             );
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
                 DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;

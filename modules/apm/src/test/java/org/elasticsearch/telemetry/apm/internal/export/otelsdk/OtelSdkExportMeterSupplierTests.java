@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
@@ -25,27 +27,24 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
-import static org.hamcrest.Matchers.containsString;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportMeterSupplierTests extends ESTestCase {
 
-    public void testGetWithoutEndpointThrows() {
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).get()
-        );
-        assertThat(e.getMessage(), containsString(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY));
-        assertThat(e.getMessage(), containsString("telemetry.export.endpoint"));
+    public void testMissingEndpointReturnsNoopInsteadOfThrowing() {
+        assertThat(new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider(), is(MeterProvider.noop()));
     }
 
-    public void testGetWithEmptyEndpointThrows() {
+    public void testEmptyEndpointReturnsNoopInsteadOfThrowing() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "").build();
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(settings, null).get());
+        assertThat(new OtelSdkExportMeterSupplier(settings, null).getMeterProvider(), is(MeterProvider.noop()));
     }
 
     public void testBuildOtlpAuthorizationHeaderWithNeitherCredential() {
@@ -72,10 +71,6 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         secureSettings.setString("telemetry.api_key", "xyz");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         assertThat(OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings), equalTo("ApiKey xyz"));
-    }
-
-    public void testGetMeterProviderWithoutEndpointThrows() {
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider());
     }
 
     public void testGetMeterProviderAfterGetReturnsSdkProvider() {
@@ -132,6 +127,33 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
             );
         }
         meterSupplier.close();
+    }
+
+    public void testDisabledMetricViewsDropMatchingInstrumentsAndSkipCallbacks() {
+        InMemoryMetricReader reader = InMemoryMetricReader.create();
+        Settings settings = Settings.builder().putList(OtelSdkSettings.TELEMETRY_METRICS_DISABLED.getKey(), "es.test.dropped.*").build();
+        var builder = SdkMeterProvider.builder().registerMetricReader(reader);
+        OtelSdkExportMeterSupplier.registerDisabledMetricViews(builder, settings);
+
+        AtomicBoolean droppedCallbackRan = new AtomicBoolean(false);
+        AtomicBoolean keptCallbackRan = new AtomicBoolean(false);
+        try (SdkMeterProvider provider = builder.build()) {
+            Meter meter = provider.get("elasticsearch");
+            meter.gaugeBuilder("es.test.dropped.value").buildWithCallback(m -> {
+                droppedCallbackRan.set(true);
+                m.record(1.0);
+            });
+            meter.gaugeBuilder("es.test.kept.value").buildWithCallback(m -> {
+                keptCallbackRan.set(true);
+                m.record(2.0);
+            });
+
+            var names = reader.collectAllMetrics().stream().map(MetricData::getName).toList();
+            assertThat(names, hasItem("es.test.kept.value"));
+            assertThat(names, not(hasItem("es.test.dropped.value")));
+            assertTrue("kept instrument callback should run", keptCallbackRan.get());
+            assertFalse("dropped instrument callback must be skipped", droppedCallbackRan.get());
+        }
     }
 
     public void testExportIntervalGaugeReportsConfiguredInterval() {

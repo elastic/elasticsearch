@@ -2148,14 +2148,14 @@ public class MasterServiceTests extends ESTestCase {
         meterRegistry.getRecorder().resetCalls();
         meterRegistry.getRecorder().collect();
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, pendingTasksMetricName(metricName)),
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, pendingTasksMetricName(metricName)),
             measures(expectedValue)
         );
         for (final var priority : Priority.values()) {
             assertThat(
                 priority.toString(),
                 meterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
+                    .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
                 measures(expectedValuePerPriority.applyAsLong(priority))
             );
         }

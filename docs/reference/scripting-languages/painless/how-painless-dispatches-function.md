@@ -29,12 +29,10 @@ flowchart TD
     B --> C[Name: method 'foo']
     C --> D[Arity: 2 parameters]
     D --> E[Execute method]
-    
-    style A fill:#0A52B3,color:#fff
-    style B fill:#F5F7FA,stroke:#101C3F,color:#101C3F
-    style C fill:#F5F7FA,stroke:#101C3F,color:#101C3F
-    style D fill:#F5F7FA,stroke:#101C3F,color:#101C3F
-    style E fill:#02BCB7,color:#fff
+
+    class A highlight
+    class B,C,D plain
+    class E success
 ```
 
 ## Why method dispatch matters

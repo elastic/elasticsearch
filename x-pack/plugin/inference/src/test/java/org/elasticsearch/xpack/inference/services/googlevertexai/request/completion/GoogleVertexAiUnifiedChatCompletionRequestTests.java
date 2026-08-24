@@ -57,7 +57,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
                     "max_tokens",
                     1024,
                     "messages",
-                    List.of(Map.of("role", "user", "content", "Hello Gemini!")),
+                    List.of(Map.of("role", "user", "content", List.of(Map.of("type", "text", "text", "Hello Gemini!")))),
                     "anthropic_version",
                     "vertex-2023-10-16"
                 )

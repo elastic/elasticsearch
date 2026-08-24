@@ -1432,6 +1432,317 @@ s:long                                                           | cd:long
 [0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]  | 0
 ;
 
+///////////////////////////////////////////////////////////////////////////////
+// One test per aggregation function over a nullified (unmapped) field.
+///////////////////////////////////////////////////////////////////////////////
+
+statsNullifiedAbsent
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS a = ABSENT(foo)
+;
+
+a:boolean
+true
+;
+
+statsNullifiedAvg
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS a = AVG(foo)
+;
+
+a:double
+null
+;
+
+statsNullifiedCount
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS c = COUNT(foo)
+;
+
+c:long
+0
+;
+
+statsNullifiedCountDistinct
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS c = COUNT_DISTINCT(foo)
+;
+
+c:long
+0
+;
+
+statsNullifiedFirst
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: fn_first
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS f = FIRST(foo, hire_date)
+;
+
+f:null
+null
+;
+
+statsNullifiedLast
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: fn_last
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS l = LAST(foo, hire_date)
+;
+
+l:null
+null
+;
+
+statsNullifiedMax
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS mx = MAX(foo)
+;
+
+mx:null
+null
+;
+
+statsNullifiedMedian
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS m = MEDIAN(foo)
+;
+
+m:double
+null
+;
+
+statsNullifiedMedianAbsoluteDeviation
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS m = MEDIAN_ABSOLUTE_DEVIATION(foo)
+;
+
+m:double
+null
+;
+
+statsNullifiedMin
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS mn = MIN(foo)
+;
+
+mn:null
+null
+;
+
+statsNullifiedPercentile
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS p = PERCENTILE(foo, 50)
+;
+
+p:double
+null
+;
+
+statsNullifiedPercentileGrouped
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS p = PERCENTILE(does_not_exist, 50) BY language_code
+| SORT language_code
+;
+
+p:double | language_code:integer
+null     | 1
+null     | 2
+null     | 3
+null     | 4
+;
+
+statsNullifiedPresent
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS p = PRESENT(foo)
+;
+
+p:boolean
+false
+;
+
+statsNullifiedSample
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS s = SAMPLE(foo, 3)
+;
+
+s:null
+null
+;
+
+statsNullifiedStdDev
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS s = STD_DEV(foo)
+;
+
+s:double
+null
+;
+
+statsNullifiedSum
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: fix_sum_of_null_optimization
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS s = SUM(foo)
+;
+
+s:null
+null
+;
+
+statsNullifiedTop
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS t = TOP(foo, 3, "asc")
+;
+
+t:null
+null
+;
+
+statsNullifiedTopSortField
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS t = TOP(foo, 3, "asc", salary)
+;
+
+t:integer
+null
+;
+
+statsNullifiedValues
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS v = VALUES(foo)
+;
+
+v:null
+null
+;
+
+statsNullifiedVariance
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS v = VARIANCE(foo)
+;
+
+v:double
+null
+;
+
+statsNullifiedWeightedAvg
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS w = WEIGHTED_AVG(foo, salary)
+;
+
+w:double
+null
+;
+
+statsNullifiedSpatialCentroid
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+required_capability: st_centroid_agg_shapes
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS c = ST_CENTROID_AGG(foo)
+;
+
+c:cartesian_point
+null
+;
+
+statsNullifiedSpatialExtent
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS e = ST_EXTENT_AGG(foo)
+;
+
+e:cartesian_shape
+null
+;
+
 dropNonMatchingPatternIsNoop
 required_capability: optional_fields_nullify_tech_preview
 required_capability: optional_fields_drop_non_matching_pattern_noop

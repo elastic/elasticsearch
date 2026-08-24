@@ -191,7 +191,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(expectedSettingsChangeInClusterState.get(), equalTo(true)));
         assertThat(shardsUnassigned.get(), equalTo(true));
 
-        assertBusy(() -> assertThat(hasUnassignedShards(clusterService.state(), indexName), equalTo(false)));
+        awaitClusterState(state -> hasUnassignedShards(state, indexName) == false);
 
         success.set(false);
         expectedSettingsChangeInClusterState.set(false);

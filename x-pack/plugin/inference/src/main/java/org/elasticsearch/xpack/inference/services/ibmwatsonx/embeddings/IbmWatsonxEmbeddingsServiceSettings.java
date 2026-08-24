@@ -7,19 +7,22 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -27,79 +30,52 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
+import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
-public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
-    implements
-        ServiceSettings,
-        IbmWatsonxRateLimitServiceSettings {
+/**
+ * Settings for the IBM watsonx embeddings service. Extends {@link IbmWatsonxServiceSettings} and adds the embeddings-specific
+ * fields: max input tokens, dimensions, and similarity measure.
+ */
+public class IbmWatsonxEmbeddingsServiceSettings extends IbmWatsonxServiceSettings {
 
     public static final String NAME = "ibmwatsonx_embeddings_service_settings";
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
     /**
-     * Rate limits are defined at
-     * <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans</a>.
-     * For the Lite plan, the limit is 120 requests per minute.
+     * Creates an {@link ObjectParser} for the IBM watsonx embeddings service settings.
+     *
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     * @return the parser
      */
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
-
-    public static IbmWatsonxEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var url = extractUri(map, URL, validationException);
-        String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        var maxInputTokens = extractOptionalPositiveInteger(
-            map,
-            MAX_INPUT_TOKENS,
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
-            validationException
+            ignoreUnknownFields,
+            Builder::new
         );
-        var similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxEmbeddingsServiceSettings(
-            model,
-            projectId,
-            url,
-            apiVersion,
-            maxInputTokens,
-            dimensions,
-            similarityMeasure,
-            rateLimitSettings
-        );
+        IbmWatsonxServiceSettings.declareCommonFields(parser);
+        parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
+        return parser;
     }
 
-    private final String modelId;
-
-    private final String projectId;
-
-    private final URI url;
-
-    private final String apiVersion;
-
-    private final RateLimitSettings rateLimitSettings;
-
-    private final Integer dimensions;
+    public static IbmWatsonxEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return IbmWatsonxServiceSettings.fromMap(map, context, parser);
+    }
 
     private final Integer maxInputTokens;
-
+    private final Integer dimensions;
     private final SimilarityMeasure similarity;
 
     public IbmWatsonxEmbeddingsServiceSettings(
@@ -112,47 +88,44 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.modelId = modelId;
-        this.projectId = projectId;
-        this.url = uri;
-        this.apiVersion = apiVersion;
+        super(uri, apiVersion, modelId, projectId, rateLimitSettings);
         this.maxInputTokens = maxInputTokens;
         this.dimensions = dimensions;
         this.similarity = similarity;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
+    /**
+     * Constructs a new IbmWatsonxEmbeddingsServiceSettings from a StreamInput. The fields are read in the historical order
+     * (model_id, project_id, url, api_version, max_input_tokens, dimensions, similarity, rate_limit); this constructor delegates to the
+     * in-memory constructor relying on Java's left-to-right argument evaluation to preserve that order.
+     */
     public IbmWatsonxEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.projectId = in.readString();
-        this.url = createUri(in.readString());
-        this.apiVersion = in.readString();
-        this.maxInputTokens = in.readOptionalVInt();
-        this.dimensions = in.readOptionalVInt();
-        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        this.rateLimitSettings = new RateLimitSettings(in);
+        this(
+            in.readString(),
+            in.readString(),
+            createUri(in.readString()),
+            in.readString(),
+            in.readOptionalVInt(),
+            in.readOptionalVInt(),
+            in.readOptionalEnum(SimilarityMeasure.class),
+            new RateLimitSettings(in)
+        );
     }
 
     @Override
-    public String modelId() {
-        return modelId;
+    public IbmWatsonxEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse IBM watsonx embeddings service settings update", e);
+        }
     }
 
-    public String projectId() {
-        return projectId;
-    }
-
+    /**
+     * Alias for {@link #uri()} preserved so existing callers using the {@code url} terminology continue to compile.
+     */
     public URI url() {
-        return url;
-    }
-
-    public String apiVersion() {
-        return apiVersion;
-    }
-
-    @Override
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+        return uri();
     }
 
     public Integer maxInputTokens() {
@@ -175,108 +148,128 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        toXContentFragmentOfExposedFields(builder, params);
-
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeString(projectId);
-        out.writeString(url.toString());
-        out.writeString(apiVersion);
+        out.writeString(modelId());
+        out.writeString(projectId());
+        out.writeString(uri().toString());
+        out.writeString(apiVersion());
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(similarity);
-        rateLimitSettings.writeTo(out);
-    }
-
-    @Override
-    public IbmWatsonxEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedMaxInputTokens = extractOptionalPositiveInteger(
-            serviceSettings,
-            MAX_INPUT_TOKENS,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxEmbeddingsServiceSettings(
-            this.modelId,
-            this.projectId,
-            this.url,
-            this.apiVersion,
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
-            this.dimensions,
-            this.similarity,
-            extractedRateLimitSettings
-        );
+        rateLimitSettings().writeTo(out);
     }
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MODEL_ID, modelId);
-        builder.field(PROJECT_ID, projectId);
-        builder.field(URL, url.toString());
-        builder.field(API_VERSION, apiVersion);
-
+        super.toXContentFragmentOfExposedFields(builder, params);
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
         }
-
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
-        rateLimitSettings.toXContent(builder, params);
-
         return builder;
     }
 
     @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        IbmWatsonxEmbeddingsServiceSettings that = (IbmWatsonxEmbeddingsServiceSettings) object;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(projectId, that.projectId)
-            && Objects.equals(url, that.url)
-            && Objects.equals(apiVersion, that.apiVersion)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (super.equals(o) == false) return false;
+        IbmWatsonxEmbeddingsServiceSettings that = (IbmWatsonxEmbeddingsServiceSettings) o;
+        return Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, projectId, url, apiVersion, rateLimitSettings, dimensions, maxInputTokens, similarity);
+        return Objects.hash(super.hashCode(), maxInputTokens, dimensions, similarity);
+    }
+
+    /**
+     * Accumulates the embeddings-specific fields on top of the common IBM watsonx fields and builds an
+     * {@link IbmWatsonxEmbeddingsServiceSettings}, enforcing that {@code max_input_tokens} and {@code dimensions} are positive.
+     */
+    public static class Builder extends IbmWatsonxServiceSettings.Builder<IbmWatsonxEmbeddingsServiceSettings> {
+        private Integer maxInputTokens;
+        private Integer dimensions;
+        private SimilarityMeasure similarity;
+
+        public void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
+        }
+
+        public void setDimensions(Integer dimensions) {
+            validatePositiveInteger(dimensions, DIMENSIONS);
+            this.dimensions = dimensions;
+        }
+
+        public void setSimilarity(SimilarityMeasure similarity) {
+            this.similarity = similarity;
+        }
+
+        @Override
+        protected IbmWatsonxEmbeddingsServiceSettings build(
+            URI uri,
+            String apiVersion,
+            String modelId,
+            String projectId,
+            RateLimitSettings rateLimitSettings
+        ) {
+            return new IbmWatsonxEmbeddingsServiceSettings(
+                modelId,
+                projectId,
+                uri,
+                apiVersion,
+                maxInputTokens,
+                dimensions,
+                similarity,
+                rateLimitSettings
+            );
+        }
+    }
+
+    /**
+     * Parses an update request, which may only contain the mutable {@code max_input_tokens} and {@code rate_limit} fields. Including any
+     * immutable field (such as {@code url}, {@code api_version}, {@code model_id}, {@code project_id}, {@code dimensions}, or
+     * {@code similarity}) causes the strict parser to reject the request.
+     */
+    private static class Update extends IbmWatsonxServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            IbmWatsonxServiceSettings.declareCommonUpdatableFields(PARSER);
+            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+                Integer value = p.intValue();
+                validatePositiveInteger(value, MAX_INPUT_TOKENS);
+                return value;
+            }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+        }
+
+        private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();
+
+        public IbmWatsonxEmbeddingsServiceSettings mergeInto(IbmWatsonxEmbeddingsServiceSettings existing) {
+            var updatedMaxInputTokens = applyUpdate(this.maxInputTokens, existing.maxInputTokens());
+            return new IbmWatsonxEmbeddingsServiceSettings(
+                existing.modelId(),
+                existing.projectId(),
+                existing.uri(),
+                existing.apiVersion(),
+                updatedMaxInputTokens,
+                existing.dimensions(),
+                existing.similarity(),
+                mergedRateLimitSettings(existing)
+            );
+        }
     }
 }

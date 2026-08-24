@@ -9,10 +9,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.column.Column;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,10 +27,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -692,10 +702,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(modified), reader -> {
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             for (LeafReaderContext leaf : reader.leaves()) {
                 int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
                 LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
                 sfLoader.advanceTo(0);
                 Source source = sourceLeaf.source(sfLoader, 0);
@@ -740,11 +750,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
             // The nested source loader builds a parent bitset, which needs a shard-wrapped reader (as in production).
             DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             LeafReaderContext leaf = reader.leaves().get(0);
             int rootDocId = parsed.docs().size() - 1;
             int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
             LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
             sfLoader.advanceTo(rootDocId);
             Source source = sourceLeaf.source(sfLoader, rootDocId);
@@ -785,11 +795,11 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(parsed.docs()), unwrapped -> {
             DirectoryReader reader = wrapInMockESDirectoryReader(unwrapped);
-            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
             LeafReaderContext leaf = reader.leaves().get(0);
             int rootDocId = parsed.docs().size() - 1;
             int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+            SourceLoader.Leaf sourceLeaf = loader.leaf(leaf, docIds);
             LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
             sfLoader.advanceTo(rootDocId);
             Source source = sourceLeaf.source(sfLoader, rootDocId);
@@ -1241,5 +1251,54 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             );
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
+    }
+
+    public void testColumnarParseRegistersRecoverySourceSizeColumnForSyntheticRecovery() throws Exception {
+        // Synthetic source mode: stored() == false, and recovery source uses a size estimate column
+        Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
+        MapperService mapperService = createMapperService(settings.build(), mapping(b -> {}));
+        SourceFieldMapper mapper = (SourceFieldMapper) mapperService.documentMapper().mappers().getMapper(SourceFieldMapper.NAME);
+        assertNotNull(mapper);
+        assertTrue(
+            "supportsColumnarParse must be true for synthetic source + synthetic recovery",
+            mapper.supportsColumnarParse(mapperService.getIndexSettings())
+        );
+
+        byte[] doc1Source = "{\"field\":\"value\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] doc2Source = "{\"field\":\"longer_value\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        IndexRequest[] requests = new IndexRequest[] {
+            new IndexRequest("index").id("1").source(new BytesArray(doc1Source), XContentType.JSON),
+            new IndexRequest("index").id("2").source(new BytesArray(doc2Source), XContentType.JSON) };
+        IndexOperationBatch batch = EngineTestCase.initFromRequests(requests);
+        BatchMappingContext context = new BatchMappingContext(
+            batch,
+            mapperService.mappingLookup(),
+            mapperService.getIndexSettings(),
+            BytesRefRecycler.NON_RECYCLING_INSTANCE
+        );
+
+        mapper.preColumnarParse(context);
+
+        final MappedColumns mappedColumns = context.columns();
+        Column sizeColumn = null;
+        for (Column column : mappedColumns.toColumnBatch().columns()) {
+            if (column.name().equals(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)) {
+                sizeColumn = column;
+            }
+        }
+        assertNotNull("expected a _recovery_source_size column", sizeColumn);
+        assertEquals("doc values type must be NUMERIC", DocValuesType.NUMERIC, sizeColumn.fieldType().docValuesType());
+        assertEquals("must have no inverted index", IndexOptions.NONE, sizeColumn.fieldType().indexOptions());
+        assertFalse("must not be stored", sizeColumn.fieldType().stored());
+
+        LongColumn longColumn = (LongColumn) sizeColumn;
+        var cursor = longColumn.tuples();
+        assertEquals(0, cursor.nextDoc());
+        assertTrue("size estimate for doc1 must be positive", cursor.longValue() > 0);
+        assertEquals(1, cursor.nextDoc());
+        assertTrue("size estimate for doc2 must be positive", cursor.longValue() > 0);
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, cursor.nextDoc());
     }
 }

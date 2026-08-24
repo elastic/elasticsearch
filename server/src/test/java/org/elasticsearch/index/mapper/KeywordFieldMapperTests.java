@@ -167,6 +167,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                             public TokenStream create(TokenStream tokenStream) {
                                 return new LowerCaseFilter(tokenStream);
                             }
+
+                            @Override
+                            public Object sharingKey() {
+                                return this;
+                            }
                         } }
                     )
                 )
@@ -711,6 +716,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         String expected = """
             {"field":{"type":"keyword","normalizer":"other_lowercase","normalizer_skip_store_original_value":true}}""";
         assertThat(keywordMapper.toString(), equalTo(expected));
+    }
+
+    /**
+     * normalizer → FALLBACK synthetic source mode. When ignore_above also fires (Malformed result),
+     * FallbackPostMapper must commit the pre-capture so synthetic source can reconstruct the original value.
+     */
+    public void testNormalizerSyntheticSourceIgnoreAboveCommitsPrecapture() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .field("normalizer", "lowercase")
+                    .field("normalizer_skip_store_original_value", false)
+                    .field("ignore_above", 5)
+            )
+        );
+        assertEquals("{\"field\":\"AbCDef\"}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "AbCDef")));
     }
 
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {

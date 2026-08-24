@@ -119,6 +119,7 @@ public class TransportService extends AbstractLifecycleComponent
     private final boolean remoteClusterClient;
     private final Transport.ResponseHandlers responseHandlers;
     private final TransportInterceptor interceptor;
+    private final TransportMessageListener[] delegatedMessageListeners;
 
     private final PendingDirectHandlers pendingDirectHandlers = new PendingDirectHandlers();
 
@@ -283,8 +284,17 @@ public class TransportService extends AbstractLifecycleComponent
             new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
             TelemetryProvider.NOOP,
             CrossProjectModeDecider.NOOP,
-            DefaultProjectResolver.INSTANCE
+            DefaultProjectResolver.INSTANCE,
+            List.of()
         );
+    }
+
+    private static TransportMessageListener[] createDelegatedMessageListeners(
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
+    ) {
+        return transportMessageListenerProviders.stream()
+            .flatMap(provider -> provider.create().stream())
+            .toArray(TransportMessageListener[]::new);
     }
 
     @SuppressWarnings("this-escape")
@@ -300,7 +310,8 @@ public class TransportService extends AbstractLifecycleComponent
         LinkedProjectConfigService linkedProjectConfigService,
         TelemetryProvider telemetryProvider,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        List<? extends TransportMessageListener.Provider> transportMessageListenerProviders
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
@@ -312,6 +323,7 @@ public class TransportService extends AbstractLifecycleComponent
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         this.taskManager = taskManger;
         this.interceptor = transportInterceptor;
+        this.delegatedMessageListeners = createDelegatedMessageListeners(transportMessageListenerProviders);
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
@@ -1399,6 +1411,9 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);
         }
+        for (TransportMessageListener listener : delegatedMessageListeners) {
+            listener.onRequestReceived(requestId, action);
+        }
     }
 
     /**
@@ -1415,15 +1430,21 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
         }
+        for (TransportMessageListener listener : delegatedMessageListeners) {
+            listener.onRequestSent(node, requestId, action, request, options);
+        }
     }
 
     @Override
     @SuppressWarnings("rawtypes")
-    public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+    public void onResponseReceived(long requestId, Transport.ResponseContext holder, int networkMessageSize) {
         if (holder == null) {
             checkForTimeout(requestId);
         } else if (tracerLog.isTraceEnabled() && shouldTraceAction(holder.action())) {
             tracerLog.trace("[{}][{}] received response from [{}]", requestId, holder.action(), holder.connection().getNode());
+        }
+        for (TransportMessageListener listener : delegatedMessageListeners) {
+            listener.onResponseReceived(requestId, holder, networkMessageSize);
         }
     }
 
@@ -1435,6 +1456,9 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
+        for (TransportMessageListener listener : delegatedMessageListeners) {
+            listener.onResponseSent(requestId, action);
+        }
     }
 
     /**
@@ -1444,6 +1468,9 @@ public class TransportService extends AbstractLifecycleComponent
     public void onResponseSent(long requestId, String action, Exception e) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace(() -> format("[%s][%s] sent error response", requestId, action), e);
+        }
+        for (TransportMessageListener listener : delegatedMessageListeners) {
+            listener.onResponseSent(requestId, action, e);
         }
     }
 
@@ -1692,7 +1719,7 @@ public class TransportService extends AbstractLifecycleComponent
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
                     return;
                 }
-                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service, -1);
                 if (handler == null) {
                     // handler already completed, likely by a timeout which is logged elsewhere
                     return;
@@ -1739,7 +1766,7 @@ public class TransportService extends AbstractLifecycleComponent
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
                     return;
                 }
-                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service);
+                final TransportResponseHandler<?> handler = service.responseHandlers.onResponseReceived(requestId, service, -1);
                 if (handler == null) {
                     // handler already completed, likely by a timeout which is logged elsewhere
                     return;

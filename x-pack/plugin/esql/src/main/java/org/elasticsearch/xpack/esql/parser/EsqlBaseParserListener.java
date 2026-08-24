@@ -951,6 +951,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#denseVectorCommand}.
+   * @param ctx the parse tree
+   */
+  void enterDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#denseVectorCommand}.
+   * @param ctx the parse tree
+   */
+  void exitDenseVectorCommand(EsqlBaseParser.DenseVectorCommandContext ctx);
+  /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree
@@ -986,6 +996,18 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitBooleanDefault(EsqlBaseParser.BooleanDefaultContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code logicalInMultiColumnSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void enterLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code logicalInMultiColumnSubquery}
+   * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
+   * @param ctx the parse tree
+   */
+  void exitLogicalInMultiColumnSubquery(EsqlBaseParser.LogicalInMultiColumnSubqueryContext ctx);
   /**
    * Enter a parse tree produced by the {@code isNull}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
@@ -1244,6 +1266,26 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#functionParam}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionParam(EsqlBaseParser.FunctionParamContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#functionParam}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionParam(EsqlBaseParser.FunctionParamContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lambda}.
+   * @param ctx the parse tree
+   */
+  void enterLambda(EsqlBaseParser.LambdaContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lambda}.
+   * @param ctx the parse tree
+   */
+  void exitLambda(EsqlBaseParser.LambdaContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#mapExpression}.
    * @param ctx the parse tree

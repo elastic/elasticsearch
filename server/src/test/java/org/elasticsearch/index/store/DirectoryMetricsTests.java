@@ -271,6 +271,22 @@ public class DirectoryMetricsTests extends ESTestCase {
         }
     }
 
+    public static <M extends DirectoryMetrics.PluggableMetrics<M>> DirectoryMetrics.Capture metricsCapture(
+        String name,
+        Supplier<M> instanceSupplier
+    ) {
+        return () -> {
+            DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+            builder.add(name, instanceSupplier.get());
+            return builder.build().delta();
+        };
+    }
+
+    public static long storeBytesRead(DirectoryMetrics metrics) {
+        var metric = metrics.metrics(StoreMetrics.NAME);
+        return metric == null ? 0L : metric.cast(StoreMetrics.class).getBytesRead();
+    }
+
     private static DirectoryMetrics resolveDelta(Supplier<DirectoryMetrics> delta, StoreMetrics storeMetrics, long workerBytesRead) {
         storeMetrics.addBytesRead(workerBytesRead);
         return delta.get();

@@ -65,6 +65,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_ALLOC_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.MAX_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
@@ -437,6 +438,33 @@ public final class MethodWriter extends GeneratorAdapter {
         invokeDynamic(name, methodType.getDescriptor(), DEF_BOOTSTRAP_HANDLE, args);
     }
 
+    /**
+     * Writes a dynamic call for a method reference with a {@code def} receiver, resolved by {@link DefBootstrap#REFERENCE}.
+     * <p>
+     * A charging reference has pushed the script after the receiver, so the call site takes a trailing {@link WriterConstants#CLASS_TYPE}
+     * parameter and passes the charge flag as an extra bootstrap argument. Both are omitted when not charging, which is what keeps
+     * call sites byte-for-byte identical while allocation tracking is disabled.
+     *
+     * @param name method name
+     * @param interfaceType the functional interface the reference produces
+     * @param receiverType the captured receiver
+     * @param interfaceCanonicalTypeName canonical type name of the functional interface, resolved at runtime
+     * @param chargesAllocation whether the runtime-resolved target is charged per invocation
+     */
+    public void invokeDefReferenceCall(
+        String name,
+        Type interfaceType,
+        Type receiverType,
+        String interfaceCanonicalTypeName,
+        boolean chargesAllocation
+    ) {
+        Type methodType = chargesAllocation
+            ? Type.getMethodType(interfaceType, receiverType, CLASS_TYPE)
+            : Type.getMethodType(interfaceType, receiverType);
+        Object[] params = chargesAllocation ? new Object[] { interfaceCanonicalTypeName, 1 } : new Object[] { interfaceCanonicalTypeName };
+        invokeDefCall(name, methodType, DefBootstrap.REFERENCE, params);
+    }
+
     public void invokeMethodCall(PainlessMethod painlessMethod) {
         Type type = Type.getType(painlessMethod.javaMethod().getDeclaringClass());
         Method method = Method.getMethod(painlessMethod.javaMethod());
@@ -465,16 +493,38 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeLambdaCall(FunctionRef functionRef) {
-        Object[] args = new Object[7 + functionRef.delegateInjections.length];
-        args[0] = Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString());
-        args[1] = functionRef.delegateClassName;
-        args[2] = functionRef.delegateInvokeType;
-        args[3] = functionRef.delegateMethodName;
-        args[4] = Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString());
-        args[5] = functionRef.isDelegateInterface ? 1 : 0;
-        args[6] = functionRef.isDelegateAugmented ? 1 : 0;
-        System.arraycopy(functionRef.delegateInjections, 0, args, 7, functionRef.delegateInjections.length);
+        // A charging reference threads four extra static args (script capture index + estimator owner/name/descriptor) so the
+        // generated lambda charges per invocation. Typed references capture the script first, so the index is 0.
+        boolean chargesAllocation = functionRef.chargesAllocation;
 
-        invokeDynamic(functionRef.interfaceMethodName, functionRef.getFactoryMethodDescriptor(), LAMBDA_BOOTSTRAP_HANDLE, args);
+        int size = 7 + functionRef.delegateInjections.length;
+        if (chargesAllocation) {
+            size += 4;
+        }
+
+        Object[] args = new Object[size];
+        int i = 0;
+        args[i++] = Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString());
+        args[i++] = functionRef.delegateClassName;
+        args[i++] = functionRef.delegateInvokeType;
+        args[i++] = functionRef.delegateMethodName;
+        args[i++] = Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString());
+        args[i++] = functionRef.isDelegateInterface ? 1 : 0;
+        args[i++] = functionRef.isDelegateAugmented ? 1 : 0;
+        if (chargesAllocation) {
+            java.lang.reflect.Method estimator = functionRef.allocationEstimator;
+            args[i++] = 0;
+            args[i++] = Type.getInternalName(estimator.getDeclaringClass());
+            args[i++] = estimator.getName();
+            args[i++] = Method.getMethod(estimator).getDescriptor();
+        }
+        System.arraycopy(functionRef.delegateInjections, 0, args, i, functionRef.delegateInjections.length);
+
+        invokeDynamic(
+            functionRef.interfaceMethodName,
+            functionRef.getFactoryMethodDescriptor(),
+            chargesAllocation ? LAMBDA_ALLOC_BOOTSTRAP_HANDLE : LAMBDA_BOOTSTRAP_HANDLE,
+            args
+        );
     }
 }

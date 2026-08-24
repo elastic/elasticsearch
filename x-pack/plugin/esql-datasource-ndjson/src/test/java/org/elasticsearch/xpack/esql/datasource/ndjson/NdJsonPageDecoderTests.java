@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -18,15 +20,17 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.datasources.CountingBreaker;
 import org.elasticsearch.xpack.esql.datasources.DeclaredSchemaValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -42,9 +46,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Targeted unit tests for {@link NdJsonPageDecoder}'s keyword-decode path. Sibling
- * {@link NdJsonPageIteratorTests} covers end-to-end correctness across types; these tests focus on
- * the reusable {@code keywordScratch} buffer introduced to remove per-field allocation churn.
+ * Targeted unit tests for {@link NdJsonPageDecoder}: keyword-scratch reuse, schema-shape conflicts,
+ * declared formats, and block-builder allocation sizing. Sibling {@link NdJsonPageIteratorTests}
+ * covers end-to-end correctness across types.
  */
 public class NdJsonPageDecoderTests extends ESTestCase {
 
@@ -303,8 +307,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     public void testScalarWhereNestedObjectExpectedStrictFails() {
         String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}}\n" + "{\"address\": \"unstructured\"}\n";
 
-        EsqlIllegalArgumentException ex = expectThrows(
-            EsqlIllegalArgumentException.class,
+        ParsingException ex = expectThrows(
+            ParsingException.class,
             () -> decodePage(
                 ndjson,
                 List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
@@ -655,7 +659,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals("the good cell still decodes", 5L, block.getLong(block.getFirstValueIndex(1)));
         }
         drainWarnings();
-        expectThrows(EsqlIllegalArgumentException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
+        expectThrows(ParsingException.class, () -> decodeOneColumn("{\"v\":-1}\n", DataType.DATE_NANOS, ErrorPolicy.STRICT));
     }
 
     /**
@@ -847,36 +851,601 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
+     * A coercion failure on any element of a declared-type array must null the whole position, not
+     * silently drop the bad element and keep the good ones as a partial multivalue. Matches the
+     * columnar reader contract (see {@code DeclaredTypeCoercionsTests.testMultiValuePositionNullsWholePositionOnFailure}).
+     * <p>
+     * Input: three rows — a clean multivalue, a poisoned multivalue (one bad element), and a second
+     * clean multivalue. Under {@code null_field} the poisoned position is null; both clean positions
+     * carry all their elements; one warning is emitted.
+     */
+    public void testArrayCoercionFailureNullsWholePositionUnderNullField() throws IOException {
+        String ndjson = "{\"v\":[10,20]}\n{\"v\":[10,\"notanumber\",30]}\n{\"v\":[40,50]}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://array-poison",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals(3, block.getPositionCount());
+
+            // first position: [10, 20]
+            assertFalse("first row is not null", block.isNull(0));
+            assertEquals(2, block.getValueCount(0));
+            int i0 = block.getFirstValueIndex(0);
+            assertEquals(10L, block.getLong(i0));
+            assertEquals(20L, block.getLong(i0 + 1));
+
+            // second position: poisoned by "notanumber" → whole position is null
+            assertTrue("poisoned array position is null", block.isNull(1));
+
+            // third position: [40, 50]
+            assertFalse("third row is not null", block.isNull(2));
+            assertEquals(2, block.getValueCount(2));
+            int i2 = block.getFirstValueIndex(2);
+            assertEquals(40L, block.getLong(i2));
+            assertEquals(50L, block.getLong(i2 + 1));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
+        assertEquals("one summary + one detail warning for the poisoned element", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("notanumber"));
+    }
+
+    /**
+     * Under {@code skip_row}, a coercion failure inside an array drops the entire record — matching
+     * the scalar coercion skip_row contract, and NOT just the poisoned position.
+     */
+    public void testArrayCoercionFailureSkipsRowUnderSkipRow() throws IOException {
+        String ndjson = "{\"v\":[10,20]}\n{\"v\":[10,\"notanumber\",30]}\n{\"v\":[40,50]}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://array-skip",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("poisoned row is dropped, two remain", 2, block.getPositionCount());
+
+            // first surviving row: [10, 20]
+            assertFalse(block.isNull(0));
+            assertEquals(2, block.getValueCount(0));
+            int i0 = block.getFirstValueIndex(0);
+            assertEquals(10L, block.getLong(i0));
+            assertEquals(20L, block.getLong(i0 + 1));
+
+            // second surviving row: [40, 50]
+            assertFalse(block.isNull(1));
+            assertEquals(2, block.getValueCount(1));
+            int i1 = block.getFirstValueIndex(1);
+            assertEquals(40L, block.getLong(i1));
+            assertEquals(50L, block.getLong(i1 + 1));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail — 2 messages total.
+        assertEquals("one summary + one detail warning for the dropped row", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("notanumber"));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // StreamReadConstraints violations. Jackson enforces its read limits in the TOKEN SCANNER, so
+    // these never reach a decode arm or the per-cell coercionFailure sink — they belong to the
+    // whole-line class routed through onNdjsonLineParseError. See that method's javadoc for why
+    // null_field drops the line here instead of nulling a cell.
+    // ---------------------------------------------------------------------------------------------
+
+    /** A JSON number token longer than {@code StreamReadConstraints.getMaxNumberLength()} (1000). */
+    private static String oversizedNumberRecord() {
+        return "{\"v\":" + "1".repeat(1200) + "}";
+    }
+
+    /** A field name longer than {@code getMaxNameLength()} (50000), on a field that is NOT projected. */
+    private static String oversizedFieldNameRecord() {
+        return "{\"" + "n".repeat(60_000) + "\":1,\"v\":5}";
+    }
+
+    /** Array nesting deeper than {@code getMaxNestingDepth()} (1000). */
+    private static String excessiveNestingRecord() {
+        int depth = 1100;
+        return "{\"v\":" + "[".repeat(depth) + "1" + "]".repeat(depth) + "}";
+    }
+
+    /**
+     * fail_fast: an oversized number token aborts the read through the whole-line contract every other
+     * whole-line failure uses, carrying Jackson's own limit text. Without the constraint arm the raw
+     * {@code StreamConstraintsException} escapes {@code decodePage} and is typed by
+     * {@code ExternalFailures.surface}, leaving {@code error_mode} no say on any mode. The
+     * {@code Over-limit} label distinguishes a record that is well-formed but past a parser limit from
+     * one that is genuinely malformed.
+     */
+    public void testOversizedNumberTokenFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+    }
+
+    /** null_field: the offending line is dropped (not null-filled) and both good lines survive. */
+    public void testOversizedNumberTokenDropsLineUnderNullField() throws IOException {
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.PERMISSIVE, "Number value length");
+    }
+
+    /** skip_row: identical outcome to null_field — the whole-line class cannot null a cell. */
+    public void testOversizedNumberTokenDropsLineUnderSkipRow() throws IOException {
+        assertConstraintViolationDropsLine(oversizedNumberRecord(), ErrorPolicy.LENIENT, "Number value length");
+    }
+
+    /**
+     * The name-length limit trips on a field the query never projected, so there is no cell to null even
+     * in principle — the case that rules a per-cell treatment out for this class.
+     */
+    public void testOversizedFieldNameDropsLineUnderNullField() throws IOException {
+        assertConstraintViolationDropsLine(oversizedFieldNameRecord(), ErrorPolicy.PERMISSIVE, "Name length");
+    }
+
+    /** The depth limit trips on structure rather than on any value; same whole-line outcome. */
+    public void testExcessiveNestingDropsLineUnderSkipRow() throws IOException {
+        assertConstraintViolationDropsLine(excessiveNestingRecord(), ErrorPolicy.LENIENT, "Document nesting depth");
+    }
+
+    /** fail_fast on a non-number limit, pinning that the routing is class-level rather than number-specific. */
+    public void testExcessiveNestingFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + excessiveNestingRecord() + "\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON"));
+        assertThat(e.getMessage(), Matchers.containsString("Document nesting depth"));
+    }
+
+    /**
+     * The scanner reaches the token before projection is consulted, so an over-long number in a column the
+     * query never asked for still takes the line. Worth pinning because the opposite is the intuitive guess:
+     * a user who does not project {@code other} would expect its contents not to matter at all.
+     */
+    public void testOversizedNumberInAnUnprojectedFieldDropsLine() throws IOException {
+        assertConstraintViolationDropsLine("{\"v\":5,\"other\":" + "1".repeat(1200) + "}", ErrorPolicy.LENIENT, "Number value length");
+    }
+
+    /** Same, for a token nested inside an array rather than sitting directly under a field. */
+    public void testOversizedNumberInsideAnArrayDropsLine() throws IOException {
+        assertConstraintViolationDropsLine("{\"v\":[9," + "1".repeat(1200) + "]}", ErrorPolicy.LENIENT, "Number value length");
+    }
+
+    /**
+     * A record can fail twice — a per-cell coercion failure, then a constraint violation raised while the rest
+     * of the record is drained — and must still cost the budget once. {@code max_errors} and
+     * {@code max_error_ratio} are documented in records ("maximum malformed rows"), and
+     * {@code coercionFailure} already enforces charge-once among per-cell failures; the whole-line sink has to
+     * honour the same invariant or a single bad line can exhaust a budget of two.
+     * <p>
+     * Both warnings are still emitted. Under {@code null_field} the coercion warning says the cell was nulled
+     * and the record kept, which the constraint violation then overrides by dropping the record whole — so
+     * suppressing the second would leave the client with a warning that no longer describes the outcome.
+     */
+    public void testARecordFailingBothPerCellAndWholeLineIsChargedOnce() throws IOException {
+        for (ErrorPolicy policy : List.of(ErrorPolicy.LENIENT, ErrorPolicy.PERMISSIVE)) {
+            String ndjson = "{\"v\":1}\n{\"v\":\"notanumber\",\"other\":" + "1".repeat(1200) + "}\n{\"v\":3}\n";
+            List<String> warnings = new ArrayList<>();
+            NdJsonReaderCounters counters = new NdJsonReaderCounters();
+            try (
+                NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                    new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of(attribute("v", DataType.LONG)),
+                    null,
+                    10,
+                    blockFactory,
+                    policy,
+                    "test://double-charge",
+                    counters,
+                    warnings::add
+                );
+                Page page = decoder.decodePage()
+            ) {
+                LongBlock block = page.getBlock(0);
+                assertEquals(policy.modeName() + ": the doubly-bad line is dropped", 2, block.getPositionCount());
+                assertEquals(1L, block.getLong(0));
+                assertEquals(3L, block.getLong(1));
+            }
+            assertEquals(policy.modeName() + ": one line, one charge", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * The charge-once flag is per record, not sticky across records. The second line here is a BARE token, so
+     * its violation is raised by the record-opening {@code nextToken} — which runs before the rest of the
+     * per-record state is cleared. Resetting the flag with that other state instead of ahead of the token read
+     * would let the first line's charge suppress the second's, and a file of consecutive bad lines would cost
+     * the budget once in total. Asserts only the charge count: what the parser does with the line after a bare
+     * record is a separate, pre-existing question ({@link #testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery}).
+     */
+    public void testConsecutiveFailingLinesAreEachCharged() throws IOException {
+        String ndjson = "{\"v\":\"notanumber\"}\n" + "1".repeat(1200) + "\n";
+        List<String> warnings = new ArrayList<>();
+        NdJsonReaderCounters counters = new NdJsonReaderCounters();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://consecutive",
+                counters,
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertTrue("both lines are bad, so nothing is committed", page == null || page.getPositionCount() == 0);
+        }
+        assertEquals("two distinct bad lines, two charges", 2L, counters.snapshot().parseErrors());
+    }
+
+    /**
+     * Demonstrates the type-independence the rest of this block argues structurally: the violation is raised
+     * while the token is scanned, before any {@code DataType} dispatch, so a keyword column loses the same
+     * line a numeric column does. If the routing ever regressed to a per-arm fix in the numeric decoders,
+     * this is the cell that would catch it.
+     */
+    public void testOversizedNumberDropsLineForAKeywordColumn() throws IOException {
+        String ndjson = "{\"v\":\"a\"}\n" + oversizedNumberRecord() + "\n{\"v\":\"b\"}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.KEYWORD, ErrorPolicy.LENIENT)) {
+            BytesRefBlock block = page.getBlock(0);
+            assertEquals("the offending line is dropped, not null-filled", 2, block.getPositionCount());
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("a"), BytesRef.deepCopyOf(block.getBytesRef(0, scratch)));
+            assertEquals(new BytesRef("b"), BytesRef.deepCopyOf(block.getBytesRef(1, scratch)));
+        }
+    }
+
+    /**
+     * Recovery on the byte-array path re-anchors by scanning for the next line terminator from the failed
+     * parser's byte offset. That offset lands inside the bad line for a constraint violation, so the record
+     * that follows it must still decode — a resync that skipped it would lose good data silently.
+     */
+    public void testConstraintViolationRecoversOnByteArrayPath() throws IOException {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                bytes,
+                0,
+                bytes.length,
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://constraint-bytes",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the bad line is dropped, both good lines survive", 2, block.getPositionCount());
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+        }
+        assertThat(warnings.get(1), Matchers.containsString("Number value length"));
+    }
+
+    /**
+     * The streaming path recovers through {@code NdJsonUtils.moveToNextLine} rather than by re-anchoring in a
+     * byte array. Two good lines follow the bad one so the assertion fails if recovery lands anywhere but the
+     * very next record.
+     */
+    public void testConstraintViolationRecoversOnStreamingPath() throws IOException {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n{\"v\":4}\n";
+        try (Page page = decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the bad line is dropped, all three good lines survive", 3, block.getPositionCount());
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+            assertEquals(4L, block.getLong(2));
+        }
+    }
+
+    /**
+     * A constraint violation is an ordinary member of the non-strict error budget, not a free pass: with
+     * {@code max_errors: 0} the first one trips the budget and fails the read.
+     */
+    public void testConstraintViolationCountsAgainstErrorBudget() {
+        String ndjson = "{\"v\":1}\n" + oversizedNumberRecord() + "\n{\"v\":3}\n";
+        ErrorPolicy noBudget = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false);
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, noBudget));
+        assertThat(e.getMessage(), Matchers.containsString("NDJSON error budget exceeded"));
+    }
+
+    /**
+     * Bad data is the client's, not ours, so every strict NDJSON read failure answers 400. This asserts the
+     * status directly rather than the exception type, because the status is the contract users actually see and
+     * the type is only how we carry it. Carrying any of these in the {@code QlServerException} family instead —
+     * which has no {@code status()} override and so answers 500 — would page someone over a malformed input file.
+     * The two genuine invariant failures in this class (missing lenient scratch builders) deliberately stay
+     * server-class and are not listed here.
+     */
+    public void testEveryStrictReadFailureIsAClientError() {
+        String oversized = "{\"v\":" + "1".repeat(1200) + "}\n";
+        String badValue = "{\"v\":\"notanumber\"}\n";
+        String shapeConflict = "{\"v\":1}\n{\"v\":{\"nested\":2}}\n";
+
+        assertEquals(
+            "whole-line parse failure",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "per-cell coercion failure",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(badValue, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "scalar-versus-object shape conflict",
+            RestStatus.BAD_REQUEST,
+            expectThrows(ParsingException.class, () -> decodeOneColumn(shapeConflict, DataType.LONG, ErrorPolicy.STRICT)).status()
+        );
+        assertEquals(
+            "error budget exhausted",
+            RestStatus.BAD_REQUEST,
+            expectThrows(
+                ParsingException.class,
+                () -> decodeOneColumn(oversized, DataType.LONG, new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 0, 0.0, false))
+            ).status()
+        );
+    }
+
+    /**
+     * The fail-fast loop guards two call sites: the {@code nextToken} that opens a record, and {@code
+     * decodeObject}. Every other strict test here lands on the second. A bare oversized token on its own line —
+     * no enclosing object — is scanned by the record-opening {@code nextToken}, so this is the only test that
+     * exercises the first. The {@code [nextToken]} phase label in the message is what proves which site ran; a
+     * violation routed through {@code decodeObject} would read {@code [decodeObject]} instead.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenFailsFastUnderStrict() {
+        String ndjson = "{\"v\":1}\n" + "1".repeat(1200) + "\n";
+        ParsingException e = expectThrows(ParsingException.class, () -> decodeOneColumn(ndjson, DataType.LONG, ErrorPolicy.STRICT));
+        assertThat(e.getMessage(), Matchers.containsString("Over-limit NDJSON at logical row [2] (nextToken)"));
+        assertThat(e.getMessage(), Matchers.containsString("Number value length"));
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
+    }
+
+    /**
+     * The limit is a cliff, and this pins which side of it does what. A number that overflows {@code long} but
+     * stays under {@code getMaxNumberLength()} is scanned successfully and fails per CELL — the row survives with
+     * that one column null. One digit past the limit the scanner never yields the token at all, so the whole line
+     * goes. Same column, same {@code error_mode}, two different outcomes; a reader hitting the second case should
+     * not be surprised into thinking the first case was in play.
+     */
+    public void testNumberLengthLimitIsTheBoundaryBetweenPerCellAndPerLine() throws IOException {
+        String underLimit = "9".repeat(999);
+        String overLimit = "9".repeat(1001);
+
+        try (Page page = decodeOneColumn("{\"v\":" + underLimit + "}\n{\"v\":7}\n", DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("under the limit the row survives with a null cell", 2, block.getPositionCount());
+            assertTrue("the over-long-but-scannable number nulls its cell", block.isNull(0));
+            assertEquals(7L, block.getLong(1));
+        }
+
+        try (Page page = decodeOneColumn("{\"v\":" + overLimit + "}\n{\"v\":7}\n", DataType.LONG, ErrorPolicy.PERMISSIVE)) {
+            LongBlock block = page.getBlock(0);
+            assertEquals("past the limit the whole line goes", 1, block.getPositionCount());
+            assertEquals(7L, block.getLong(0));
+        }
+    }
+
+    /**
+     * The decode loops catch the constraint violation at two sites: around {@code decodeObject}, and around the
+     * {@code nextToken} that opens a record. A bare oversized scalar on its own line — no enclosing object — trips
+     * the second one, which every other test here leaves unexercised.
+     * <p>
+     * Asserted differentially against a bare scalar that is perfectly VALID, because recovery from a bare
+     * (non-object) top-level record overshoots and swallows the line after it. That overshoot is pre-existing and
+     * has nothing to do with constraints — the valid scalar loses its successor identically — so this pins the two
+     * as equivalent rather than blessing the overshoot as correct (tracked as elastic/esql-planning#1731). A fix
+     * to bare-record recovery keeps this test passing so long as it corrects both arms; it fails only if one arm
+     * is fixed and the other is left behind, which is what the pairing is for.
+     */
+    public void testConstraintViolationOnRecordOpeningTokenMatchesBareScalarRecovery() throws IOException {
+        String oversized = "{\"v\":1}\n" + "1".repeat(1200) + "\n{\"v\":3}\n";
+        String validBareScalar = "{\"v\":1}\n12345\n{\"v\":3}\n";
+
+        try (
+            Page constraintPage = decodeOneColumn(oversized, DataType.LONG, ErrorPolicy.PERMISSIVE);
+            Page baselinePage = decodeOneColumn(validBareScalar, DataType.LONG, ErrorPolicy.PERMISSIVE)
+        ) {
+            LongBlock constraintBlock = constraintPage.getBlock(0);
+            LongBlock baselineBlock = baselinePage.getBlock(0);
+            assertEquals(
+                "an oversized bare token must recover exactly as a valid bare scalar does",
+                baselineBlock.getPositionCount(),
+                constraintBlock.getPositionCount()
+            );
+            assertEquals(1L, constraintBlock.getLong(0));
+        }
+    }
+
+    /**
+     * Shared body for the non-strict cases: one good line, the offending line, one good line. The offending
+     * line is dropped, both good lines decode, and the client sees SkipWarnings' summary plus a detail
+     * carrying Jackson's own limit text (the same passthrough {@code CsvFormatReader} does for its own
+     * constraint violation).
+     */
+    /**
+     * {@code expectedDetail} names the limit but deliberately omits the numbers Jackson interpolates into its
+     * message. Jackson formats them with the default locale, so under a locale with non-Western digits (the
+     * randomized runner picks one often enough — {@code -Dtests.locale=fa-IR} reproduces it) "1200" arrives as
+     * "\u06F1\u06F2\u06F0\u06F0" and a digit-bearing assertion fails for no real reason. The limit name alone still proves the
+     * passthrough this is checking.
+     */
+    private void assertConstraintViolationDropsLine(String badRecord, ErrorPolicy policy, String expectedDetail) throws IOException {
+        String ndjson = "{\"v\":1}\n" + badRecord + "\n{\"v\":3}\n";
+        List<String> warnings = new ArrayList<>();
+        NdJsonReaderCounters counters = new NdJsonReaderCounters();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                policy,
+                "test://constraint",
+                counters,
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock block = page.getBlock(0);
+            assertEquals("the offending line is dropped, not null-filled", 2, block.getPositionCount());
+            assertFalse("a dropped line must not leave a null position behind", block.isNull(0));
+            assertFalse("a dropped line must not leave a null position behind", block.isNull(1));
+            assertEquals(1L, block.getLong(0));
+            assertEquals(3L, block.getLong(1));
+        }
+        // SkipWarnings.add() emits a one-time summary header on the first call, then the detail.
+        assertEquals("one summary + one detail warning for the dropped line", 2, warnings.size());
+        assertThat(warnings.get(1), Matchers.containsString("Over-limit NDJSON"));
+        assertThat(warnings.get(1), Matchers.containsString(expectedDetail));
+        assertEquals("the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
+    }
+
+    /**
+     * A coercion failure inside a nested array (array of arrays flattened) must not let the poison
+     * escape past the inner END_ARRAY — otherwise the outer array's drain loop stops too early and
+     * sibling fields on the same record read the wrong tokens and come back null.
+     *
+     * <p>Input: {@code {"v":[[10,"notanumber"],30],"w":1}} under {@code null_field}.
+     * Expected: {@code v} is null (whole position cancelled), {@code w} is 1.
+     */
+    public void testNestedArrayPoisonDrainsToInnerEndArray() throws IOException {
+        String ndjson = "{\"v\":[[10,\"notanumber\"],30],\"w\":1}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://nested-array-poison",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            assertEquals(1, v.getPositionCount());
+            assertEquals(1, w.getPositionCount());
+            assertTrue("v is null because its nested array was poisoned", v.isNull(0));
+            assertFalse("w must not be null — sibling field after the poisoned array", w.isNull(0));
+            assertEquals(1L, w.getLong(w.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * Under {@code skip_row}, two poisoned arrays in the same record must not assert.
+     * The first array sets {@code rowDroppedBySkipRow = true}; the second array then re-enters
+     * {@code coercionFailure} with {@code rowDroppedBySkipRow} already set and {@code inArray = true}.
+     * Without the fix the early return exits without throwing {@code PoisonedPositionException}, so
+     * the array loop calls {@code endPositionEntry} with no values appended → {@code AssertionError}.
+     */
+    public void testSkipRowTwoPoisonedArraysNoAssert() throws IOException {
+        String ndjson = "{\"a\":[\"x\"],\"b\":[\"y\"]}\n{\"a\":[1],\"b\":[2]}\n";
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("a", DataType.LONG), attribute("b", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                "test://skip-row-two-arrays",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            LongBlock a = page.getBlock(0);
+            LongBlock b = page.getBlock(1);
+            assertEquals("only the clean second row survives", 1, a.getPositionCount());
+            assertEquals(1L, a.getLong(a.getFirstValueIndex(0)));
+            assertEquals(2L, b.getLong(b.getFirstValueIndex(0)));
+        }
+    }
+
+    /**
+     * One decodable JSON token per declarable type, so a test can sweep {@link DeclaredSchemaValidator#declarableTypes()}
+     * and fail loudly when a newly declarable type has no fixture rather than silently skipping it.
+     */
+    private static final Map<DataType, String> DECLARABLE_TOKEN = Map.of(
+        DataType.KEYWORD,
+        "\"abc\"",
+        DataType.TEXT,
+        "\"abc\"",
+        DataType.LONG,
+        "123",
+        DataType.INTEGER,
+        "123",
+        DataType.DOUBLE,
+        "1.5",
+        DataType.BOOLEAN,
+        "true",
+        DataType.DATETIME,
+        "\"2020-01-01T00:00:00.000Z\"",
+        DataType.DATE_NANOS,
+        "\"2020-01-01T00:00:00.000Z\"",
+        DataType.UNSIGNED_LONG,
+        "18446744073709551615",
+        DataType.IP,
+        "\"192.168.0.1\""
+    );
+
+    /**
      * Drift pin. setupBuilders no longer enumerates the type -> shape mapping; it derives it from the shared
      * authority. Every declarable type must therefore build, with the shape that authority prescribes, and no
      * type may reach unsupportedTypeForNdjson. This is what stops the next declarable type repeating the
      * unsigned_long bug.
      */
     public void testEveryDeclarableTypeBuildsTheAuthorityShape() throws IOException {
-        Map<DataType, String> token = Map.of(
-            DataType.KEYWORD,
-            "\"abc\"",
-            DataType.TEXT,
-            "\"abc\"",
-            DataType.LONG,
-            "123",
-            DataType.INTEGER,
-            "123",
-            DataType.DOUBLE,
-            "1.5",
-            DataType.BOOLEAN,
-            "true",
-            DataType.DATETIME,
-            "\"2020-01-01T00:00:00.000Z\"",
-            DataType.DATE_NANOS,
-            "\"2020-01-01T00:00:00.000Z\"",
-            DataType.UNSIGNED_LONG,
-            "18446744073709551615",
-            DataType.IP,
-            "\"192.168.0.1\""
-        );
         for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
-            String cell = token.get(type);
+            String cell = DECLARABLE_TOKEN.get(type);
             assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
             try (Page page = decodeOneColumn("{\"v\":" + cell + "}\n", type, ErrorPolicy.STRICT)) {
                 assertNotNull("no page for declared [" + type + "]", page);
@@ -886,4 +1455,225 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             }
         }
     }
+
+    // --- lenient scratch-builder sizing ---
+
+    /**
+     * Batch size for the scratch-sizing tests. Large enough that one page-sized builder reservation
+     * ({@code batchSize * Long.BYTES}) is unmistakable next to the tens of bytes a record-sized scratch
+     * builder reserves.
+     */
+    private static final int LENIENT_BATCH_SIZE = 32 * 1024;
+
+    /** What a LONG builder charges for a page-sized backing array. */
+    private static final long PAGE_SIZED_BYTES = (long) LENIENT_BATCH_SIZE * Long.BYTES;
+
+    /**
+     * The lenient decode path builds a fresh set of scratch builders for every record so a mid-record parse
+     * error can be discarded without corrupting the page. Those builders hold exactly one record, so they must
+     * be sized for one record: sizing them at {@code batchSize} zero-fills a page-sized array and reserves it on
+     * the breaker once per record, which is the dominant cost of the lenient path on a large file.
+     * <p>
+     * Asserted as a count of page-sized reservations: only the once-per-page builders set up in
+     * {@code decodePage} may make one, so the total is the number of projected columns whose builders draw on
+     * {@code breaker} — regardless of how many records were decoded. A per-record page-sized scratch turns that
+     * into {@code columns * (1 + records)}.
+     */
+    private static void assertScratchIsRecordSized(CountingBreaker breaker, int pageSizedColumns) {
+        assertEquals(
+            "only the once-per-page builders may reserve page-sized memory; more means the lenient per-record "
+                + "scratch builders are page-sized again",
+            pageSizedColumns,
+            breaker.reservationsOfAtLeast(PAGE_SIZED_BYTES)
+        );
+        assertEquals("every reservation released once decoder and page are closed", 0L, breaker.used());
+    }
+
+    /**
+     * {@code error_mode: null_field} ({@link ErrorPolicy#PERMISSIVE}) decodes through the per-record scratch
+     * builders. Covers a multivalue array (exercising the scratch's grow-on-demand path now that it no longer
+     * starts page-sized), a single value, a missing field, a keyword column, and a dotted column reached through
+     * {@code setupBuilders}' recursion — so the nested arm is held to the same sizing as the flat one. Pins that
+     * the decoded values are unchanged alongside the allocation invariant.
+     * <p>
+     * The KEYWORD column is not counted: {@code BytesRefBlockBuilder} backs onto {@code BytesRefArray} over
+     * {@link BigArrays#NON_RECYCLING_INSTANCE}, which draws on no breaker. Its sizing is covered by
+     * {@link #testLenientCostsNoMoreThanStrictForEveryDeclarableType}.
+     */
+    public void testLenientScratchBuildersAreRecordSizedNotPageSized() throws IOException {
+        String ndjson = """
+            {"v":[1,2,3],"w":10,"k":"a","a":{"b":100}}
+            {"v":42,"w":20,"k":"b","a":{"b":200}}
+            {"w":30,"k":"c","a":{"b":300}}
+            {"v":[7,8],"w":40,"k":"d","a":{"b":400}}
+            """;
+        CountingBreaker breaker = new CountingBreaker();
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(
+                    attribute("v", DataType.LONG),
+                    attribute("w", DataType.LONG),
+                    attribute("k", DataType.KEYWORD),
+                    attribute("a.b", DataType.LONG)
+                ),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                ErrorPolicy.PERMISSIVE,
+                "test://lenient-scratch",
+                new NdJsonReaderCounters()
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals(4, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            BytesRefBlock k = page.getBlock(2);
+            LongBlock nested = page.getBlock(3);
+            BytesRef scratch = new BytesRef();
+
+            assertEquals(3, v.getValueCount(0));
+            int i0 = v.getFirstValueIndex(0);
+            assertEquals(1L, v.getLong(i0));
+            assertEquals(2L, v.getLong(i0 + 1));
+            assertEquals(3L, v.getLong(i0 + 2));
+
+            assertEquals(42L, v.getLong(v.getFirstValueIndex(1)));
+            assertTrue("missing field nulls the cell", v.isNull(2));
+
+            assertEquals(2, v.getValueCount(3));
+            int i3 = v.getFirstValueIndex(3);
+            assertEquals(7L, v.getLong(i3));
+            assertEquals(8L, v.getLong(i3 + 1));
+
+            for (int p = 0; p < 4; p++) {
+                assertFalse("w present at " + p, w.isNull(p));
+                assertEquals((p + 1) * 10L, w.getLong(w.getFirstValueIndex(p)));
+                assertFalse("a.b present at " + p, nested.isNull(p));
+                assertEquals((p + 1) * 100L, nested.getLong(nested.getFirstValueIndex(p)));
+            }
+            assertMvAt(k, 0, scratch, List.of("a"));
+            assertMvAt(k, 1, scratch, List.of("b"));
+            assertMvAt(k, 2, scratch, List.of("c"));
+            assertMvAt(k, 3, scratch, List.of("d"));
+        }
+        assertScratchIsRecordSized(breaker, 3);
+    }
+
+    /**
+     * The same invariant across every declarable type, stated against the strict path.
+     * <p>
+     * The two assertions above count reservations made through the block factory's breaker, which covers the
+     * fixed-width types but not {@code keyword}/{@code text}/{@code ip}: those back onto a {@code BytesRefArray}
+     * charged to {@link BigArrays} instead. Wiring one counter into both places and comparing lenient against
+     * strict covers every type uniformly — strict decodes the same records into the same page builders with no
+     * scratch at all, so it is the natural baseline for what the data legitimately costs, and no knowledge of how
+     * {@code BigArrays} splits a large allocation into reservations is needed to state the claim.
+     * <p>
+     * Sweeping {@link DeclaredSchemaValidator#declarableTypes()} rather than naming types means a type that
+     * becomes declarable later is held to this invariant automatically, and one whose builder is special-cased
+     * out of the shared {@code setupBuilders} path fails here rather than silently regressing.
+     */
+    public void testLenientCostsNoMoreThanStrictForEveryDeclarableType() throws IOException {
+        for (DataType type : DeclaredSchemaValidator.declarableTypes()) {
+            String cell = DECLARABLE_TOKEN.get(type);
+            assertNotNull("no fixture token for declarable type [" + type + "] — add one", cell);
+            String ndjson = ("{\"v\":" + cell + "}\n").repeat(5);
+            assertEquals(
+                "lenient decoding of ["
+                    + type
+                    + "] must not reserve page-scale memory that strict does not: any excess is per-record "
+                    + "scratch sized for a whole page",
+                pageScaleReservations(type, ndjson, ErrorPolicy.STRICT),
+                pageScaleReservations(type, ndjson, ErrorPolicy.PERMISSIVE)
+            );
+        }
+    }
+
+    /**
+     * Decodes one page of a single {@code type} column under {@code policy} and returns how many reservations
+     * were page-scale. One counting breaker serves both the block factory and {@link BigArrays} so that
+     * fixed-width backing arrays and {@code BytesRefArray} byte storage land in the same tally. The floor is one
+     * {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES BigArrays page}: a builder holding a whole batch always reaches
+     * it (the narrowest declarable type, boolean, charges a byte per position, and the string types' offset
+     * arrays are charged in page units), while a builder holding one record never comes close. Do not raise this
+     * to the batch size in bytes — the string types' page-scale reservations land below that, and the sweep would
+     * silently compare zero against zero for keyword, text and ip.
+     */
+    private int pageScaleReservations(DataType type, String ndjson, ErrorPolicy policy) throws IOException {
+        CountingBreaker breaker = new CountingBreaker();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker.service());
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        breaker.reset();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", type)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                policy,
+                "test://lenient-scratch-" + type.typeName(),
+                new NdJsonReaderCounters()
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull("no page for declared [" + type + "]", page);
+            assertEquals(5, page.getPositionCount());
+            Block block = page.getBlock(0);
+            assertFalse("declared [" + type + "] produced a null cell", block.isNull(0));
+        }
+        assertEquals("every reservation for [" + type + "] released once decoder and page are closed", 0L, breaker.used());
+        return breaker.reservationsOfAtLeast(PageCacheRecycler.PAGE_SIZE_IN_BYTES);
+    }
+
+    /**
+     * {@code error_mode: skip_row} ({@link ErrorPolicy#LENIENT}) takes the same scratch path, including when a
+     * poisoned record is dropped whole and its scratch builders are released without reaching the page.
+     */
+    public void testLenientScratchBuildersAreRecordSizedUnderSkipRow() throws IOException {
+        String ndjson = """
+            {"v":[1,"bad"],"w":10}
+            {"v":5,"w":20}
+            {"v":[6,7],"w":30}
+            """;
+        CountingBreaker breaker = new CountingBreaker();
+        BlockFactory trackingFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
+        List<String> warnings = new ArrayList<>();
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG), attribute("w", DataType.LONG)),
+                null,
+                LENIENT_BATCH_SIZE,
+                trackingFactory,
+                ErrorPolicy.LENIENT,
+                "test://lenient-scratch-skip-row",
+                new NdJsonReaderCounters(),
+                warnings::add
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+            assertEquals("the poisoned record is dropped whole", 2, page.getPositionCount());
+            LongBlock v = page.getBlock(0);
+            LongBlock w = page.getBlock(1);
+            assertEquals(5L, v.getLong(v.getFirstValueIndex(0)));
+            assertEquals(20L, w.getLong(w.getFirstValueIndex(0)));
+            assertEquals(2, v.getValueCount(1));
+            int i1 = v.getFirstValueIndex(1);
+            assertEquals(6L, v.getLong(i1));
+            assertEquals(7L, v.getLong(i1 + 1));
+            assertEquals(30L, w.getLong(w.getFirstValueIndex(1)));
+        }
+        assertFalse("expected skip_row warnings for the poisoned record", warnings.isEmpty());
+        assertScratchIsRecordSized(breaker, 2);
+    }
+
 }

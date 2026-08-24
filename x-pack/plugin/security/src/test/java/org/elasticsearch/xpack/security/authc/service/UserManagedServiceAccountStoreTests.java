@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -43,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -51,13 +51,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -77,7 +77,6 @@ import java.util.function.Consumer;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.SERVICE_ACCOUNT_DOC_TYPE;
-import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.USER_MANAGED_SERVICE_ACCOUNTS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -88,6 +87,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -103,6 +103,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     private Client client;
     private ClusterService clusterService;
     private ClusterState clusterState;
+    private FeatureService featureService;
     private SecurityIndexManager securityIndex;
     private SecurityIndexManager.IndexState projectIndex;
     private UserManagedServiceAccountStore store;
@@ -144,15 +145,16 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             }
         };
 
-        // The store reads only two values from cluster state, so a stub is enough here: the minimum transport version,
-        // which gates writes, and the minimum node version, which is stamped into the document it writes.
+        // The store reads the minimum node version from cluster state to stamp into the document it
+        // writes. Whether every node supports the feature is asked of FeatureService instead.
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
         when(clusterService.state()).thenReturn(clusterState);
+        featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(true);
 
         securityIndex = mock(SecurityIndexManager.class);
         projectIndex = mock(SecurityIndexManager.IndexState.class);
@@ -172,7 +174,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             return null;
         }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
 
-        store = new UserManagedServiceAccountStore(Settings.EMPTY, client, securityIndex, clusterService, new CacheInvalidatorRegistry());
+        store = newStore(Settings.EMPTY);
     }
 
     public void testLoadedAccountIsAuthorizedByItsNamedRoles() {
@@ -321,9 +323,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     public void testPutAccountRequiresEveryNodeToSupportUserManagedServiceAccounts() {
-        when(clusterState.getMinTransportVersion()).thenReturn(
-            TransportVersionUtils.randomVersionNotSupporting(USER_MANAGED_SERVICE_ACCOUNTS)
-        );
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
         store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, RefreshPolicy.NONE, future);
@@ -331,11 +331,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(
             e.getMessage(),
-            equalTo(
-                "all nodes must have version ["
-                    + USER_MANAGED_SERVICE_ACCOUNTS.toReleaseVersion()
-                    + "] or higher to support user-managed service accounts"
-            )
+            equalTo("cannot create a user-managed service account because not all nodes in the cluster support them yet")
         );
     }
 
@@ -387,12 +383,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
     }
 
-    public void testDeleteAccountIsNotGatedOnTheClusterTransportVersion() {
+    public void testDeleteAccountIsNotGatedOnTheClusterFeature() {
         // Deleting is how an operator resolves a cluster that holds accounts an older node cannot authorize, so
         // unlike creating it stays available while a rolling upgrade is in progress.
-        when(clusterState.getMinTransportVersion()).thenReturn(
-            TransportVersionUtils.randomVersionNotSupporting(USER_MANAGED_SERVICE_ACCOUNTS)
-        );
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
         respondWithDeleteResult(true);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
@@ -456,13 +450,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     public void testAccountsAreReadFromTheIndexEveryTimeWhenCachingIsDisabled() {
-        store = new UserManagedServiceAccountStore(
-            Settings.builder().put(UserManagedServiceAccountStore.CACHE_TTL_SETTING.getKey(), TimeValue.ZERO).build(),
-            client,
-            securityIndex,
-            clusterService,
-            new CacheInvalidatorRegistry()
-        );
+        store = newStore(Settings.builder().put(UserManagedServiceAccountStore.CACHE_TTL_SETTING.getKey(), TimeValue.ZERO).build());
         respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true));
 
         assertThat(getByPrincipal(PRINCIPAL).roles(), contains(ROLE_A));
@@ -507,6 +495,17 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final PlainActionFuture<Boolean> delete = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.NONE, delete);
         assertThat(expectThrows(ElasticsearchException.class, delete::actionGet), is(unavailable));
+    }
+
+    private UserManagedServiceAccountStore newStore(Settings settings) {
+        return new UserManagedServiceAccountStore(
+            settings,
+            client,
+            securityIndex,
+            clusterService,
+            featureService,
+            new CacheInvalidatorRegistry()
+        );
     }
 
     private UserManagedServiceAccount getByPrincipal(String principal) {

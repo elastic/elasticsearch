@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -77,13 +78,6 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
  */
 public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.CacheInvalidator {
 
-    /**
-     * A node older than this resolves a service account's privileges from the built-in account of the same name and
-     * fails the request when there is none, so accounts must not be created until every node understands them.
-     * Deleting is deliberately not gated: it is the remedy for a cluster that already holds such an account.
-     */
-    static final TransportVersion USER_MANAGED_SERVICE_ACCOUNTS = TransportVersion.fromName("user_managed_service_accounts");
-
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
         "xpack.security.authc.user_managed_service_account.cache.ttl",
         TimeValue.timeValueMinutes(20),
@@ -105,6 +99,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     private final Client client;
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final TimeValue scrollKeepAlive;
     @Nullable
     private final InvalidationCountingCacheWrapper<String, CachedAccount> accountCache;
@@ -115,11 +110,13 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         Client client,
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
+        FeatureService featureService,
         CacheInvalidatorRegistry cacheInvalidatorRegistry
     ) {
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.scrollKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings);
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
@@ -280,12 +277,10 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<PutResult> listener
     ) {
-        if (clusterService.state().getMinTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNTS) == false) {
+        if (featureService.clusterHasFeature(clusterService.state(), SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS) == false) {
             listener.onFailure(
                 new IllegalStateException(
-                    "all nodes must have version ["
-                        + USER_MANAGED_SERVICE_ACCOUNTS.toReleaseVersion()
-                        + "] or higher to support user-managed service accounts"
+                    "cannot create a user-managed service account because not all nodes in the cluster support them yet"
                 )
             );
             return;

@@ -13,6 +13,8 @@ import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 /**
  * A {@link Similarity} wrapper that prevents {@code computeNorm} from returning zero for
@@ -33,6 +35,8 @@ import org.apache.lucene.search.similarities.Similarity;
 // package-private; exposed for testing via NonZeroNormSimilarityTests
 final class NonZeroNormSimilarity extends Similarity {
 
+    private static final Logger logger = LogManager.getLogger(NonZeroNormSimilarity.class);
+
     private final Similarity in;
 
     NonZeroNormSimilarity(Similarity in) {
@@ -46,16 +50,38 @@ final class NonZeroNormSimilarity extends Similarity {
     @Override
     public long computeNorm(FieldInvertState state) {
         final long norm = in.computeNorm(state);
-        // norm == 0 is reserved for "field absent" in Lucene's norm encoding.
-        // Lucene only calls computeNorm when the field has tokens (length > 0), so a zero
-        // return here always indicates a similarity that cannot represent the effective field
-        // length (e.g. BM25 with discountOverlaps=true on a field whose only tokens all have
-        // positionIncrement == 0). Clamp to 1 rather than letting Lucene throw.
-        return norm == 0 ? 1L : norm;
+        if (norm == 0) {
+            // norm == 0 is reserved for "field absent" in Lucene's norm encoding.
+            // Lucene only calls computeNorm when the field has tokens (length > 0), so a zero
+            // return here always indicates a similarity that cannot represent the effective field
+            // length (e.g. BM25 with discountOverlaps=true on a field whose only tokens all have
+            // positionIncrement == 0). Log a warning to help identify the root cause, then clamp
+            // to 1 rather than letting Lucene throw an IllegalStateException that corrupts the shard.
+            logger.warn(
+                "Similarity [{}] returned 0 from computeNorm for field [{}] with length {}; "
+                    + "clamping to 1 to prevent shard corruption. "
+                    + "Check your analysis chain for filters that produce only overlap tokens "
+                    + "(positionIncrement == 0).",
+                in,
+                state.getName(),
+                state.getLength()
+            );
+            return 1L;
+        }
+        return norm;
     }
 
     @Override
     public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
         return in.scorer(boost, collectionStats, termStats);
+    }
+
+    /**
+     * Delegates to the wrapped similarity so that the explain API reports the actual
+     * similarity name rather than this wrapper's class name.
+     */
+    @Override
+    public String toString() {
+        return in.toString();
     }
 }

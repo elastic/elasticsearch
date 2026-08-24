@@ -69,6 +69,7 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
             "/external-heavy-aggregates.csv-spec",
             "/external-multifile.csv-spec",
             "/external-multifile-resolution.csv-spec",
+            "/external-hive-partitioned.csv-spec",
             "/external-multivalue.csv-spec"
         );
     }

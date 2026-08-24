@@ -1,0 +1,22 @@
+// Hive-partition cases that also filter on a PAYLOAD column, not just the path-derived
+// partition column. Kept apart from external-hive-partitioned.csv-spec because NDJSON cannot
+// run them yet: filtering a payload column alongside the partition column, while projecting
+// neither, fails inside the reader with "output schema size [1] does not match mapping width".
+// The sibling case that filters only the partition column passes on NDJSON, so the trigger is
+// the payload reference, not the partitioning.
+//
+// Routing: ORC, Parquet and parquet-rs glob external-*.csv-spec and pick this up; TSV names it
+// explicitly. NDJSON deliberately does not list it, so this file is the one place to remove
+// that exclusion once the reader is fixed.
+
+hivePartitionConsistentWithPayload
+required_capability: dataset_in_from_command
+dataset: employees_hive: "{{employees_hive}}"
+
+FROM employees_hive
+| WHERE lang IS NULL AND languages IS NULL
+| STATS count = COUNT(*);
+
+count:long
+10
+;

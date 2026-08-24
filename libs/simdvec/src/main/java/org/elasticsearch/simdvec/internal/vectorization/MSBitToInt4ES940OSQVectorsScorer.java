@@ -91,7 +91,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                 quantizeScore256Bulk(q, bulkSize, scores);
-                return applyCorrections256Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,
@@ -105,7 +105,7 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 quantizeScore128Bulk(q, bulkSize, scores);
-                return applyCorrections128Bulk(
+                return applyCorrectionsBulk(
                     queryLowerInterval,
                     queryUpperInterval,
                     queryComponentSum,

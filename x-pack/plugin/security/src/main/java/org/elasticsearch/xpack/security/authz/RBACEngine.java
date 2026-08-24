@@ -148,7 +148,8 @@ public class RBACEngine implements AuthorizationEngine {
         SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
         TransportClearScrollAction.NAME,
         "indices:data/read/sql/close_cursor",
-        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+        SearchTransportService.MARK_CONTEXT_RELOCATING_ACTION_NAME
     );
 
     private final Settings settings;

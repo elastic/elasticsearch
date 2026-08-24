@@ -164,6 +164,15 @@ public class ReaderContext implements Releasable {
     }
 
     /**
+     * Marks this context as relocating so that the background Reaper will drain it gracefully
+     * once all in-flight {@link #markAsUsed} references are released (plus a grace period),
+     * rather than closing it immediately. Overridden in {@link PitReaderContext}.
+     */
+    public void relocate() {
+        // no-op for non-PIT contexts
+    }
+
+    /**
      * Returns the id of the task that opened this reader context, or {@code 0L} if it was
      * not captured (relocated PIT contexts and test instantiations). The owning node id is
      * the local node id at open time and is formatted by the caller for logging.

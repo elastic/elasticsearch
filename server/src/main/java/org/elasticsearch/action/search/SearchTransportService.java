@@ -99,6 +99,7 @@ public class SearchTransportService {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
+    public static final String MARK_CONTEXT_RELOCATING_ACTION_NAME = "indices:data/read/search[mark_context_relocating]";
     public static final String CLEAR_SCROLL_CONTEXTS_ACTION_NAME = "indices:data/read/search[clear_scroll_contexts]";
 
     /**
@@ -165,6 +166,26 @@ public class SearchTransportService {
         transportService.sendRequest(
             connection,
             FREE_CONTEXT_SCROLL_ACTION_NAME,
+            new ScrollFreeContextRequest(contextId),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::readFrom, TransportResponseHandler.TRANSPORT_WORKER)
+        );
+    }
+
+    /**
+     * Sends a request to {@code connection} to mark the PIT reader context identified by
+     * {@code contextId} as relocating. The receiving node will call
+     * {@link org.elasticsearch.search.SearchService#markContextAsRelocating} so the context
+     * drains gracefully via the Reaper rather than being closed immediately.
+     */
+    public void sendMarkContextAsRelocating(
+        Transport.Connection connection,
+        ShardSearchContextId contextId,
+        ActionListener<SearchFreeContextResponse> listener
+    ) {
+        transportService.sendRequest(
+            connection,
+            MARK_CONTEXT_RELOCATING_ACTION_NAME,
             new ScrollFreeContextRequest(contextId),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::readFrom, TransportResponseHandler.TRANSPORT_WORKER)
@@ -570,6 +591,24 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(
             transportService,
             FREE_CONTEXT_ACTION_NAME,
+            false,
+            SearchFreeContextResponse::readFrom,
+            namedWriteableRegistry
+        );
+
+        transportService.registerRequestHandler(
+            MARK_CONTEXT_RELOCATING_ACTION_NAME,
+            freeContextExecutor,
+            ScrollFreeContextRequest::new,
+            (request, channel, task) -> {
+                boolean marked = searchService.markContextAsRelocating(request.id());
+                logger.trace("marking search context [{}] as relocating, found=[{}]", request.id(), marked);
+                channel.sendResponse(SearchFreeContextResponse.of(marked));
+            }
+        );
+        TransportActionProxy.registerProxyAction(
+            transportService,
+            MARK_CONTEXT_RELOCATING_ACTION_NAME,
             false,
             SearchFreeContextResponse::readFrom,
             namedWriteableRegistry

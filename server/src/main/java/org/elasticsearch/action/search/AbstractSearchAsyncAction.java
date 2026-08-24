@@ -65,7 +65,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.search.TransportClosePointInTimeAction.closeContexts;
+import static org.elasticsearch.action.search.TransportClosePointInTimeAction.markContextsAsRelocating;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -795,19 +795,13 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             }
         }
         if (updatedShardMap != null) {
-            // we free all old contexts that have moved, just in case we have re-tried them elsewhere
-            // but they still exist in the old location
-            closeContexts(nodes, searchTransportService, contextsToClose, new ActionListener<Integer>() {
-                @Override
-                public void onResponse(Integer integer) {
-                    // ignore
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.trace("Failure while freeing old point in time contexts", e);
-                }
-            });
+            // Mark old contexts as relocating rather than closing them immediately. This lets
+            // the Reaper drain them gracefully once all in-flight markAsUsed references are
+            // released (plus the PitReaderContext grace period), avoiding a race where an
+            // immediate close could interrupt a concurrent search in the phase-transition gap
+            // when no reference is held. The contexts will also expire naturally via their
+            // keep-alive TTL if the mark request cannot be delivered.
+            markContextsAsRelocating(nodes, searchTransportService, contextsToClose);
             return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, ShardSearchFailure.EMPTY_ARRAY);
         } else {
             return originalPit.getEncodedId();

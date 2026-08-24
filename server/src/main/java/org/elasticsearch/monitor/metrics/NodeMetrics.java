@@ -225,7 +225,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 "es.translog.earliest_last_modified.time",
                 "Earliest last modified age for the transaction log.",
                 "time",

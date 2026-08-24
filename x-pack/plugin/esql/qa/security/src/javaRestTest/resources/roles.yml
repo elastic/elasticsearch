@@ -249,6 +249,16 @@ dls_user:
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
 
+# Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
+# delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).
+eql_dls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events' ]
+      privileges: [ 'read' ]
+      query: '{"term": {"event.category": "process"}}'
+
 dls_user2:
   cluster: []
   indices:

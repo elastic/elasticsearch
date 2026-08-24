@@ -94,6 +94,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
+        .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("metadata1_alias_read2", "x-pack-test-password", "metadata1_alias_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
@@ -774,6 +775,51 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    /**
+     * The EQL source command delegates to the EQL search action. That delegated search must run in the caller's security
+     * context — same identity, index authorization and document-level security as any other ES|QL command, never a
+     * privileged origin user. Here {@code eql_dls_user} can read {@code eql-events} but DLS exposes only its process
+     * events: an EQL query for the process events returns them, an EQL query for the (existing) network event comes back
+     * empty rather than leaking it, and {@code user2} — with no privilege on the index — is denied just like FROM.
+     */
+    public void testEqlSourceCommandRunsInCallerSecurityContext() throws IOException {
+        assumeTrue(
+            "requires the EQL source command",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName()))
+        );
+        createIndex("eql-events", Settings.EMPTY, """
+            "properties":{"@timestamp":{"type":"date"},"event":{"properties":{"category":{"type":"keyword"}}},\
+            "message":{"type":"keyword"}}
+            """);
+        for (String doc : List.of("""
+            {"@timestamp":"2024-01-01T00:00:01Z","event":{"category":"process"},"message":"a"}""", """
+            {"@timestamp":"2024-01-01T00:00:02Z","event":{"category":"process"},"message":"b"}""", """
+            {"@timestamp":"2024-01-01T00:00:03Z","event":{"category":"network"},"message":"c"}""")) {
+            Request indexDoc = new Request("POST", "/eql-events/_doc");
+            indexDoc.setJsonEntity(doc);
+            assertOK(client().performRequest(indexDoc));
+        }
+        refresh("eql-events");
+
+        // DLS lets eql_dls_user see only the process events, and the delegated EQL search honors that filter.
+        Response process = runESQLCommand("eql_dls_user", "EQL eql-events \"process where true\" | KEEP message | SORT message");
+        assertOK(process);
+        assertThat(entityAsMap(process).get("values"), equalTo(List.of(List.of("a"), List.of("b"))));
+
+        // The network event exists but is hidden by DLS, so querying for it returns nothing rather than leaking the row.
+        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" | KEEP message");
+        assertOK(network);
+        assertThat(entityAsMap(network).get("values"), equalTo(List.of()));
+
+        // user2 has no privilege on eql-events: the EQL command is denied at resolution exactly like FROM.
+        ResponseException denied = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "EQL eql-events \"process where true\"")
+        );
+        assertThat(denied.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(denied.getMessage(), containsString("Unknown index [eql-events]"));
     }
 
     public void testFieldLevelSecurityAllow() throws Exception {

@@ -1022,7 +1022,7 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public boolean shouldPrewarmIdLookups() {
-        return engineConfig.getThreadPool().relativeTimeInNanos() < idLookupPrewarmDeadlineNanos;
+        return engineConfig.getRelativeTimeInNanosSupplier().getAsLong() < idLookupPrewarmDeadlineNanos;
     }
 
     @Override

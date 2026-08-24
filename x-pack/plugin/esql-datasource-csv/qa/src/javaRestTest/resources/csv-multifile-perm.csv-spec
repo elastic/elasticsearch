@@ -1,0 +1,69 @@
+// CSV twin of external-multifile-perm.csv-spec -- same cases, same expected rows.
+//
+// CsvFormatSpecIT does not load the shared external-*.csv-spec files (bracket multi-values in the
+// employees fixtures misalign comma-split rows), so each dataset here declares
+// multi_value_syntax: brackets and the spec carries its own contract. The perm fixture itself has
+// no multi-value column; the option is declared for consistency with this module's other twins.
+
+// ===== Cross-file column-order reconciliation (C4) =====
+// Uses {{x_multifile_perm}} which resolves to multifile_perm/*.<format> on whichever suite is running.
+// Two fixture files, same three columns in different physical order, distinct types so a swap
+// cannot pass silently:
+//   parquet_perm_a — schema [p:integer, q:keyword, r:double]
+//                            rows: (1, alpha, 1.5), (2, beta, 2.5)
+//   parquet_perm_b — schema [r:double, q:keyword, p:integer]   (columns reversed)
+//                            rows: (3, gamma, 3.5), (4, delta, 4.5)
+// Under union_by_name the unified schema adopts the column order of the first-listed file
+// (glob listing is sorted, so parquet_perm_a). The other file's physical order differs; every
+// column value must still land under its own name (no swap), including the reversed file.
+
+parquetPermThreeColumnReorder
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile_brackets: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM reorder_multifile_brackets
+| KEEP p, q, r
+| SORT p ASC;
+
+p:integer | q:keyword | r:double
+1         | alpha     | 1.5
+2         | beta      | 2.5
+3         | gamma     | 3.5
+4         | delta     | 4.5
+;
+
+// Order invariance: projecting in the reverse of the unified column order must not disturb the
+// first-listed file's rows (guards the "unified order happens to be identity" masking).
+parquetPermReversedProjection
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile_brackets: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM reorder_multifile_brackets
+| KEEP r, q, p
+| SORT p ASC;
+
+r:double | q:keyword | p:integer
+1.5      | alpha     | 1
+2.5      | beta      | 2
+3.5      | gamma     | 3
+4.5      | delta     | 4
+;
+
+// Reversed-file row isolation: filter selects only the reversed file's rows, confirming its
+// values are correct per column after reconciliation.
+parquetPermNonAnchorRows
+required_capability: external_command
+required_capability: external_source_read_schema
+dataset: reorder_multifile_brackets: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM reorder_multifile_brackets
+| WHERE p > 2
+| KEEP p, q, r
+| SORT p ASC;
+
+p:integer | q:keyword | r:double
+3         | gamma     | 3.5
+4         | delta     | 4.5
+;

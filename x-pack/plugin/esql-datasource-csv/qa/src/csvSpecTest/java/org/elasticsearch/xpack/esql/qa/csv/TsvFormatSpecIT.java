@@ -52,6 +52,7 @@ public class TsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
             "/external-multifile.csv-spec",
             "/external-hive-partitioned.csv-spec",
             "/external-hive-partitioned-payload.csv-spec",
+            "/external-multifile-perm.csv-spec",
             "/external-multifile-resolution.csv-spec",
             "/tsv-multivalue.csv-spec"
         );

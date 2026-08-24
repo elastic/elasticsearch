@@ -103,6 +103,15 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "ffwAggregateByGender",
         "strictAggregateByGender",
         "ubnAggregateByGender",
+        // parquet-rs binds columns across files by physical POSITION rather than by name, so a glob
+        // whose files carry the same columns in different order reads the wrong column: the reversed
+        // file's leading r:double is taken as the unified schema's leading p:integer and the query
+        // fails with "Expected [INT] but was [DOUBLE]". The fixture gives its columns distinct types
+        // precisely so this cannot pass silently. The Java Parquet, ORC, NDJSON, CSV and TSV readers
+        // all pass these cases. Re-enable once parquet-rs reconciles cross-file column order by name.
+        "parquetPermThreeColumnReorder",
+        "parquetPermReversedProjection",
+        "parquetPermNonAnchorRows",
         // Nested STRUCT subfield projection (external-nested-struct.csv-spec) is implemented by the
         // Java parquet reader only; parquet-rs does not yet flatten struct schemas.
         "nestedKeepSingleSubfield",

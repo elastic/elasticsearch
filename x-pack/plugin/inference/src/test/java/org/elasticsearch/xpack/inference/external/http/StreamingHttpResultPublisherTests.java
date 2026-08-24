@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
+import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -37,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -170,6 +173,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         // Apache sends a single response and closes the consumer
         publisher.responseReceived(mock(HttpResponse.class));
         publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+        publisher.responseCompleted(mock(HttpContext.class));
         publisher.close();
 
         // subscriber requests data
@@ -299,6 +303,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     public void testCloseBeforeRequest() {
         var subscriber = subscribe();
 
+        publisher.responseCompleted(mock(HttpContext.class));
         publisher.close();
         assertFalse("onComplete should not be called until the subscriber requests it", subscriber.completed);
 
@@ -315,6 +320,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         var subscriber = subscribe();
 
         subscriber.requestData();
+        publisher.responseCompleted(mock(HttpContext.class));
         publisher.close();
         assertTrue("onComplete should be called", subscriber.completed);
     }
@@ -325,7 +331,10 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      * Then the close will be handled the next time the subscriber requests data
      */
     public void testCloseWhileRunningBeforeRequest() throws IOException {
-        var subscriber = runBefore(publisher::close);
+        var subscriber = runBefore(() -> {
+            publisher.responseCompleted(mock(HttpContext.class));
+            publisher.close();
+        });
 
         subscriber.requestData();
         assertFalse("onComplete should not be called until the subscriber requests it", subscriber.completed);
@@ -340,42 +349,79 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
      * Then the close will be handled by the queue processor thread
      */
     public void testCloseWhileRunningAfterRequest() throws IOException {
-        var subscriber = runAfter(publisher::close);
+        var subscriber = runAfter(() -> {
+            publisher.responseCompleted(mock(HttpContext.class));
+            publisher.close();
+        });
         subscriber.requestData();
         assertTrue("onComplete should now be called", subscriber.completed);
     }
 
     /**
-     * Given Apache cancels response processing
+     * Given Apache tears the exchange down (releaseResources -> consumer.close()) without having signaled responseCompleted
      * When the subscriber requests more data
-     * Then the subscriber is marked as completed
+     * Then the subscriber receives an error, because completing the stream would silently truncate the response.
+     * This guards against aborted exchanges surfacing as successful, empty or partial streams
+     * (e.g. a chat completion stream "completing" with zero events).
+     */
+    public void testCloseBeforeResponseCompletedDeliversError() throws IOException {
+        var subscriber = subscribe();
+        publisher.consumeContent(contentDecoder(message), mock(IOControl.class));
+
+        publisher.close();
+
+        subscriber.requestData();
+        assertThat("onError should be called instead of onComplete", subscriber.throwable, instanceOf(ConnectionClosedException.class));
+        assertThat(subscriber.throwable.getMessage(), containsString(INFERENCE_ENTITY_ID));
+        assertFalse("onComplete must not be called for a truncated response", subscriber.completed);
+    }
+
+    /**
+     * Given Apache cancels response processing before the response was fully received
+     * When the subscriber requests more data
+     * Then the subscriber receives an error rather than a silently truncated stream
      */
     public void testCancelBeforeRequest() {
         var subscriber = subscribe();
 
         publisher.cancel();
-        assertFalse("onComplete should not be called until the subscriber requests it", subscriber.completed);
+        assertThat("onError should not be called until the subscriber requests it", subscriber.throwable, nullValue());
 
         subscriber.requestData();
-        assertTrue("onComplete should now be called", subscriber.completed);
+        assertThat("onError should now be called", subscriber.throwable, instanceOf(ConnectionClosedException.class));
     }
 
     /**
      * Given the subscriber is waiting for more data
-     * When Apache cancels response processing
-     * Then the subscriber is marked as completed
+     * When Apache cancels response processing before the response was fully received
+     * Then the subscriber receives an error rather than a silently truncated stream
      */
     public void testCancelAfterRequest() {
         var subscriber = subscribe();
 
         subscriber.requestData();
         publisher.cancel();
-        assertTrue("onComplete should be called", subscriber.completed);
+        assertThat("onError should be called", subscriber.throwable, instanceOf(ConnectionClosedException.class));
     }
 
     /**
-     * When cancel is called
-     * Then we only send onComplete once
+     * Given the response was fully received
+     * When Apache cancels response processing (e.g. the future is cancelled during cleanup)
+     * Then the subscriber still sees a normal completion, since no data can be missing
+     */
+    public void testCancelAfterResponseCompletedStillCompletes() {
+        var subscriber = subscribe();
+
+        subscriber.requestData();
+        publisher.responseCompleted(mock(HttpContext.class));
+        publisher.cancel();
+        assertTrue("onComplete should be called", subscriber.completed);
+        assertThat("onError should not be called", subscriber.throwable, nullValue());
+    }
+
+    /**
+     * When cancel is called before the response was fully received
+     * Then we only send onError once
      */
     public void testCancelIsIdempotent() {
         Flow.Subscriber<byte[]> subscriber = mock();
@@ -389,7 +435,8 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         subscription.getValue().request(2);
         publisher.cancel();
         publisher.cancel();
-        verify(subscriber, times(1)).onComplete();
+        verify(subscriber, times(1)).onError(any(ConnectionClosedException.class));
+        verify(subscriber, times(0)).onComplete();
     }
 
     /**
@@ -406,6 +453,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
         verify(subscriber).onSubscribe(subscription.capture());
 
         subscription.getValue().request(2);
+        publisher.responseCompleted(mock(HttpContext.class));
         publisher.close();
         publisher.close();
         verify(subscriber, times(1)).onComplete();
@@ -433,29 +481,29 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
 
     /**
      * Given the queue is being processed
-     * When Apache cancels the publisher
-     * Then the cancel will be handled the next time the subscriber requests data
+     * When Apache cancels the publisher before the response was fully received
+     * Then the resulting error will be handled the next time the subscriber requests data
      */
     public void testApacheCancelWhileRunningBeforeRequest() throws IOException {
         TestSubscriber subscriber = runBefore(publisher::cancel);
 
         subscriber.requestData();
-        assertFalse("onComplete should not be called until the subscriber requests it", subscriber.completed);
+        assertThat("onError should not be called until the subscriber requests it", subscriber.throwable, nullValue());
 
         subscriber.requestData();
-        assertTrue("onComplete should now be called", subscriber.completed);
+        assertThat("onError should now be called", subscriber.throwable, instanceOf(ConnectionClosedException.class));
     }
 
     /**
      * Given the queue is being processed
-     * When Apache cancels the publisher after the subscriber asks for more data
-     * Then the cancel will be handled by the queue processor thread
+     * When Apache cancels the publisher (before the response was fully received) after the subscriber asks for more data
+     * Then the resulting error will be handled by the queue processor thread
      */
     public void testApacheCancelWhileRunningAfterRequest() throws IOException {
         TestSubscriber subscriber = runAfter(publisher::cancel);
 
         subscriber.requestData();
-        assertTrue("onComplete should now be called", subscriber.completed);
+        assertThat("onError should now be called", subscriber.throwable, instanceOf(ConnectionClosedException.class));
     }
 
     /**
@@ -863,11 +911,11 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             equalTo((long) message.length)
         );
 
-        // Drains rest of the data in the queue
+        // The cancellation error preempts the queued data; delivering it releases all tracked bytes
         subscriber.requestData();
 
         assertThat(
-            "circuitBreaker should have 0 tracked bytes after subscriber drains the queue",
+            "circuitBreaker should have 0 tracked bytes after the cancellation error is delivered",
             circuitBreaker.getTracked(),
             equalTo(0L)
         );
@@ -883,6 +931,7 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
             equalTo((long) message.length)
         );
 
+        publisher.responseCompleted(mock(HttpContext.class));
         publisher.close();
 
         assertThat(

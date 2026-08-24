@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
@@ -52,6 +53,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
 
     private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final AtomicBoolean subscriptionCanceled = new AtomicBoolean(false);
+
+    private volatile boolean responseFullyReceived = false;
 
     private final SimpleInputBuffer inputBuffer = new SimpleInputBuffer(4096);
     private final DataPublisher publisher;
@@ -137,7 +140,9 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     }
 
     @Override
-    public void responseCompleted(HttpContext httpContext) {}
+    public void responseCompleted(HttpContext httpContext) {
+        responseFullyReceived = true;
+    }
 
     // called when Apache is failing the response
     @Override
@@ -156,7 +161,21 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     @Override
     public void close() {
         if (isDone.compareAndSet(false, true)) {
-            publisher.onComplete();
+            if (responseFullyReceived) {
+                publisher.onComplete();
+            } else {
+                // The exchange was torn down (cancelled, aborted, or the connection closed) before Apache signaled
+                // responseCompleted. Completing the stream here would silently truncate the response, so fail it instead.
+                var closedEarly = new ConnectionClosedException(
+                    format("Stream for inference entity [%s] closed before the response was fully received", inferenceEntityId)
+                );
+                exception = closedEarly;
+                if (listenerCalled.compareAndSet(false, true)) {
+                    listener.onFailure(closedEarly);
+                } else {
+                    publisher.onError(closedEarly);
+                }
+            }
         }
     }
 
@@ -221,7 +240,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 backpressure.subtractBytesAndMaybeUnpause(nextBytes.length);
                 downstream.onNext(nextBytes);
             }
-            if (pendingRequests.get() > 0 && contentQueue.isEmpty() && completed) {
+            if (pendingRequests.get() > 0 && completed && contentQueue.isEmpty()) {
                 pendingRequests.decrementAndGet();
                 downstream.onComplete();
             }

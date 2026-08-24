@@ -132,14 +132,11 @@ public class EncryptionAtRestTests extends PackagingTestCase {
         withCustomConfig(confPath -> {
             ServerUtils.addSettingToExistingConfiguration(confPath, "xpack.searchable.snapshot.shared_cache.size", "16mb");
             startElasticsearch();
-            try {
-                // the shared cache file is created and preallocated during node startup, directly under path.data
-                Path cacheFile = encryptedDataPath.resolve("shared_snapshot_cache");
-                Shell.Result stat = sh.run("sudo stat -c %s " + cacheFile);
-                assertThat(Long.parseLong(stat.stdout().trim()), equalTo(SHARED_CACHE_SIZE_BYTES));
-            } finally {
-                stopElasticsearch();
-            }
+            // the shared cache file is created and preallocated during node startup, directly under path.data
+            Path cacheFile = encryptedDataPath.resolve("shared_snapshot_cache");
+            Shell.Result stat = sh.run("sudo stat -c %s " + cacheFile);
+            assertThat(Long.parseLong(stat.stdout().trim()), equalTo(SHARED_CACHE_SIZE_BYTES));
+            stopElasticsearch();
         });
     }
 }

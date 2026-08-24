@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
@@ -354,7 +355,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName(),
-            EMBEDDING_FUNCTION.capabilityName()
+            EMBEDDING_FUNCTION.capabilityName(),
+            DENSE_VECTOR_COMMAND.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 

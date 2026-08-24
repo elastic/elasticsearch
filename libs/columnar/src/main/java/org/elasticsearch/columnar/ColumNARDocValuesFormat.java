@@ -37,7 +37,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     /** Smallest allowed block size. Must be a power of 2. */
     public static final int MIN_BLOCK_SIZE = 128;
 
-    /** Largest allowed block size. Caps O(blockSize) per-field allocations in the encoder. */
+    /**
+     * Largest allowed block size, in values. This caps the per-field allocations a column makes for one block —
+     * exactly, at {@code long[blockSize]}, for a numeric column. A string column's block buffer holds
+     * {@code blockSize} values, whose byte size is a property of the data rather than of this cap; bounding
+     * those bytes is what the byte-derived chunking in {@code docs/PLAN.md} is for.
+     */
     public static final int MAX_BLOCK_SIZE = 8192;
 
     /** Default block size used when none is specified. */

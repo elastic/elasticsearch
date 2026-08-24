@@ -45,7 +45,7 @@ public class BucketErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             if (isSupportedBucketsWholeNumber(buckets) == false
                 && DataType.isTemporalAmount(buckets) == false
                 && buckets != DataType.NULL) {
-                return typeErrorMessage(signature, 1, "integral, date_period or time_duration");
+                return typeErrorMessage(signature, 1, "integer, long, date_period or time_duration");
             }
             if (isSupportedBucketsWholeNumber(buckets) || fourArgs) {
                 if (fourArgs == false) {

@@ -1193,3 +1193,36 @@ ROW x = 100::unsigned_long
 c:long | b:double
 1      | 100.0
 ;
+
+bucketUnsignedLongFullRange20
+required_capability: fix_bucket_unsigned_long_bounds
+
+FROM ul_logs
+| WHERE id IN (70, 65, 58, 10, 60, 24, 50)
+| STATS c = COUNT(*) BY b = BUCKET(bytes_in, 20, 0::unsigned_long, 18446744073709551615::unsigned_long)
+| SORT b
+;
+
+c:long | b:double
+1      | 0.0
+1      | 5.0E18
+1      | 8.0E18
+2      | 9.0E18
+1      | 1.7E19
+1      | 1.8E19
+;
+
+bucketUnsignedLongFullRange4
+required_capability: fix_bucket_unsigned_long_bounds
+
+FROM ul_logs
+| WHERE id IN (70, 65, 58, 10, 60, 24, 50)
+| STATS c = COUNT(*) BY b = BUCKET(bytes_in, 4, 0::unsigned_long, 18446744073709551615::unsigned_long)
+| SORT b
+;
+
+c:long | b:double
+1      | 0.0
+4      | 5.0E18
+2      | 1.5E19
+;

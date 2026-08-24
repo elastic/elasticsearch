@@ -806,7 +806,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 dt -> isSupportedBucketsWholeNumber(dt) || DataType.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
-                "integral",
+                "integer",
+                "long",
                 "date_period",
                 "time_duration"
             );

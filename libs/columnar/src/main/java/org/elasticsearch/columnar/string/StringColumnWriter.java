@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
@@ -278,6 +279,11 @@ public final class StringColumnWriter {
                     ordinalTempName = ordinalTemp.getName();
                     exceptionTempName = exceptionTemp.getName();
                     final StringColumnValues values = cursors.get();
+                    // As in the survey: a column in term order repeats each value, so the ordinal is almost
+                    // always the one before it. An escaped value still has its bytes staged individually.
+                    final BytesRefBuilder previous = new BytesRefBuilder();
+                    int previousOrdinal = Vocabulary.DROPPED;
+                    boolean hasPrevious = false;
                     long index = 0;
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                         for (int i = 0, count = values.valueCount(); i < count; i++) {
@@ -293,8 +299,16 @@ public final class StringColumnWriter {
                                 continue;
                             }
                             final BytesRef value = values.nextValue();
-                            final int id = vocabulary.terms().find(value);
-                            final int ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                            final int ordinal;
+                            if (hasPrevious && previous.get().bytesEquals(value)) {
+                                ordinal = previousOrdinal;
+                            } else {
+                                final int id = vocabulary.terms().find(value);
+                                ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                                previous.copyBytes(value);
+                                previousOrdinal = ordinal;
+                                hasPrevious = true;
+                            }
                             if (ordinal == Vocabulary.DROPPED) {
                                 ordinalTemp.writeVInt(dictionarySize);
                                 exceptionTemp.writeVInt(value.length);

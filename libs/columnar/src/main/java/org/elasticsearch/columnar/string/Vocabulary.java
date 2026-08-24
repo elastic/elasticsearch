@@ -14,6 +14,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IntroSelector;
@@ -38,6 +39,9 @@ public final class Vocabulary {
 
     /** An id the survey saw but left out; its values escape like any unknown term. */
     public static final int DROPPED = -1;
+
+    /** A value the table could not admit, so it has no id at all. */
+    private static final int ABSENT = -1;
 
     private Vocabulary() {}
 
@@ -115,10 +119,22 @@ public final class Vocabulary {
         int[] counts = new int[64];
         long tableBytes = 0;
         long columnBytes = 0;
+        // A column that arrives in term order repeats each value in a run, so the term a value takes is
+        // almost always the one before it. Comparing against that costs a length check and settles it
+        // without a hash probe; only a run boundary pays for one.
+        final BytesRefBuilder previous = new BytesRefBuilder();
+        int previousId = ABSENT;
+        boolean hasPrevious = false;
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
                 final BytesRef value = values.nextValue();
                 columnBytes += value.length;
+                if (hasPrevious && previous.get().bytesEquals(value)) {
+                    if (previousId != ABSENT) {
+                        counts[previousId]++;
+                    }
+                    continue;
+                }
                 int id = terms.find(value);
                 if (id < 0) {
                     if (tableBytes + value.length > policy.maxBytes()) {
@@ -130,6 +146,10 @@ public final class Vocabulary {
                         if (tableBytes + value.length > policy.maxBytes()) {
                             // Nothing could be displaced: either every term held occurs at least as often as
                             // this one, or the table is empty and the value alone is larger than the bound.
+                            // Remembered as absent, so the rest of its run is turned away as cheaply.
+                            previous.copyBytes(value);
+                            previousId = ABSENT;
+                            hasPrevious = true;
                             continue;
                         }
                     }
@@ -141,6 +161,10 @@ public final class Vocabulary {
                     tableBytes += value.length;
                 }
                 counts[id]++;
+                // Copied only here, so a run costs one copy rather than one per value.
+                previous.copyBytes(value);
+                previousId = id;
+                hasPrevious = true;
             }
         }
         if (terms.size() == 0) {

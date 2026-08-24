@@ -478,7 +478,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
                 .build()
         );
-        startSearchNode();
+        final String searchNode = startSearchNode();
 
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -495,6 +495,17 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
 
         final var uploadedInfoRef = new AtomicReference<StatelessCommitService.UploadedBccInfo>();
         commitService.addConsumerForNewUploadedBcc(shardId, info -> uploadedInfoRef.compareAndSet(null, info));
+
+        // Block the uploaded notification on the search node so it never responds; the 100ms timeout must fire the cleanup instead.
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                final var req = (NewCommitNotificationRequest) request;
+                if (req.isUploaded()) {
+                    // Drop the request — no response sent; the timeout fires the after-notification cleanup.
+                    return;
+                }
+                handler.messageReceived(request, channel, task);
+            });
 
         indexDocs(indexName, between(5, 10));
         final Thread flushThread = new Thread(() -> flush(indexName));

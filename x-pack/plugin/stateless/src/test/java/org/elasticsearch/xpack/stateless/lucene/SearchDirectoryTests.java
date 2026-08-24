@@ -862,7 +862,7 @@ public class SearchDirectoryTests extends ESTestCase {
         // If minimum compatible grows beyond the TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION, then this test and overall logic can be
         // removed.
         assertThat(
-            "This test requires minimum compatible index version to below version from Dec 2025",
+            "This test requires minimum compatible index version to be below version from Dec 2025",
             preFieldVersion.before(SearchDirectory.TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION),
             equalTo(true)
         );

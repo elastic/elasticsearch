@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -1125,8 +1126,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             long fileLength = directory.fileLength(filename);
             assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
             long fileBytesToRead = Math.min(length, fileLength - offset);
-            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
-            IndexInput input = directory.openInput(filename, ioContext.withHints(IndexDirectory.PreferLocalHint.INSTANCE));
+            // withHints replaces all existing hints, so re-include ReadOnceHint for segments files so that
+            // non-IndexDirectory wrappers (e.g. MockDirectoryWrapper in tests) see the context they require.
+            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS)
+                ? IOContext.READONCE.withHints(ReadOnceHint.INSTANCE, IndexDirectory.PreferLocalHint.INSTANCE)
+                : IOContext.DEFAULT.withHints(IndexDirectory.PreferLocalHint.INSTANCE);
+            IndexInput input = directory.openInput(filename, ioContext);
             try {
                 input.seek(offset);
                 return new InputStreamIndexInput(input, fileBytesToRead) {
@@ -1149,8 +1154,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          */
         @Override
         public InputStream getInputStream() throws IOException {
+            // withHints replaces all hints, so re-include ReadOnceHint to preserve READONCE semantics through
+            // non-IndexDirectory wrappers (e.g. MockDirectoryWrapper in tests, which checks for ReadOnceHint).
             Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(
-                directory.openInput(filename, IOContext.READONCE.withHints(IndexDirectory.PreferLocalHint.INSTANCE))
+                directory.openInput(filename, IOContext.READONCE.withHints(ReadOnceHint.INSTANCE, IndexDirectory.PreferLocalHint.INSTANCE))
             );
             logger.trace("opening validating input for {}", filename);
 

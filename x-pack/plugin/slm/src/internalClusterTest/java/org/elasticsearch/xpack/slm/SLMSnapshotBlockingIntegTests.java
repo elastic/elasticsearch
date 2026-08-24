@@ -18,6 +18,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -61,9 +65,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for Snapshot Lifecycle Management that require a slow or blocked snapshot repo (using {@link MockRepository}
@@ -732,6 +739,140 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             }
             logger.info("--> snapshot [{}] has been deleted", snapshotName);
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Tests that an SLM-triggered partial snapshot completes as PARTIAL when an index shard is actively
+     * being restored, recording the restoring shard as failed rather than waiting indefinitely.
+     */
+    public void testSLMPolicyPartialSnapshotWhileRestoringCompletesAsPartial() throws Exception {
+        final String indexName = "test-index";
+        final String policyName = "test-partial-restore-policy";
+        final String sourceSnapshotName = "source-snapshot";
+        createIndexWithContent(indexName);
+        createRepository(REPO, "mock");
+        createFullSnapshot(REPO, sourceSnapshotName);
+
+        // DELETE (not close) to force the data node to read chunk blobs from the repo during
+        // restore, so blockAllDataNodes keeps the primary INITIALIZING.
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        blockAllDataNodes(REPO);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, sourceSnapshotName)
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .execute();
+        awaitPrimaryInSnapshotRestore(indexName);
+
+        // Create an SLM policy with partial=true, then trigger it immediately.
+        createSnapshotPolicy(
+            policyName,
+            "slm-snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            REPO,
+            indexName,
+            false,
+            true,
+            SnapshotRetentionConfiguration.EMPTY
+        );
+        final String snapshotName = executePolicy(policyName);
+
+        // The SLM snapshot should record the restoring shard as MISSING immediately and complete
+        // as PARTIAL rather than blocking on the ongoing restore.
+        assertBusy(() -> {
+            final List<SnapshotInfo> snapshots;
+            try {
+                snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO).setSnapshots(snapshotName).get().getSnapshots();
+            } catch (Exception e) {
+                // Snapshot may not yet be visible in the repository; retry.
+                throw new AssertionError(e.getMessage(), e);
+            }
+            assertThat(snapshots, hasSize(1));
+            final SnapshotInfo info = snapshots.get(0);
+            assertThat(info.state(), is(SnapshotState.PARTIAL));
+            assertThat(info.failedShards(), equalTo(1));
+            assertThat(info.shardFailures().get(0).reason(), containsString(SnapshotsService.SHARD_BEING_RESTORED_REASON));
+        }, 30L, TimeUnit.SECONDS);
+
+        unblockAllDataNodes(REPO);
+        awaitNoMoreRunningOperations();
+    }
+
+    /**
+     * A {@code partial=false} SLM-triggered snapshot taken while a shard is being restored waits
+     * for the restore to complete, then captures the shard and completes as {@link SnapshotState#SUCCESS}.
+     * This is the regression guard for the non-partial path: the existing waiting behaviour must not
+     * be broken by the {@code isRestoringShard} predicate.
+     */
+    public void testSLMPolicyNonPartialSnapshotWhileRestoringWaitsAndSucceeds() throws Exception {
+        final String indexName = "test-index";
+        final String policyName = "test-non-partial-restore-policy";
+        createIndexWithContent(indexName);
+        createRepository(REPO, "mock");
+        createFullSnapshot(REPO, "source-snapshot");
+
+        // DELETE (not close) to force the data node to read chunk blobs from the repo during
+        // restore, so blockAllDataNodes keeps the primary INITIALIZING.
+        assertAcked(indicesAdmin().prepareDelete(indexName));
+
+        blockAllDataNodes(REPO);
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, REPO, "source-snapshot")
+            .setIndices(indexName)
+            .setWaitForCompletion(false)
+            .execute();
+        awaitPrimaryInSnapshotRestore(indexName);
+
+        // Create an SLM policy with partial=false, then trigger it.
+        createSnapshotPolicy(
+            policyName,
+            "slm-snap",
+            NEVER_EXECUTE_CRON_SCHEDULE,
+            REPO,
+            indexName,
+            false,
+            false,
+            SnapshotRetentionConfiguration.EMPTY
+        );
+        final String snapshotName = executePolicy(policyName);
+
+        // With partial=false the snapshot must wait (WAITING shard) rather than skip the restoring shard.
+        awaitNumberOfSnapshotsInProgress(1);
+        awaitClusterState(
+            state -> SnapshotsInProgress.get(state)
+                .forRepo(REPO)
+                .stream()
+                .anyMatch(e -> e.shards().values().stream().anyMatch(s -> s.state() == SnapshotsInProgress.ShardState.WAITING))
+        );
+
+        // Unblock the data node — the restore completes and the snapshot can capture the shard.
+        unblockAllDataNodes(REPO);
+        awaitNoMoreRunningOperations();
+
+        assertBusy(() -> {
+            final List<SnapshotInfo> snapshots;
+            try {
+                snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO).setSnapshots(snapshotName).get().getSnapshots();
+            } catch (Exception e) {
+                throw new AssertionError(e.getMessage(), e);
+            }
+            assertThat(snapshots, hasSize(1));
+            final SnapshotInfo info = snapshots.get(0);
+            assertThat(info.state(), is(SnapshotState.SUCCESS));
+            assertThat(info.shardFailures(), empty());
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    private static void awaitPrimaryInSnapshotRestore(String indexName) throws Exception {
+        awaitClusterState(state -> {
+            final IndexRoutingTable indexRouting = state.routingTable().index(indexName);
+            if (indexRouting == null) {
+                return false;
+            }
+            final ShardRouting primary = indexRouting.shard(0).primaryShard();
+            return primary != null
+                && primary.state() == ShardRoutingState.INITIALIZING
+                && primary.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
+        });
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {

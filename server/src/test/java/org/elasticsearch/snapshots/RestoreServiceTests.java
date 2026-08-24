@@ -482,9 +482,15 @@ public class RestoreServiceTests extends ESTestCase {
 
     /**
      * Condition 4: an entry exists for the UUID but its {@link Snapshot} differs from the routing's recovery source
-     * (mismatched correlation state) — must return {@code false}.
+     * (mismatched correlation state). With assertions enabled this throws {@link AssertionError}; in production
+     * (assertions disabled) it logs ERROR and returns {@code false}. See also
+     * {@link #testIsRestoringShard_snapshotMismatch_productionFallback_returnsFalse()}.
      */
     public void testIsRestoringShard_snapshotMismatch_throwsAssertionError() {
+        boolean assertionsEnabled = false;
+        assert assertionsEnabled = true;
+        assumeTrue("requires assertions enabled (-ea)", assertionsEnabled);
+
         var s = buildRestoreTestState();
         SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
         ShardId shardId = s.primary().shardId();
@@ -506,6 +512,38 @@ public class RestoreServiceTests extends ESTestCase {
         ).build();
 
         assertThrows(AssertionError.class, () -> RestoreService.isRestoringShard(mismatchedRestore, s.primary()));
+    }
+
+    /**
+     * Condition 4 production fallback: with assertions disabled, a UUID/snapshot mismatch must return {@code false}
+     * so that callers see a safe degraded result rather than a crash. Run with {@code -Dtests.asserts=false}.
+     */
+    public void testIsRestoringShard_snapshotMismatch_productionFallback_returnsFalse() {
+        boolean assertionsEnabled = false;
+        assert assertionsEnabled = true;
+        assumeTrue("requires assertions disabled (-Dtests.asserts=false)", assertionsEnabled == false);
+
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        Snapshot differentSnapshot = new Snapshot(
+            randomProjectIdOrDefault(),
+            randomIdentifier(),
+            new SnapshotId(randomIdentifier(), randomUUID())
+        );
+        RestoreInProgress mismatchedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                differentSnapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId()))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShard(mismatchedRestore, s.primary()));
     }
 
     /**

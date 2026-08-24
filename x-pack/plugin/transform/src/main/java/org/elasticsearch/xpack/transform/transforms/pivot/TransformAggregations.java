@@ -117,7 +117,7 @@ public final class TransformAggregations {
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
         MISSING("missing", LONG),
-        TOP_METRICS("top_metrics", SOURCE), // size > 1 writes dest.top[]; size 1 stays a metrics flatten
+        TOP_METRICS("top_metrics", SOURCE), // size > 1 writes flatten plus dest.top[]; size 1 stays flatten
         STATS("stats", DOUBLE),
         BOXPLOT("boxplot", DOUBLE),
         EXTENDED_STATS("extended_stats", DOUBLE);
@@ -249,24 +249,24 @@ public final class TransformAggregations {
         // does the agg specify output field names
         Optional<Set<String>> outputFieldNames = agg.getOutputFieldNames();
         if (outputFieldNames.isPresent()) {
-            // size > 1 (top_metrics) stores hits under dest.top.metrics.<field> on the group doc
-            String destInfix = agg.getRankedHitSize() > 1 ? ".top.metrics." : ".";
-            return new Tuple<>(
-                outputFieldNames.get()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(outputField -> agg.getName() + destInfix + outputField, outputField -> outputField, (v1, v2) -> v1)
-                    ),
-                outputFieldNames.get()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + destInfix + outputField,
-                            outputField -> agg.getType(),
-                            (v1, v2) -> v1
-                        )
-                    )
-            );
+            Map<String, String> inputTypes = new HashMap<>();
+            Map<String, String> outputTypes = new HashMap<>();
+            boolean writeTopArray = agg.getRankedHitSize() > 1;
+            for (String outputField : outputFieldNames.get()) {
+                // Keep the historical flatten so existing dest readers of agg.field still work.
+                // Skip a metric named "top" when also writing dest.top[] — those keys collide.
+                if (writeTopArray == false || "top".equals(outputField) == false) {
+                    String flattenKey = agg.getName() + "." + outputField;
+                    inputTypes.put(flattenKey, outputField);
+                    outputTypes.put(flattenKey, agg.getType());
+                }
+                if (writeTopArray) {
+                    String topKey = agg.getName() + ".top.metrics." + outputField;
+                    inputTypes.put(topKey, outputField);
+                    outputTypes.put(topKey, agg.getType());
+                }
+            }
+            return new Tuple<>(inputTypes, outputTypes);
         }
 
         if (agg instanceof ValuesSourceAggregationBuilder<?> valueSourceAggregation) {

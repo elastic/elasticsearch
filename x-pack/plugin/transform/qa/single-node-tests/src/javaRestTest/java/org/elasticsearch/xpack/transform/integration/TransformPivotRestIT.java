@@ -2267,6 +2267,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResult));
 
         Map<String, Object> s1 = sessionDestHit(transformIndex, "s1");
+        assertThat(XContentMapValues.extractValue("token.path", s1), equalTo("/home"));
         List<?> top = (List<?>) XContentMapValues.extractValue("token.top", s1);
         assertThat(top, hasSize(3));
         assertThat((List<?>) XContentMapValues.extractValue("token.top.metrics.path", s1), equalTo(List.of("/home", "/shop", "/checkout")));
@@ -2276,6 +2277,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertThat(sessionTopHitSort(top, 2), equalTo(List.of("2026-08-16T10:02:00.000Z")));
 
         Map<String, Object> s2 = sessionDestHit(transformIndex, "s2");
+        assertThat(XContentMapValues.extractValue("token.path", s2), equalTo("/a"));
         assertThat((List<?>) XContentMapValues.extractValue("token.top", s2), hasSize(2));
         assertThat((List<?>) XContentMapValues.extractValue("token.top.metrics.path", s2), equalTo(List.of("/a", "/b")));
     }

@@ -92,11 +92,13 @@ teardown:
           }
   - length: { preview: 1 }
   - match: { preview.0.session: s1 }
+  - match: { preview.0.token.path: "/home" }
   - length: { preview.0.token.top: 3 }
   - match: { preview.0.token.top.0.sort.0: "2026-08-16T10:00:00.000Z" }
   - match: { preview.0.token.top.0.metrics.path: "/home" }
   - match: { preview.0.token.top.1.metrics.path: "/shop" }
   - match: { preview.0.token.top.2.metrics.path: "/checkout" }
+  - match: { generated_dest_index.mappings.properties.token\.path.type: "keyword" }
   - match: { generated_dest_index.mappings.properties.token\.top\.metrics\.path.type: "keyword" }
 
   - do:
@@ -144,4 +146,5 @@ teardown:
             }
           }
   - length: { preview: 1 }
+  - match: { preview.0.token.path: "/a" }
   - length: { preview.0.token.top: 2 }

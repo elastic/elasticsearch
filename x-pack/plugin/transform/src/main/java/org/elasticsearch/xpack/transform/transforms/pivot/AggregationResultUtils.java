@@ -298,9 +298,21 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
-            // size: 1 keeps the historical flatten (first hit's metrics map). size > 1 writes a
-            // top array on this dest doc — never one dest doc per hit.
-            if (aggregation.getRankedHitSize() > 1) {
+            boolean writeTopArray = aggregation.getRankedHitSize() > 1;
+            Map<String, Object> extracted = new LinkedHashMap<>();
+            // Historical flatten of the first hit so dest.token.path keeps working.
+            for (String valueName : aggregation.valueNames()) {
+                // dest.top[] owns this key when size > 1
+                if (writeTopArray && "top".equals(valueName)) {
+                    continue;
+                }
+                List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
+                if (valueAsStrings.size() > 0) {
+                    extracted.put(valueName, valueAsStrings.get(0));
+                }
+            }
+            // size > 1 also writes every ranked hit on this dest doc — never one dest doc per hit.
+            if (writeTopArray) {
                 List<Map<String, Object>> top = new ArrayList<>(aggregation.getRankedHits().size());
                 for (MultiValueAggregation.RankedHit hit : aggregation.getRankedHits()) {
                     Map<String, Object> entry = new LinkedHashMap<>();
@@ -308,18 +320,8 @@ public final class AggregationResultUtils {
                     entry.put("metrics", hit.metrics());
                     top.add(entry);
                 }
-                Map<String, Object> extracted = new LinkedHashMap<>();
                 extracted.put("top", top);
-                return extracted;
             }
-            Map<String, Object> extracted = new LinkedHashMap<>();
-            for (String valueName : aggregation.valueNames()) {
-                List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
-                if (valueAsStrings.size() > 0) {
-                    extracted.put(valueName, valueAsStrings.get(0));
-                }
-            }
-
             return extracted;
         }
     }

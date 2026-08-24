@@ -126,9 +126,18 @@ public class AggregationResultUtilsTests extends ESTestCase {
         private final List<MultiValueAggregation.RankedHit> rankedHits;
 
         TestRankedMultiValueAggregation(String name, int rankedHitSize, List<MultiValueAggregation.RankedHit> rankedHits) {
-            super(name, Map.of());
+            super(name, firstHitMetricsAsStrings(rankedHits));
             this.rankedHitSize = rankedHitSize;
             this.rankedHits = List.copyOf(rankedHits);
+        }
+
+        private static Map<String, String> firstHitMetricsAsStrings(List<MultiValueAggregation.RankedHit> rankedHits) {
+            if (rankedHits.isEmpty()) {
+                return Map.of();
+            }
+            Map<String, String> values = new LinkedHashMap<>();
+            rankedHits.get(0).metrics().forEach((key, value) -> values.put(key, value == null ? null : String.valueOf(value)));
+            return values;
         }
 
         @Override
@@ -749,7 +758,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         );
     }
 
-    public void testMultiValueAggExtractorSizeGreaterThanOneWritesTopArray() {
+    public void testMultiValueAggExtractorSizeGreaterThanOneWritesFlattenAndTopArray() {
         Aggregation agg = new TestRankedMultiValueAggregation(
             "token",
             3,
@@ -772,6 +781,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), ""),
             equalTo(
                 Map.of(
+                    "attributes.url.path.grouped",
+                    "/home",
                     "top",
                     List.of(
                         asOrderedMap(
@@ -810,6 +821,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> extracted = (Map<String, Object>) AggregationResultUtils.getExtractor(agg).value(agg, Map.of(), "");
         assertThat(((List<?>) extracted.get("top")), hasSize(2));
+        assertThat(extracted.get("path"), equalTo("/home"));
     }
 
     public void testMultiValueAggExtractorSizeGreaterThanOneEmptyHits() {
@@ -846,6 +858,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(result.get(0).get("session"), equalTo("s1"));
         @SuppressWarnings("unchecked")
         Map<String, Object> tokenDoc = (Map<String, Object>) result.get(0).get("token");
+        assertThat(tokenDoc.get("path"), equalTo("/home"));
         assertThat(((List<?>) tokenDoc.get("top")), hasSize(3));
     }
 

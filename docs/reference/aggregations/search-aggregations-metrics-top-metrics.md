@@ -270,12 +270,13 @@ If `size` is more than `1` the `top_metrics` aggregation can’t be the **target
 Pivot transforms persist `top_metrics` on the **single destination document** for each `group_by` key. They do not write one dest doc per hit.
 
 * `size: 1` (the default) keeps the historical flatten: the first hit’s `metrics` map is written under the aggregation name, for example `token.path`.
-* `size` greater than `1` writes a `top` array on that same dest doc, matching `_search` (`sort` plus `metrics` per hit, in aggregation sort order). The array length is the number of actual hits, not padded to `size`. A later continuous checkpoint **replaces** the array; it is not concatenated across checkpoints.
+* `size` greater than `1` keeps that flatten **and** writes a `top` array on the same dest doc, matching `_search` (`sort` plus `metrics` per hit, in aggregation sort order). The array length is the number of actual hits, not padded to `size`. A later continuous checkpoint **replaces** the array; it is not concatenated across checkpoints.
 
 ```js
 {
   "session": "s1",
   "token": {
+    "path": "/home",
     "top": [
       { "sort": ["2026-08-16T10:00:00.000Z"], "metrics": { "path": "/home" } },
       { "sort": ["2026-08-16T10:01:00.000Z"], "metrics": { "path": "/shop" } }

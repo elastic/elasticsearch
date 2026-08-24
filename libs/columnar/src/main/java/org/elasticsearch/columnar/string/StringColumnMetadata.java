@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
+import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 
 import java.io.IOException;
@@ -23,19 +24,55 @@ import java.io.IOException;
  * offset table is per block rather than per value so its size is a fraction of the column's — the position of a
  * value inside its block comes from decoding the block, which a read has to do anyway.
  *
- * <p>{@link #layout()} says how a block is encoded. Only {@link StringColumnLayout#PLAIN} exists today; the
- * recorded layout id is the extension point a later ordinal layout arrives on, so which trailing fields are
- * meaningful can vary by layout.
+ * <p>{@link #layout()} says how a block is encoded, and which trailing fields are meaningful.
+ * {@link StringColumnLayout#PLAIN} reads its values straight out of {@link #values()}.
+ * {@link StringColumnLayout#DICTIONARY} instead reads an ordinal from {@link #ordinals()} and resolves it
+ * against {@link #dictionary()}; its {@link #values()} stream holds nothing, since every value is named by
+ * a term.
  */
 public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
     int numDocsWithField,
     long numValues,
     StringColumnLayout layout,
-    ValueStream.Metadata values
+    ValueStream.Metadata values,
+    ValueStream.Metadata dictionary,
+    NumericColumnMetadata ordinals,
+    int dictionarySize
 ) implements ColumnMetadata {
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
-        return new StringColumnMetadata(iterator, 0, 0, StringColumnLayout.PLAIN, ValueStream.Metadata.empty());
+        return plain(iterator, 0, 0, ValueStream.Metadata.empty());
+    }
+
+    /** A column that stores its values as they were written. */
+    public static StringColumnMetadata plain(
+        ColumnIteratorMetadata iterator,
+        int numDocsWithField,
+        long numValues,
+        ValueStream.Metadata values
+    ) {
+        return new StringColumnMetadata(iterator, numDocsWithField, numValues, StringColumnLayout.PLAIN, values, null, null, 0);
+    }
+
+    /** A column that names every value with an ordinal into {@code dictionary}. */
+    public static StringColumnMetadata dictionary(
+        ColumnIteratorMetadata iterator,
+        int numDocsWithField,
+        long numValues,
+        ValueStream.Metadata dictionary,
+        NumericColumnMetadata ordinals,
+        int dictionarySize
+    ) {
+        return new StringColumnMetadata(
+            iterator,
+            numDocsWithField,
+            numValues,
+            StringColumnLayout.DICTIONARY,
+            ValueStream.Metadata.empty(),
+            dictionary,
+            ordinals,
+            dictionarySize
+        );
     }
 
     /** True when at least one document has more than one value. */
@@ -52,7 +89,14 @@ public record StringColumnMetadata(
         }
         out.writeVLong(numValues);
         out.writeByte(layout.id());
-        values.writeTo(out);
+        switch (layout) {
+            case PLAIN -> values.writeTo(out);
+            case DICTIONARY -> {
+                out.writeVInt(dictionarySize);
+                dictionary.writeTo(out);
+                ordinals.writeTo(out);
+            }
+        }
     }
 
     /**
@@ -75,7 +119,21 @@ public record StringColumnMetadata(
         }
         long numValues = in.readVLong();
         StringColumnLayout layout = StringColumnLayout.fromId(in.readByte());
-        return new StringColumnMetadata(iterator, numDocsWithField, numValues, layout, ValueStream.Metadata.readFrom(in));
+        return switch (layout) {
+            case PLAIN -> plain(iterator, numDocsWithField, numValues, ValueStream.Metadata.readFrom(in));
+            case DICTIONARY -> {
+                final int dictionarySize = in.readVInt();
+                final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
+                yield dictionary(
+                    iterator,
+                    numDocsWithField,
+                    numValues,
+                    dictionary,
+                    NumericColumnMetadata.readFrom(in, maxDoc, formatVersion),
+                    dictionarySize
+                );
+            }
+        };
     }
 
 }

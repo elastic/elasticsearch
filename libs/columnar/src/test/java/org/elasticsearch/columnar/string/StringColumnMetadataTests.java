@@ -64,11 +64,10 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
         }
         withColumn(docValues, (metadata, reader) -> {
             assertFalse("as many values as documents", metadata.multiValued());
-            final StringColumnMetadata several = new StringColumnMetadata(
+            final StringColumnMetadata several = StringColumnMetadata.plain(
                 metadata.iterator(),
                 metadata.numDocsWithField(),
                 metadata.numValues() + 1,
-                metadata.layout(),
                 metadata.values()
             );
             assertTrue("more values than documents", several.multiValued());

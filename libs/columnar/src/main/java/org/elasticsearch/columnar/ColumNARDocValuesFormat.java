@@ -16,6 +16,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
 
 import java.io.IOException;
 
@@ -55,10 +56,22 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
 
     private final NumericPipelineSelector pipelineSelector;
     private final int blockSize;
+    private final DictionaryPolicy dictionaryPolicy;
+
+    /**
+     * The bounds a string column's dictionary is chosen under when none is given.
+     *
+     * <p>The byte bound is what decides whether a column with a few thousand distinct values can hold all
+     * of them: a column of host names needs a quarter of a megabyte for its vocabulary, and one that cannot
+     * hold it stores every value instead. Beyond half a megabyte the bound stops admitting whole
+     * vocabularies and starts admitting the tails of large ones, where terms seen once add almost nothing
+     * to what the dictionary covers and widen the ordinal every value pays for.
+     */
+    public static final DictionaryPolicy DEFAULT_DICTIONARY_POLICY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     /** SPI constructor. Uses the default pipeline for every field. */
     public ColumNARDocValuesFormat() {
-        this((fieldName, type) -> NumericPipeline::defaultPipeline, DEFAULT_BLOCK_SIZE);
+        this((fieldName, type) -> NumericPipeline::defaultPipeline, DEFAULT_BLOCK_SIZE, DEFAULT_DICTIONARY_POLICY);
     }
 
     /**
@@ -66,6 +79,11 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
      * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
      */
     public ColumNARDocValuesFormat(final NumericPipelineSelector pipelineSelector, int blockSize) {
+        this(pipelineSelector, blockSize, DEFAULT_DICTIONARY_POLICY);
+    }
+
+    /** Constructs a format whose string columns choose their dictionary under {@code dictionaryPolicy}. */
+    public ColumNARDocValuesFormat(final NumericPipelineSelector pipelineSelector, int blockSize, DictionaryPolicy dictionaryPolicy) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
@@ -74,11 +92,12 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
         }
         this.pipelineSelector = pipelineSelector;
         this.blockSize = blockSize;
+        this.dictionaryPolicy = dictionaryPolicy;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize, dictionaryPolicy);
     }
 
     @Override

@@ -52,6 +52,10 @@ final class Vocabulary {
      * @param dictionaryBytes the term bytes the kept terms occupy
      * @param columnBytes    the value bytes the whole column occupies
      * @param counts         how often each id was seen, as a lower bound, or null when unknown
+     * @param complete       whether every value in the column is named by one of these terms. It is only
+     *                       true when the survey was exact — the table never had to make room, and no term
+     *                       it saw was left out — because a count that has been charged down is a lower
+     *                       bound, and a lower bound cannot establish that nothing is missing.
      */
     record Terms(
         BytesRefHash terms,
@@ -60,7 +64,8 @@ final class Vocabulary {
         double coverage,
         long dictionaryBytes,
         long columnBytes,
-        int[] counts
+        int[] counts,
+        boolean complete
     ) {
         /** Whether this vocabulary knows how often it saw each of its terms. */
         boolean counted() {
@@ -84,6 +89,7 @@ final class Vocabulary {
     static Terms survey(StringColumnValues values, DictionaryPolicy policy, long numValues) throws IOException {
         final BytesRefHash terms = new BytesRefHash(new ByteBlockPool(new ByteBlockPool.DirectTrackingAllocator(Counter.newCounter())));
         int[] counts = new int[64];
+        boolean evicted = false;
         long tableBytes = 0;
         long columnBytes = 0;
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
@@ -95,6 +101,7 @@ final class Vocabulary {
                     if (tableBytes + value.length > policy.maxBytes()) {
                         final long[] freed = { 0 };
                         counts = evictLeastFrequent(terms, counts, freed);
+                        evicted = true;
                         tableBytes -= freed[0];
                         if (tableBytes + value.length > policy.maxBytes()) {
                             // Nothing could be displaced: every term held occurs at least as often as this.
@@ -134,7 +141,8 @@ final class Vocabulary {
             terms.get(id, scratch);
             keptBytes += scratch.length;
         }
-        return new Terms(terms, sortedIds, ordinalOfId, (double) covered / numValues, keptBytes, columnBytes, counts);
+        final boolean complete = evicted == false && sortedIds.length == terms.size();
+        return new Terms(terms, sortedIds, ordinalOfId, (double) covered / numValues, keptBytes, columnBytes, counts, complete);
     }
 
     /**

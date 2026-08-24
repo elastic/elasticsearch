@@ -34,6 +34,7 @@ import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.string.ColumnarStringBinaryDocValues;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnMetadata;
 import org.elasticsearch.columnar.string.StringColumnValues;
 import org.elasticsearch.columnar.string.StringColumnWriter;
@@ -64,6 +65,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
     private final int blockSize;
+    private final DictionaryPolicy dictionaryPolicy;
 
     /** Bytes a chunk of a string column's byte stream holds before it is closed and compressed. */
     private static final int TARGET_CHUNK_BYTES = 64 * 1024;
@@ -71,9 +73,15 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     private record FieldEntry(int fieldNumber, byte fieldTypeId, ColumnMetadata metadata) {}
 
-    ColumNARDocValuesConsumer(SegmentWriteState state, NumericPipelineSelector pipelineSelector, int blockSize) throws IOException {
+    ColumNARDocValuesConsumer(
+        SegmentWriteState state,
+        NumericPipelineSelector pipelineSelector,
+        int blockSize,
+        DictionaryPolicy dictionaryPolicy
+    ) throws IOException {
         this.pipelineSelector = pipelineSelector;
         this.blockSize = blockSize;
+        this.dictionaryPolicy = dictionaryPolicy;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
@@ -353,6 +361,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ValueStream.VALUES_PER_BLOCK,
             ChunkCodec.ZSTD,
             TARGET_CHUNK_BYTES,
+            dictionaryPolicy,
             directory,
             context,
             data

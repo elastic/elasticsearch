@@ -74,10 +74,25 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final int targetChunkBytes,
         final ColumnCheck check
     ) throws IOException {
+        withColumn(docValues, blockSize, chunkCodec, targetChunkBytes, DictionaryPolicy.NONE, check);
+    }
+
+    /**
+     * As {@link #withColumn(BytesRef[], ColumnCheck)}, under a dictionary policy. The default is
+     * {@link DictionaryPolicy#NONE}, so a test asks for a dictionary rather than happening to get one.
+     */
+    protected void withColumn(
+        final BytesRef[] docValues,
+        final int blockSize,
+        final ChunkCodec chunkCodec,
+        final int targetChunkBytes,
+        final DictionaryPolicy policy,
+        final ColumnCheck check
+    ) throws IOException {
         final byte[] segmentId = new byte[16];
         random().nextBytes(segmentId);
         try (Directory dir = newDirectory()) {
-            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes);
+            final StringColumnMetadata metadata = writeColumn(dir, segmentId, docValues, blockSize, chunkCodec, targetChunkBytes, policy);
             try (IndexInput data = openData(dir, segmentId)) {
                 check.check(metadata, new StringColumnReader(metadata, data));
             }
@@ -114,7 +129,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         final BytesRef[] docValues,
         final int blockSize,
         final ChunkCodec chunkCodec,
-        final int targetChunkBytes
+        final int targetChunkBytes,
+        final DictionaryPolicy policy
     ) throws IOException {
         final int numDocsWithField = numDocsWithField(docValues);
         final StringColumnMetadata written;
@@ -128,6 +144,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 blockSize,
                 chunkCodec,
                 targetChunkBytes,
+                policy,
                 dir,
                 IOContext.DEFAULT,
                 out

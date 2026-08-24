@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.numeric.NumericColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 
@@ -35,13 +36,25 @@ public final class StringColumnReader {
     private final ColumnIteratorReader iteratorReader;
     private final ValueStream.Reader values;
 
+    /** Set on a dictionary column: the terms, and an ordinal into them for every value. */
+    private final ValueStream.Reader dictionary;
+    private final NumericColumnReader ordinals;
+
     private final BytesRef value = new BytesRef();
 
     public StringColumnReader(StringColumnMetadata meta, IndexInput data) throws IOException {
         assert meta.multiValued() == false : "multi-valued string columns are not implemented yet";
         this.meta = meta;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        this.values = meta.numDocsWithField() == 0 ? null : meta.values().open(data);
+        if (meta.layout() == StringColumnLayout.DICTIONARY) {
+            this.values = null;
+            this.dictionary = meta.dictionary().open(data);
+            this.ordinals = new NumericColumnReader(meta.ordinals(), data);
+        } else {
+            this.values = meta.numDocsWithField() == 0 ? null : meta.values().open(data);
+            this.dictionary = null;
+            this.ordinals = null;
+        }
     }
 
     /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#rank()}. */
@@ -68,13 +81,23 @@ public final class StringColumnReader {
      * buffer this reader reuses, so it is only valid until the next call.
      */
     public BytesRef valueAt(long valueAddress) throws IOException {
-        values.get(valueAddress, value);
+        if (dictionary != null) {
+            // The ordinals are one per value in the same order, so a value address addresses them directly.
+            dictionary.get(ordinals.valueAt(valueAddress), value);
+        } else {
+            values.get(valueAddress, value);
+        }
         return value;
+    }
+
+    /** How many terms the dictionary holds, or zero on a column that stores its values. */
+    public int dictionarySize() {
+        return meta.dictionarySize();
     }
 
     /** Values behind one offset in the byte stream. */
     public int blockSize() {
-        return meta.values().valuesPerBlock();
+        return meta.layout() == StringColumnLayout.DICTIONARY ? meta.dictionary().valuesPerBlock() : meta.values().valuesPerBlock();
     }
 
     /** Total number of values across all documents. */

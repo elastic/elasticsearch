@@ -84,6 +84,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * already been uploaded to the object store. Passed by
      * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from the
      * indexing node's local disk during the search-tier notification window.
+     * We should not rely on the cache having this filled, the indexing node's cache is for indexing, not for serving VBCCs to search.
      */
     public enum PreferLocalHint implements IOContext.FileOpenHint {
         INSTANCE

@@ -96,6 +96,19 @@ tasks.register('generateMultifileSplitNdjson_employees', JavaExec) {
 }
 generateStandaloneNdjsonTasks.add(tasks.named('generateMultifileSplitNdjson_employees'))
 
+// Every layout the matrix declares, for this format. Standalone and multifile_split are
+// registered above; the rest arrive from the shared declaration.
+ext.fixtureLayoutFormat = 'ndjson'
+ext.fixtureLayoutRoot = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures")
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
+ext.fixtureLayoutGenerator = 'ndjsonFixtureGenerator'
+ext.fixtureLayoutSkip = ['multifile_split'] as Set
+ext.serverProject = serverProject
+ext.testFixturesProject = testFixturesProject
+ext.testFixturesDataDir = testFixturesDataDir
+ext.fixtureLayoutTasks = generateStandaloneNdjsonTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
+
 tasks.register('generateStandaloneNdjsonFixtures') {
   dependsOn generateStandaloneNdjsonTasks
 }

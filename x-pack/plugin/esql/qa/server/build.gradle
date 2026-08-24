@@ -20,6 +20,8 @@ configurations {
   ndjsonFixtureGenerator
   // TsvFixtureGenerator: CSV → TSV for external-format QA (no Hadoop).
   tsvFixtureGenerator
+  // CsvFixtureGenerator: re-lays-out CSV into partition directories (no Hadoop).
+  csvFixtureGenerator
 }
 
 sourceSets {
@@ -34,6 +36,9 @@ sourceSets {
   }
   tsvFixtureGenerator {
     compileClasspath += configurations.tsvFixtureGenerator
+  }
+  csvFixtureGenerator {
+    compileClasspath += configurations.csvFixtureGenerator
   }
 }
 
@@ -106,4 +111,9 @@ dependencies {
   tsvFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
   tsvFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
   tsvFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
+
+  csvFixtureGenerator project(':libs:core')
+  csvFixtureGenerator project(xpackModule('esql:qa:fixture-common'))
+  csvFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  csvFixtureGenerator "org.slf4j:slf4j-nop:${versions.slf4j}"
 }

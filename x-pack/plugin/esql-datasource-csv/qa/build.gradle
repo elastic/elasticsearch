@@ -73,7 +73,7 @@ tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'multifile_a_anchor.csv', 'multifile_b_other.csv'
+    include fixtureMatrix.layoutSources('multifile', 'csv').collect { "${it}.csv" }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
 }
@@ -85,7 +85,7 @@ tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'multifile_ubn_a.csv', 'multifile_ubn_b.csv'
+    include fixtureMatrix.layoutSources('multifile_ubn', 'csv').collect { "${it}.csv" }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
 }
@@ -98,9 +98,31 @@ tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'multifile_type_drift_a.csv', 'multifile_type_drift_b.csv'
+    include fixtureMatrix.layoutSources('multifile_type_drift', 'csv').collect { "${it}.csv" }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_type_drift")
+}
+
+// Mixed-temporal fixture pair: one file declares ts:date, the other ts:date_nanos, so the
+// reconciler has to widen losslessly to date_nanos across files.
+tasks.register('syncCsvIcebergMultifileTemporalFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include fixtureMatrix.layoutSources('multifile_temporal', 'csv').collect { "${it}.csv" }
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/${fixtureMatrix.layoutDir('multifile_temporal')}")
+}
+
+// Column-permutation fixture pair: the same columns in a different physical order with distinct
+// per-column types, so cross-file column-order reconciliation cannot silently swap values.
+tasks.register('syncCsvIcebergMultifilePermFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include fixtureMatrix.layoutSources('multifile_perm', 'csv').collect { "${it}.csv" }
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/${fixtureMatrix.layoutDir('multifile_perm')}")
 }
 
 // Generate multifile CSV fixtures by splitting employees.csv into 3 parts (analogous to
@@ -203,6 +225,44 @@ generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'
   generateStandaloneTsvTasks.add(tasks.named(taskName))
 }
 
+// Every layout the matrix declares, for TSV. Standalone, multifile_split and multifile_ubn are
+// registered above; the rest arrive from the shared declaration.
+def generateCsvHiveTasks = []
+
+ext.fixtureLayoutFormat = 'tsv'
+ext.fixtureLayoutRoot = file("${tsvFixtureOutputRoot}/iceberg-fixtures")
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+ext.fixtureLayoutGenerator = 'tsvFixtureGenerator'
+ext.fixtureLayoutSkip = ['multifile_split', 'multifile_ubn'] as Set
+ext.serverProject = serverProject
+ext.testFixturesProject = testFixturesProject
+ext.testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
+ext.fixtureLayoutTasks = generateStandaloneTsvTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
+
+// CSV's hive layout: the one CSV layout that needs row-level work rather than a copy, so it
+// goes through a generator like the other formats. Only hive -- the rest are Sync tasks above.
+ext.fixtureLayoutFormat = 'csv'
+ext.fixtureLayoutRoot = file("${csvIcebergFixtureRoot}/iceberg-fixtures")
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.CsvFixtureGenerator'
+ext.fixtureLayoutGenerator = 'csvFixtureGenerator'
+ext.fixtureLayoutSkip = fixtureMatrix.authoredLayouts() as Set
+ext.fixtureLayoutTasks = generateCsvHiveTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
+
+// Everything that has to run before a suite can read the fixtures. Named once: it was written
+// out in full in four places, so a newly added layout reached some consumers and not others.
+def csvFixtureTasks = [
+  'syncCsvIcebergFixtures',
+  'syncCsvIcebergMultifileFixtures',
+  'syncCsvIcebergMultifileUbnFixtures',
+  'syncCsvIcebergMultifileTypeDriftFixtures',
+  'syncCsvIcebergMultifileTemporalFixtures',
+  'syncCsvIcebergMultifilePermFixtures',
+  'generateStandaloneTsvFixtures',
+  'generateMultifileCsvSplit_employees',
+] + generateCsvHiveTasks
+
 tasks.register('generateStandaloneTsvFixtures') {
   dependsOn generateStandaloneTsvTasks
 }
@@ -217,11 +277,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+  dependsOn csvFixtureTasks
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+  dependsOn csvFixtureTasks
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
@@ -258,16 +318,14 @@ sourceSets.csvSpecTest.resources {
   srcDir tsvFixtureOutputRoot
 }
 tasks.named('processCsvSpecTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures',
-    'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+  dependsOn csvFixtureTasks
 }
 
 // Runs the four csv-spec ITs in their own JVM, separate from javaRestTest. All four extend
 // AbstractCsvExternalSpecTestCase, which declares the shared ElasticsearchCluster at the
 // abstract-class level — INGEST fires exactly once for the entire suite.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
-  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures',
-    'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+  dependsOn csvFixtureTasks
   dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1

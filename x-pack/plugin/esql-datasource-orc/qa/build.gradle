@@ -124,6 +124,18 @@ tasks.register('generateMultifileSplitOrc_employees', JavaExec) {
 }
 generateOrcTasks.add(tasks.named('generateMultifileSplitOrc_employees'))
 
+// Every layout the matrix declares, for this format.
+ext.fixtureLayoutFormat = 'orc'
+ext.fixtureLayoutRoot = orcFixtureOutputDir
+ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.OrcFixtureGenerator'
+ext.fixtureLayoutGenerator = 'orcFixtureGenerator'
+ext.fixtureLayoutSkip = ['multifile_split'] as Set
+ext.serverProject = serverProject
+ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+ext.testFixturesDataDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/data')
+ext.fixtureLayoutTasks = generateOrcTasks
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
+
 tasks.register('generateOrcFixtures') {
   dependsOn generateOrcTasks
 }

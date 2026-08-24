@@ -1,0 +1,77 @@
+/*
+ * Registers the fixture-layout generation tasks a format is missing, from the declarations in
+ * fixture-matrix.properties.
+ *
+ * Every layout is generated for every format, because a layout materialised in one format is
+ * not a layout -- it is that format's private asset, and the spec cases written against it
+ * simply have no data to point at anywhere else. Hive fixtures existed for Parquet alone;
+ * column-permutation and mixed-temporal likewise; type-drift and union-by-name for the text
+ * formats that happened to need them. None of that was a decision about coverage.
+ *
+ * Apply AFTER fixture-matrix.gradle, having set:
+ *   - fixtureLayoutFormat        the format's file extension, e.g. 'ndjson'
+ *   - fixtureLayoutRoot          the iceberg-fixtures directory to write layout dirs under
+ *   - fixtureLayoutMainClass     the generator's main class
+ *   - fixtureLayoutGenerator     the generator's configuration/sourceSet name on serverProject
+ *   - fixtureLayoutSkip          layouts this module already registers itself (may be empty)
+ *   - serverProject, testFixturesProject, testFixturesDataDir
+ *   - fixtureLayoutTasks         list to append the registered task providers to
+ */
+
+def matrix = ext.fixtureMatrix
+def format = ext.fixtureLayoutFormat
+def layoutRoot = ext.fixtureLayoutRoot
+def mainClassName = ext.fixtureLayoutMainClass
+def generatorName = ext.fixtureLayoutGenerator
+def skip = ext.fixtureLayoutSkip as Set
+def serverProj = ext.serverProject
+def testFixturesProj = ext.testFixturesProject
+def dataDir = ext.testFixturesDataDir
+def registered = ext.fixtureLayoutTasks
+
+// Capitalised once for task names: generateNdjsonLayout_multifile_perm_parquet_perm_a.
+def formatTaskPart = format.replaceAll(/[^A-Za-z0-9]/, '').capitalize()
+
+def configureGenerator = { task ->
+  task.dependsOn serverProj.tasks.named("compile${generatorName.capitalize()}Java")
+  task.dependsOn testFixturesProj.tasks.named('processResources')
+  task.classpath = serverProj.configurations.getByName(generatorName) + serverProj.sourceSets.getByName(generatorName).output
+  task.mainClass = mainClassName
+  task.systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  task.systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+
+// Authored layouts: one file per declared source, written into the layout's directory.
+matrix.authoredLayouts().each { layout ->
+  if (skip.contains(layout)) {
+    return
+  }
+  def outputDir = file("${layoutRoot}/${matrix.layoutDir(layout)}")
+  matrix.layoutSources(layout, format).each { source ->
+    def csvInput = new File(dataDir, "${source}.csv")
+    def outputFile = file("${outputDir}/${source}.${format}")
+    def taskName = "generate${formatTaskPart}Layout_${layout}_${source}"
+    tasks.register(taskName, JavaExec) {
+      configureGenerator(it)
+      args = [csvInput.path, outputFile.path]
+      inputs.file(csvInput)
+      outputs.file(outputFile)
+    }
+    registered.add(tasks.named(taskName))
+  }
+}
+
+// Hive: one file per distinct value of the bucket column, under <partition-column>=<value>/.
+if (skip.contains('hive') == false) {
+  def hiveDataset = matrix.derivedFrom('hive')
+  def hiveDir = file("${layoutRoot}/${matrix.layoutDir('hive')}")
+  def hiveCsv = new File(dataDir, "${hiveDataset}.csv")
+  def hiveTaskName = "generate${formatTaskPart}Layout_hive_${hiveDataset}"
+  tasks.register(hiveTaskName, JavaExec) {
+    configureGenerator(it)
+    args = [hiveCsv.path, hiveDir.path, '--hive-by', matrix.hiveBucketBy(), matrix.hivePartitionColumn()]
+    inputs.file(hiveCsv)
+    outputs.dir(hiveDir)
+  }
+  registered.add(tasks.named(hiveTaskName))
+}

@@ -71,6 +71,48 @@ ext.fixtureMatrix = [
     }
     return dir.trim()
   },
+  /** Layouts built from authored source files, as opposed to the derived ones. */
+  authoredLayouts: { ->
+    props.stringPropertyNames()
+      .findAll { it.startsWith('layout.') && it.endsWith('.sources') }
+      .collect { it.substring('layout.'.length(), it.length() - '.sources'.length()) }
+      .sort()
+      .asImmutable()
+  },
+  /** A layout's source files for one format, falling back to the layout's default set. */
+  layoutSources: { String layout, String format ->
+    def perFormatKey = "layout.${layout}.sources.${format}"
+    def perFormat = props.getProperty(perFormatKey)
+    def value = perFormat != null ? perFormat : props.getProperty("layout.${layout}.sources")
+    if (value == null) {
+      throw new GradleException("layout '${layout}' declares no sources in ${matrixFile.name}.")
+    }
+    def sources = value.split(',').collect { it.trim() }.findAll { it.isEmpty() == false }
+    // An empty per-format list says this cell is knowingly not generated. Same rule as a
+    // restricted dataset: opting out is a claim, and a claim needs a reason.
+    if (sources.isEmpty()) {
+      def reason = props.getProperty("${perFormatKey}.reason")
+      if (reason == null || reason.trim().isEmpty()) {
+        throw new GradleException(
+          "layout '${layout}' generates nothing for format '${format}' but declares no reason. " +
+          "Add '${perFormatKey}.reason = gap: <why>' to ${matrixFile.name}."
+        )
+      }
+    }
+    return sources.asImmutable()
+  },
+  /** The dataset a derived layout is re-laid-out from. */
+  derivedFrom: { String layout ->
+    def value = props.getProperty("layout.${layout}.derived_from")
+    if (value == null) {
+      throw new GradleException("layout '${layout}' is not derived from a dataset in ${matrixFile.name}.")
+    }
+    return value.trim()
+  },
+  /** The payload column hive buckets on. */
+  hiveBucketBy: { -> props.getProperty('layout.hive.bucket_by').trim() },
+  /** The path-derived partition column name hive writes into directory names. */
+  hivePartitionColumn: { -> props.getProperty('layout.hive.partition_column').trim() },
   /** The datasets every format carries, for modules that deliberately run a reduced set. */
   baseline: { -> baselineDatasets.asImmutable() },
   /** How many files a split layout produces. */

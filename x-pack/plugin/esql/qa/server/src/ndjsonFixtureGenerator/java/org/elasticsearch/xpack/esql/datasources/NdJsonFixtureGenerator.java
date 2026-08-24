@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasources.fixtures.HivePartitioner;
 import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Build-time generator: converts a {@link CsvFixtureParser}-compatible CSV fixture to newline-delimited JSON (NDJSON).
@@ -55,10 +57,32 @@ public final class NdJsonFixtureGenerator {
     private NdJsonFixtureGenerator() {}
 
     private static final Logger logger = LoggerFactory.getLogger(NdJsonFixtureGenerator.class);
+    private static final String HIVE_BY_FLAG = "--hive-by";
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length == 2) {
+        if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            String sourceColumn = args[3];
+            String partitionColumn = args[4];
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            CsvFixtureParser.CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            Files.createDirectories(outputDir);
+            for (Map.Entry<String, List<Object[]>> bucket : HivePartitioner.bucketRows(parsed, sourceColumn).entrySet()) {
+                List<Object[]> bucketRows = bucket.getValue();
+                Path partitionDir = outputDir.resolve(HivePartitioner.partitionDirName(partitionColumn, bucket.getKey()));
+                Files.createDirectories(partitionDir);
+                Path outputPath = partitionDir.resolve(baseName + ".ndjson");
+                CsvFixtureParser.CsvFixtureResult bucketResult = new CsvFixtureParser.CsvFixtureResult(parsed.schema(), bucketRows);
+                byte[] bytes = generateFromRows(bucketResult, 0, bucketRows.size());
+                Files.write(outputPath, bytes);
+                logger.info("Generated NDJSON Hive partition: {} ({} rows)", outputPath, bucketRows.size());
+            }
+        } else if (args.length == 2) {
             Path sourcePath = Path.of(args[0]);
             Path outputPath = Path.of(args[1]);
             if (Files.exists(sourcePath) == false) {
@@ -93,6 +117,9 @@ public final class NdJsonFixtureGenerator {
         } else {
             System.err.println("Usage: NdJsonFixtureGenerator <source-csv-path> <output-ndjson-path>");
             System.err.println("       NdJsonFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
+            System.err.println(
+                "       NdJsonFixtureGenerator <source-csv-path> <output-dir> --hive-by <source-column> <partition-column-name>"
+            );
             System.exit(1);
         }
     }

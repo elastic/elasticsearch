@@ -20,6 +20,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.HivePartitioner;
 import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,29 +135,12 @@ public final class ParquetFixtureGenerator {
         CompressionCodecName codec
     ) throws IOException {
         CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
-        int sourceColIdx = -1;
-        for (int i = 0; i < result.schema().size(); i++) {
-            if (result.schema().get(i).name().equals(sourceColumn)) {
-                sourceColIdx = i;
-                break;
-            }
-        }
-        if (sourceColIdx < 0) {
-            throw new IOException("Source column not found in CSV: " + sourceColumn);
-        }
-
         String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
-        // LinkedHashMap so the on-disk layout iterates buckets in a deterministic order.
-        Map<String, List<Object[]>> buckets = new LinkedHashMap<>();
-        for (Object[] row : result.rows()) {
-            Object cell = sourceColIdx < row.length ? row[sourceColIdx] : null;
-            String bucket = cell == null ? "__HIVE_DEFAULT_PARTITION__" : cell.toString();
-            buckets.computeIfAbsent(bucket, k -> new ArrayList<>()).add(row);
-        }
+        Map<String, List<Object[]>> buckets = HivePartitioner.bucketRows(result, sourceColumn);
 
         Files.createDirectories(outputDir);
         for (Map.Entry<String, List<Object[]>> e : buckets.entrySet()) {
-            Path partitionDir = outputDir.resolve(partitionColumn + "=" + e.getKey());
+            Path partitionDir = outputDir.resolve(HivePartitioner.partitionDirName(partitionColumn, e.getKey()));
             Files.createDirectories(partitionDir);
             Path outputPath = partitionDir.resolve(baseName + ".parquet");
             byte[] bytes = generateFromRows(

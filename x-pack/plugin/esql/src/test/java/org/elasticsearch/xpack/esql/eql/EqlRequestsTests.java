@@ -211,6 +211,22 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[allow_partial_sequence_results] requires a boolean value"));
     }
 
+    public void testRejectsInvalidResultPosition() {
+        // result_position has a closed value set; a mistyped/miscased value must fail at parse time here, not surface as
+        // a late engine-worded error at execution.
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> EqlRequests.validateOptions(EMPTY, Map.of("result_position", "TAIL"))
+        );
+        assertThat(e.getMessage(), allOf(containsString("[result_position] value [TAIL]"), containsString("must be one of [head, tail]")));
+    }
+
+    public void testAcceptsValidResultPositions() {
+        // Both valid values pass validation without throwing.
+        EqlRequests.validateOptions(EMPTY, Map.of("result_position", "head"));
+        EqlRequests.validateOptions(EMPTY, Map.of("result_position", "tail"));
+    }
+
     public void testRejectsOversizedNumericOption() {
         // A numeric value above Integer.MAX_VALUE would wrap on intValue() (e.g. size 4294967296 -> 0), presenting an
         // empty result as complete. It must fail at parse time, not truncate silently.

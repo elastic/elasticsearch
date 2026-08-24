@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.ObjIntConsumer;
 
@@ -44,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  *
  * <p>The request {@code size} follows an explicit precedence: a {@code WITH {"size"}} option wins; otherwise the
  * row {@code LIMIT} folded into the plan ({@code pushedLimit}); otherwise the ES|QL result-truncation cap
- * ({@code defaultSize}). Only the last case can silently truncate, so the caller warns on it (see
+ * ({@link EnclosingQuery#truncationCap}). Only the last case can silently truncate, so the caller warns on it (see
  * {@link #usesTruncationCapSize}).
  *
  * <p>The supported {@code WITH} options are the single source of truth in {@link #OPTIONS}: {@link #validateOptions}
@@ -59,7 +60,7 @@ public final class EqlRequests {
      * messages, and how the value applies to the request. {@link #OPTIONS} is the single source of truth for the
      * command's option surface, so validation and application never drift and adding an option is one entry.
      */
-    private record Option(Class<?> type, String typeName, int min, BiConsumer<EqlSearchRequest, Object> apply) {}
+    private record Option(Class<?> type, String typeName, int min, Set<String> allowedValues, BiConsumer<EqlSearchRequest, Object> apply) {}
 
     private static final Map<String, Option> OPTIONS = options();
 
@@ -72,23 +73,38 @@ public final class EqlRequests {
         stringOption(options, "timestamp_field", EqlSearchRequest::timestampField);
         stringOption(options, "tiebreaker_field", EqlSearchRequest::tiebreakerField);
         stringOption(options, "event_category_field", EqlSearchRequest::eventCategoryField);
-        stringOption(options, "result_position", EqlSearchRequest::resultPosition);
+        // result_position is the one string option with a closed value set; validate it at parse time (the others are
+        // free-form field names) so a miscased "TAIL" fails loud here rather than as a late engine-worded error.
+        stringOption(options, "result_position", Set.of("head", "tail"), EqlSearchRequest::resultPosition);
         // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be
         // returned. Defaulted false in build() (fail-safe) and opted into here.
         options.put(
             "allow_partial_sequence_results",
-            new Option(Boolean.class, "boolean", 0, (request, value) -> request.allowPartialSequenceResults((Boolean) value))
+            new Option(Boolean.class, "boolean", 0, Set.of(), (request, value) -> request.allowPartialSequenceResults((Boolean) value))
         );
         return options;
     }
 
     // Numeric options arrive as folded Number literals; the request takes an int. min is the inclusive lower bound.
     private static void intOption(Map<String, Option> options, String name, int min, ObjIntConsumer<EqlSearchRequest> apply) {
-        options.put(name, new Option(Number.class, "numeric", min, (request, value) -> apply.accept(request, ((Number) value).intValue())));
+        options.put(
+            name,
+            new Option(Number.class, "numeric", min, Set.of(), (request, value) -> apply.accept(request, ((Number) value).intValue()))
+        );
     }
 
     private static void stringOption(Map<String, Option> options, String name, BiConsumer<EqlSearchRequest, String> apply) {
-        options.put(name, new Option(String.class, "string", 0, (request, value) -> apply.accept(request, (String) value)));
+        stringOption(options, name, Set.of(), apply);
+    }
+
+    // A string option, optionally restricted to a closed set of allowed values (empty set = any string).
+    private static void stringOption(
+        Map<String, Option> options,
+        String name,
+        Set<String> allowedValues,
+        BiConsumer<EqlSearchRequest, String> apply
+    ) {
+        options.put(name, new Option(String.class, "string", 0, allowedValues, (request, value) -> apply.accept(request, (String) value)));
     }
 
     /**
@@ -110,6 +126,19 @@ public final class EqlRequests {
                 throw new ParsingException(
                     source,
                     "EQL command option [" + entry.getKey() + "] requires a " + option.typeName() + " value"
+                );
+            }
+            // A string option with a closed value set (result_position) must be one of them — reject a mistyped value
+            // here rather than letting it surface as a late engine-worded error at execution.
+            if (option.allowedValues().isEmpty() == false && option.allowedValues().contains(entry.getValue()) == false) {
+                throw new ParsingException(
+                    source,
+                    "EQL command option ["
+                        + entry.getKey()
+                        + "] value ["
+                        + entry.getValue()
+                        + "] must be one of "
+                        + option.allowedValues().stream().sorted().toList()
                 );
             }
             // Every numeric option applies as an int within [min, Integer.MAX_VALUE]. Reject a value that is

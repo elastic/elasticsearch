@@ -355,61 +355,159 @@ required_capability: dense_vector_field_type_released
 required_capability: esql_limit_by
 
 FROM dense_vector
-| SORT id
 | LIMIT 1 BY float_vector
 | KEEP id, float_vector
 | SORT id
 ;
 
-id:l | float_vector:dense_vector
-0    | [1.0, 2.0, 3.0]
-1    | [4.0, 5.0, 6.0]
-2    | [9.0, 8.0, 7.0]
-3    | [0.0625, 0.25, 0.75]
-4    | null
+id:long | float_vector:dense_vector
+0       | [1.0, 2.0, 3.0]
+1       | [4.0, 5.0, 6.0]
+2       | [9.0, 8.0, 7.0]
+3       | [0.0625, 0.25, 0.75]
+4       | null
 ;
 
-// LIMIT 1 BY float_vector: one row per distinct vector value.
-// Group [1,2,3] → id=0; group [4,5,6] → id=2; null group → id=5.
+sortLimitByDenseVectorAllUnique
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
+
+FROM dense_vector
+| SORT id
+| LIMIT 1 BY float_vector
+| KEEP id, float_vector
+;
+
+id:long | float_vector:dense_vector
+0       | [1.0, 2.0, 3.0]
+1       | [4.0, 5.0, 6.0]
+2       | [9.0, 8.0, 7.0]
+3       | [0.0625, 0.25, 0.75]
+4       | null
+;
+
 limitByDenseVector
+required_capability: dense_vector_field_type_released
 required_capability: esql_limit_by
 
 FROM dense_vector_limit_by
-| SORT id
+| SORT id DESC
+| LIMIT 500
 | LIMIT 1 BY float_vector
+| KEEP id, float_vector
+;
+
+id:long | float_vector:dense_vector
+5       | null
+4       | [1.0, 2.0, 3.0]
+3       | [4.0, 5.0, 6.0]
+;
+
+sortLimitByDenseVector
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
+
+FROM dense_vector_limit_by
+| SORT id DESC
+| LIMIT 1 BY float_vector
+| KEEP id, float_vector
+;
+
+id:long | float_vector:dense_vector
+5       | null
+4       | [1.0, 2.0, 3.0]
+3       | [4.0, 5.0, 6.0]
+;
+
+limitByDenseVectorLargeN
+required_capability: dense_vector_field_type_released
+required_capability: esql_limit_by
+
+FROM dense_vector_limit_by
+| LIMIT 100 BY float_vector
 | KEEP id, float_vector
 | SORT id
 ;
 
-id:l | float_vector:dense_vector
-0    | [1.0, 2.0, 3.0]
-2    | [4.0, 5.0, 6.0]
-5    | null
+id:long | float_vector:dense_vector
+0       | [1.0, 2.0, 3.0]
+1       | [4.0, 5.0, 6.0]
+2       | [4.0, 5.0, 6.0]
+3       | [4.0, 5.0, 6.0]
+4       | [1.0, 2.0, 3.0]
+5       | null
 ;
 
-// LIMIT 2 BY float_vector: at most two rows per distinct vector value.
-// Group [1,2,3] → id=0,1; group [4,5,6] → id=2,3; null group → id=5 (only one null row).
-limitByDenseVectorN2
-required_capability: esql_limit_by
+sortLimitByDenseVectorLargeN
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
 
 FROM dense_vector_limit_by
 | SORT id
+| LIMIT 100 BY float_vector
+| KEEP id, float_vector
+;
+
+id:long | float_vector:dense_vector
+0       | [1.0, 2.0, 3.0]
+1       | [4.0, 5.0, 6.0]
+2       | [4.0, 5.0, 6.0]
+3       | [4.0, 5.0, 6.0]
+4       | [1.0, 2.0, 3.0]
+5       | null
+;
+
+limitByDenseVectorN2
+required_capability: dense_vector_field_type_released
+required_capability: esql_limit_by
+
+FROM dense_vector_limit_by
 | LIMIT 2 BY float_vector
 | KEEP id, float_vector
 | SORT id
 ;
 
-id:l | float_vector:dense_vector
-0    | [1.0, 2.0, 3.0]
-1    | [1.0, 2.0, 3.0]
-2    | [4.0, 5.0, 6.0]
-3    | [4.0, 5.0, 6.0]
-5    | null
+id:long | float_vector:dense_vector
+0       | [1.0, 2.0, 3.0]
+1       | [4.0, 5.0, 6.0]
+2       | [4.0, 5.0, 6.0]
+4       | [1.0, 2.0, 3.0]
+5       | null
 ;
 
-// LIMIT 0 BY float_vector: returns no rows.
+sortLimitByDenseVectorN2
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
+
+FROM dense_vector_limit_by
+| SORT id
+| LIMIT 2 BY float_vector
+| KEEP id, float_vector
+;
+
+id:long | float_vector:dense_vector
+0       | [1.0, 2.0, 3.0]
+1       | [4.0, 5.0, 6.0]
+2       | [4.0, 5.0, 6.0]
+4       | [1.0, 2.0, 3.0]
+5       | null
+;
+
 limitByDenseVectorZero
+required_capability: dense_vector_field_type_released
 required_capability: esql_limit_by
+
+FROM dense_vector_limit_by
+| LIMIT 0 BY float_vector
+| KEEP id, float_vector
+;
+
+id:long | float_vector:dense_vector
+;
+
+sortLimitByDenseVectorZero
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
 
 FROM dense_vector_limit_by
 | SORT id
@@ -417,69 +515,26 @@ FROM dense_vector_limit_by
 | KEEP id, float_vector
 ;
 
-id:l | float_vector:dense_vector
-;
-
-// LIMIT with a large N returns every row since no group exceeds 6 members.
-limitByDenseVectorLargeN
-required_capability: esql_limit_by
-
-FROM dense_vector_limit_by
-| SORT id
-| LIMIT 100 BY float_vector
-| KEEP id, float_vector
-| SORT id
-;
-
-id:l | float_vector:dense_vector
-0    | [1.0, 2.0, 3.0]
-1    | [1.0, 2.0, 3.0]
-2    | [4.0, 5.0, 6.0]
-3    | [4.0, 5.0, 6.0]
-4    | [4.0, 5.0, 6.0]
-5    | null
-;
-
-// SORT id DESC | LIMIT 1 BY float_vector picks the highest id per group.
-// Group [1,2,3] → id=1; group [4,5,6] → id=4; null group → id=5.
-sortLimitByDenseVector
-required_capability: esql_topn_by
-
-FROM dense_vector_limit_by
-| SORT id DESC
-| LIMIT 1 BY float_vector
-| KEEP id, float_vector
-| SORT id
-;
-
-id:l | float_vector:dense_vector
-1    | [1.0, 2.0, 3.0]
-4    | [4.0, 5.0, 6.0]
-5    | null
-;
-
-// SORT id DESC | LIMIT 2 BY float_vector picks the two highest ids per group.
-sortLimitByDenseVectorN2
-required_capability: esql_topn_by
-
-FROM dense_vector_limit_by
-| SORT id DESC
-| LIMIT 2 BY float_vector
-| KEEP id, float_vector
-| SORT id
-;
-
-id:l | float_vector:dense_vector
-0    | [1.0, 2.0, 3.0]
-1    | [1.0, 2.0, 3.0]
-3    | [4.0, 5.0, 6.0]
-4    | [4.0, 5.0, 6.0]
-5    | null
+id:long | float_vector:dense_vector
 ;
 
 // After LIMIT BY, downstream STATS sees one row per group.
 limitByDenseVectorThenStats
+required_capability: dense_vector_field_type_released
 required_capability: esql_limit_by
+
+FROM dense_vector_limit_by
+| LIMIT 1 BY float_vector
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+sortLimitByDenseVectorThenStats
+required_capability: dense_vector_field_type_released
+required_capability: esql_topn_by
 
 FROM dense_vector_limit_by
 | SORT id

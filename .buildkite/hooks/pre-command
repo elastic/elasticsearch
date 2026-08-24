@@ -201,7 +201,7 @@ if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
   export ORG_GRADLE_PROJECT_signingPassword
 fi
 
-# Credentials for the DRA maven/javadoc publisher (dra-publish-maven.sh).
+# Credentials for the DRA maven/javadoc publisher (dra-maven-snapshots-publish.sh).
 # The `unified-release-maven` AWS role is scoped to the `maven/` and `javadoc/`
 # prefixes on both snapshots.elastic.co and artifacts.elastic.co, provisioned by
 # Artifact Management in

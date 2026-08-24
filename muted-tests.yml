@@ -734,27 +734,53 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.ai21.Ai21ServiceTests
   method: testUnifiedCompletionInfer
   issue: https://github.com/elastic/elasticsearch/issues/157322
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/157326
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll
-  issue: https://github.com/elastic/elasticsearch/issues/157326
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testFromDatasetDeniedWithoutReadOnName
-  issue: https://github.com/elastic/elasticsearch/issues/157335
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testPutDatasetAllowedWithCreateDatasetPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/157336
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbIT
-  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/157337
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testFromDatasetDeniedWithoutReadOnName
-  issue: https://github.com/elastic/elasticsearch/issues/157338
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testFromDatasetAllowedWithDatasetReadOnly
-  issue: https://github.com/elastic/elasticsearch/issues/157339
-- class: org.elasticsearch.xpack.esql.EsqlSecurityLogsdbColumnarIT
-  method: testGetDatasetAllowedWithReadDatasetMetadataPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/157340
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=3 p1=upgraded_cluster/10_basic/Component and composable templates can be retrieved and updated}
+  issue: https://github.com/elastic/elasticsearch/issues/157435
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Component and composable templates can be retrieved}
+  issue: https://github.com/elastic/elasticsearch/issues/157436
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecChangePointIT
+  method: test {csv-spec:change_point.null keys}
+  issue: https://github.com/elastic/elasticsearch/issues/157411
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/157440
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Get index works}
+  issue: https://github.com/elastic/elasticsearch/issues/157449
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=3 p1=upgraded_cluster/10_basic/Find a task result record from the old cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/157450
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  method: testSearchShardRecoveryRegistersCommit
+  issue: https://github.com/elastic/elasticsearch/issues/157463
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Use the percolate query in mixed cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/157467
+- class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
+  method: testFailedDeploymentStats
+  issue: https://github.com/elastic/elasticsearch/issues/157341
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=remote_cluster/50_sparse_vector/Check sparse_vector token pruning index_options tokens weight out of bounds}
+  issue: https://github.com/elastic/elasticsearch/issues/157497
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=remote_cluster/50_sparse_vector/Check sparse_vector token pruning index_options prune missing do not allow config}
+  issue: https://github.com/elastic/elasticsearch/issues/157499
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=remote_cluster/50_sparse_vector/Check sparse_vector token pruning index_options prune false do not allow config}
+  issue: https://github.com/elastic/elasticsearch/issues/157500
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options prune missing do not allow config}
+  issue: https://github.com/elastic/elasticsearch/issues/157501
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options tokens weight out of bounds}
+  issue: https://github.com/elastic/elasticsearch/issues/157502
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options mappings defaults}
+  issue: https://github.com/elastic/elasticsearch/issues/157503
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options prune false do not allow config}
+  issue: https://github.com/elastic/elasticsearch/issues/157504
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/157508

@@ -61,7 +61,6 @@ public class PainlessConcurrentAllocationIT extends ResourceExhaustionPainlessTe
         .module("lang-painless")
         .setting("xpack.security.enabled", "false")
         .setting("script.painless.max_allocation_bytes.context.score.limit", "50mb")
-        .jvmArg("-Xmx512m")
         .build();
 
     @Override

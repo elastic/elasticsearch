@@ -46,7 +46,6 @@ public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCas
         .module("lang-painless")
         .setting("xpack.security.enabled", "false")
         .setting("script.painless.max_allocation_bytes.context.score.limit", "200mb")
-        .jvmArg("-Xmx512m")
         .build();
 
     @Override

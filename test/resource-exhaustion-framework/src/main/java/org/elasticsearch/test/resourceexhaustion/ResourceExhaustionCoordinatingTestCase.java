@@ -30,7 +30,6 @@ public abstract class ResourceExhaustionCoordinatingTestCase extends ESRestTestC
         .withNode(node -> node.setting("node.roles", "[]"))
         .withNode(node -> node.setting("node.roles", "[data,master,ingest]"))
         .setting("xpack.security.enabled", "false")
-        .jvmArg("-Xmx512m")
         .build();
 
     @Override

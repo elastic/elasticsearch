@@ -47,7 +47,6 @@ public class PainlessUpdateAllocationIT extends ResourceExhaustionPainlessTestCa
         .module("lang-painless")
         .setting("xpack.security.enabled", "false")
         .setting("script.painless.max_allocation_bytes.context.update.limit", "200mb")
-        .jvmArg("-Xmx512m")
         .build();
 
     @Override

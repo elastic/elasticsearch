@@ -144,7 +144,7 @@ The index-level setting `index.mapping.doc_values.nullability` will control the 
 ## Handling constraint violations [doc-values-on-failure]
 
 ```{applies_to}
-stack: preview 9.5
+stack: preview 9.6
 serverless: preview
 ```
 
@@ -157,6 +157,7 @@ The `on_failure` sub-parameter of `doc_values` controls what happens when a docu
 ```console
 PUT my-index-000001
 {
+  "settings": { "mode": "columnar" },
   "mappings": {
     "properties": {
       "status_code": { <1>
@@ -179,24 +180,24 @@ PUT my-index-000001
 ```
 
 1. The `status_code` field rejects any document that contains more than one value.
-2. The `tags` field accepts documents with multiple values; only the first value is stored as a queryable doc value, and the rest are redirected to a hidden sidecar.
+2. The `tags` field accepts documents that contain multiple values. Only the first value is searchable; the remaining values are kept so that `_source` can still return the original array.
 
-**`on_failure: fail`** (default)
+### `on_failure: fail` (default) [doc-values-on-failure-fail]
 
 The whole indexing request for that document is rejected with an error:
 
 - For a `multi_value: false` violation: `Field [x] is configured with [multi_value=false] but encountered multiple values in the same document`
 - For a `nullability: false` violation: `Field(s) [x] are configured with [nullability=false] but no value was provided`
 
-**`on_failure: ignore`**
+### `on_failure: ignore` [doc-values-on-failure-ignore]
 
 The document is accepted. The behavior depends on which constraint was violated:
 
-- **`multi_value: false`**: The first value is stored in the field's normal doc values. Each additional value is redirected to a hidden per-field `<field>._on_failure` sidecar column. The field name is recorded in [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md).
+- **`multi_value: false`**: The first value is stored in the field's doc values. Each additional value is moved to a hidden per-field `<field>._on_failure` column. The field name is recorded in [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md).
 - **`nullability: false`**: The missing field is recorded in `_ignored`. There is no value to redirect.
 
 ::::{warning}
-Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The sidecar is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
+Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The failure column is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
 ::::
 
 The following example demonstrates the round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
@@ -218,7 +219,7 @@ PUT my-on-failure-index
 PUT my-on-failure-index/_doc/1
 { "kw": ["val1", "val2", "val3"] }
 
-GET my-on-failure-index/_doc/1
+GET my-on-failure-index/_doc/1?stored_fields=_ignored
 ```
 % TEST[skip:requires the doc_values_on_failure feature flag]
 

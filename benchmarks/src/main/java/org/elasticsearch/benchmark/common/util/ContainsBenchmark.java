@@ -10,7 +10,8 @@
 package org.elasticsearch.benchmark.common.util;
 
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.internal.vectorization.DefaultESVectorUtilSupport;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorUtilSupport;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -61,7 +62,7 @@ public class ContainsBenchmark {
             String value = UTF8StringBytesBenchmark.generateAsciiString(valueLen);
             values[i] = value.getBytes(StandardCharsets.UTF_8);
 
-            int termLen = Math.max(1, Math.min(random.nextInt(avgTermLength * 2), valueLen));
+            int termLen = Math.clamp(random.nextInt(avgTermLength * 2), 1, valueLen);
             if (random.nextBoolean()) {
                 int start = random.nextInt(valueLen - termLen + 1);
                 terms[i] = new byte[termLen];
@@ -78,7 +79,7 @@ public class ContainsBenchmark {
         int idx = index++ & (NUM_VALUES - 1);
         byte[] value = values[idx];
         byte[] term = terms[idx];
-        return scalarContains(value, 0, value.length, term, 0, term.length);
+        return new DefaultESVectorUtilSupport().contains(value, 0, value.length, term, 0, term.length);
     }
 
     @Benchmark
@@ -87,33 +88,6 @@ public class ContainsBenchmark {
         int idx = index++ & (NUM_VALUES - 1);
         byte[] value = values[idx];
         byte[] term = terms[idx];
-        return ESVectorUtil.contains(value, 0, value.length, term, 0, term.length);
-    }
-
-    static boolean scalarContains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
-        if (termLength == 0) {
-            return true;
-        }
-        if (termLength > valueLength) {
-            return false;
-        }
-        byte first = term[termOffset];
-        int max = valueOffset + valueLength - termLength;
-        for (int i = valueOffset; i <= max; i++) {
-            if (value[i] != first) {
-                while (++i <= max && value[i] != first)
-                    ;
-            }
-            if (i <= max) {
-                int j = i + 1;
-                int end = j + termLength - 1;
-                for (int k = termOffset + 1; j < end && value[j] == term[k]; j++, k++)
-                    ;
-                if (j == end) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return new PanamaESVectorUtilSupport().contains(value, 0, value.length, term, 0, term.length);
     }
 }

@@ -105,6 +105,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/script/get",
                 // To allow Kibana to delete project routing expressions.
                 "cluster:admin/project_routing/delete",
+                // To allow Kibana to read project routing expressions.
+                // Already covered by "monitor"; granted explicitly to record the dependency.
+                "cluster:monitor/project_routing/get",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
@@ -285,7 +288,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Alerting V2" views prefix
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
-                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .privileges("create_view")
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
@@ -702,7 +705,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*")
-                    .privileges("auto_configure", "create_index", "read", "write")
+                    .privileges("auto_configure", "create_index", "delete_index", "manage", "read", "write")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")

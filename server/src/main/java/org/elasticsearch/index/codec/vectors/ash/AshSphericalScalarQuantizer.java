@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.util.LSBRadixSorter;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
@@ -38,7 +39,7 @@ final class AshSphericalScalarQuantizer {
     /**
      * Result of batch quantization.
      *
-     * @param centeredCodes codes centered around zero, row-major (n x nDims)
+     * @param centeredCodes codes centered around zero, row-major matrix (n x nDims)
      * @param codeNorms L2 norm of each code vector, length n
      */
     record QuantizeResult(float[] centeredCodes, float[] codeNorms) {}
@@ -92,23 +93,30 @@ final class AshSphericalScalarQuantizer {
      * row-major matrix in place.
      */
     private float quantizeExact(float[] z, int zOffset, float[] out, int outOffset, int d) {
+        assert assertAllFinite(z);  // all vector values must be finite for the maths to work
+
         int numAbsLevels = 1 << (bitsPerDim - 1);
         int nSteps = numAbsLevels - 1;
 
-        if (nSteps == 0) {
-            return quantizeExact1Bit(z, zOffset, out, outOffset, d);
+        return switch (nSteps) {
+            case 0 -> quantizeExact1Bit(z, zOffset, out, outOffset, d);
+            case 1 -> quantizeExact2Bit(z, zOffset, out, outOffset, d);
+            default -> quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+        };
+    }
+
+    private static boolean assertAllFinite(float[] value) {
+        for (float v : value) {
+            assert Float.isFinite(v) : "value must be finite";
         }
-        if (nSteps == 1) {
-            return quantizeExact2Bit(z, zOffset, out, outOffset, d);
-        }
-        return quantizeExactGeneral(z, zOffset, out, outOffset, d, numAbsLevels, nSteps);
+        return true;
     }
 
     /**
      * 1-bit quantization: each dimension is assigned magnitude 0.5 with the sign of the input.
      * The norm is always sqrt(0.25 * d) = 0.5 * sqrt(d).
      */
-    private static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
+    static float quantizeExact1Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         for (int j = 0; j < d; j++) {
             out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
         }
@@ -116,37 +124,47 @@ final class AshSphericalScalarQuantizer {
     }
 
     /**
+     * Thread-local reusable radix sorter, to reduce buffer allocations when handling lots of vectors of the same dimension.
+     */
+    private static final ThreadLocal<LSBRadixSorter> SORTER = ThreadLocal.withInitial(LSBRadixSorter::new);
+
+    /**
      * Specialized fast path for 2-bit quantization (nSteps=1).
      * <p>
-     * Each dimension is either at level 0.5 or 1.5. The optimal assignment sorts dimensions
-     * by |z_j| descending and sweeps to find the cutoff that maximizes
+     * Each dimension is either at level 0.5 or 1.5. The optimal assignment sorts magnitude values
+     * ascending, then iterates in descending order to find the cutoff that maximises
      * cumDot / sqrt(cumNormSq), where upgrading dimension j adds |z_j| to cumDot and 2.0 to cumNormSq.
+     * The selected set is recovered via a threshold on |z_j| rather than by tracking indices.
      */
-    private static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
-        int[] order = new int[d];
-        float[] absZ = new float[d];
-        for (int j = 0; j < d; j++) {
-            order[j] = j;
-            absZ[j] = Math.abs(z[zOffset + j]);
-        }
-        IndirectSorter.sortDescendingByFloat(order, absZ, d);
-
+    static float quantizeExact2Bit(float[] z, int zOffset, float[] out, int outOffset, int d) {
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
+        int[] absZF = new int[d];
         double dot = 0;
         for (int j = 0; j < d; j++) {
-            dot = Math.fma(0.5, absZ[j], dot);
+            float abs = Math.abs(z[zOffset + j]);
+            absZF[j] = Float.floatToRawIntBits(abs);
+            dot = Math.fma(0.5, abs, dot);
         }
+
+        // Sorted ascending; the iteration is then done backwards
+        // sort as ints, as all values are positive and finite
+        // and that eliminates some float-specific handling of NaN/Inf values
+        // this also allows us to use radix sort, which is faster and less branch-y than Arrays.sort
+        SORTER.get().sort(31, absZF, d);
+
         double normSq = 0.25 * d;
         double bestValue = dot / Math.sqrt(normSq);
 
-        // Sweep: upgrade dims in descending |z| order
+        // iterate dims in |z| descending order
         int bestK = 0; // number of dimensions to upgrade to level 1.5
         for (int k = 0; k < d; k++) {
-            dot += absZ[order[k]];  // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
-            normSq += 2.0;          // 1.5^2 - 0.5^2 = 2.0
+            int i = d - 1 - k;
+            float abs = Float.intBitsToFloat(absZF[i]);
+            dot += abs;  // upgrading from 0.5 to 1.5 adds 1.0 * |z_dim|
+            normSq += 2.0;   // 1.5^2 - 0.5^2 = 2.0
 
             // Handle ties: skip evaluation if next dim has the same |z|
-            if (k + 1 < d && absZ[order[k]] == absZ[order[k + 1]]) {
+            if (i > 0 && absZF[i] == absZF[i - 1]) {
                 continue;
             }
 
@@ -157,22 +175,31 @@ final class AshSphericalScalarQuantizer {
             }
         }
 
-        // Write output: upgraded dims get magnitude 1.5, others stay at 0.5
-        for (int j = 0; j < d; j++) {
-            out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
+        if (bestK == 0) {
+            // every dim is 0.5
+            for (int j = 0; j < d; j++) {
+                out[outOffset + j] = Math.copySign(0.5f, z[zOffset + j]);
+            }
+        } else {
+            float threshold = Float.intBitsToFloat(absZF[d - bestK]);
+            for (int j = 0; j < d; j++) {
+                // The tie rule above only ever sets bestK at the end of a run of equal magnitudes, so
+                // selecting every dimension at or above the smallest upgraded magnitude picks out exactly
+                // bestK of them
+                // need to recalculate abs(z[..]) here, as the absZ array order has changed
+                float v = z[zOffset + j];
+                out[outOffset + j] = Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
+            }
         }
-        for (int k = 0; k < bestK; k++) {
-            int dim = order[k];
-            out[outOffset + dim] = Math.copySign(1.5f, z[zOffset + dim]);
-        }
-        float norm = ESVectorUtil.dotProduct(out, outOffset, out, outOffset, d);
-        return (float) Math.sqrt(norm);
+
+        // vector is now (d - bestK) x 0.5, and bestK x 1.5 (squares = 0.25, 2.25)
+        return (float) Math.sqrt(0.25 * (d - bestK) + 2.25 * bestK);
     }
 
     /**
      * General quantization path for bitsPerDim > 2 (nSteps > 1).
      */
-    private float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
+    static float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int numAbsLevels, int nSteps) {
 
         // Extract signs and absolute values
         float[] signs = new float[d];

@@ -33,11 +33,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 
@@ -622,24 +624,7 @@ public class RootObjectMapper extends ObjectMapper {
                   }
               ]
             */
-            if ((fieldNode instanceof List) == false) {
-                throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
-            }
-            List<?> tmplNodes = (List<?>) fieldNode;
-            List<DynamicTemplate> templates = new ArrayList<>();
-            for (Object tmplNode : tmplNodes) {
-                Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
-                if (tmpl.size() != 1) {
-                    throw new MapperParsingException("A dynamic template must be defined with a name");
-                }
-                Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
-                String templateName = entry.getKey();
-                Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
-                DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
-                templates.add(template);
-            }
-            builder.dynamicTemplates(templates);
+            builder.dynamicTemplates(parseDynamicTemplates(fieldNode, parserContext));
             return true;
         } else if (fieldName.equals("date_detection")) {
             builder.dateDetection = Explicit.explicitBoolean(nodeBooleanValue(fieldNode, "date_detection"));
@@ -686,6 +671,50 @@ public class RootObjectMapper extends ObjectMapper {
             return true;
         }
         return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<DynamicTemplate> parseDynamicTemplates(Object fieldNode, MappingParserContext parserContext) {
+        if ((fieldNode instanceof List) == false) {
+            throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
+        }
+        List<?> tmplNodes = (List<?>) fieldNode;
+        List<DynamicTemplate> templates = new ArrayList<>();
+        Set<String> seenNames = new LinkedHashSet<>();
+        Set<String> duplicateNames = new LinkedHashSet<>();
+        for (Object tmplNode : tmplNodes) {
+            Map<String, Object> tmpl = (Map<String, Object>) tmplNode;
+            if (tmpl.size() != 1) {
+                throw new MapperParsingException("A dynamic template must be defined with a name");
+            }
+            Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
+            String templateName = entry.getKey();
+            Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
+            DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
+            validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
+            if (seenNames.add(templateName) == false) {
+                duplicateNames.add(templateName);
+            }
+            templates.add(template);
+        }
+        if (duplicateNames.isEmpty() == false) {
+            String indexName = parserContext.getIndexSettings().getIndex().getName();
+            int colonIdx = indexName.indexOf(':');
+            String sourceDescription = indexName.startsWith("validate-template-") && colonIdx >= 0
+                ? "template [" + indexName.substring(colonIdx + 1) + "]"
+                : "index [" + indexName + "]";
+            String firstSentence = duplicateNames.size() == 1
+                ? "Dynamic template " + duplicateNames + " in " + sourceDescription + " is defined more than once."
+                : "Dynamic templates " + duplicateNames + " in " + sourceDescription + " are defined more than once.";
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.TEMPLATES,
+                "duplicate_dynamic_template",
+                "{} It is not defined which of the duplicate definitions takes effect."
+                    + " Defining multiple dynamic templates with the same name will be rejected in a future version.",
+                firstSentence
+            );
+        }
+        return templates;
     }
 
     /**

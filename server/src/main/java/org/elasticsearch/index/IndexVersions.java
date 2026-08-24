@@ -270,6 +270,7 @@ public class IndexVersions {
     public static final IndexVersion COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY = def(9_108_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT = def(9_109_0_00, Version.LUCENE_10_5_0);
     public static final IndexVersion DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS = def(9_110_0_00, Version.LUCENE_10_5_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_5_1 = def(9_111_0_00, Version.LUCENE_10_5_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

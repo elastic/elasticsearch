@@ -35,6 +35,7 @@ import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -183,9 +184,13 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         shutdownPrepareService.prepareForShutdown();
         // Therefore, we rethrottle the reindexing task to run unlimited requests per second, immediately triggering relocation
         rethrottleRunningRootReindex(numDocs);
-        internalCluster().stopNode(coordNodeName);
 
+        // Wait for the client listener before stopping the node: the relocation is initiated but the listener may be not completed.
+        // Stopping the node concurrently can strand their response handlers in already-terminated thread pools, hanging the listener and
+        // leaking the stranded messages' network buffers
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
+
+        internalCluster().stopNode(coordNodeName);
 
         // Assert that the reindexing task on the first node failed
         final Throwable error = failure.get();
@@ -394,6 +399,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final int numDocs = randomIntBetween(10, 40);
         createIndex(SOURCE);
+        // Pre-create the destination before the data node is marked for shutdown removal. Otherwise the first bulk auto-creates
+        // it after the mark, its primary cannot be allocated to the (sole) shutting-down data node.
+        createIndex(DEST, indexSettings(1, 0).build());
         indexRandom(
             true,
             false,
@@ -436,15 +444,22 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
-        // Forcibly shutting the node before the reindexing task completes
-        internalCluster().stopNode(coordNodeName);
 
+        // Wait for the listener before stopping the node: prepareForShutdown() cancels the un-relocatable task but does not wait
+        // for the listener to complete. Stopping the node concurrently can strand that response handler in an already-terminated thread
+        // pool, hanging the listener and leaking the undelivered message's network buffer
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
+
+        internalCluster().stopNode(coordNodeName);
 
         final Throwable error = failure.get();
         final BulkByPaginatedSearchResponse response = success.get();
         assertTrue(
-            "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response",
+            "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response, but got error=["
+                + error
+                + "], response=["
+                + response
+                + "]",
             reindexClientIndicatesCoordinatingNodeClosed(error, response)
         );
 
@@ -534,22 +549,33 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * When the coordinating node stops mid-reindex, the client may see one of:
+     * When the coordinating node shuts down mid-reindex, the client may see one of:
      * <ul>
      *   <li>{@link ActionListener#onFailure} with {@link NodeClosedException} — transport closed before the task exited</li>
+     *   <li>{@link ActionListener#onFailure} with {@link TaskCancelledException} whose message contains
+     *       {@code "node shutting down"} — the shutdown hook cancelled the task while it was mid-flight (e.g. a search or bulk
+     *       in progress), so a subsequent child request was refused by the cancellation ban before the worker reached a
+     *       graceful-cancel checkpoint</li>
      *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
      *       {@link BulkByPaginatedSearchResponse#getBulkFailures()} wrap {@link NodeClosedException} — bulk ops hit the closing node</li>
      *   <li>{@link ActionListener#onResponse} with {@link BulkByPaginatedSearchResponse} whose
      *       {@link BulkByPaginatedSearchResponse#getReasonCancelled()} is {@code "node shutting down"} — the task was cancelled by
-     *       the shutdown hook and exited before the transport closed</li>
+     *       the shutdown hook while parked in the throttle sleep and exited gracefully</li>
      * </ul>
      */
     private static boolean reindexClientIndicatesCoordinatingNodeClosed(
         final Throwable clientFailure,
         final BulkByPaginatedSearchResponse response
     ) {
-        if (clientFailure != null && ExceptionsHelper.unwrapCause(clientFailure) instanceof NodeClosedException) {
-            return true;
+        if (clientFailure != null) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(clientFailure);
+            if (cause instanceof NodeClosedException) {
+                return true;
+            }
+            if (cause instanceof TaskCancelledException
+                && cause.getMessage().contains(ShutdownPrepareService.CANNOT_RELOCATE_REINDEX_CANCEL_REASON)) {
+                return true;
+            }
         }
         if (response != null) {
             for (BulkItemResponse.Failure bulkFailure : response.getBulkFailures()) {
@@ -769,11 +795,8 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             mockLog.awaitAllExpectationsMatched();
 
             // Release the transport block. With the fix the task was NOT cancelled, so the destination
-            // handler runs and the relocation completes normally.
+            // handler runs, and the relocation completes normally.
             resumeBlocked.countDown();
-
-            // We've seen everything we need to see, rethrottle to allow the task to finish
-            rethrottleRunningRootReindex(numDocs);
 
             // The source task should complete via TaskRelocatedException (relocated, not cancelled).
             safeAwait(listenerDone);
@@ -782,6 +805,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
             // Wait for prepareForShutdown to return (it will see the task is gone and exit its inner loop).
             safeGet(shutdownFuture);
+
+            // We've seen everything we need to see, rethrottle to allow the task to finish
+            rethrottleRunningRootReindex(numDocs);
 
             // The relocated task should complete successfully on the data node.
             final GetTaskResponse relocatedResult = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))

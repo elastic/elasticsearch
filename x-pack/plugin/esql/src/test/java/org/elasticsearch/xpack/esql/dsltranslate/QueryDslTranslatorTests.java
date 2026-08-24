@@ -41,8 +41,10 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class QueryDslTranslatorTests extends ESTestCase {
 
@@ -70,16 +72,49 @@ public class QueryDslTranslatorTests extends ESTestCase {
     private static final Set<String> FIELDS = Set.of("status", "tags", "bytes", "score", "@timestamp", "ts_nanos", "active", "body");
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb) {
-        return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb);
+        return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb).applied();
     }
 
     private static Expression translate(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
+        return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb).applied();
+    }
+
+    private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb) {
+        return new QueryDslTranslator(BINDER, FIELDS, CONFIG).translate(qb);
+    }
+
+    private static QueryDslTranslator.TranslationResult translateResult(org.elasticsearch.index.query.QueryBuilder qb, Locale locale) {
         return new QueryDslTranslator(BINDER, FIELDS, new ConfigurationBuilder(CONFIG).locale(locale).build()).translate(qb);
     }
 
-    /** Fail-closed: an unsupported construct throws — the caller (a query function, the request filter) turns it into an error. */
-    public void testFailClosedThrowsOnUnsupportedConstruct() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.wildcardQuery("tags", "a*")));
+    /** An unsupported top-level construct is collected, not thrown; applied() is TRUE (no conjuncts applied). */
+    public void testUnsupportedConstructCollected() {
+        QueryDslTranslator.TranslationResult result = translateResult(QueryBuilders.wildcardQuery("tags", "a*"));
+        assertFalse("a wholly unsupported filter is incomplete", result.isComplete());
+        assertEquals(1, result.unsupported().size());
+        assertEquals("wildcard", result.unsupported().get(0).construct());
+        assertEquals(Literal.TRUE, result.applied());
+    }
+
+    /** A bool with a supported must and an unsupported must_not: the supported conjunct is applied, the unsupported one is collected. */
+    public void testPartialBoolCollectsUnsupportedAndAppliesRest() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+        );
+        assertFalse("incomplete: mustNot arm is unsupported", result.isComplete());
+        assertEquals(1, result.unsupported().size());
+        assertEquals("wildcard", result.unsupported().get(0).construct());
+        // The supported term conjunct must still be present in applied.
+        assertThat(result.applied(), instanceOf(MvContains.class));
+    }
+
+    /** A bool with two unsupported must clauses: both are collected. */
+    public void testMultipleUnsupportedClausesAllCollected() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().must(QueryBuilders.wildcardQuery("tags", "a*")).must(QueryBuilders.fuzzyQuery("tags", "xyz"))
+        );
+        assertFalse(result.isComplete());
+        assertThat(result.unsupported(), hasSize(2));
     }
 
     public void testTermBecomesAnyValueContains() {
@@ -126,9 +161,10 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.NULL, contains.children().get(0));
     }
 
-    public void testUnsupportedConstructThrows() {
-        var ex = expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.wildcardQuery("status", "2*")));
-        assertEquals("wildcard", ex.construct());
+    public void testUnsupportedConstructCollectedWithConstructName() {
+        var result = translateResult(QueryBuilders.wildcardQuery("status", "2*"));
+        assertFalse(result.isComplete());
+        assertEquals("wildcard", result.unsupported().get(0).construct());
     }
 
     public void testRangeTranslation() {
@@ -226,7 +262,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /** There is no predecessor for a double, so an exclusive two-bound range over one cannot be expressed exactly. */
     public void testExclusiveTwoBoundRangeOnDoubleIsUnsupported() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5)));
+        assertFalse(translateResult(QueryBuilders.rangeQuery("score").gt(1.5).lt(9.5)).isComplete());
     }
 
     /**
@@ -288,14 +324,14 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(new BytesRef("t1"), ((Literal) r.lower()).value());
         assertEquals(new BytesRef("t3"), ((Literal) r.upper()).value());
 
-        // An exclusive bound on a non-whole-numbered type cannot be normalized to an inclusive one -> fail closed.
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("tags").gt("t1").lte("t3")));
+        // An exclusive bound on a non-whole-numbered type cannot be normalized to an inclusive one -> collected.
+        assertFalse(translateResult(QueryBuilders.rangeQuery("tags").gt("t1").lte("t3")).isComplete());
     }
 
     /** A terms-lookup has no values to translate (and values() is null — it used to NPE). */
     public void testTermsLookupIsUnsupported() {
         var lookup = new TermsQueryBuilder("status", new TermsLookup("idx", "1", "path"));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(lookup));
+        assertFalse(translateResult(lookup).isComplete());
     }
 
     /** An empty terms list is legal DSL and matches nothing (it used to NPE on a null data type). */
@@ -306,19 +342,15 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /** These options change what the query means; translating without them would silently mis-match. */
     public void testUnhonorableOptionsAreUnsupported() {
         // n-of-m (anything but 0 or 1) cannot be expressed as an OR
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(
+        assertFalse(
+            translateResult(
                 QueryBuilders.boolQuery()
                     .should(QueryBuilders.termQuery("status", 1))
                     .should(QueryBuilders.termQuery("status", 2))
                     .minimumShouldMatch(2)
-            )
+            ).isComplete()
         );
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01T00:00:00Z").timeZone("+02:00"))
-        );
+        assertFalse(translateResult(QueryBuilders.rangeQuery("@timestamp").gte("2024-01-01T00:00:00Z").timeZone("+02:00")).isComplete());
     }
 
     /**
@@ -338,11 +370,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * The index rejects {@code case_insensitive} on a non-string field, and analyzed {@code text} has no faithful
-     * structural equality — both degrade (fail-closed) rather than answering a narrower question.
+     * structural equality — both collect as unsupported rather than answering a narrower question.
      */
     public void testCaseInsensitiveTermOnNonKeywordIsUnsupported() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("status", "1").caseInsensitive(true)));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("body", "x").caseInsensitive(true)));
+        assertFalse(translateResult(QueryBuilders.termQuery("status", "1").caseInsensitive(true)).isComplete());
+        assertFalse(translateResult(QueryBuilders.termQuery("body", "x").caseInsensitive(true)).isComplete());
     }
 
     /**
@@ -377,12 +409,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * The request locale's ASCII case-fold must match the index's locale-independent fold. A Turkish locale lower-cases
-     * `I` to dotless `ı`, so `case_insensitive` there would silently under-match the index — fail closed instead.
+     * `I` to dotless `ı`, so `case_insensitive` there would silently under-match the index — collected as unsupported.
      */
-    public void testCaseInsensitiveTermFailsClosedUnderDivergentLocale() {
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.termQuery("tags", "WINDOWS").caseInsensitive(true), Locale.forLanguageTag("tr-TR"))
+    public void testCaseInsensitiveTermCollectedUnderDivergentLocale() {
+        assertFalse(
+            translateResult(QueryBuilders.termQuery("tags", "WINDOWS").caseInsensitive(true), Locale.forLanguageTag("tr-TR")).isComplete()
         );
         // The same value under a ROOT-equivalent ASCII locale is fine.
         assertThat(translate(QueryBuilders.termQuery("tags", "WINDOWS").caseInsensitive(true), Locale.US), instanceOf(MvContains.class));
@@ -391,19 +422,18 @@ public class QueryDslTranslatorTests extends ESTestCase {
     /**
      * The subtle half: a LOWER-case term folds to itself even under a Turkish locale, so checking only the term would
      * let it through — but the field side folds STORED values with that same locale, so a stored "MIX" becomes "mıx"
-     * and the row is dropped where an index matches it. Fail closed on the term's upper-case image too.
+     * and the row is dropped where an index matches it. Collected as unsupported on the term's upper-case image too.
      */
-    public void testCaseInsensitiveTermFailsClosedWhenStoredUpperCaseWouldMisfold() {
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.termQuery("tags", "mix").caseInsensitive(true), Locale.forLanguageTag("tr-TR"))
+    public void testCaseInsensitiveTermCollectedWhenStoredUpperCaseWouldMisfold() {
+        assertFalse(
+            translateResult(QueryBuilders.termQuery("tags", "mix").caseInsensitive(true), Locale.forLanguageTag("tr-TR")).isComplete()
         );
         assertThat(translate(QueryBuilders.termQuery("tags", "mix").caseInsensitive(true), Locale.US), instanceOf(MvContains.class));
     }
 
-    /** A non-ASCII value can fold differently from the index's per-codepoint automaton, so it fails closed, not silently. */
-    public void testCaseInsensitiveTermFailsClosedOnNonAsciiValue() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("tags", "café").caseInsensitive(true)));
+    /** A non-ASCII value can fold differently from the index's per-codepoint automaton, so it is collected as unsupported. */
+    public void testCaseInsensitiveTermCollectedOnNonAsciiValue() {
+        assertFalse(translateResult(QueryBuilders.termQuery("tags", "café").caseInsensitive(true)).isComplete());
     }
 
     /** The case-insensitive leaf is two-valued, so it composes under negation like every other leaf: NOT over mv_contains. */
@@ -485,11 +515,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * A construct the emitted function cannot type — a range over a boolean column, which mv_in_range does not support —
-     * degrades rather than sailing past the post-analysis rewrite (which skips the Verifier) into a compute-engine error.
+     * is collected as unsupported rather than sailing past the post-analysis rewrite into a compute-engine error.
      */
     public void testRangeOverUnsupportedFieldTypeDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("active").gte(false).lte(true)));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("active").gt(false)));
+        assertFalse(translateResult(QueryBuilders.rangeQuery("active").gte(false).lte(true)).isComplete());
+        assertFalse(translateResult(QueryBuilders.rangeQuery("active").gt(false)).isComplete());
     }
 
     /**
@@ -605,11 +635,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.NULL, ((MvInRange) e).children().get(0));
     }
 
-    /** An analyzed text field matches on tokens in the index; a structural leaf would under-match, so term/terms/range degrade. */
+    /** An analyzed text field matches on tokens in the index; a structural leaf would under-match, so they are collected. */
     public void testTermOnAnalyzedTextDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termQuery("body", "quick")));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.termsQuery("body", List.of("quick", "brown"))));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("body").gte("a").lt("z")));
+        assertFalse(translateResult(QueryBuilders.termQuery("body", "quick")).isComplete());
+        assertFalse(translateResult(QueryBuilders.termsQuery("body", List.of("quick", "brown"))).isComplete());
+        assertFalse(translateResult(QueryBuilders.rangeQuery("body").gte("a").lt("z")).isComplete());
     }
 
     /** exists over an analyzed text field is fine — it is analysis-independent and does not go through the leaf chokepoint. */
@@ -628,9 +658,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(millis * 1_000_000L, bound.value());
     }
 
-    /** A numeric date_nanos bound before the epoch is outside the type's representable range; it degrades, not 500s. */
+    /** A numeric date_nanos bound before the epoch is outside the type's representable range; it is collected, not 500s. */
     public void testOutOfRangeNumericDateNanosBoundDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.rangeQuery("ts_nanos").gte(-5000)));
+        assertFalse(translateResult(QueryBuilders.rangeQuery("ts_nanos").gte(-5000)).isComplete());
     }
 
     /**
@@ -647,12 +677,11 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /**
      * adjust_pure_negative=false makes a bool of only must_not clauses match NOTHING on the index; we model the default
-     * (match everything not excluded), so a pure-negative bool with the flag off must degrade, not silently over-match.
+     * (match everything not excluded), so a pure-negative bool with the flag off is collected, not silently over-matching.
      */
     public void testPureNegativeBoolWithAdjustDisabledDegrades() {
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("tags", "x")).adjustPureNegative(false))
+        assertFalse(
+            translateResult(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("tags", "x")).adjustPureNegative(false)).isComplete()
         );
         // the flag is harmless when the bool is not pure-negative (a must clause is present)
         assertThat(
@@ -684,28 +713,22 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.NULL, ((MvContains) e).children().get(0));
     }
 
-    /** A match on an analyzed text field needs real analysis we do not do here — degrade, never approximate. */
+    /** A match on an analyzed text field needs real analysis we do not do here — collected, never silently approximate. */
     public void testMatchOnAnalyzedTextDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("body", "quick")));
+        assertFalse(translateResult(QueryBuilders.matchQuery("body", "quick")).isComplete());
     }
 
     /** Options that change what matches (analyzer, fuzziness, minimum_should_match) cannot be honored as equality. */
     public void testMatchWithMatchingOptionsDegrades() {
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.matchQuery("status", 200).fuzziness(Fuzziness.ONE))
-        );
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("status", 200).analyzer("standard")));
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.matchQuery("status", 200).minimumShouldMatch("2"))
-        );
+        assertFalse(translateResult(QueryBuilders.matchQuery("status", 200).fuzziness(Fuzziness.ONE)).isComplete());
+        assertFalse(translateResult(QueryBuilders.matchQuery("status", 200).analyzer("standard")).isComplete());
+        assertFalse(translateResult(QueryBuilders.matchQuery("status", 200).minimumShouldMatch("2")).isComplete());
     }
 
-    /** A lenient match over a malformed value on an encodable type matches nothing; a strict one degrades. */
+    /** A lenient match over a malformed value on an encodable type matches nothing; a strict one is collected. */
     public void testLenientMatchOnMalformedValueMatchesNothing() {
         assertEquals(Literal.FALSE, translate(QueryBuilders.matchQuery("status", "abc").lenient(true)));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchQuery("status", "abc")));
+        assertFalse(translateResult(QueryBuilders.matchQuery("status", "abc")).isComplete());
     }
 
     /** A whole-number STRING on an integral field is that integer, exactly as the index coerces "300.0" to 300. */
@@ -724,21 +747,18 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     /**
-     * A lenient match on a type we cannot encode (ip/version/unsigned_long) DEGRADES — it must not be silently mapped to
-     * match-nothing, because the index would actually match. Regression guard for the lenient-swallows-everything bug.
+     * A lenient match on a type we cannot encode (ip/version/unsigned_long) is collected — it must not be silently mapped
+     * to match-nothing, because the index would actually match. Regression guard for the lenient-swallows-everything bug.
      */
     public void testLenientMatchOnUnsupportedTypeDegrades() {
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.matchQuery("client_ip", "10.0.0.1").lenient(true))
-        );
+        assertFalse(translateResult(QueryBuilders.matchQuery("client_ip", "10.0.0.1").lenient(true)).isComplete());
     }
 
-    /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field cannot be honored. */
+    /** A match_phrase on an exact field is the whole value — plain equality; a slop or a text field are collected. */
     public void testMatchPhraseOnExactFieldIsEquality() {
         assertThat(translate(QueryBuilders.matchPhraseQuery("tags", "x")), instanceOf(MvContains.class));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchPhraseQuery("tags", "x").slop(2)));
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.matchPhraseQuery("body", "x")));
+        assertFalse(translateResult(QueryBuilders.matchPhraseQuery("tags", "x").slop(2)).isComplete());
+        assertFalse(translateResult(QueryBuilders.matchPhraseQuery("body", "x")).isComplete());
     }
 
     /** A multi_match over exact fields is an OR of per-field equality; a single resolved field collapses to one leaf. */
@@ -756,9 +776,9 @@ public class QueryDslTranslatorTests extends ESTestCase {
         assertEquals(Literal.FALSE, translate(QueryBuilders.multiMatchQuery("x", "no_such_field*")));
     }
 
-    /** A text field among the resolved set degrades the whole multi_match rather than silently dropping it. */
+    /** A text field among the resolved set is collected as unsupported rather than silently dropping it. */
     public void testMultiMatchOverTextFieldDegrades() {
-        expectThrows(TranslationUnsupportedException.class, () -> translate(QueryBuilders.multiMatchQuery(200, "status", "body")));
+        assertFalse(translateResult(QueryBuilders.multiMatchQuery(200, "status", "body")).isComplete());
     }
 
     /**
@@ -777,9 +797,150 @@ public class QueryDslTranslatorTests extends ESTestCase {
 
     /** Only best_fields and phrase reduce to an OR of equality; other types fuse tokens/scores across fields. */
     public void testMultiMatchUnsupportedTypeDegrades() {
-        expectThrows(
-            TranslationUnsupportedException.class,
-            () -> translate(QueryBuilders.multiMatchQuery("x", "status").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
+        assertFalse(
+            translateResult(QueryBuilders.multiMatchQuery("x", "status").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)).isComplete()
         );
+    }
+
+    /**
+     * B1: when parseBoolOptions throws (e.g. minimum_should_match:2), the translator records the failure but continues
+     * translating the must/filter arms — those are valid AND conjuncts regardless of the bool-level option that failed.
+     * Before the fix: early return with applied=TRUE, abandoning all must conjuncts.
+     */
+    public void testBoolOptionsFailureStillTranslatesMustArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().minimumShouldMatch(2).must(QueryBuilders.termQuery("status", 200))
+        );
+        assertFalse("bool-options failure makes result incomplete", result.isComplete());
+        assertEquals(1, result.unsupported().size());
+        assertThat(result.unsupported().get(0).construct(), org.hamcrest.Matchers.containsString("minimum_should_match"));
+        assertNotEquals("must arm must be applied, not abandoned to TRUE", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * B2: a non-required should arm that cannot be translated is silently omitted — it is not added to unsupported,
+     * so isComplete() returns true and fail-closed mode does not throw a spurious 400.
+     */
+    public void testNonRequiredShouldFailureNotReported() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+        );
+        assertTrue("non-required should failure must not be reported", result.isComplete());
+        assertNotEquals("must arm is applied", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * B3: a nested bool with a non-required should arm that fails is applied as a must-conjunct in an outer bool —
+     * the must arms of the nested bool are preserved, not dropped.
+     * Before the fix: collectingBool set anyFailed=true for any should arm failure, and the failure leaked into
+     * conjunctUnsupported, causing addConjunct to drop the whole nested bool.
+     */
+    public void testNestedBoolNonRequiredShouldFailureKeepsMustArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .must(
+                    QueryBuilders.boolQuery().must(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+                )
+        );
+        assertTrue("non-required nested should failure must not propagate", result.isComplete());
+        assertNotEquals("nested must arm must be preserved in applied", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * When a required OR group has any failed arm, the whole group is dropped (applied stays TRUE).
+     * A partial OR would exclude rows that matched only the dropped arm — under-fetch, which is the wrong
+     * direction for a pre-filter. Failures are still reported.
+     */
+    public void testRequiredShouldAnyFailureDropsWholeGroup() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("status", 200)).should(QueryBuilders.wildcardQuery("tags", "a*"))
+        );
+        assertFalse("wildcard arm failure is reported", result.isComplete());
+        assertEquals("whole OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * minimum_should_match>1 makes the should group untranslatable but does NOT suppress must_not arms —
+     * their NOT-logic is semantically independent of the should constraint. Before the fix, a single
+     * {@code boolOptionsOk} flag dropped must_not for both failure kinds.
+     */
+    public void testMsmFailureDoesNotSuppressMustNotArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .mustNot(QueryBuilders.termQuery("status", 200))
+                .should(QueryBuilders.termQuery("tags", "a"))
+                .minimumShouldMatch(2)
+        );
+        assertFalse("msm failure is reported", result.isComplete());
+        assertThat(result.unsupported().get(0).construct(), org.hamcrest.Matchers.containsString("minimum_should_match"));
+        assertThat("must_not arm must be applied despite msm failure", result.applied(), instanceOf(Not.class));
+    }
+
+    /**
+     * adjust_pure_negative=false makes a pure-negative bool match NOTHING (Lucene suppresses the implicit match_all).
+     * In partial mode the must_not arms must NOT be applied as NOT(arm) — that would be a semantic inversion
+     * (returning rows instead of none). The failure is recorded and applied stays TRUE (unfiltered).
+     */
+    public void testAdjustPureNegativeFalseDoesNotApplyMustNotArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("status", 200)).adjustPureNegative(false)
+        );
+        assertFalse("adjust_pure_negative=false is an unsupported bool option", result.isComplete());
+        assertEquals("must_not arms must not be applied — applied must be TRUE (unfiltered, safe)", Literal.TRUE, result.applied());
+    }
+
+    // --- Nested-bool B1 / B4 parity with the top-level translate() walk ---
+
+    /**
+     * B1 for nested bools: a nested bool with a parseBoolOptions failure (e.g. minimum_should_match:2) still
+     * contributes its must/filter arms to the outer applied expression instead of being dropped entirely.
+     * Kibana wraps filters in outer bools; losing the whole nested bool because of an inner bool-option failure
+     * would silently discard valid conjuncts.
+     */
+    public void testNestedBoolOptionsFailureStillAppliesMustArms() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().minimumShouldMatch(2).must(QueryBuilders.termQuery("status", 200)))
+        );
+        assertFalse("nested bool-options failure is still reported", result.isComplete());
+        assertNotEquals("nested must arm must be applied, not dropped to TRUE", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * Nested required-OR group with any failed arm: the whole OR group is dropped (same safe over-fetch policy
+     * as the top-level translate). The outer must arm is still empty, so applied is TRUE.
+     */
+    public void testNestedRequiredShouldAnyFailureDropsWholeGroup() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .must(
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.termQuery("status", 200))
+                        .should(QueryBuilders.wildcardQuery("tags", "a*"))
+                )
+        );
+        assertFalse("wildcard arm failure is reported", result.isComplete());
+        assertEquals("whole nested OR group dropped — pre-filter must over-fetch", Literal.TRUE, result.applied());
+    }
+
+    /**
+     * must_not in a nested bool is all-or-nothing: if the arm cannot be fully translated, NOT is skipped entirely
+     * rather than applying NOT(partial), which would over-exclude and under-fetch.
+     * The must arm is still applied; the failed must_not arm produces no NOT expression in the result.
+     * If must_not were incorrectly applied, applied() would be And(must_expr, Not(wildcard_expr)).
+     * With the correct all-or-nothing policy, applied() is just the single must_expr (no And wrapper).
+     */
+    public void testNestedMustNotAllOrNothingSkipsPartialArm() {
+        QueryDslTranslator.TranslationResult result = translateResult(
+            QueryBuilders.boolQuery()
+                .must(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("status", 200))
+                        .mustNot(QueryBuilders.wildcardQuery("tags", "a*"))
+                )
+        );
+        assertFalse("wildcard must_not arm failure is reported", result.isComplete());
+        assertNotEquals("must arm is applied", Literal.TRUE, result.applied());
+        // Only one conjunct (the must arm) — no And combining it with a NOT for the dropped must_not arm.
+        assertThat("no And wrapping: must_not arm was not applied", result.applied(), not(instanceOf(And.class)));
     }
 }

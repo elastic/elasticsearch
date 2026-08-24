@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -23,6 +21,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
@@ -169,7 +169,7 @@ public class InferenceEndpointRegistry extends DiagnosticsCache<Model> {
             new ClearInferenceEndpointCacheAction.Request(),
             ActionListener.wrap(
                 ignored -> log.debug("Successfully refreshed inference endpoint cache on all nodes."),
-                e -> log.atDebug().withThrowable(e).log("Failed to refresh inference endpoint cache on all nodes.")
+                e -> log.debug("Failed to refresh inference endpoint cache on all nodes.", e)
             )
         );
     }

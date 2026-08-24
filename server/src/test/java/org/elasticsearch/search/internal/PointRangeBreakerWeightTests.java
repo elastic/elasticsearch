@@ -374,6 +374,17 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat("closing must release the charge from the currently tracked breaker", secondBreaker.getUsed(), equalTo(0L));
     }
 
+    public void testStaleWeightChargingAfterBreakerClearedDoesNotThrow() throws Exception {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        DenseSearch denseSearch = newDenseSearch(reader, breaker);
+
+        ContextIndexSearcher searcher = denseSearch.searcher();
+        searcher.setCircuitBreaker(null);
+
+        chargeAgainst(denseSearch.weight(), reader.leaves().get(0));
+        assertThat("a stale weight scored with no breaker installed must not charge anything", breaker.getUsed(), equalTo(0L));
+    }
+
     public void testKnnWithPointRangeFilterChargesOutOfBandThenReleasesToBaseline() throws Exception {
         try (Directory vectorDirectory = newDirectory()) {
             writeMultiSegmentIndex(vectorDirectory, true);

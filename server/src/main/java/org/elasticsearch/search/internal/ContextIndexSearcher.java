@@ -318,15 +318,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     void chargeLeaf(LeafReaderContext ctx, long bytes) {
-        getOrCreatePointRangeAccounting().charge(ctx, bytes);
+        PointRangeExecutionAccounting accounting = getOrCreatePointRangeAccounting();
+        if (accounting != null) {
+            accounting.charge(ctx, bytes);
+        }
     }
 
+    @Nullable
     private PointRangeExecutionAccounting getOrCreatePointRangeAccounting() {
         PointRangeExecutionAccounting existing = pointRangeAccounting.get();
         if (existing != null) {
             return existing;
         }
-        PointRangeExecutionAccounting created = new PointRangeExecutionAccounting(circuitBreaker, getLeafContexts().size());
+        CircuitBreaker breaker = this.circuitBreaker;
+        if (breaker == null) {
+            return null;
+        }
+        PointRangeExecutionAccounting created = new PointRangeExecutionAccounting(breaker, getLeafContexts().size());
         return pointRangeAccounting.compareAndSet(null, created) ? created : pointRangeAccounting.get();
     }
 

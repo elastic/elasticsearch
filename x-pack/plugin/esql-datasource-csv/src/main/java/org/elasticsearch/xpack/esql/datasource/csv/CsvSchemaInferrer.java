@@ -88,6 +88,12 @@ public class CsvSchemaInferrer {
                 }
             }
         }
+        int nonKeywordCount = 0;
+        for (int col = 0; col < numCols; col++) {
+            if (candidateIdx[col] < TYPE_CANDIDATES.length - 1) {
+                nonKeywordCount++;
+            }
+        }
         boolean anyWidened = false;
         outer: for (String[] row : additionalRows) {
             for (int col = 0; col < numCols; col++) {
@@ -106,17 +112,12 @@ public class CsvSchemaInferrer {
                 if (newIdx != candidateIdx[col]) {
                     candidateIdx[col] = newIdx;
                     anyWidened = true;
+                    if (newIdx >= TYPE_CANDIDATES.length - 1) {
+                        nonKeywordCount--;
+                    }
                 }
             }
-            // Early exit if all columns have reached KEYWORD
-            boolean allKeyword = true;
-            for (int col = 0; col < numCols; col++) {
-                if (candidateIdx[col] < TYPE_CANDIDATES.length - 1) {
-                    allKeyword = false;
-                    break;
-                }
-            }
-            if (allKeyword) {
+            if (nonKeywordCount == 0) {
                 break outer;
             }
         }

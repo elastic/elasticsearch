@@ -3961,54 +3961,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
-            // Collect a widen window from the rows immediately following the initial sample. The new
-            // per-record iterator picks up at the exact byte where the first sample ended (the
-            // pre-fetch slot of CsvRecordIterator is always null on collectSampleRows exit). These rows
-            // are stored alongside the sample rows so they are replayed by the batch reader — they
-            // must NOT be released here; prefetchedRowsBytes covers both.
-            // If wideningWindow collection throws, the outer guard releases sample bytes (collectSampleRows
-            // self-releases its own bytes on failure).
-            final SchemaSample wideningWindow;
-            try {
-                routeCsvIterator(newCsvIterator(recordReader), true);
-                wideningWindow = collectSampleRows(
-                    csvIterator,
-                    options.commentPrefix(),
-                    schemaSampleSize,
-                    blockFactory.breaker(),
-                    errorPolicy,
-                    recordReader,
-                    splitStartByte
-                );
-                clearCsvIterator();
-            } catch (Exception | Error t) {
-                clearCsvIterator();
-                blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
-                throw t;
-            }
-            if (sample.recordCapDropped() || wideningWindow.recordCapDropped()) {
-                recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
-            }
-            List<String[]> allPrefetchedRows;
-            long[] allPrefetchedStartBytes;
-            if (wideningWindow.rows().isEmpty()) {
-                allPrefetchedRows = sample.rows();
-                allPrefetchedStartBytes = sample.rowStartBytes();
-                prefetchedRowsBytes = sample.reservedBytes();
-                // Nothing to release for the empty window (reservedBytes == 0).
-            } else {
-                allPrefetchedRows = new ArrayList<>(sample.rows().size() + wideningWindow.rows().size());
-                allPrefetchedRows.addAll(sample.rows());
-                allPrefetchedRows.addAll(wideningWindow.rows());
-                long[] sampleOffsets = sample.rowStartBytes();
-                long[] wideningOffsets = wideningWindow.rowStartBytes();
-                allPrefetchedStartBytes = new long[sampleOffsets.length + wideningOffsets.length];
-                System.arraycopy(sampleOffsets, 0, allPrefetchedStartBytes, 0, sampleOffsets.length);
-                System.arraycopy(wideningOffsets, 0, allPrefetchedStartBytes, sampleOffsets.length, wideningOffsets.length);
-                prefetchedRowsBytes = sample.reservedBytes() + wideningWindow.reservedBytes();
-            }
-            prefetchedRows = allPrefetchedRows;
-            prefetchedRowStartBytes = allPrefetchedStartBytes;
+            SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
             return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
@@ -4030,6 +3983,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
+            SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+            List<Attribute> schema = inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
+        }
+
+        /**
+         * Collects the widening window from rows immediately following {@code sample}, sets up the combined
+         * prefetch state ({@code prefetchedRows}, {@code prefetchedRowStartBytes}, {@code prefetchedRowsBytes}),
+         * and returns the window for use in schema widening.
+         * <p>
+         * {@code prefetchedRowsBytes} is assigned before any heap allocations in the non-empty branch so that
+         * {@link #closeInternal()} can release the correct byte total even if a subsequent allocation throws.
+         * <p>
+         * On failure, releases {@code sample.reservedBytes()} from the circuit breaker and re-throws.
+         */
+        private SchemaSample collectWideningWindowAndPrefetch(SchemaSample sample) throws IOException {
             final SchemaSample wideningWindow;
             try {
                 routeCsvIterator(newCsvIterator(recordReader), true);
@@ -4051,28 +4021,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (sample.recordCapDropped() || wideningWindow.recordCapDropped()) {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
-            List<String[]> allPrefetchedRows;
-            long[] allPrefetchedStartBytes;
             if (wideningWindow.rows().isEmpty()) {
-                allPrefetchedRows = sample.rows();
-                allPrefetchedStartBytes = sample.rowStartBytes();
+                prefetchedRows = sample.rows();
+                prefetchedRowStartBytes = sample.rowStartBytes();
                 prefetchedRowsBytes = sample.reservedBytes();
             } else {
-                allPrefetchedRows = new ArrayList<>(sample.rows().size() + wideningWindow.rows().size());
-                allPrefetchedRows.addAll(sample.rows());
-                allPrefetchedRows.addAll(wideningWindow.rows());
-                long[] sampleOffsets = sample.rowStartBytes();
-                long[] wideningOffsets = wideningWindow.rowStartBytes();
-                allPrefetchedStartBytes = new long[sampleOffsets.length + wideningOffsets.length];
-                System.arraycopy(sampleOffsets, 0, allPrefetchedStartBytes, 0, sampleOffsets.length);
-                System.arraycopy(wideningOffsets, 0, allPrefetchedStartBytes, sampleOffsets.length, wideningOffsets.length);
+                // Set prefetchedRowsBytes first so closeInternal() releases the right total
+                // even if the ArrayList or array allocation below throws OOM.
                 prefetchedRowsBytes = sample.reservedBytes() + wideningWindow.reservedBytes();
+                List<String[]> allRows = new ArrayList<>(sample.rows().size() + wideningWindow.rows().size());
+                allRows.addAll(sample.rows());
+                allRows.addAll(wideningWindow.rows());
+                long[] so = sample.rowStartBytes();
+                long[] wo = wideningWindow.rowStartBytes();
+                long[] allOffsets = new long[so.length + wo.length];
+                System.arraycopy(so, 0, allOffsets, 0, so.length);
+                System.arraycopy(wo, 0, allOffsets, so.length, wo.length);
+                prefetchedRows = allRows;
+                prefetchedRowStartBytes = allOffsets;
             }
-            prefetchedRows = allPrefetchedRows;
-            prefetchedRowStartBytes = allPrefetchedStartBytes;
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            List<Attribute> schema = inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
-            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
+            return wideningWindow;
         }
 
         /** The raw field index a pinned-schema position reads; the identity under positional binding. */

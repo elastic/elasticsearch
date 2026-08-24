@@ -58,16 +58,6 @@ public class SkipWarnings {
     }
 
     /**
-     * Formats the per-record sparse-field informational warning for NdJson reads. Used when a
-     * declared column is present in the file's declared schema but absent from specific JSON
-     * objects within the file — the column exists in the schema but some records omit it.
-     * Distinct from {@link #absentDeclaredColumnMessage(String)} which covers the file-absent case.
-     */
-    public static String absentInRecordMessage(String columnName) {
-        return "declared column [" + columnName + "] is absent in some records and reads null there";
-    }
-
-    /**
      * The single "further warnings suppressed" line emitted once per collector when the per-event
      * cap is exceeded. Exposed as the one source of truth for the overflow text so a central budget
      * that caps the same channel (see {@code InformationalWarningBudget}) emits a byte-identical

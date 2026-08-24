@@ -2187,7 +2187,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // failure), no data was produced so the absent-column warning would be misleading.
             // Emit only after the page is confirmed — mirrors ParquetColumnIterator's contract.
             Page page = delegate.next();
-            emitOnce();
+            try {
+                emitOnce();
+            } catch (RuntimeException e) {
+                page.releaseBlocks();
+                throw e;
+            }
             return page;
         }
 
@@ -2208,6 +2213,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         @Override
         public void close() throws IOException {
+            pendingWarnings = null;
+            pendingSink = null;
             delegate.close();
         }
     }
@@ -2217,6 +2224,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return buildColumnInfos(projectedSchema, attributes, Map.of());
     }
 
+    /**
+     * Maps each projected attribute to its {@link ColumnInfo}. Resolution is path-aware:
+     * <ol>
+     *   <li>Exact match against a top-level field name in {@code projectedSchema} (preserves
+     *       files whose top-level fields literally contain a dot).</li>
+     *   <li>Otherwise, the attribute name is interpreted as a dotted path and looked up against
+     *       the full leaf paths of {@code projectedSchema}.</li>
+     * </ol>
+     * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
+     * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
+     */
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes, Map<String, String> dateFormats) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
         // Per-top-level-field descriptors handle LIST<primitive> and other cases where the

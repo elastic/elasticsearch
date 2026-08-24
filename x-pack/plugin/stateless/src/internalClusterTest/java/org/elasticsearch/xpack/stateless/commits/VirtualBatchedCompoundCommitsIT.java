@@ -101,6 +101,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_MISSING_TIMESTAMP_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.BccUploadMetrics.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CHUNK_REQUESTS_REJECTED_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -1411,10 +1418,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         final List<Measurement> measurements = metricsPlugin.getDoubleHistogramMeasurement(BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).getDouble(), closeTo((double) (max - min) / 60_000d, 1e-6));
-        assertThat(
-            measurements.get(0).attributes(),
-            equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(totalSize)))
-        );
+        assertThat(measurements.get(0).attributes(), equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(totalSize))));
         assertThat(metricsPlugin.getLongCounterMeasurement(BCC_MISSING_TIMESTAMP_METRIC), empty());
     }
 

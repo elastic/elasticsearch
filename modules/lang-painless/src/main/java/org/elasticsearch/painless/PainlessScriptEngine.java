@@ -58,15 +58,10 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
-     * Node-level allocation metrics, installed once by {@code PainlessPlugin#createComponents} after telemetry is available.
-     * {@code null} until set; factory generation falls back to {@link AllocationMetrics#NOOP} when not yet installed.
+     * Node-level allocation metrics. Owned by {@code PainlessPlugin}, which populates it in {@code createComponents} after
+     * telemetry is available. Held here as a {@code final} field so the engine never mutates it.
      */
-    private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
-
-    /** Called by {@code PainlessPlugin#createComponents} to wire in the node's telemetry before any script factory is used. */
-    public void setAllocationMetrics(AllocationMetrics metrics) {
-        allocationMetrics.set(metrics);
-    }
+    private final SetOnce<AllocationMetrics> allocationMetrics;
 
     /**
      * Constructor. Reads whether to record allocation metrics from
@@ -74,15 +69,33 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param settings The settings to initialize the engine with.
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
-        this(settings, contexts, CompilerSettings.readAllocationMetricsEnabledProperty());
+        this(settings, contexts, new SetOnce<>(), CompilerSettings.readAllocationMetricsEnabledProperty());
+    }
+
+    /**
+     * Constructor for use by {@code PainlessPlugin}: reads the allocation-metrics flag from the system property and stores the
+     * provided {@link SetOnce} as a {@code final} field so the plugin can populate it after telemetry is available.
+     */
+    public PainlessScriptEngine(
+        Settings settings,
+        Map<ScriptContext<?>, List<Whitelist>> contexts,
+        SetOnce<AllocationMetrics> allocationMetrics
+    ) {
+        this(settings, contexts, allocationMetrics, CompilerSettings.readAllocationMetricsEnabledProperty());
     }
 
     /**
      * Constructor taking allocation-metrics enablement directly rather than reading the system property, so a caller (in
-     * practice a test) can exercise the metrics-enabled path without mutating global state.
-     * @param settings The settings to initialize the engine with.
+     * practice a test) can exercise the metrics-enabled path without mutating global state. The provided {@link SetOnce}
+     * must already be populated before any script factory is used.
      */
-    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts, boolean allocationMetricsEnabled) {
+    public PainlessScriptEngine(
+        Settings settings,
+        Map<ScriptContext<?>, List<Whitelist>> contexts,
+        SetOnce<AllocationMetrics> allocationMetrics,
+        boolean allocationMetricsEnabled
+    ) {
+        this.allocationMetrics = allocationMetrics;
         CompilerSettings.RegexEnabled regexEnabled = CompilerSettings.REGEX_ENABLED.get(settings);
         int regexLimitFactor = CompilerSettings.REGEX_LIMIT_FACTOR.get(settings);
 

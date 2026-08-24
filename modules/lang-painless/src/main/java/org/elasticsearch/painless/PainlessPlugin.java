@@ -49,6 +49,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private volatile Map<ScriptContext<?>, List<Whitelist>> whitelists;
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
+    private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
 
     public static List<Whitelist> baseWhiteList() {
         return List.of(
@@ -93,13 +94,13 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
+        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists, allocationMetrics));
         return painlessScriptEngine.get();
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        painlessScriptEngine.get().setAllocationMetrics(new AllocationMetrics(services.telemetryProvider().getMeterRegistry()));
+        allocationMetrics.set(new AllocationMetrics(services.telemetryProvider().getMeterRegistry()));
 
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice

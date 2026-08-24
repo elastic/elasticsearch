@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 157481
+summary: Grant `kibana_system` access to Context Engine improvements indices
+type: enhancement

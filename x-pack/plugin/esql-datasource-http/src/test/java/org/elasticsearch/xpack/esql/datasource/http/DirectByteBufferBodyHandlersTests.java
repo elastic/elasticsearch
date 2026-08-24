@@ -206,6 +206,29 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test: two consecutive failed HTTP requests (non-200/non-206 status) must each
+     * produce an independent {@link DirectReadBuffer} so the caller can close them without
+     * triggering the double-free tripwire.
+     */
+    public void testDiscardingSubscriberProducesFreshBufferPerResponse() throws Exception {
+        int status = randomFrom(HttpStatus.SC_NOT_FOUND, HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_FORBIDDEN);
+        HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
+        when(responseInfo.statusCode()).thenReturn(status);
+        HttpResponse.BodyHandler<DirectReadBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, 1024, FACTORY);
+
+        // Simulate two failed HTTP responses back-to-back (same JVM, same class statics).
+        for (int i = 0; i < 2; i++) {
+            HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = handler.apply(responseInfo);
+            subscriber.onSubscribe(new TestSubscription());
+            subscriber.onComplete();
+            DirectReadBuffer result = subscriber.getBody().toCompletableFuture().get();
+            assertEquals(0, result.buffer().remaining());
+            // Must not throw AssertionError ("double-free") even on the second iteration.
+            result.close();
+        }
+    }
+
     public void testRangeReadHandler200SkipsThenFills() throws Exception {
         byte[] fullBody = "0123456789".getBytes(StandardCharsets.UTF_8);
         byte[] expected = "345".getBytes(StandardCharsets.UTF_8);

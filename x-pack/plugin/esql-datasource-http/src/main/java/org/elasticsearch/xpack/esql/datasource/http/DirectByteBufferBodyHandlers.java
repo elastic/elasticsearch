@@ -311,13 +311,10 @@ final class DirectByteBufferBodyHandlers {
     }
 
     /**
-     * Discards the response body for unexpected status codes. Returns an empty heap buffer so we
-     * do not allocate from the user's {@link DirectBufferFactory} on an error path — the body is
-     * never delivered to a successful listener and the caller's failure handler tears down the
-     * surrounding allocator anyway.
+     * Discards the response body for unexpected status codes. Returns a fresh empty heap buffer per
+     * response so the caller can close it independently.
      */
     static final class DiscardingSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
-        private static final DirectReadBuffer EMPTY = new DirectReadBuffer(ByteBuffer.allocate(0), () -> {});
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
 
         @Override
@@ -335,7 +332,7 @@ final class DirectByteBufferBodyHandlers {
 
         @Override
         public void onComplete() {
-            body.complete(EMPTY);
+            body.complete(new DirectReadBuffer(ByteBuffer.allocate(0), () -> {}));
         }
 
         @Override

@@ -449,10 +449,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
         assertBusy(
             () -> assertThrows(
                 ResourceNotFoundException.class,
-                () -> commitService.readVirtualBatchedCompoundCommitChunk(
-                    request,
-                    new BytesStreamOutput()
-                )
+                () -> commitService.readVirtualBatchedCompoundCommitChunk(request, new BytesStreamOutput())
             )
         );
         // After the VBCC closes, local file refs are released → files freed from disk.
@@ -527,10 +524,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
             }
             assertThrows(
                 ResourceNotFoundException.class,
-                () -> commitService.readVirtualBatchedCompoundCommitChunk(
-                    request,
-                    new BytesStreamOutput()
-                )
+                () -> commitService.readVirtualBatchedCompoundCommitChunk(request, new BytesStreamOutput())
             );
         });
 

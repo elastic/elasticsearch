@@ -6,11 +6,11 @@ The direction, the decisions that constrain it, and the build order. Update as d
 
 - **Binary format.** One adaptive binary substrate under every field; served through ColumNAR's own
   range-query and block-loader APIs, not Lucene's typed shapes (those throw). No delegate.
-- **Type-tagged, open.** Every field is a `BINARY` field tagged with a `ColumnarFieldType`
-  (`columnar.type`). Numeric (`LONG`/`DOUBLE`) and `STRING` today; more slot in behind the same
-  attribute + framing. How a column encodes within its type (a numeric pipeline, or plain vs.
-  dictionary for a string) is internal to the column and recorded in its own metadata, never in the
-  type tag.
+- **Type-tagged, open.** Every field is a `BINARY` field whose `ColumnarFieldType` is resolved by an
+  injected `ColumnarFieldTypeSelector` at write time and re-read from the column metadata at read time.
+  Numeric (`LONG`/`DOUBLE`) and `STRING` today; more slot in behind the same selector + framing. How a
+  column encodes within its type (a numeric pipeline, or plain vs. dictionary for a string) is internal
+  to the column and recorded in its own metadata, never in the type tag.
 - **Per-field encoding is the driver.** The integration picks the encoding from what it knows about
   the field (type, sorted, metric role). Keep the seam open.
 - **Ordinals are internal.** Ordinals never surface — the read API stays binary and the upper layer sees

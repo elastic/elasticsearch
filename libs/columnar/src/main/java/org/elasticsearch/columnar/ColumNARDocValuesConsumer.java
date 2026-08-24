@@ -626,9 +626,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         return new UnsupportedOperationException(
             "ColumNAR is a binary doc-values format and does not handle "
                 + shape
-                + " doc values; store the field as a binary doc-values field carrying the '"
-                + ColumNARDocValuesFormat.TYPE_ATTRIBUTE
-                + "' attribute"
+                + " doc values; store the field as a binary doc-values field and supply its type via a ColumnarFieldTypeSelector"
         );
     }
 

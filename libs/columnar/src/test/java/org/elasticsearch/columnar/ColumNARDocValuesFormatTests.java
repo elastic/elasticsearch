@@ -19,7 +19,10 @@ public class ColumNARDocValuesFormatTests extends ESTestCase {
         final NumericPipelineSelector sel = (f, t) -> NumericPipeline::defaultPipeline;
         for (int bs : new int[] { 0, -1, 64, 127, 384, 640, ColumNARDocValuesFormat.MAX_BLOCK_SIZE * 2 }) {
             final int blockSize = bs;
-            expectThrows(IllegalArgumentException.class, () -> new ColumNARDocValuesFormat(sel, blockSize));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new ColumNARDocValuesFormat(sel, field -> ColumnarFieldType.LONG, blockSize)
+            );
         }
     }
 }

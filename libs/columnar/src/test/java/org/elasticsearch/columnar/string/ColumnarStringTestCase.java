@@ -163,7 +163,7 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /** A fresh single-valued cursor over {@code docValues}; {@code advance} is unsupported, as the writer never calls it. */
-    private static StringColumnValues cursor(final BytesRef[] docValues) {
+    protected static StringColumnValues cursor(final BytesRef[] docValues) {
         return new StringColumnValues() {
             private int doc = -1;
 

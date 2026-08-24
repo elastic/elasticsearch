@@ -1,8 +1,8 @@
 ExchangeSinkExec[[_doc{f}#0, salary{f}#1, hire_date{f}#2, languages{f}#3],false]
 \_ProjectExec[[_doc{f}#0, salary{f}#1, hire_date{f}#2, languages{f}#3]]
-  \_FieldExtractExec[salary{f}#1]<[],[],[]>
+  \_FieldExtractExec[[salary{f}#1]<[],[],[]>,_doc{f}#0]
     \_TopNByExec[[Order[hire_date{f}#2,ASC,LAST]],5[INTEGER],[languages{f}#3],36]
-      \_FieldExtractExec[hire_date{f}#2, languages{f}#3]<[],[],[]>
+      \_FieldExtractExec[[hire_date{f}#2, languages{f}#3]<[],[],[]>,_doc{f}#0]
         \_EsQueryExec[employees], indexMode[standard], [_doc{f}#0], limit[], sort[] estimatedRowSize[16] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "salary",

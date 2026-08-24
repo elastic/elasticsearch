@@ -1,6 +1,6 @@
 ExchangeSinkExec[[_doc{f}#0, height{f}#1],false]
 \_ProjectExec[[_doc{f}#0, height{f}#1]]
-  \_FieldExtractExec[height{f}#1]<[],[],[]>
+  \_FieldExtractExec[[height{f}#1]<[],[],[]>,_doc{f}#0]
     \_EsQueryExec[employees], indexMode[standard], [_doc{f}#0], limit[20], sort[[FieldSort[field=height{f}#1, direction=ASC, nulls=LAST]]] estimatedRowSize[24] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "salary",

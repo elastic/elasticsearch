@@ -1,3 +1,0 @@
-ExchangeSinkExec[[emp_no{f}#0, languages{f}#1, salary{f}#2],false]
-\_LimitByExec[5[INTEGER],[languages{f}#1],356]
-  \_ExchangeSourceExec[[emp_no{f}#0, languages{f}#1, salary{f}#2],false]

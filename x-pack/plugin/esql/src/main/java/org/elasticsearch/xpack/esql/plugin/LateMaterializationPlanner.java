@@ -80,9 +80,9 @@ import java.util.function.Function;
 *  Project [_doc, foo]
 *  └── EsQuery [index with some TopN pushdown]
 *  </pre>
-*  Note the above does not project the {@code x} field anymore (this was a enhancement made by #137920)
+*  Note the above does not project the {@code x} field anymore (this was an enhancement made by #137920)
 */
-public class LateMaterializationPlanner {
+class LateMaterializationPlanner {
     /**
      * Gates late materialization on the node-reduce driver for {@link TopNBy} and {@link LimitBy} queries.
      * Enabled automatically in snapshot builds; override in release with

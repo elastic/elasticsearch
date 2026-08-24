@@ -1,3 +1,0 @@
-ExchangeSinkExec[[emp_no{f}#0, hire_date{f}#1, languages{f}#2, salary{f}#3],false]
-\_TopNByExec[[Order[hire_date{f}#1,ASC,LAST]],5[INTEGER],[languages{f}#2],356]
-  \_ExchangeSourceExec[[emp_no{f}#0, hire_date{f}#1, languages{f}#2, salary{f}#3],false]

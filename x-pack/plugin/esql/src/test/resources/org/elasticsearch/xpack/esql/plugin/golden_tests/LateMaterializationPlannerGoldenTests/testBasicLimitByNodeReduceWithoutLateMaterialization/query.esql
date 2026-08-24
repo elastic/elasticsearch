@@ -1,3 +1,0 @@
-FROM employees
-| keep salary, languages, emp_no
-| LIMIT 5 BY languages

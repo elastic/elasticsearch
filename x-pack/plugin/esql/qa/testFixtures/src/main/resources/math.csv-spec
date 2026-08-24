@@ -827,7 +827,6 @@ n:integer
 null
 ;
 
-// an even precision rounds the same input down instead, so it stays inside integer
 roundIntNoOverflowAtEvenPrecision
 required_capability: fn_round_int_overflow_warns
 row n = round(2147483647, -2);

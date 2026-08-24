@@ -75,8 +75,6 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             supplier(
                 "<integer>, <long>",
                 DataType.INTEGER,
-                // Safe range: rounding these at any negative precision stays inside integer, so the shared
-                // expected-value function below cannot overflow. Overflow is covered explicitly further down.
                 () -> randomIntBetween(-2_000_000_000, 2_000_000_000),
                 DataType.LONG,
                 ESTestCase::randomLong,
@@ -113,7 +111,6 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             supplier(
                 "<integer>, <integer>",
                 DataType.INTEGER,
-                // Safe range, as above.
                 () -> randomIntBetween(-2_000_000_000, 2_000_000_000),
                 DataType.INTEGER,
                 ESTestCase::randomInt,
@@ -223,8 +220,7 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // Integer overflows. Rounding up at a negative precision can carry past Integer.MAX_VALUE, which
-        // used to wrap silently to a negative result rather than report the overflow.
+        // Integer overflows
         suppliers.add(
             new TestCaseSupplier(
                 "<max integer>, <-1>",
@@ -259,7 +255,6 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                // the widest overflow window: 2145000000 carries up to 2150000000
                 "<big integer>, <-7>",
                 List.of(DataType.INTEGER, DataType.LONG),
                 () -> new TestCaseSupplier.TestCase(
@@ -276,7 +271,6 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
-                // an even precision on the same input rounds down instead, so it stays in range
                 "<max integer>, <-2>",
                 List.of(DataType.INTEGER, DataType.LONG),
                 () -> new TestCaseSupplier.TestCase(

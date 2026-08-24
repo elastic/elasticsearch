@@ -16,6 +16,8 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * A {@link Similarity} wrapper that prevents {@code computeNorm} from returning zero for
  * non-empty fields. Lucene reserves norm {@code 0} to mean "field absent"; any similarity
@@ -38,6 +40,11 @@ final class NonZeroNormSimilarity extends Similarity {
 
     private static final Logger logger = LogManager.getLogger(NonZeroNormSimilarity.class);
 
+    private static final long WARN_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
+
+    /** Last time a zero-norm warning was emitted, in {@link System#nanoTime()} units. */
+    private static volatile long lastWarnNanos = 0;
+
     private final Similarity in;
 
     NonZeroNormSimilarity(Similarity in) {
@@ -56,17 +63,22 @@ final class NonZeroNormSimilarity extends Similarity {
             // Lucene only calls computeNorm when the field has tokens (length > 0), so a zero
             // return here always indicates a similarity that cannot represent the effective field
             // length (e.g. BM25 with discountOverlaps=true on a field whose only tokens all have
-            // positionIncrement == 0). Log a warning to help identify the root cause, then clamp
-            // to 1 rather than letting Lucene throw an IllegalStateException that corrupts the shard.
-            logger.warn(
-                "Similarity [{}] returned 0 from computeNorm for field [{}] with length {}; "
-                    + "clamping to 1 to prevent shard corruption. "
-                    + "Check your analysis chain for filters that produce only overlap tokens "
-                    + "(positionIncrement == 0).",
-                in,
-                state.getName(),
-                state.getLength()
-            );
+            // positionIncrement == 0). Log a warning (rate-limited to once per minute) to help
+            // identify the root cause, then clamp to 1 rather than letting Lucene throw an
+            // IllegalStateException that corrupts the shard.
+            final long now = System.nanoTime();
+            if (lastWarnNanos == 0 || now - lastWarnNanos >= WARN_INTERVAL_NANOS) {
+                lastWarnNanos = now;
+                logger.warn(
+                    "Similarity [{}] returned 0 from computeNorm for field [{}] with length {}; "
+                        + "clamping to 1 to prevent shard corruption. "
+                        + "Check your analysis chain for filters that produce only overlap tokens "
+                        + "(positionIncrement == 0).",
+                    in,
+                    state.getName(),
+                    state.getLength()
+                );
+            }
             return 1L;
         }
         return norm;

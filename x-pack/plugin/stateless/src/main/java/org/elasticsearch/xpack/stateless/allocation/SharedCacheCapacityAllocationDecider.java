@@ -20,6 +20,7 @@ import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +43,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
     public static final String NAME = "shared_cache_capacity";
+    private static final FeatureFlag SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG = new FeatureFlag("shared_cache_capacity_decider");
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -78,7 +80,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.shared_cache_capacity.enabled",
-        false,
+        SHARED_CACHE_CAPACITY_DECIDER_FEATURE_FLAG.isEnabled(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -96,7 +98,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      */
     public static final Setting<RatioValue> LOW_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.low",
-        "75%",
+        "99%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -108,7 +110,7 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
-        "95%",
+        "100%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

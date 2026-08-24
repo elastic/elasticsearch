@@ -48,7 +48,9 @@ public class RestHttpResponseHeadersIT extends AbstractHttpSmokeTestIT {
     public void testDateHttpHeader() throws Exception {
         Response response = client().performRequest(new Request("HEAD", "/"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
-        assertThat(response.getHeader("date"), notNullValue());
+        assertThat(response.getHeader("date"), Matchers.matchesPattern("""
+            (Mon|Tue|Wed|Thu|Fri|Sat|Sun), [0-9]{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{4} \
+            [0-9]{2}:[0-9]{2}:[0-9]{2} GMT""")); // IMF-fixdate format, see https://httpwg.org/specs/rfc9110.html#preferred.date.format
     }
 
     /**

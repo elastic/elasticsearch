@@ -235,6 +235,26 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(registryInstalled.isRegistryInstalled(), equalTo(true));
     }
 
+    public void testRegistryInstalledFieldHiddenByParam() throws IOException {
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .registryInstalled(true)
+            .build();
+
+        // Present by default (for cluster state persistence and internal use)
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(Strings.toString(builder), containsString("\"registry_installed\":true"));
+        }
+
+        // Hidden when REST response param is set (as done by GetComposableIndexTemplateAction.Response)
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            ToXContent.Params params = new ToXContent.MapParams(Map.of(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true"));
+            template.toXContent(builder, params);
+            assertThat(Strings.toString(builder), not(containsString(ComposableIndexTemplate.REGISTRY_INSTALLED.getPreferredName())));
+        }
+    }
+
     public void testComponentTemplatesEquals() {
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(null, null), equalTo(true));
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(null, List.of()), equalTo(true));

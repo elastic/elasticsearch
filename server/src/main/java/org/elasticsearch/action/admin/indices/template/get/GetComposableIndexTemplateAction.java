@@ -205,7 +205,12 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
+                indexTemplate.getValue()
+                    .toXContent(
+                        builder,
+                        new DelegatingMapParams(Map.of(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true"), params),
+                        rolloverConfiguration
+                    );
                 builder.endObject();
             }
             builder.endArray();

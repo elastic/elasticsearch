@@ -375,8 +375,8 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
      * ensures that a search shard recovering while the notification is in flight can still read commit data directly from the indexing
      * node rather than being forced to fall back to the blob store.
      * <p>
-     * Also verifies that local Lucene files are freed immediately after upload (not deferred to the notification response):
-     * {@code IndexDirectory.estimateSizeInBytes()} must reach zero while the notification is still blocked.
+     * Also verifies that local Lucene files are freed after the notification response: {@code IndexDirectory.estimateSizeInBytes()}
+     * must reach zero once the VBCC is closed by the after-notification cleanup.
      */
     public void testVbccRemainsServableUntilSearchTierNotificationCompletes() throws Exception {
         final String indexNode = startMasterAndIndexNode(
@@ -467,7 +467,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
     /**
      * Verifies that when the search tier never responds to the new-uploaded-commit notification, the configured timeout fires and
      * releases the {@link VirtualBatchedCompoundCommit}, making subsequent chunk-fetch requests fail. Also verifies that local Lucene
-     * files are freed immediately after upload (not deferred to the timeout or notification).
+     * files are freed after the timeout fires (when the VBCC is closed by the timeout-triggered cleanup).
      */
     public void testVbccReleasedAfterTimeoutWhenSearchTierNeverResponds() throws Exception {
         final String indexNode = startMasterAndIndexNode(

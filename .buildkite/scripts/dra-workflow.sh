@@ -111,7 +111,9 @@ find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 # we can dual-publish alongside RM per-branch and diff before flipping.
 if [[ "${PUBLISH_MAVEN_TO_S3:-}" == "true" ]]; then
   echo --- Publishing maven aggregation to S3
-  ES_VERSION="$ES_VERSION" VERSION_SUFFIX="$VERSION_SUFFIX" \
+  DRA_WORKFLOW="$WORKFLOW" \
+  ES_VERSION="$ES_VERSION" \
+  VERSION_SUFFIX="$VERSION_SUFFIX" \
     .buildkite/scripts/dra-maven-snapshots-publish.sh
 fi
 

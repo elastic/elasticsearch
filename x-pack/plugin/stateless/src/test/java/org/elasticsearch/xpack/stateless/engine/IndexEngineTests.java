@@ -931,6 +931,48 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testIdLookupPrewarmExpires() throws Exception {
+        var recoveryInfo = new StatelessCommitService.RecoveryInfoFromSource(null, Set.of(), false, true);
+        Settings nodeSettings = Settings.builder()
+            .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .put(IndexEngine.ID_LOOKUP_PREWARM_TTL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            .build();
+        var commitService = mockCommitService(nodeSettings);
+        when(commitService.getRecoveryInfoFromSourceEntry(any())).thenReturn(recoveryInfo);
+        try (
+            var engine = newIndexEngine(
+                indexConfig(Settings.EMPTY, nodeSettings),
+                mock(TranslogReplicator.class),
+                mock(ObjectStoreService.class),
+                commitService,
+                mock(HollowShardsService.class)
+            )
+        ) {
+            assertBusy(() -> assertFalse(engine.shouldPrewarmIdLookups()));
+        }
+    }
+
+    public void testIdLookupPrewarmDisabledWithMinusOne() throws Exception {
+        var recoveryInfo = new StatelessCommitService.RecoveryInfoFromSource(null, Set.of(), false, true);
+        Settings nodeSettings = Settings.builder()
+            .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .put(IndexEngine.ID_LOOKUP_PREWARM_TTL_SETTING.getKey(), TimeValue.MINUS_ONE)
+            .build();
+        var commitService = mockCommitService(nodeSettings);
+        when(commitService.getRecoveryInfoFromSourceEntry(any())).thenReturn(recoveryInfo);
+        try (
+            var engine = newIndexEngine(
+                indexConfig(Settings.EMPTY, nodeSettings),
+                mock(TranslogReplicator.class),
+                mock(ObjectStoreService.class),
+                commitService,
+                mock(HollowShardsService.class)
+            )
+        ) {
+            assertFalse(engine.shouldPrewarmIdLookups());
+        }
+    }
+
     public void testDeleteUnownedDocumentsBumpsForceMergeUUID() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)

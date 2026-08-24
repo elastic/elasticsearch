@@ -395,9 +395,6 @@ public final class FetchPhase {
 
             @Override
             protected void onHitSerialized() {
-                // In streaming mode the hit's decompressed source is only alive until it has been serialized into the chunk
-                // buffer, so release the request-breaker bytes reserved while building the hit. The serialized copy is tracked
-                // separately as recycler pages by RecyclerBytesStreamOutput.
                 long held = streamingHeldBytes[0];
                 if (held > 0) {
                     context.circuitBreaker().addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_FETCH);

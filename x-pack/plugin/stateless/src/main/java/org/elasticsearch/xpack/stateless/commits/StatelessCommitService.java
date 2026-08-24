@@ -2783,6 +2783,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
             recentlyUploadedCleanups.values().forEach(Releasables::close);
+            assert recentlyUploadedVbccs.isEmpty();
+            // production fallback for assertion failure, do nothing is expected
+            recentlyUploadedVbccs.values().forEach(VirtualBatchedCompoundCommit::close);
 
             if (listenersToFail.isEmpty() == false) {
                 // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.

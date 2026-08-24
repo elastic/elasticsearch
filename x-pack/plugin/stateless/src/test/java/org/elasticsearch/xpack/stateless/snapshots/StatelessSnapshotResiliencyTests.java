@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -125,6 +126,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapMetrics;
@@ -1089,7 +1091,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         translogConfig.getBigArrays(),
                         translogConfig.getBufferSize(),
                         translogConfig.getDiskIoBufferPool(),
-                        (operation, seqNo, location) -> translogReplicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                        translogReplicator.listenerFor(translogConfig.getShardId()),
                         false // translog is replicated to the object store, no need fsync that
                     );
 
@@ -1110,6 +1112,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         statelessCommitService.getCommitBCCResolverForShard(newConfig.getShardId()),
                         DocumentParsingProvider.EMPTY_INSTANCE,
                         new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+                        new IndexEngineDynamicSettings(
+                            new ClusterSettings(
+                                newConfig.getIndexSettings().getNodeSettings(),
+                                Sets.addToCopy(
+                                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                                    IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+                                    IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR
+                                )
+                            )
+                        ),
                         shardId -> true,
                         statelessCommitService.getShardLocalCommitsTracker(newConfig.getShardId()).shardLocalReadersTracker()
                     );

@@ -283,6 +283,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
                 simulatedProject.retrieveIndexModeFromTemplate(template),
+                template.isRegistryInstalled(),
                 simulatedProject,
                 now,
                 templateSettings,

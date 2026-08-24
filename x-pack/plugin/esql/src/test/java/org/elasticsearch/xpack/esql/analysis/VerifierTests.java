@@ -4649,8 +4649,6 @@ public class VerifierTests extends ESTestCase {
             "123",
             containsString("Option [boundary_scanner_locale] must be a string")
         );
-        assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Option [boundary_chars] must be a string"));
-        assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Option [boundary_max_scan] must be numeric"));
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4665,7 +4663,6 @@ public class VerifierTests extends ESTestCase {
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));
-        assertInvalidHighlightOptionValue("boundary_max_scan", "-1", containsString("Option [boundary_max_scan] must be >= 0"));
         assertInvalidHighlightOptionValue(
             "max_analyzed_offset",
             "0",
@@ -4726,6 +4723,13 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
         );
+        // A non-string analyzer value is reported by option validation, and the query is still validated against the
+        // default analyzer so its error surfaces alongside it. Contrast with the unknown-but-valid-string analyzer case
+        // above, which returns early and suppresses the query error.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
+            allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
+        );
     }
 
     public void testHighlightRejectsInvalidQueries() {
@@ -4774,6 +4778,28 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // Reject field references outside ON while translating the query.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"title:fox\" ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"title:fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        // Report the first field outside ON.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));

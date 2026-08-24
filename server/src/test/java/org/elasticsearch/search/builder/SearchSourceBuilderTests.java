@@ -195,8 +195,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     /**
-     * Fetch fields and embeddings fields are resolved into the same fetch fields context, which is keyed on field name, so an overlap
-     * between them is rejected. Fetch fields are patterns, so the overlap check must account for wildcards.
+     * Fetch fields and embeddings fields both write their values to the {@code fields} section of a search hit, which is keyed on field
+     * name, so an overlap between them is rejected. Fetch fields are patterns, so the overlap check must account for wildcards.
      */
     public void testFetchFieldsAndEmbeddingsFieldsOverlap() {
         BiFunction<List<String>, List<String>, ActionRequestValidationException> validate = (fetchFields, embeddingsFields) -> {
@@ -237,6 +237,56 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertNull(validate.apply(List.of("other_field"), List.of("my_field")));
         assertNull(validate.apply(List.of("other_*"), List.of("my_field")));
         // A literal fetch field does not match on prefix
+        assertNull(validate.apply(List.of("my"), List.of("my_field")));
+
+        // Either option on its own is accepted
+        assertNull(validate.apply(List.of("my_field"), List.of()));
+        assertNull(validate.apply(List.of(), List.of("my_field")));
+    }
+
+    /**
+     * Doc value fields and embeddings fields both write their values to the {@code fields} section of a search hit, which is keyed on
+     * field name, so an overlap between them is rejected. Doc value fields are patterns, so the overlap check must account for wildcards.
+     */
+    public void testDocValueFieldsAndEmbeddingsFieldsOverlap() {
+        BiFunction<List<String>, List<String>, ActionRequestValidationException> validate = (docValueFields, embeddingsFields) -> {
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            docValueFields.forEach(source::docValueField);
+            // The requested vector type has no bearing on the overlap check
+            embeddingsFields.forEach(f -> source.fetchEmbeddingsField(f, randomVectorType()));
+            return source.validate(null, false, false);
+        };
+
+        // An exact name match is rejected
+        ActionRequestValidationException exactMatch = validate.apply(List.of("my_field"), List.of("my_field"));
+        assertNotNull(exactMatch);
+        assertThat(
+            exactMatch.getMessage(),
+            containsString("[docvalue_fields] entry [my_field] cannot overlap with the requested embeddings field [my_field]")
+        );
+
+        // A doc value field pattern that matches an embeddings field is rejected
+        ActionRequestValidationException prefixPattern = validate.apply(List.of("my_*"), List.of("my_field"));
+        assertNotNull(prefixPattern);
+        assertThat(
+            prefixPattern.getMessage(),
+            containsString("[docvalue_fields] entry [my_*] cannot overlap with the requested embeddings field [my_field]")
+        );
+
+        assertNotNull(validate.apply(List.of("*"), List.of("my_field")));
+        assertNotNull(validate.apply(List.of("my_*_vector"), List.of("my_dense_vector")));
+
+        // Every overlapping pair is reported, not just the first
+        ActionRequestValidationException multipleOverlaps = validate.apply(List.of("*"), List.of("first_field", "second_field"));
+        assertNotNull(multipleOverlaps);
+        assertThat(multipleOverlaps.validationErrors(), hasSize(2));
+        assertThat(multipleOverlaps.getMessage(), containsString("embeddings field [first_field]"));
+        assertThat(multipleOverlaps.getMessage(), containsString("embeddings field [second_field]"));
+
+        // Distinct field names are accepted, whether the doc value field is a literal or a pattern
+        assertNull(validate.apply(List.of("other_field"), List.of("my_field")));
+        assertNull(validate.apply(List.of("other_*"), List.of("my_field")));
+        // A literal doc value field does not match on prefix
         assertNull(validate.apply(List.of("my"), List.of("my_field")));
 
         // Either option on its own is accepted

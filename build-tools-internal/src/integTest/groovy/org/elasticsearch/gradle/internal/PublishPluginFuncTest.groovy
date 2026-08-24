@@ -229,6 +229,72 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 """)
 }
 
+def "dra snapshot aggregation renames timestamped snapshot filenames and generates maven-metadata"() {
+    given:
+    // required for JarHell to work
+    subProject(":libs:some-public-lib") << """
+        plugins {
+            id 'elasticsearch.java'
+            id 'elasticsearch.publish'
+        }
+
+        group = 'org.acme'
+        version = '1.0-SNAPSHOT'
+    """
+
+    buildFile << """
+        plugins {
+            id 'com.gradleup.nmcp.aggregation'
+            id 'elasticsearch.dra-maven-aggregation'
+        }
+
+        version = "1.0-SNAPSHOT"
+        group = 'org.acme'
+        description = "custom project description"
+        nmcpAggregation {
+          centralPortal {
+            username = 'acme'
+            password = 'acmepassword'
+            publishingType = "USER_MANAGED"
+          }
+          publishAllProjectsProbablyBreakingProjectIsolation()
+        }
+    """
+
+    when:
+    def result = gradleRunner(':zipDraSnapshotMavenAggregation').build()
+
+    then:
+    result.task(":zipAggregation").outcome == TaskOutcome.SUCCESS
+    result.task(":prepareDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
+    result.task(":zipDraSnapshotMavenAggregation").outcome == TaskOutcome.SUCCESS
+
+    def upstream = zip("build/nmcp/zip/aggregation.zip")
+    // Sanity: the upstream Central Portal zip still has Maven-timestamped
+    // snapshot filenames — we must not mutate it.
+    upstream.files().collect { it.name }.any { it =~ /some-public-lib-1\.0-\d{8}\.\d{6}-\d+\.jar$/ }
+
+    def draZip = zip("build/distributions/elasticsearch-dra-maven-aggregation-1.0-SNAPSHOT.zip")
+    def draNames = draZip.files().findAll { it.isDirectory() == false }.collect { it.name }
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT.jar")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT-sources.jar")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT-javadoc.jar")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/some-public-lib-1.0-SNAPSHOT.pom")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml.sha1")
+    draNames.contains("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml.sha256")
+    // No timestamped names must leak into the DRA zip.
+    draNames.every { (it =~ /-\d{8}\.\d{6}-\d+/).find() == false }
+
+    // maven-metadata.xml points at the -SNAPSHOT literal via <localCopy>true</localCopy>
+    // so Gradle/Maven resolve `1.0-SNAPSHOT` against the renamed filenames.
+    def metadata = draZip.file("org/acme/some-public-lib/1.0-SNAPSHOT/maven-metadata.xml").read()
+    metadata.contains("<groupId>org.acme</groupId>")
+    metadata.contains("<artifactId>some-public-lib</artifactId>")
+    metadata.contains("<version>1.0-SNAPSHOT</version>")
+    metadata.contains("<localCopy>true</localCopy>")
+}
+
 def "artifacts and tweaked pom is published"() {
     given:
     buildFile << """

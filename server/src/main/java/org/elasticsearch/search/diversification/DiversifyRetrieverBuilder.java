@@ -12,23 +12,19 @@ package org.elasticsearch.search.diversification;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -42,7 +38,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +50,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.diversification.ResultDiversification.getVectorComparisonScore;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
-import static org.elasticsearch.search.vectors.VectorDataUtils.extractVectorDataFromObject;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -146,7 +141,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     private final Float lambda;
     private final Integer size;
 
-    DiversifyRetrieverBuilder(
+    public DiversifyRetrieverBuilder(
         RetrieverSource innerRetriever,
         ResultDiversificationType diversificationType,
         String diversificationField,
@@ -326,45 +321,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
-        StoredFieldsContext sfCtx = StoredFieldsContext.fromList(List.of(InferenceMetadataFieldsMapper.NAME, diversificationField));
-        FetchSourceContext fsCtx = FetchSourceContext.of(
-            false,
-            false,
-            new String[] { InferenceMetadataFieldsMapper.NAME, diversificationField },
-            null
+        // Diversification only needs each hit's score and the embeddings from the diversification field. The source builder created by
+        // the base class already suppresses _source and stored fields, so nothing else has to be turned off here.
+        return super.finalizeSourceBuilder(
+            sourceBuilder.trackScores(true).fetchEmbeddingsField(diversificationField, VectorType.DENSE_VECTOR)
         );
-
-        SearchSourceBuilder builder = sourceBuilder.from(0)
-            .excludeVectors(false)
-            .trackScores(true)
-            .storedFields(sfCtx)
-            .fetchSource(fsCtx)
-            .fetchField(InferenceMetadataFieldsMapper.NAME)
-            .fetchField(diversificationField);
-        return super.finalizeSourceBuilder(builder);
-    }
-
-    @Override
-    protected Exception processInnerItemFailureException(Exception ex) {
-        // since we do not have access to the field types before the search actually executes on the shard,
-        // we need to check for an exception when the field data is gotten and if it's disabled
-        if (ex instanceof SearchPhaseExecutionException spEx) {
-            if (spEx.getCause() instanceof ElasticsearchException iaEx) {
-                // I'm not a fan of checking the message, but there is no other indicator we can use.
-                if (iaEx.getMessage().startsWith("Fielddata is disabled on")) {
-                    return new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "Failed to retrieve vectors for field [%s]. "
-                                + "Is it a [dense_vector] or [semantic_text] field with text embeddings?",
-                            diversificationField
-                        ),
-                        ex
-                    );
-                }
-            }
-        }
-        return ex;
     }
 
     @Override
@@ -392,13 +353,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         for (int i = 0; i < scoreDocs.length; i++) {
             RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
             results[i] = asRankDoc;
-            try {
-                VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext);
-                if (vector != null) {
-                    fieldVectors.put(asRankDoc.rank, vector);
-                }
-            } catch (IOException ioEx) {
-                throw new UncheckedIOException(ioEx);
+            VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext);
+            if (vector != null) {
+                fieldVectors.put(asRankDoc.rank, vector);
             }
         }
 
@@ -475,72 +432,111 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
     }
 
-    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext)
-        throws IllegalArgumentException, IOException {
-
-        // first try and see if it's an inference field
-        VectorData vector = tryGetVectorFromInferenceField(doc.hit, diversificationContext);
-        if (vector != null) {
-            return vector;
-        }
-
+    /**
+     * Returns the single best dense embedding from the diversification field for this hit, or {@code null} if the field is
+     * absent, has no values, or has values that cannot be interpreted as dense vectors.
+     */
+    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext) {
         DocumentField field = doc.hit.getFields().get(diversificationField);
-        return field == null ? null : extractVectorDataFromObject(field.getValues());
-    }
-
-    private VectorData tryGetVectorFromInferenceField(SearchHit hit, ResultDiversificationContext diversificationContext)
-        throws IllegalArgumentException, IOException {
-        var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
-        if (inferenceFields == null) {
+        if (field == null) {
             return null;
         }
 
-        var fieldValues = inferenceFields.getValues();
-        if (fieldValues == null || fieldValues.isEmpty()) {
+        List<VectorData> embeddings = extractDenseEmbeddings(field.getValues());
+        if (embeddings.isEmpty()) {
             return null;
         }
+        if (embeddings.size() == 1) {
+            return embeddings.getFirst();
+        }
 
-        if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
-            var fieldValue = mappedValues.get(diversificationField);
-            if (fieldValue instanceof DenseVectorSupplier vectorSupplier) {
-                if (diversificationContext.getQueryVector() == null) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "[%s] or [%s] must be supplied when diversifying on a [%s] field.",
-                            QUERY_VECTOR_FIELD.getPreferredName(),
-                            QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                            vectorSupplier.getSupplierContentType()
-                        )
-                    );
-                }
+        // Multiple embeddings: pick the one most similar to the query vector.
+        VectorData queryVector = diversificationContext.getQueryVector();
+        if (queryVector == null) {
+            throw new IllegalArgumentException(
+                Strings.format(
+                    "[%s] or [%s] must be supplied when diversifying on inference field [%s]",
+                    QUERY_VECTOR_FIELD.getPreferredName(),
+                    QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                    diversificationField
+                )
+            );
+        }
 
-                List<VectorData> fieldVectors = vectorSupplier.getDenseVectorData();
-                if (fieldVectors == null || fieldVectors.isEmpty()) {
-                    return null;
-                }
-
-                int bestScoringVectorIndex = 0;
-                float currentHighestScore = Float.NEGATIVE_INFINITY;
-                for (int i = 0; i < fieldVectors.size(); i++) {
-                    VectorData vector = fieldVectors.get(i);
-                    if (vector == null) {
-                        continue;
-                    }
-                    float score = getVectorComparisonScore(
-                        QUERY_VECTOR_SIMILARITY_FUNCTION,
-                        vector,
-                        diversificationContext.getQueryVector()
-                    );
-                    if (score > currentHighestScore) {
-                        bestScoringVectorIndex = i;
-                        currentHighestScore = score;
-                    }
-                }
-
-                return fieldVectors.get(bestScoringVectorIndex);
+        VectorData bestVector = null;
+        float currentHighestScore = Float.NEGATIVE_INFINITY;
+        for (VectorData embedding : embeddings) {
+            float score = getVectorComparisonScore(QUERY_VECTOR_SIMILARITY_FUNCTION, embedding, queryVector);
+            if (score > currentHighestScore) {
+                bestVector = embedding;
+                currentHighestScore = score;
             }
         }
+        return bestVector;
+    }
 
-        return null;
+    /**
+     * Extracts a list of dense vectors from a {@link DocumentField}'s raw values.
+     *
+     * <p>Three layouts are handled, dispatched on the type of the first element:
+     * <ul>
+     *   <li><em>Flat scalar list</em> ({@code List<Number>} — {@code dense_vector} source shape): treated as a single
+     *       vector and returned as a singleton list. Throws if any element is not a {@link Number}.</li>
+     *   <li><em>List of {@code float[]} vectors</em> (one entry per chunk for chunked {@code semantic_text} fields):
+     *       each element is converted to a {@link VectorData} independently.</li>
+     * </ul>
+     * Returns an empty list when the values are absent, null, or of an unrecognized type.
+     *
+     * @throws IllegalArgumentException if the field contains malformed dense vectors
+     */
+    private List<VectorData> extractDenseEmbeddings(List<Object> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+
+        return switch (values.getFirst()) {
+            case Number ignored ->
+                // Flat scalar list — the entire values list is one vector (the dense_vector source shape).
+                parseDenseVectorValue(values);
+            case float[] ignored ->
+                // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
+                parseInferenceFieldValue(values);
+            default ->
+                // Silently return an empty list for any other value type. This handles the BwC path where an older node serializes the
+                // embeddings field request as a plain fields entry (without the embeddings format), and the field values arrive in an
+                // unrecognized shape. On nodes that understand the embeddings field contract, SearchService only fetches fields that
+                // can produce embeddings, so this branch is never reached in steady-state.
+                List.of();
+        };
+    }
+
+    private List<VectorData> parseDenseVectorValue(List<Object> values) {
+        float[] vec = new float[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) instanceof Number n) {
+                vec[i] = n.floatValue();
+            } else {
+                throw new IllegalArgumentException(
+                    "Field [" + diversificationField + "] value is not a well-formed dense vector. Is it a [dense_vector] field?"
+                );
+            }
+        }
+        return List.of(new VectorData(vec));
+    }
+
+    private List<VectorData> parseInferenceFieldValue(List<Object> values) {
+        List<VectorData> embeddings = new ArrayList<>(values.size());
+        for (Object value : values) {
+            if (value instanceof float[] floatArray) {
+                embeddings.add(new VectorData(floatArray));
+            } else {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + diversificationField
+                        + "] value is not a well-formed list of dense vectors. Is it a [semantic] or [semantic_text] field?"
+                );
+            }
+        }
+        return embeddings;
     }
 }

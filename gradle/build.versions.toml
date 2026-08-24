@@ -13,7 +13,7 @@ apache-rat = "org.apache.rat:apache-rat:0.11"
 archunit = "com.tngtech.archunit:archunit:1.4.0"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
-bytebuddy = "net.bytebuddy:byte-buddy:1.17.6"
+bytebuddy = "net.bytebuddy:byte-buddy:1.18.12"
 checkstyle = "com.puppycrawl.tools:checkstyle:13.11.0"
 commmons-io = "commons-io:commons-io:2.2"
 docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.17.5"

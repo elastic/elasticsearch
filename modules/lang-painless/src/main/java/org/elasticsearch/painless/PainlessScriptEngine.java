@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
@@ -55,6 +56,17 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * construction since {@link CompilerSettings#MAX_ALLOCATION_BYTES} is {@code NodeScope}. Mirrors {@link #contextsToLookups}.
      */
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
+
+    /**
+     * Node-level allocation metrics, installed once by {@code PainlessPlugin#createComponents} after telemetry is available.
+     * {@code null} until set; factory generation falls back to {@link AllocationMetrics#NOOP} when not yet installed.
+     */
+    private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
+
+    /** Called by {@code PainlessPlugin#createComponents} to wire in the node's telemetry before any script factory is used. */
+    public void setAllocationMetrics(AllocationMetrics metrics) {
+        allocationMetrics.set(metrics);
+    }
 
     /**
      * Constructor. Reads whether to record allocation metrics from
@@ -130,13 +142,18 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
+        AllocationMetrics metrics = contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled()
+            ? (allocationMetrics.get() != null ? allocationMetrics.get() : AllocationMetrics.NOOP)
+            : null;
+
         ScriptScope scriptScope = compile(
             compiler,
             contextsToDefaultCompilerSettings.get(context),
             loader,
             scriptName,
             scriptSource,
-            params
+            params,
+            metrics
         );
 
         if (context.statefulFactoryClazz != null) {
@@ -163,6 +180,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @return A factory class that will return script instances.
      */
     private static <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, ScriptScope scriptScope) {
+        AllocationMetrics metrics = scriptScope.getAllocationMetrics();
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
@@ -192,13 +210,28 @@ public final class PainlessScriptEngine implements ScriptEngine {
             ).visitEnd();
         }
 
+        if (metrics != null) {
+            writer.visitField(
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                WriterConstants.ALLOC_METRICS_FIELD,
+                WriterConstants.ALLOC_METRICS_TYPE.getDescriptor(),
+                null,
+                null
+            ).visitEnd();
+        }
+
         org.objectweb.asm.commons.Method base = new org.objectweb.asm.commons.Method(
             "<init>",
             MethodType.methodType(void.class).toMethodDescriptorString()
         );
+
+        List<Class<?>> initParams = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
+        if (metrics != null) {
+            initParams.add(AllocationMetrics.class);
+        }
         org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(void.class, initParams.toArray(new Class<?>[0])).toMethodDescriptorString()
         );
 
         GeneratorAdapter constructor = new GeneratorAdapter(
@@ -214,6 +247,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
             constructor.loadThis();
             constructor.loadArg(count);
             constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+        }
+
+        if (metrics != null) {
+            constructor.loadThis();
+            constructor.loadArg(newFactory.getParameterTypes().length);
+            constructor.putField(
+                Type.getType("L" + className + ";"),
+                WriterConstants.ALLOC_METRICS_FIELD,
+                WriterConstants.ALLOC_METRICS_TYPE
+            );
         }
 
         constructor.returnValue();
@@ -236,6 +279,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
         parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
+        if (metrics != null) {
+            parameters.add(AllocationMetrics.class);
+        }
 
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
             "<init>",
@@ -257,6 +303,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
 
         adapter.loadArgs();
+
+        if (metrics != null) {
+            adapter.loadThis();
+            adapter.getField(Type.getType("L" + className + ";"), WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
+        }
+
         adapter.invokeConstructor(WriterConstants.CLASS_TYPE, constru);
         adapter.returnValue();
         adapter.endMethod();
@@ -283,6 +335,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @return A factory class that will return script instances.
      */
     private static <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType, ScriptScope scriptScope) {
+        AllocationMetrics metrics = scriptScope.getAllocationMetrics();
+
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
@@ -292,10 +346,26 @@ public final class PainlessScriptEngine implements ScriptEngine {
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
-        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
+        if (metrics != null) {
+            writer.visitField(
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                WriterConstants.ALLOC_METRICS_FIELD,
+                WriterConstants.ALLOC_METRICS_TYPE.getDescriptor(),
+                null,
+                null
+            ).visitEnd();
+        }
+
+        org.objectweb.asm.commons.Method noArgInit = new org.objectweb.asm.commons.Method(
             "<init>",
             MethodType.methodType(void.class).toMethodDescriptorString()
         );
+        org.objectweb.asm.commons.Method init = metrics != null
+            ? new org.objectweb.asm.commons.Method(
+                "<init>",
+                MethodType.methodType(void.class, AllocationMetrics.class).toMethodDescriptorString()
+            )
+            : noArgInit;
 
         GeneratorAdapter constructor = new GeneratorAdapter(
             Opcodes.ASM5,
@@ -304,12 +374,20 @@ public final class PainlessScriptEngine implements ScriptEngine {
         );
         constructor.visitCode();
         constructor.loadThis();
-        constructor.invokeConstructor(OBJECT_TYPE, init);
+        constructor.invokeConstructor(OBJECT_TYPE, noArgInit);
+        if (metrics != null) {
+            constructor.loadThis();
+            constructor.loadArg(0);
+            constructor.putField(
+                Type.getType("L" + className + ";"),
+                WriterConstants.ALLOC_METRICS_FIELD,
+                WriterConstants.ALLOC_METRICS_TYPE
+            );
+        }
         constructor.returnValue();
         constructor.endMethod();
 
         Method reflect = null;
-        Method docFieldsReflect = null;
 
         for (Method method : context.factoryClazz.getMethods()) {
             if ("newInstance".equals(method.getName())) {
@@ -323,9 +401,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
             reflect.getName(),
             MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString()
         );
+
+        List<Class<?>> construParams = new ArrayList<>(Arrays.asList(reflect.getParameterTypes()));
+        if (metrics != null) {
+            construParams.add(AllocationMetrics.class);
+        }
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(void.class, construParams.toArray(new Class<?>[0])).toMethodDescriptorString()
         );
 
         GeneratorAdapter adapter = new GeneratorAdapter(
@@ -337,6 +420,10 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.newInstance(classType);
         adapter.dup();
         adapter.loadArgs();
+        if (metrics != null) {
+            adapter.loadThis();
+            adapter.getField(Type.getType("L" + className + ";"), WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
+        }
         adapter.invokeConstructor(classType, constru);
         adapter.returnValue();
         adapter.endMethod();
@@ -363,7 +450,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
         try {
-            return context.factoryClazz.cast(factory.getConstructor().newInstance());
+            if (metrics != null) {
+                return context.factoryClazz.cast(factory.getConstructor(AllocationMetrics.class).newInstance(metrics));
+            } else {
+                return context.factoryClazz.cast(factory.getConstructor().newInstance());
+            }
         } catch (Exception exception) {
             // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException(
@@ -406,14 +497,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
         Loader loader,
         String scriptName,
         String source,
-        Map<String, String> params
+        Map<String, String> params,
+        AllocationMetrics allocationMetrics
     ) {
         final CompilerSettings compilerSettings = buildCompilerSettings(contextDefaults, params);
 
         try {
             // Drop all permissions to actually compile the code itself.
             String name = scriptName == null ? source : scriptName;
-            return compiler.compile(loader, name, source, compilerSettings);
+            return compiler.compile(loader, name, source, compilerSettings, allocationMetrics);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);

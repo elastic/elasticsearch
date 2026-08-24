@@ -26,19 +26,6 @@ public final class AllocationGuard {
     private AllocationGuard() {}
 
     /**
-     * Records what one script execution allocated. Called from the generated {@code execute} method immediately before it
-     * returns, while the counter still holds this execution's total and before the next execution zeroes it.
-     * <p>
-     * Deliberately on the normal return path only. An execution that throws — including one failed by the allocation limit —
-     * contributes no sample, so the histogram describes executions that ran to completion. Instrumenting the exceptional path
-     * too would mean wrapping every generated {@code execute} in a handler, and a partial total from an aborted execution
-     * would skew the distribution it is meant to describe.
-     */
-    public static void recordExecutionAllocation(String scriptContextName, long totalBytes) {
-        AllocationMetrics.getInstance().recordExecutionAllocation(scriptContextName, totalBytes);
-    }
-
-    /**
      * Clamps an {@code @allocates} estimator's result to {@code [0, Long.MAX_VALUE / 2]} before it is charged: a
      * negative result (an estimator bug) must not credit the running total, and a huge one must trip any configurable limit
      * without overflowing it (so estimators may return {@code Long.MAX_VALUE} for "definitely over"). Estimators must not

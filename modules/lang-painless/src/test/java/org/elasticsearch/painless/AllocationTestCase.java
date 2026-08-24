@@ -46,7 +46,16 @@ public abstract class AllocationTestCase extends ScriptTestCase {
      * directly rather than setting the system property, which tests sharing a JVM must treat as immutable.
      */
     protected PainlessTestScript compileWithMetrics(String source) {
+        return compileWithMetrics(source, AllocationMetrics.NOOP);
+    }
+
+    /**
+     * Compiles {@code source} with metrics enabled and the provided {@link AllocationMetrics} instance installed.
+     * Use this overload when you need to assert on recorded samples.
+     */
+    protected PainlessTestScript compileWithMetrics(String source, AllocationMetrics metrics) {
         PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), true);
+        engine.setAllocationMetrics(metrics);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }

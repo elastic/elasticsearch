@@ -186,11 +186,12 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The ScriptScope used to compile
      */
-    ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings) {
+    ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings, AllocationMetrics allocationMetrics) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        scriptScope.setAllocationMetrics(allocationMetrics);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);

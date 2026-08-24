@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -37,6 +38,9 @@ public class ScriptScope extends Decorator {
     protected boolean deterministic = true;
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
+
+    /** Non-null only when allocation metrics are enabled; set by the compiler after scope construction. */
+    private AllocationMetrics allocationMetrics;
 
     public ScriptScope(
         PainlessLookup painlessLookup,
@@ -115,6 +119,18 @@ public class ScriptScope extends Decorator {
 
     public Map<String, Object> getStaticConstants() {
         return Collections.unmodifiableMap(staticConstants);
+    }
+
+    /**
+     * Returns the {@link AllocationMetrics} instance to inject into compiled scripts, or {@code null} when metrics are not enabled.
+     * Set by the compiler immediately after scope construction when metrics are enabled.
+     */
+    public AllocationMetrics getAllocationMetrics() {
+        return allocationMetrics;
+    }
+
+    public void setAllocationMetrics(AllocationMetrics allocationMetrics) {
+        this.allocationMetrics = allocationMetrics;
     }
 
     public <T extends Decoration> T putDecoration(ANode node, T decoration) {

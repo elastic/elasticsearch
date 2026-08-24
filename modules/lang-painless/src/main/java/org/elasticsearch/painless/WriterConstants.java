@@ -304,9 +304,16 @@ public final class WriterConstants {
         long.class
     );
 
+    /** Name of the {@code AllocationMetrics} instance field injected into every metrics-enabled generated script class. */
+    public static final String ALLOC_METRICS_FIELD = "$allocMetrics";
+
+    /** ASM {@link Type} for {@link AllocationMetrics}; used to emit the {@link #ALLOC_METRICS_FIELD} field and its interface call. */
+    public static final Type ALLOC_METRICS_TYPE = Type.getType(AllocationMetrics.class);
+
     /**
-     * {@link AllocationGuard#recordExecutionAllocation(String, long)} — called from the generated {@code execute} method's
-     * return path when metrics are enabled. The context name is a baked-in constant at the call site.
+     * {@link AllocationMetrics#recordExecutionAllocation(String, long)} — called via {@code INVOKEVIRTUAL} on
+     * {@code this.$allocMetrics} from the generated {@code execute} method's return path when metrics are enabled.
+     * The context name is a baked-in constant at the call site.
      */
     public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(
         void.class,

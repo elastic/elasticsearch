@@ -11,6 +11,7 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.AllocSizes;
+import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
@@ -277,10 +278,23 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         // Either enforcing a limit or recording metrics needs the counter. Metrics alone is a supported mode, in which the
         // counter accumulates and is read once per execution with nothing comparing it against a threshold.
+        AllocationMetrics allocationMetrics = scriptScope.getAllocationMetrics();
+        boolean allocationMetricsEnabled = allocationMetrics != null;
         if (scriptScope.getCompilerSettings().isAllocationTrackingEnabled()) {
             // private long $allocBytes — the running heuristic allocation total, accessed only by the generated
             // $incAllocBytes/getAllocBytes/$checkAllocBytes overrides below and reset at the execute entry.
             classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_BYTES_FIELD, "J", null, null).visitEnd();
+
+            if (allocationMetricsEnabled) {
+                // private final AllocationMetrics $allocMetrics — injected by the factory at instantiation time.
+                classVisitor.visitField(
+                    Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                    WriterConstants.ALLOC_METRICS_FIELD,
+                    WriterConstants.ALLOC_METRICS_TYPE.getDescriptor(),
+                    null,
+                    null
+                ).visitEnd();
+            }
 
             // public long $incAllocBytes(long bytes) { return this.$allocBytes += bytes; }
             MethodWriter incAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.INC_ALLOC_BYTES);
@@ -339,16 +353,40 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             checkAllocBytes.endMethod();
         }
 
-        // Write the constructor:
-        MethodWriter constructor = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, init);
+        // Write the constructor. When metrics are enabled, an extra AllocationMetrics arg is appended after the base
+        // class args so the factory can inject the per-node instance without a global static.
+        Method genInit;
+        if (allocationMetricsEnabled) {
+            Class<?>[] baseParams = scriptClassInfo.getBaseClass().getConstructors().length == 0
+                ? new Class<?>[0]
+                : scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes();
+            Class<?>[] genParams = new Class<?>[baseParams.length + 1];
+            System.arraycopy(baseParams, 0, genParams, 0, baseParams.length);
+            genParams[baseParams.length] = org.elasticsearch.painless.AllocationMetrics.class;
+            genInit = new Method("<init>", MethodType.methodType(void.class, genParams).toMethodDescriptorString());
+        } else {
+            genInit = init;
+        }
+        MethodWriter constructor = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, genInit);
         constructor.visitCode();
         constructor.loadThis();
-        constructor.loadArgs();
+        // Load only the base-class args (exclude the trailing AllocationMetrics arg when present).
+        int baseArgCount = scriptClassInfo.getBaseClass().getConstructors().length == 0
+            ? 0
+            : scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes().length;
+        for (int i = 0; i < baseArgCount; i++) {
+            constructor.loadArg(i);
+        }
         constructor.invokeConstructor(Type.getType(scriptClassInfo.getBaseClass()), init);
         if (needsCancelPollField) {
             constructor.loadThis();
             constructor.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
             constructor.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
+        }
+        if (allocationMetricsEnabled) {
+            constructor.loadThis();
+            constructor.loadArg(baseArgCount);
+            constructor.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
         }
         constructor.returnValue();
         constructor.endMethod();
@@ -980,10 +1018,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             return;
         }
 
+        methodWriter.loadThis();
+        methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
         methodWriter.visitVarInsn(Opcodes.ALOAD, allocContext.getSlot());
         methodWriter.loadThis();
         methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
-        methodWriter.invokeStatic(WriterConstants.ALLOCATION_GUARD_TYPE, WriterConstants.RECORD_EXECUTION_ALLOCATION);
+        methodWriter.invokeVirtual(WriterConstants.ALLOC_METRICS_TYPE, WriterConstants.RECORD_EXECUTION_ALLOCATION);
     }
 
     @Override

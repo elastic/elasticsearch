@@ -65,8 +65,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     /// IndexVersion that introduced storing a `@timestamp` field value range in the compound commit header
     /// (buffered a few versions above the true introduction point to absorb promotion lag). Indices created before
-    /// this version can contain compound commits with no recorded range purely because the field did not exist yet,
-    /// not because the commit lacks `@timestamp` data.
+    /// this version can additionally contain compound commits with no recorded range purely because the field did
+    /// not exist yet, rather than because the commit lacks `@timestamp` data.
     public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES;
 
     /// Conservative upper bound on the `@timestamp` of any commit written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].

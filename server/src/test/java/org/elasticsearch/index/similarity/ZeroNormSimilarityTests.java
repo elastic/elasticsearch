@@ -25,6 +25,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+
 /**
  * Regression test: a similarity returning {@code 0} from {@code computeNorm} for a non-empty
  * field corrupts the segment and fails the shard on flush.
@@ -116,5 +118,9 @@ public class ZeroNormSimilarityTests extends ESSingleNodeTestCase {
         // Before the fix this threw RuntimeException: "Wrote 1 docs, finish called with numDocs=2"
         var flushResponse = indicesAdmin().flush(new FlushRequest(INDEX).force(true).waitIfOngoing(true)).actionGet();
         assertEquals("flush should not produce shard failures", 0, flushResponse.getFailedShards());
+
+        // Confirm both documents survived: refresh_interval=-1 so a manual refresh is needed first.
+        indicesAdmin().prepareRefresh(INDEX).get();
+        assertHitCount(client().prepareSearch(INDEX).setSize(0), 2L);
     }
 }

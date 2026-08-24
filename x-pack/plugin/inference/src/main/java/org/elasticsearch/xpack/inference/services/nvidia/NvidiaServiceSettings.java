@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,6 +29,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Represents the settings for an Nvidia service.
@@ -153,7 +153,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
-        var model = ServiceUtils.extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var model = ServiceUtils.extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
         var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         return new NvidiaCommonServiceSettings(model, uri, rateLimitSettings);

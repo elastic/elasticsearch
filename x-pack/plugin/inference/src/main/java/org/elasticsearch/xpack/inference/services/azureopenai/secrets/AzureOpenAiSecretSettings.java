@@ -14,7 +14,6 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -24,6 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * An abstract class representing the secrets required for Azure OpenAI authentication.
@@ -37,7 +37,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD);
 
     public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(
-        SettingsScope.SERVICE_SETTINGS.toString(),
+        SERVICE_SETTINGS.toString(),
         SECRET_FIELDS
     );
 
@@ -54,7 +54,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
         var extractedSecretsMap = extractSecretsMap(map);
 
-        SecretSettings.validateExactlyOneField(extractedSecretsMap, SettingsScope.SERVICE_SETTINGS.toString(), SECRET_FIELDS);
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, SERVICE_SETTINGS.toString(), SECRET_FIELDS);
 
         if (extractedSecretsMap.containsKey(API_KEY)) {
             return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);
@@ -107,9 +107,9 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
      */
     private static Map<String, SecureString> extractSecretsMap(Map<String, Object> map) {
         var validationException = new ValidationException();
-        var secureApiToken = extractOptionalSecureString(map, API_KEY, SettingsScope.SERVICE_SETTINGS, validationException);
-        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SettingsScope.SERVICE_SETTINGS, validationException);
+        var secureApiToken = extractOptionalSecureString(map, API_KEY, SERVICE_SETTINGS, validationException);
+        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SERVICE_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         var provided = new HashMap<String, SecureString>();

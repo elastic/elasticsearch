@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -26,6 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObject
     implements
@@ -43,7 +43,7 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
     public static GoogleAiStudioCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();

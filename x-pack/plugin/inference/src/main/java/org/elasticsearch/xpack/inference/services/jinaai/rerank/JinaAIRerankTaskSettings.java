@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -23,6 +22,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * Defines the task settings for the JinaAI rerank service.
@@ -44,7 +44,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings, TopNProvider {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        Integer topNDocumentsOnly = extractOptionalPositiveInteger(map, TOP_N_DOCS_ONLY, SettingsScope.TASK_SETTINGS, validationException);
+        Integer topNDocumentsOnly = extractOptionalPositiveInteger(map, TOP_N_DOCS_ONLY, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

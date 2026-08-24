@@ -14,7 +14,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -24,6 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiUtils.INFERENCE_CONTEXTUAL_AI_URL_SERVICE_SETTING_REMOVED;
 
 /**
@@ -39,12 +39,7 @@ public abstract class ContextualAiServiceSettings extends FilteredXContentObject
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
 
-        var modelId = extractRequiredString(
-            serviceSettingsMap,
-            ServiceFields.MODEL_ID,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
+        var modelId = extractRequiredString(serviceSettingsMap, ServiceFields.MODEL_ID, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(serviceSettingsMap, defaultRateLimit, validationException, context);
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {

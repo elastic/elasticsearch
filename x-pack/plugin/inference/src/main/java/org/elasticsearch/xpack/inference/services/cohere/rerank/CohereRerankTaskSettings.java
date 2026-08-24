@@ -22,13 +22,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * Defines the task settings for the cohere rerank service.
@@ -51,7 +51,7 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
 
     static ConstructingObjectParser<CohereRerankTaskSettings, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<CohereRerankTaskSettings, Void> parser = new ConstructingObjectParser<>(
-            SettingsScope.TASK_SETTINGS.toString(),
+            TASK_SETTINGS.toString(),
             ignoreUnknownFields,
             args -> new CohereRerankTaskSettings((Integer) args[0], (Boolean) args[1], (Integer) args[2])
         );
@@ -79,7 +79,7 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, null);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, SettingsScope.TASK_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, TASK_SETTINGS);
         }
     }
 

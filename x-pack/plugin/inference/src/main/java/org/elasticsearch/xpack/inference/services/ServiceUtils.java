@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAlloc
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public final class ServiceUtils {
     /**
@@ -301,9 +302,9 @@ public final class ServiceUtils {
     }
 
     public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
-        String parsedUrl = extractRequiredString(map, fieldName, SettingsScope.SERVICE_SETTINGS, validationException);
+        String parsedUrl = extractRequiredString(map, fieldName, SERVICE_SETTINGS, validationException);
 
-        return convertToUri(parsedUrl, fieldName, SettingsScope.SERVICE_SETTINGS, validationException);
+        return convertToUri(parsedUrl, fieldName, SERVICE_SETTINGS, validationException);
     }
 
     /**
@@ -315,8 +316,8 @@ public final class ServiceUtils {
      * @return the extracted URI or null if not present
      */
     public static URI extractOptionalUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
-        String parsedUrl = extractOptionalString(map, fieldName, SettingsScope.SERVICE_SETTINGS, validationException);
-        return convertToUri(parsedUrl, fieldName, SettingsScope.SERVICE_SETTINGS, validationException);
+        String parsedUrl = extractOptionalString(map, fieldName, SERVICE_SETTINGS, validationException);
+        return convertToUri(parsedUrl, fieldName, SERVICE_SETTINGS, validationException);
     }
 
     public static URI convertToUri(

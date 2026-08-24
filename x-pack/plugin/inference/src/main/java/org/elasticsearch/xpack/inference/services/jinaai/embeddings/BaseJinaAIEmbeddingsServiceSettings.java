@@ -18,7 +18,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
@@ -38,6 +37,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
@@ -68,9 +68,9 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     ) {
         var validationException = new ValidationException();
         var commonServiceSettings = JinaAICommonServiceSettings.fromMap(map, context, validationException);
-        var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
 
         var embeddingType = parseEmbeddingType(map, validationException);
 
@@ -104,7 +104,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
             extractOptionalEnum(
                 map,
                 EMBEDDING_TYPE,
-                SettingsScope.SERVICE_SETTINGS,
+                SERVICE_SETTINGS,
                 JinaAIEmbeddingType::fromString,
                 EnumSet.allOf(JinaAIEmbeddingType.class),
                 validationException

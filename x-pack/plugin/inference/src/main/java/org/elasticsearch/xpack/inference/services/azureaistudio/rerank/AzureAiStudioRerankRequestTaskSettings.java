@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.RETURN_DOCUMENTS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_N_FIELD;
 
@@ -37,7 +37,7 @@ public record AzureAiStudioRerankRequestTaskSettings(@Nullable Boolean returnDoc
         final var validationException = new ValidationException();
 
         final var returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS_FIELD, validationException);
-        final var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, SettingsScope.TASK_SETTINGS, validationException);
+        final var topN = extractOptionalPositiveInteger(map, TOP_N_FIELD, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

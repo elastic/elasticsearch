@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioServiceSettings;
@@ -36,6 +35,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioServiceSettings {
 
@@ -46,16 +46,16 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
 
         var commonSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
-        var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
         var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, SettingsScope.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS)
                     );
                 }
                 dimensionsSetByUser = dimensions != null;
@@ -63,10 +63,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(
-                            ServiceFields.DIMENSIONS_SET_BY_USER,
-                            SettingsScope.SERVICE_SETTINGS.toString()
-                        )
+                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS.toString())
                     );
                 }
             }
@@ -173,7 +170,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
 

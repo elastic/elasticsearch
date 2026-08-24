@@ -19,7 +19,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.ValidationResult;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +32,7 @@ import java.util.TreeSet;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Holds OAuth2 service-level settings: client ID and scopes.
@@ -62,8 +62,8 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
      * (with a validation error added to the exception)
      */
     public static ValidationResult<OAuth2Settings> fromMap(Map<String, Object> map, ValidationException validationException) {
-        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, SettingsScope.SERVICE_SETTINGS, validationException);
-        var scopes = extractStringList(map, SCOPES_FIELD, SettingsScope.SERVICE_SETTINGS.toString(), validationException);
+        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, SERVICE_SETTINGS, validationException);
+        var scopes = extractStringList(map, SCOPES_FIELD, SERVICE_SETTINGS.toString(), validationException);
 
         return validateFields(clientId, scopes, validationException);
     }
@@ -98,7 +98,7 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
             validationException.addValidationError(
                 Strings.format(
                     "[%s] OAuth2 fields %s must be provided together; missing: [%s]",
-                    SettingsScope.SERVICE_SETTINGS,
+                    SERVICE_SETTINGS,
                     new TreeSet<>(REQUIRED_FIELDS),
                     String.join(", ", missingFields)
                 )
@@ -149,18 +149,8 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
      * @return a new {@link OAuth2Settings} object with the updated values, or the existing values if not updated
      */
     public OAuth2Settings updateServiceSettings(Map<String, Object> serviceSettingsMap, ValidationException validationException) {
-        var extractedClientId = extractOptionalString(
-            serviceSettingsMap,
-            CLIENT_ID_FIELD,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
-        var extractedScopes = extractStringList(
-            serviceSettingsMap,
-            SCOPES_FIELD,
-            SettingsScope.SERVICE_SETTINGS.toString(),
-            validationException
-        );
+        var extractedClientId = extractOptionalString(serviceSettingsMap, CLIENT_ID_FIELD, SERVICE_SETTINGS, validationException);
+        var extractedScopes = extractStringList(serviceSettingsMap, SCOPES_FIELD, SERVICE_SETTINGS.toString(), validationException);
         return new OAuth2Settings(
             extractedClientId != null ? extractedClientId : this.clientId,
             extractedScopes != null ? extractedScopes : this.scopes

@@ -15,7 +15,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -27,6 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXContentObject
     implements
@@ -42,11 +42,11 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             ElasticInferenceService.NAME,
             TaskType.CHAT_COMPLETION,
             context,

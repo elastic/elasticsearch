@@ -17,7 +17,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredTaskSchema;
 
 import java.io.IOException;
@@ -26,6 +25,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * Maintains mutable settings for SageMaker. Model-specific settings are stored in {@link SageMakerStoredTaskSchema}.
@@ -154,21 +154,11 @@ public record SageMakerTaskSettings(
         SageMakerStoredTaskSchema apiTaskSettings,
         ValidationException validationException
     ) {
-        var customAttributes = extractOptionalString(taskSettingsMap, CUSTOM_ATTRIBUTES, SettingsScope.TASK_SETTINGS, validationException);
-        var enableExplanations = extractOptionalString(
-            taskSettingsMap,
-            ENABLE_EXPLANATIONS,
-            SettingsScope.TASK_SETTINGS,
-            validationException
-        );
-        var inferenceIdForDataCapture = extractOptionalString(
-            taskSettingsMap,
-            INFERENCE_ID,
-            SettingsScope.TASK_SETTINGS,
-            validationException
-        );
-        var sessionId = extractOptionalString(taskSettingsMap, SESSION_ID, SettingsScope.TASK_SETTINGS, validationException);
-        var targetVariant = extractOptionalString(taskSettingsMap, TARGET_VARIANT, SettingsScope.TASK_SETTINGS, validationException);
+        var customAttributes = extractOptionalString(taskSettingsMap, CUSTOM_ATTRIBUTES, TASK_SETTINGS, validationException);
+        var enableExplanations = extractOptionalString(taskSettingsMap, ENABLE_EXPLANATIONS, TASK_SETTINGS, validationException);
+        var inferenceIdForDataCapture = extractOptionalString(taskSettingsMap, INFERENCE_ID, TASK_SETTINGS, validationException);
+        var sessionId = extractOptionalString(taskSettingsMap, SESSION_ID, TASK_SETTINGS, validationException);
+        var targetVariant = extractOptionalString(taskSettingsMap, TARGET_VARIANT, TASK_SETTINGS, validationException);
 
         return new SageMakerTaskSettings(
             customAttributes,

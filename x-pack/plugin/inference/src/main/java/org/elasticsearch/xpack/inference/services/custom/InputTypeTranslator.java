@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,6 +25,7 @@ import java.util.TreeMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEmptyString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.INPUT_TYPE_TRANSLATOR;
 
 public class InputTypeTranslator implements ToXContentFragment, Writeable {
     public static final String INPUT_TYPE_TRANSLATOR = "input_type";
@@ -49,7 +49,7 @@ public class InputTypeTranslator implements ToXContentFragment, Writeable {
 
         var defaultValue = extractOptionalEmptyString(inputTypeTranslation, DEFAULT, validationException);
 
-        throwIfNotEmptyMap(inputTypeTranslation, INPUT_TYPE_TRANSLATOR, SettingsScope.INPUT_TYPE_TRANSLATOR);
+        throwIfNotEmptyMap(inputTypeTranslation, INPUT_TYPE_TRANSLATOR, INPUT_TYPE_TRANSLATOR);
 
         validationException.throwIfValidationErrorsExist();
 

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.TOP_K_FIELD;
@@ -54,7 +54,7 @@ public record AnthropicChatCompletionRequestTaskSettings(
 
         ValidationException validationException = new ValidationException();
 
-        Integer maxTokens = extractOptionalPositiveInteger(map, MAX_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
+        Integer maxTokens = extractOptionalPositiveInteger(map, MAX_TOKENS, SERVICE_SETTINGS, validationException);
         // At the time of writing the allowed values are -1, and range 0-1. I'm intentionally not validating the values here, we'll let
         // Anthropic return an error when we send it instead.
         Double temperature = removeAsType(map, TEMPERATURE_FIELD, Double.class);

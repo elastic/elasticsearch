@@ -21,7 +21,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
@@ -34,6 +33,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.
@@ -176,23 +176,23 @@ public record SageMakerServiceSettings(
     ) {
         var validationException = new ValidationException();
 
-        var endpointName = extractRequiredString(serviceSettingsMap, ENDPOINT_NAME, SettingsScope.SERVICE_SETTINGS, validationException);
-        var region = extractRequiredString(serviceSettingsMap, REGION, SettingsScope.SERVICE_SETTINGS, validationException);
-        var api = extractRequiredString(serviceSettingsMap, API, SettingsScope.SERVICE_SETTINGS, validationException);
-        var targetModel = extractOptionalString(serviceSettingsMap, TARGET_MODEL, SettingsScope.SERVICE_SETTINGS, validationException);
+        var endpointName = extractRequiredString(serviceSettingsMap, ENDPOINT_NAME, SERVICE_SETTINGS, validationException);
+        var region = extractRequiredString(serviceSettingsMap, REGION, SERVICE_SETTINGS, validationException);
+        var api = extractRequiredString(serviceSettingsMap, API, SERVICE_SETTINGS, validationException);
+        var targetModel = extractOptionalString(serviceSettingsMap, TARGET_MODEL, SERVICE_SETTINGS, validationException);
         var targetContainerHostname = extractOptionalString(
             serviceSettingsMap,
             TARGET_CONTAINER_HOSTNAME,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
         var inferenceComponentName = extractOptionalString(
             serviceSettingsMap,
             INFERENCE_COMPONENT_NAME,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
-        var batchSize = extractOptionalPositiveInteger(serviceSettingsMap, BATCH_SIZE, SettingsScope.SERVICE_SETTINGS, validationException);
+        var batchSize = extractOptionalPositiveInteger(serviceSettingsMap, BATCH_SIZE, SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -217,12 +217,7 @@ public record SageMakerServiceSettings(
     public SageMakerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
-        var extractedBatchSize = extractOptionalPositiveInteger(
-            serviceSettings,
-            BATCH_SIZE,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
+        var extractedBatchSize = extractOptionalPositiveInteger(serviceSettings, BATCH_SIZE, SERVICE_SETTINGS, validationException);
 
         var updatedApiServiceSettings = this.apiServiceSettings().updateServiceSettings(serviceSettings);
 

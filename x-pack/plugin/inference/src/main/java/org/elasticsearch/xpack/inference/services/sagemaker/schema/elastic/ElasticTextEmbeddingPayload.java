@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -49,6 +48,7 @@ import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * TextEmbedding needs to differentiate between Bit, Byte, and Float types. Users must specify the
@@ -329,12 +329,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             ConfigurationParseContext context,
             ValidationException validationException
         ) {
-            var dimensions = extractOptionalPositiveInteger(
-                serviceSettings,
-                DIMENSIONS_FIELD,
-                SettingsScope.SERVICE_SETTINGS,
-                validationException
-            );
+            var dimensions = extractOptionalPositiveInteger(serviceSettings, DIMENSIONS_FIELD, SERVICE_SETTINGS, validationException);
             // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
             // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
             // Persisted configs have always contained the field for this class, so a missing value is a validation error.
@@ -345,7 +340,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 var storedDimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
                 if (storedDimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER_FIELD, SettingsScope.SERVICE_SETTINGS.toString())
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER_FIELD, SERVICE_SETTINGS.toString())
                     );
                 }
                 dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
@@ -354,7 +349,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             SimilarityMeasure similarity = ServiceUtils.extractRequiredEnum(
                 serviceSettings,
                 ServiceFields.SIMILARITY,
-                SettingsScope.SERVICE_SETTINGS,
+                SERVICE_SETTINGS,
                 SimilarityMeasure::fromString,
                 EnumSet.allOf(SimilarityMeasure.class),
                 validationException
@@ -363,7 +358,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             var elementType = extractRequiredEnum(
                 serviceSettings,
                 ELEMENT_TYPE_FIELD,
-                SettingsScope.SERVICE_SETTINGS,
+                SERVICE_SETTINGS,
                 DenseVectorFieldMapper.ElementType::fromString,
                 EnumSet.allOf(DenseVectorFieldMapper.ElementType.class),
                 validationException

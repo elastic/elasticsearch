@@ -17,7 +17,6 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 
 import java.io.IOException;
@@ -26,6 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.INPUT_TYPE_FIELD_NAME;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceFields.TRUNCATE_FIELD_NAME;
@@ -57,7 +57,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         InputType inputType = extractOptionalEnum(
             map,
             INPUT_TYPE_FIELD_NAME,
-            SettingsScope.TASK_SETTINGS,
+            TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
             validationException
@@ -65,7 +65,7 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
         Truncation truncation = extractOptionalEnum(
             map,
             TRUNCATE_FIELD_NAME,
-            SettingsScope.TASK_SETTINGS,
+            TASK_SETTINGS,
             Truncation::fromString,
             Truncation.ALL,
             validationException

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 public record GoogleVertexAiRerankRequestTaskSettings(@Nullable Integer topN) {
 
@@ -26,12 +26,7 @@ public record GoogleVertexAiRerankRequestTaskSettings(@Nullable Integer topN) {
 
         ValidationException validationException = new ValidationException();
 
-        Integer topN = extractOptionalPositiveInteger(
-            map,
-            GoogleVertexAiRerankTaskSettings.TOP_N,
-            SettingsScope.TASK_SETTINGS,
-            validationException
-        );
+        Integer topN = extractOptionalPositiveInteger(map, GoogleVertexAiRerankTaskSettings.TOP_N, TASK_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

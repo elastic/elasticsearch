@@ -18,7 +18,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -38,6 +37,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED;
 
 /**
@@ -65,10 +65,10 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             extractOptionalUri(map, URL, validationException),
             () -> ServiceUtils.createUri(DEFAULT_URL)
         );
-        var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         // Handle dimensionsSetByUser based on context
@@ -136,7 +136,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
         var extractedRateLimitSettings = RateLimitSettings.of(

@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,6 +23,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.nonNullOrDefault;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.TOP_K_FIELD;
@@ -64,7 +64,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}
 
     private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
-        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, SettingsScope.TASK_SETTINGS, validationException);
+        Integer maxTokens = extractRequiredPositiveInteger(map, MAX_TOKENS, TASK_SETTINGS, validationException);
 
         // At the time of writing the allowed values for the temperature field are -1, and range 0-1.
         // I'm intentionally not validating the values here, we'll let Anthropic return an error when we send it instead.

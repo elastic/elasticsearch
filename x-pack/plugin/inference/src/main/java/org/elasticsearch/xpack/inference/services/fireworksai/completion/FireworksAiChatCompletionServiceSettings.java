@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -27,6 +26,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class FireworksAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
@@ -42,7 +43,7 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
     public static FireworksAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = ServiceUtils.extractRequiredString(map, ServiceFields.MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var modelId = ServiceUtils.extractRequiredString(map, ServiceFields.MODEL_ID, SERVICE_SETTINGS, validationException);
         var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 

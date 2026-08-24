@@ -20,7 +20,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.oauth2.BaseOAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.net.URI;
@@ -36,6 +35,7 @@ import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.get
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.TOKEN_URL;
 
 /**
@@ -120,10 +120,10 @@ public class OpenAiOAuth2Settings extends BaseOAuth2Settings {
 
     public OpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettingsMap, ValidationException validationException) {
         var updatedOauth2 = oAuth2Settings.updateServiceSettings(serviceSettingsMap, validationException);
-        var newTokenUrlString = extractOptionalString(serviceSettingsMap, TOKEN_URL, SettingsScope.SERVICE_SETTINGS, validationException);
+        var newTokenUrlString = extractOptionalString(serviceSettingsMap, TOKEN_URL, SERVICE_SETTINGS, validationException);
         var newTokenUrl = newTokenUrlString == null
             ? this.tokenUrl
-            : convertToUri(newTokenUrlString, TOKEN_URL, SettingsScope.SERVICE_SETTINGS, validationException);
+            : convertToUri(newTokenUrlString, TOKEN_URL, SERVICE_SETTINGS, validationException);
         return new OpenAiOAuth2Settings(updatedOauth2, newTokenUrl);
     }
 

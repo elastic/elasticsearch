@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
@@ -34,6 +33,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService.REASONING_FIELD_UNSUPPORTED_MESSAGE;
 
 /**
@@ -65,11 +65,7 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
     private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        var parser = new ObjectParser<Builder, ConfigurationParseContext>(
-            SettingsScope.TASK_SETTINGS.toString(),
-            ignoreUnknownFields,
-            Builder::new
-        );
+        var parser = new ObjectParser<Builder, ConfigurationParseContext>(TASK_SETTINGS.toString(), ignoreUnknownFields, Builder::new);
         parser.declareObject(Builder::setReasoning, (p, c) -> Reasoning.PARSER.apply(p, null), new ParseField(REASONING_FIELD));
         return parser;
     }
@@ -99,7 +95,7 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build(taskType);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, SettingsScope.TASK_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, TASK_SETTINGS);
         }
     }
 
@@ -164,7 +160,7 @@ public class ElasticInferenceServiceChatCompletionTaskSettings implements TaskSe
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, newSettings)) {
             return Update.PARSER.apply(xParser, null).mergeInto(this);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}] update", e, SettingsScope.TASK_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}] update", e, TASK_SETTINGS);
         }
     }
 

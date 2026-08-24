@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 
 import java.io.IOException;
@@ -21,6 +20,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     /**
@@ -85,7 +85,7 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
 

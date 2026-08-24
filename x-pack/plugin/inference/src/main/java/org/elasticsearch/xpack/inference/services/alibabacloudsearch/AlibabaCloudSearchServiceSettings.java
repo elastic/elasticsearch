@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -35,6 +34,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Holds the settings common to every AlibabaCloud AI Search task (service id, host, workspace, HTTP schema, and rate limiting)
@@ -145,7 +145,7 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, SettingsScope.SERVICE_SETTINGS.toString());
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS.toString());
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Collections;
@@ -26,6 +25,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SECRET_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings.API_KEY;
 
 /**
@@ -41,7 +42,7 @@ public abstract class OpenAiSecretSettings implements SecretSettings {
     private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, CLIENT_SECRET_FIELD);
 
     public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(
-        SettingsScope.SERVICE_SETTINGS.toString(),
+        SERVICE_SETTINGS.toString(),
         SECRET_FIELDS
     );
 
@@ -103,8 +104,8 @@ public abstract class OpenAiSecretSettings implements SecretSettings {
      */
     private static Map<String, SecureString> extractSecretsMap(Map<String, Object> map) {
         var validationException = new ValidationException();
-        var apiKey = DefaultSecretSettings.extractOptionalApiKey(map, SettingsScope.SECRET_SETTINGS, validationException);
-        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SettingsScope.SECRET_SETTINGS, validationException);
+        var apiKey = DefaultSecretSettings.extractOptionalApiKey(map, SECRET_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SECRET_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         var provided = new HashMap<String, SecureString>();

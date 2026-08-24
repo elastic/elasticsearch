@@ -15,12 +15,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TRUNCATE_FIELD;
 
 public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncation) implements TaskSettings {
@@ -38,7 +38,7 @@ public record AmazonBedrockEmbeddingsTaskSettings(@Nullable Truncation truncatio
         var extractedTruncation = extractOptionalEnum(
             map,
             TRUNCATE_FIELD,
-            SettingsScope.TASK_SETTINGS,
+            TASK_SETTINGS,
             Truncation::fromString,
             Truncation.ALL,
             validationException

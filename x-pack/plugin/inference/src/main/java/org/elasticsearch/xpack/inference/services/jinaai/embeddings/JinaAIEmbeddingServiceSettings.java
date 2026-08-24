@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 
 import java.io.IOException;
@@ -24,6 +23,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     public static final String NAME = "jinaai_multimodal_embedding_service_settings";
@@ -74,7 +74,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
 

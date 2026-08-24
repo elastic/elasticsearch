@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public record QueryParameters(List<Parameter> parameters) implements ToXContentFragment, Writeable {
 
@@ -32,7 +32,7 @@ public record QueryParameters(List<Parameter> parameters) implements ToXContentF
         List<Tuple<String, String>> queryParams = extractOptionalListOfStringTuples(
             map,
             QUERY_PARAMETERS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
 

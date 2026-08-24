@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.DenseEmbeddingResponseParser;
@@ -51,6 +50,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class CustomServiceSettings extends FilteredXContentObject implements ServiceSettings, CustomRateLimitServiceSettings {
 
@@ -62,7 +62,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String JSON_PARSER = "json_parser";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
-    private static final String RESPONSE_SCOPE = String.join(".", SettingsScope.SERVICE_SETTINGS.toString(), RESPONSE);
+    private static final String RESPONSE_SCOPE = String.join(".", SERVICE_SETTINGS.toString(), RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
 
     private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
@@ -81,15 +81,15 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var textEmbeddingSettings = TextEmbeddingSettings.fromMap(map, taskType, validationException);
 
-        var url = extractRequiredString(map, ServiceFields.URL, SettingsScope.SERVICE_SETTINGS, validationException);
+        var url = extractRequiredString(map, ServiceFields.URL, SERVICE_SETTINGS, validationException);
 
         var queryParams = QueryParameters.fromMap(map, validationException);
 
         var stringHeaders = extractStringHeadersMap(map, validationException);
 
-        var requestContentString = extractRequiredString(map, REQUEST, SettingsScope.SERVICE_SETTINGS, validationException);
+        var requestContentString = extractRequiredString(map, REQUEST, SERVICE_SETTINGS, validationException);
 
-        var responseParserMap = extractRequiredMap(map, RESPONSE, SettingsScope.SERVICE_SETTINGS, validationException);
+        var responseParserMap = extractRequiredMap(map, RESPONSE, SERVICE_SETTINGS, validationException);
 
         var jsonParserMap = extractRequiredMap(
             Objects.requireNonNullElse(responseParserMap, new HashMap<>()),
@@ -103,7 +103,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         var inputTypeTranslator = InputTypeTranslator.fromMap(map, validationException, CustomService.NAME);
-        var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, SettingsScope.SERVICE_SETTINGS, validationException);
+        var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, SERVICE_SETTINGS, validationException);
 
         if (responseParserMap == null || jsonParserMap == null) {
             throw validationException;
@@ -143,9 +143,9 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
                 return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
             }
 
-            var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
-            var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
-            var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
+            var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
+            var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
+            var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
             return new TextEmbeddingSettings(similarity, dimensions, maxInputTokens);
         }
 
@@ -153,12 +153,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             if (this.equals(NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS)) {
                 return NON_TEXT_EMBEDDING_TASK_TYPE_SETTINGS;
             }
-            var extractedMaxInputTokens = extractOptionalPositiveInteger(
-                map,
-                MAX_INPUT_TOKENS,
-                SettingsScope.SERVICE_SETTINGS,
-                validationException
-            );
+            var extractedMaxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
             return new TextEmbeddingSettings(
                 this.similarityMeasure,
                 this.dimensions,
@@ -328,18 +323,13 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             validationException
         );
 
-        var extractedUrl = extractOptionalString(serviceSettings, ServiceFields.URL, SettingsScope.SERVICE_SETTINGS, validationException);
+        var extractedUrl = extractOptionalString(serviceSettings, ServiceFields.URL, SERVICE_SETTINGS, validationException);
 
         var extractedQueryParams = QueryParameters.fromMap(serviceSettings, validationException);
 
         var extractedStringHeaders = extractStringHeadersMap(serviceSettings, validationException);
 
-        var extractedRequestContentString = extractOptionalString(
-            serviceSettings,
-            REQUEST,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
+        var extractedRequestContentString = extractOptionalString(serviceSettings, REQUEST, SERVICE_SETTINGS, validationException);
 
         var extractedResponseJsonParser = extractCustomResponseParser(serviceSettings, validationException);
 
@@ -352,12 +342,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var extractedInputTypeTranslator = InputTypeTranslator.fromMap(serviceSettings, validationException, CustomService.NAME);
 
-        var extractedBatchSize = extractOptionalPositiveInteger(
-            serviceSettings,
-            BATCH_SIZE,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
+        var extractedBatchSize = extractOptionalPositiveInteger(serviceSettings, BATCH_SIZE, SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

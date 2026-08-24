@@ -18,7 +18,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -35,6 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
@@ -63,14 +63,14 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
     ) {
         ValidationException validationException = new ValidationException();
 
-        String modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        SimilarityMeasure similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
+        SimilarityMeasure similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             ElasticInferenceService.NAME,
             TaskType.TEXT_EMBEDDING,
             context,

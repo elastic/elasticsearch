@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -30,6 +29,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Represents the settings for an OpenShift AI service.
@@ -160,7 +160,7 @@ public abstract class OpenShiftAiServiceSettings extends FilteredXContentObject 
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
-        var model = extractOptionalString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
+        var model = extractOptionalString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
         var uri = extractUri(map, URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         return new OpenShiftAiCommonServiceSettings(model, uri, rateLimitSettings);

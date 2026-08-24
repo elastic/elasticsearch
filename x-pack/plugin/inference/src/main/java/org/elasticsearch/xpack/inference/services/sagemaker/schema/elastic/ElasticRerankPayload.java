@@ -16,13 +16,13 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 
 import java.util.EnumSet;
 
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 public class ElasticRerankPayload implements ElasticPayload {
 
@@ -67,7 +67,7 @@ public class ElasticRerankPayload implements ElasticPayload {
                 }
 
                 if (elasticTaskSettings.isEmpty() == false) {
-                    builder.field(SettingsScope.TASK_SETTINGS.toString());
+                    builder.field(TASK_SETTINGS.toString());
                     if (elasticTaskSettings.isFragment()) {
                         builder.startObject();
                     }

@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -33,6 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Represents the settings for the AI21 chat completion service.
@@ -62,7 +62,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            SettingsScope.SERVICE_SETTINGS.toString(),
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             Builder::new
         );
@@ -98,7 +98,7 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, SettingsScope.SERVICE_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS);
         }
     }
 

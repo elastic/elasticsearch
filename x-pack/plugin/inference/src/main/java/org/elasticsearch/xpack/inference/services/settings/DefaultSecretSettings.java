@@ -29,6 +29,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SECRET_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Contains secret settings that are common to all services.
@@ -46,7 +48,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         }
 
         ValidationException validationException = new ValidationException();
-        var scope = parseContext == ConfigurationParseContext.REQUEST ? SettingsScope.SERVICE_SETTINGS : SettingsScope.SECRET_SETTINGS;
+        var scope = parseContext == ConfigurationParseContext.REQUEST ? SERVICE_SETTINGS : SECRET_SETTINGS;
         SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, scope, validationException);
 
         validationException.throwIfValidationErrorsExist();
@@ -129,7 +131,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         var validationException = new ValidationException();
-        var extractedApiKey = extractOptionalApiKey(newSecrets, SettingsScope.SERVICE_SETTINGS, validationException);
+        var extractedApiKey = extractOptionalApiKey(newSecrets, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {

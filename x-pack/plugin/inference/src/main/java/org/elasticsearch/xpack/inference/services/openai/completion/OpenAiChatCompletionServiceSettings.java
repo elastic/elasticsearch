@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -35,6 +34,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 /**
@@ -52,10 +52,10 @@ public class OpenAiChatCompletionServiceSettings extends OpenAiServiceSettings {
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var modelId = extractRequiredString(map, MODEL_ID, SettingsScope.SERVICE_SETTINGS, validationException);
-        var organizationId = extractOptionalString(map, ORGANIZATION, SettingsScope.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, SERVICE_SETTINGS, validationException);
+        var organizationId = extractOptionalString(map, ORGANIZATION, SERVICE_SETTINGS, validationException);
         var uri = extractOptionalUri(map, URL, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         var commonSettings = parseCommonSettings(map, validationException);
 
@@ -75,16 +75,11 @@ public class OpenAiChatCompletionServiceSettings extends OpenAiServiceSettings {
     public OpenAiChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
-        var extractedOrganizationId = extractOptionalString(
-            serviceSettings,
-            ORGANIZATION,
-            SettingsScope.SERVICE_SETTINGS,
-            validationException
-        );
+        var extractedOrganizationId = extractOptionalString(serviceSettings, ORGANIZATION, SERVICE_SETTINGS, validationException);
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
         var extractedRateLimitSettings = RateLimitSettings.of(

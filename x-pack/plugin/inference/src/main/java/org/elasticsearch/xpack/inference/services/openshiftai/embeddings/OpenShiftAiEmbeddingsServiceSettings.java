@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -34,6 +33,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Settings for the OpenShift AI embeddings service.
@@ -58,23 +58,21 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
     public static OpenShiftAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
         var commonServiceSettings = extractOpenShiftAiCommonServiceSettings(map, context, validationException);
-        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SettingsScope.SERVICE_SETTINGS, validationException);
-        var similarity = extractSimilarity(map, SettingsScope.SERVICE_SETTINGS, validationException);
-        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SettingsScope.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(map, MAX_INPUT_TOKENS, SERVICE_SETTINGS, validationException);
         var dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
-                    validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, SettingsScope.SERVICE_SETTINGS)
-                    );
+                    validationException.addValidationError(ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS));
                 }
                 dimensionsSetByUser = dimensions != null;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, SettingsScope.SERVICE_SETTINGS.toString())
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, SERVICE_SETTINGS.toString())
                     );
                 }
             }
@@ -163,7 +161,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
             MAX_INPUT_TOKENS,
-            SettingsScope.SERVICE_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
         var extractedRateLimitSettings = RateLimitSettings.of(

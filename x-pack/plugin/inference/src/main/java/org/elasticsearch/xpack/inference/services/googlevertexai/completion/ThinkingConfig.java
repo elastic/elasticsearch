@@ -15,13 +15,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * This class encapsulates the ThinkingConfig object contained within GenerationConfig. Only the thinkingBudget field is currently
@@ -55,7 +55,7 @@ public class ThinkingConfig implements Writeable, ToXContentFragment {
         Integer thinkingBudget = ServiceUtils.extractOptionalInteger(
             thinkingConfigSettings,
             THINKING_BUDGET_FIELD,
-            SettingsScope.TASK_SETTINGS,
+            TASK_SETTINGS,
             validationException
         );
 

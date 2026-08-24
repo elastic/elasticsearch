@@ -15,11 +15,12 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceChatCompletionTaskSettings;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.TASK_SETTINGS;
 
 /**
  * This class defines an empty task settings object that cannot be updated. If the {@link #updatedTaskSettings} is called with a
@@ -38,7 +39,7 @@ public record ImmutableEmptyTaskSettings() implements TaskSettings {
         throw new ElasticsearchStatusException(
             "[{}] Configuration contains unknown settings {}",
             RestStatus.BAD_REQUEST,
-            SettingsScope.TASK_SETTINGS,
+            TASK_SETTINGS,
             settings.keySet()
         );
     }

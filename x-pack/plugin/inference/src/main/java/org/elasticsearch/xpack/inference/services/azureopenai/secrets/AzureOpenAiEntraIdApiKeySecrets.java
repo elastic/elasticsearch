@@ -13,11 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Azure OpenAI secret settings for API key or Entra ID only.
@@ -97,7 +98,7 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
     protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
         if (apiKey != null) {
             return updateExactlyOneField(
-                SettingsScope.SERVICE_SETTINGS.toString(),
+                SERVICE_SETTINGS.toString(),
                 API_KEY,
                 apiKey,
                 provided,
@@ -105,7 +106,7 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
             );
         }
         return updateExactlyOneField(
-            SettingsScope.SERVICE_SETTINGS.toString(),
+            SERVICE_SETTINGS.toString(),
             ENTRA_ID,
             entraId,
             provided,

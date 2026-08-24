@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -37,6 +36,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Settings for the Llama embeddings service. Extends {@link LlamaServiceSettings} and adds the
@@ -58,7 +58,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            SettingsScope.SERVICE_SETTINGS.toString(),
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             Builder::new
         );

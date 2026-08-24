@@ -27,7 +27,9 @@
 
 set -euo pipefail
 
-: "${DRA_WORKFLOW:?DRA_WORKFLOW must be set}"
+# Default matches dra-workflow.sh's `WORKFLOW="${DRA_WORKFLOW:-snapshot}"` so
+# this script is safe to run standalone.
+DRA_WORKFLOW="${DRA_WORKFLOW:-snapshot}"
 : "${ES_VERSION:?ES_VERSION must be set}"
 : "${BUILDKITE_COMMIT:?BUILDKITE_COMMIT must be set}"
 VERSION_SUFFIX="${VERSION_SUFFIX-}"

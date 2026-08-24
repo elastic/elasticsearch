@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class HotThreadsIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.CLUSTER;
+    public static final ElasticsearchCluster cluster = Clusters.CLUSTER;
 
     private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
 

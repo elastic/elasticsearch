@@ -897,12 +897,6 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    /**
-     * In streaming mode the decompressed {@code _source} of each hit must be charged against the request circuit breaker while
-     * the hit is being built and released again once it has been serialized into a chunk. This restores the accounting that
-     * protects the node from fetching many large documents concurrently. Verifies both that a {@code fetch[source]} charge is
-     * made and that the breaker returns to its baseline once the fetch completes and resources are released.
-     */
     public void testStreamingFetchAccountsAndReleasesSourceBytes() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);

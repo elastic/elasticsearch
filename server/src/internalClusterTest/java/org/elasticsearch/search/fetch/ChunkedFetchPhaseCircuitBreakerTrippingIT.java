@@ -334,6 +334,73 @@ public class ChunkedFetchPhaseCircuitBreakerTrippingIT extends ESIntegTestCase {
         });
     }
 
+    public void testCircuitBreakerTripsOnDataNodeSourceDuringStreamingFetch() throws Exception {
+        String dataNode = internalCluster().startNode(
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", "2mb").build()
+        );
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put("indices.breaker.request.limit", "200mb").build()
+        );
+        createIndex(INDEX_NAME);
+
+        prepareIndex(INDEX_NAME).setId("huge")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field(SORT_FIELD, 0)
+                    .field("huge_field", Strings.repeat("x", 5_000_000))  // 5MB source, exceeds the 2MB data node limit
+                    .endObject()
+            )
+            .get();
+        refresh(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        long breakerBefore = getRequestBreakerUsed(dataNode);
+
+        ElasticsearchException exception = null;
+        SearchResponse resp = null;
+        try {
+            resp = internalCluster().client(coordinatorNode)
+                .prepareSearch(INDEX_NAME)
+                .setQuery(matchAllQuery())
+                .setSize(1)
+                .setAllowPartialSearchResults(false)
+                .get();
+        } catch (ElasticsearchException e) {
+            exception = e;
+        } finally {
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+
+        assertNotNull("Search should have failed on the data node's oversized source", exception);
+
+        Throwable breakerException = ExceptionsHelper.unwrap(exception, CircuitBreakingException.class);
+        assertNotNull("root cause must be a CircuitBreakingException", breakerException);
+        assertThat(
+            "Trip should be attributed to the streaming per-hit source accounting, not the network buffer",
+            breakerException.getMessage(),
+            containsString("fetch[source]")
+        );
+        assertThat(
+            "Circuit breaking should map to 429 TOO_MANY_REQUESTS",
+            ExceptionsHelper.status(exception),
+            equalTo(RestStatus.TOO_MANY_REQUESTS)
+        );
+
+        assertBusy(() -> {
+            long currentBreaker = getRequestBreakerUsed(dataNode);
+            assertThat(
+                "Data node circuit breaker should be released after tripping on the streamed source, current: "
+                    + currentBreaker
+                    + ", before: "
+                    + breakerBefore,
+                currentBreaker,
+                lessThanOrEqualTo(breakerBefore)
+            );
+        });
+    }
+
     /**
      * Test that multiple sequential breaker trips don't cause memory leaks.
      * Repeatedly tripping the breaker should not accumulate memory.

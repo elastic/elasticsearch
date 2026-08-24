@@ -159,10 +159,14 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 selectivity,
                 scoreDocs.length
             );
-            // if we land here it means that we merged and filtered out ALL matching docs and came up short
-            // so we want to exclude all filtered out docs + matching docs from the subsequent rounds
-            int[] matchingIds = sortedDocIdsFromPerLeaf(matching);
-            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), matchingIds);
+            // Exclude everything already tried from later rounds. For nested (block-join) queries a parent
+            // we already matched is done - we keep only one hit per parent - so we exclude its whole block;
+            // a parent whose child was merely filtered out stays eligible through its untried children.
+            // Non-nested queries exclude the individual matched docs.
+            int[] alreadyMatched = parentsFilter != null
+                ? KnnQueryUtils.expandToParentBlocks(matching, searcher.getIndexReader(), parentsFilter)
+                : sortedDocIdsFromPerLeaf(matching);
+            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), alreadyMatched);
             // Seeds are the nearest (highest-scoring) round-0 matches per leaf, selected here while the
             // scores are still available on `matching`; excluded still needs the full matching set above.
             int[][] seedDocsPerLeaf = nearestSeedsPerLeaf(matching, MAX_SEEDS_PER_LEAF);

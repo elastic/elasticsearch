@@ -3648,7 +3648,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * accepted docs to filter-passing children before collection.
          */
         private boolean canPostFilter(Query filter, BitSetProducer parentFilter) {
-            return filter != null && parentFilter == null && postFilterSelectivityThreshold < 1.0f;
+            return filter != null && postFilterSelectivityThreshold < 1.0f;
         }
 
         private boolean needsRescore(Float rescoreOversample) {

@@ -345,6 +345,146 @@ public class KnnQueryUtilsTests extends ESTestCase {
         }
     }
 
+    public void testExpandToParentBlocksExpandsWholeBlock() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // 6 docs: children 0,1 under parent 2; children 3,4 under parent 5
+            for (int i = 0; i < 6; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                BitSetProducer parentsFilter = context -> {
+                    FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    bits.set(2);
+                    bits.set(5);
+                    return bits;
+                };
+
+                // Matched via one child of each parent (sorted ascending by doc, as applyFilter produces).
+                ScoreDoc[][] matchingPerLeaf = new ScoreDoc[1][];
+                matchingPerLeaf[0] = new ScoreDoc[] { new ScoreDoc(1, 0.9f), new ScoreDoc(3, 0.7f) };
+
+                int[] excluded = KnnQueryUtils.expandToParentBlocks(matchingPerLeaf, reader, parentsFilter);
+                // Whole block of parent 2 ({0,1,2}) and parent 5 ({3,4,5}), sorted.
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5 }, excluded);
+            }
+        }
+    }
+
+    public void testExpandToParentBlocksDeduplicatesSameParent() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // 6 docs: children 0,1 under parent 2; children 3,4 under parent 5
+            for (int i = 0; i < 6; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                BitSetProducer parentsFilter = context -> {
+                    FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    bits.set(2);
+                    bits.set(5);
+                    return bits;
+                };
+
+                // Two matched children resolving to the SAME parent 2 - block must be emitted only once.
+                ScoreDoc[][] matchingPerLeaf = new ScoreDoc[1][];
+                matchingPerLeaf[0] = new ScoreDoc[] { new ScoreDoc(0, 0.8f), new ScoreDoc(1, 0.9f) };
+
+                int[] excluded = KnnQueryUtils.expandToParentBlocks(matchingPerLeaf, reader, parentsFilter);
+                assertArrayEquals(new int[] { 0, 1, 2 }, excluded);
+            }
+        }
+    }
+
+    public void testExpandToParentBlocksAcrossLeaves() throws IOException {
+        IndexWriterConfig cfg = new IndexWriterConfig();
+        cfg.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, cfg)) {
+            // Leaf 0: docs 0,1,2 with parent at 2. Leaf 1: docs 3,4,5 with parent at global 5 (local 2).
+            for (int i = 0; i < 3; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.commit();
+            for (int i = 0; i < 3; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                // Parent is the last doc of each leaf's block (local ordinal 2 in both leaves).
+                BitSetProducer parentsFilter = context -> {
+                    FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    bits.set(2);
+                    return bits;
+                };
+
+                ScoreDoc[][] matchingPerLeaf = new ScoreDoc[2][];
+                matchingPerLeaf[0] = new ScoreDoc[] { new ScoreDoc(0, 0.9f) }; // leaf 0, parent global 2
+                matchingPerLeaf[1] = new ScoreDoc[] { new ScoreDoc(3, 0.8f) }; // leaf 1, parent global 5
+
+                int[] excluded = KnnQueryUtils.expandToParentBlocks(matchingPerLeaf, reader, parentsFilter);
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5 }, excluded);
+            }
+        }
+    }
+
+    public void testExpandToParentBlocksCollapsesMultipleChildrenPerParent() throws IOException {
+        // Sliced IVF can surface two children of the SAME parent as separate candidates (one per slice).
+        // After applyFilter sorts by doc ID, same-parent children are adjacent, so each block must be
+        // emitted exactly once and the output must stay sorted (no duplicated/out-of-order block ranges).
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // 6 docs: children 0,1 under parent 2; children 3,4 under parent 5
+            for (int i = 0; i < 6; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                BitSetProducer parentsFilter = context -> {
+                    FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    bits.set(2);
+                    bits.set(5);
+                    return bits;
+                };
+
+                // Both children of parent 2 (docs 0,1) and both children of parent 5 (docs 3,4) matched.
+                ScoreDoc[][] matchingPerLeaf = new ScoreDoc[1][];
+                matchingPerLeaf[0] = new ScoreDoc[] {
+                    new ScoreDoc(0, 0.9f),
+                    new ScoreDoc(1, 0.8f),
+                    new ScoreDoc(3, 0.7f),
+                    new ScoreDoc(4, 0.6f) };
+
+                int[] excluded = KnnQueryUtils.expandToParentBlocks(matchingPerLeaf, reader, parentsFilter);
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5 }, excluded);
+            }
+        }
+    }
+
+    public void testExpandToParentBlocksEmptyInput() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 3; i++) {
+                writer.addDocument(new Document());
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                BitSetProducer parentsFilter = context -> {
+                    FixedBitSet bits = new FixedBitSet(context.reader().maxDoc());
+                    bits.set(2);
+                    return bits;
+                };
+                assertEquals(0, KnnQueryUtils.expandToParentBlocks(new ScoreDoc[1][], reader, parentsFilter).length);
+            }
+        }
+    }
+
     public void testCategorizeByFilterAcrossLeaves() throws IOException {
         IndexWriterConfig cfg = new IndexWriterConfig();
         cfg.setMergePolicy(NoMergePolicy.INSTANCE);

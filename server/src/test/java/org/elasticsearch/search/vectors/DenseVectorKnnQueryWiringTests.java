@@ -225,7 +225,7 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * per parent, which breaks the round-1 sizing model and makes the filter-versus-collapse order matter. No
      * post-filter wrapper is built for them.
      */
-    private void assertNestedFieldsAreNotPostFiltered(ElementSpec spec) {
+    private void assertNestedFieldsArePostFiltered(ElementSpec spec) {
         Query query = bbqIvfField(spec, false, POST_FILTER_ENABLED).createKnnQuery(
             spec.queryVector().get(),
             K,
@@ -241,16 +241,18 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
-        assertThat(inner, instanceOf(spec.diversifyingIvfClass()));
-        assertEquals("the nested query still receives the user's k", K, ((AbstractIVFKnnVectorQuery) inner).k());
+        assertThat(inner, instanceOf(PostFilterKnnQuery.class));
+        PostFilterKnnQuery postFilter = (PostFilterKnnQuery) inner;
+        assertThat(postFilter.innerQuery(), instanceOf(spec.diversifyingIvfClass()));
+        assertEquals("the nested query still receives the user's k", K, ((AbstractIVFKnnVectorQuery) postFilter.innerQuery()).k());
     }
 
-    public void testNestedFieldsAreNotPostFiltered() {
-        assertNestedFieldsAreNotPostFiltered(FLOAT_SPEC);
+    public void testNestedFieldsArePostFiltered() {
+        assertNestedFieldsArePostFiltered(FLOAT_SPEC);
     }
 
-    public void testByteNestedFieldsAreNotPostFiltered() {
-        assertNestedFieldsAreNotPostFiltered(BYTE_SPEC);
+    public void testByteNestedFieldsArePostFiltered() {
+        assertNestedFieldsArePostFiltered(BYTE_SPEC);
     }
 
     /** A dormant threshold (the default 1.0) must not build a wrapper even with a filter present. */

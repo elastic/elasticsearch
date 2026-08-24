@@ -150,7 +150,9 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
                 assertEquals(1, meta.postFilterDelegateCalls());
                 assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
-                assertArrayEquals(new int[] { 0, 2, 4 }, meta.retryExcludedDocs());
+                // Whole block of each matched parent (children 0,2,4 + their parents 1,3,5) is excluded:
+                // once a parent has a hit we want no more children from it.
+                assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 5 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0, 2, 4 } }, meta.retrySeedDocs());
                 assertEquals("1 parent short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
             }
@@ -238,7 +240,9 @@ abstract class AbstractPostFilterDiversifyingKnnQueryTests extends ESTestCase {
                 assertEquals(1, meta.postFilterDelegateCalls());
                 assertEquals(0.75f, meta.postFilterDelegateSelectivity(), 0.001f);
                 assertEquals(1, meta.retryCalls());
-                assertArrayEquals(new int[] { 0, 2, 4 }, meta.retryExcludedDocs());
+                // Matched parent's whole block (child 0 + parent 1) is excluded; the filtered-out children
+                // 2 and 4 stay excluded individually so their parents remain eligible for a deeper child.
+                assertArrayEquals(new int[] { 0, 1, 2, 4 }, meta.retryExcludedDocs());
                 assertArrayEquals(new int[][] { { 0 } }, meta.retrySeedDocs());
                 assertEquals("1 parent short, inflated for selectivity 0.75", 4, meta.retryRemainingK());
             }

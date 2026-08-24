@@ -146,6 +146,48 @@ public final class KnnQueryUtils {
         return toArray(bestByParent);
     }
 
+    /**
+     * Expands each matched child into every child doc ID in its parent's block.
+     * Used to build the post-filter retry's exclusion set for nested (block-join) queries: once a
+     * parent has produced a matching hit we want no more children from it (we keep only one hit per
+     * parent), so the retry should skip the whole block rather than just the one matched child. A
+     * parent whose child was <em>filtered out</em> instead is deliberately not expanded here - it stays
+     * eligible, because a deeper, untried child of it may still pass the filter.
+     */
+    static int[] expandToParentBlocks(ScoreDoc[][] matchingPerLeaf, IndexReader reader, BitSetProducer parentsFilter) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        int[] parentBlockDocIdsToFilter = new int[16];
+        int size = 0;
+        for (int leafOrd = 0; leafOrd < matchingPerLeaf.length; leafOrd++) {
+            ScoreDoc[] cands = matchingPerLeaf[leafOrd];
+            if (cands == null || cands.length == 0) continue;
+            LeafReaderContext ctx = leaves.get(leafOrd);
+            BitSet parentBitSet = parentsFilter.getBitSet(ctx);
+            if (parentBitSet == null) continue;
+            int docBase = ctx.docBase;
+            int lastParentLocal = -1;
+            for (ScoreDoc sd : cands) {
+                int localDoc = sd.doc - docBase;
+                int parentLocal = parentBitSet.nextSetBit(localDoc);
+                // Skip if the child has no parent (should not happen for a real candidate) or if this
+                // parent's block was already emitted for the previous, lower-ordered candidate.
+                if (parentLocal == DocIdSetIterator.NO_MORE_DOCS || parentLocal == lastParentLocal) {
+                    continue;
+                }
+                lastParentLocal = parentLocal;
+                int blockStartLocal = parentLocal == 0 ? 0 : parentBitSet.prevSetBit(parentLocal - 1) + 1;
+                int blockLen = parentLocal - blockStartLocal + 1;
+                parentBlockDocIdsToFilter = ArrayUtil.grow(parentBlockDocIdsToFilter, size + blockLen);
+                for (int local = blockStartLocal; local <= parentLocal; local++) {
+                    parentBlockDocIdsToFilter[size++] = local + docBase;
+                }
+            }
+        }
+        return size == parentBlockDocIdsToFilter.length
+            ? parentBlockDocIdsToFilter
+            : ArrayUtil.copyOfSubArray(parentBlockDocIdsToFilter, 0, size);
+    }
+
     private static ScoreDoc[] dedupByDocId(ScoreDoc[] docs) {
         IntObjectHashMap<ScoreDoc> bestByDoc = new IntObjectHashMap<>(docs.length);
         for (ScoreDoc sd : docs) {

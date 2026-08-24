@@ -26,14 +26,22 @@
 # archimedes from that ref (bypassing the release lookup + agent cache) and
 # archimedes auto-routes observability off the production dashboards. Any ref
 # the GH contents API accepts works — branch, tag, or commit SHA.
+#
+# To route service tokens (Buildkite RO, Develocity) through the headless
+# estc credential broker instead of the agent's environment, set
+# ARCHIMEDES_USE_ESTC=true (opt-in). ESTC_REF picks the elastic/estc ref to
+# build on the fly — branch/tag/sha, defaults to broker-impl until merged.
+# Same trigger shape as ARCHIMEDES_REF; both can be combined.
 
 # Surface trigger vars at pipeline level so env() in step `if` conditions can
 # see them on API-triggered builds.
 env:
-  WORKFLOW:       "${WORKFLOW:-}"
-  ISSUE_URL:      "${ISSUE_URL:-}"
-  PR_URL:         "${PR_URL:-}"
-  ARCHIMEDES_REF: "${ARCHIMEDES_REF:-}"
+  WORKFLOW:             "${WORKFLOW:-}"
+  ISSUE_URL:            "${ISSUE_URL:-}"
+  PR_URL:               "${PR_URL:-}"
+  ARCHIMEDES_REF:       "${ARCHIMEDES_REF:-}"
+  ARCHIMEDES_USE_ESTC:  "${ARCHIMEDES_USE_ESTC:-}"
+  ESTC_REF:             "${ESTC_REF:-}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────

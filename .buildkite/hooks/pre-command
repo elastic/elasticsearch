@@ -127,6 +127,18 @@ if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   export GH_TOKEN="${GH_ADMIN_TOKEN}"
   unset GH_ADMIN_TOKEN
 
+  # ── headless estc + credential broker (opt-in via ARCHIMEDES_USE_ESTC=true) ─
+  # When enabled: build estc from ESTC_REF (elastic/estc, defaults to
+  # broker-impl until merged), spawn `estc broker serve` in this shell so the
+  # sandboxed archimedes worker reaches Buildkite / Gradle-Enterprise / … via
+  # ESTC_BROKER_SOCKET instead of raw env tokens. bootstrap-estc.sh consumes
+  # BUILDKITE_RO_API_TOKEN and DEVELOCITY_API_KEY (set just above), hands them
+  # to the broker heap, and unsets them from the environment. See
+  # .buildkite/scripts/bootstrap-estc.sh for the full contract.
+  if [[ "${ARCHIMEDES_USE_ESTC:-}" == "true" ]]; then
+    source .buildkite/scripts/bootstrap-estc.sh
+  fi
+
   # Bootstrap archimedes. Two paths:
   #
   # 1. ARCHIMEDES_REF is set → install directly from that branch/tag/sha of

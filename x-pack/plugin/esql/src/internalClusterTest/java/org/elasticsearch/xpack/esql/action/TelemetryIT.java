@@ -19,8 +19,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
-import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
+@SuiteScopeTestCase
 public class TelemetryIT extends AbstractEsqlIntegTestCase {
 
     record Test(
@@ -293,11 +294,14 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    @Before
-    public void init() {
-        DiscoveryNode dataNode = randomDataNode();
-        final String nodeName = dataNode.getName();
-        loadData(nodeName);
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
+    }
+
+    @Override
+    protected void setupSuiteScopeCluster() {
+        loadData(randomDataNode().getName());
     }
 
     public void testMetrics() throws Exception {
@@ -446,10 +450,4 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     private DiscoveryNode randomDataNode() {
         return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
-    }
-
 }

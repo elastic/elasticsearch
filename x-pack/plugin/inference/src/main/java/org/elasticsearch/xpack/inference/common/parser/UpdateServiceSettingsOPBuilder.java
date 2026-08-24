@@ -13,8 +13,10 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -39,10 +41,10 @@ public class UpdateServiceSettingsOPBuilder<Value> {
 
     private final Supplier<Value> valueSupplier;
     private BiConsumer<Value, StatefulValue<RateLimitSettings>> rateLimitSettingsSetter;
-    private final List<String> secretFields = new ArrayList<>();
+    private final Set<String> secretFields = new LinkedHashSet<>();
 
     public UpdateServiceSettingsOPBuilder(Supplier<Value> valueSupplier) {
-        this.valueSupplier = valueSupplier;
+        this.valueSupplier = Objects.requireNonNull(valueSupplier);
     }
 
     public UpdateServiceSettingsOPBuilder<Value> setRateLimitSettings(
@@ -60,6 +62,9 @@ public class UpdateServiceSettingsOPBuilder<Value> {
      * Declares the given field names as no-ops in the update parser. Secret fields (e.g. {@code api_key}, {@code access_key}) appear in
      * the same JSON block as service settings in update requests. The service's secret settings extract them separately; these
      * declarations prevent the strict parser from rejecting them as unknown fields.
+     * <p>
+     * Duplicate field names — whether from multiple calls or within a single varargs list — are ignored. It is therefore safe to call
+     * this method with a field that was already declared by a previous call or by {@link #allowApiKey()}.
      */
     public UpdateServiceSettingsOPBuilder<Value> allowSecretFields(String... fieldNames) {
         secretFields.addAll(List.of(fieldNames));

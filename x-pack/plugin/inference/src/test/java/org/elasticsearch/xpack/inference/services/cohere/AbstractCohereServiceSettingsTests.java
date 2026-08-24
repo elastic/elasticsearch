@@ -292,6 +292,17 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         assertThat(xContentResult, containsString(CohereCommonServiceSettings.API_VERSION));
     }
 
+    public void testFromMap_Request_IgnoresApiKey() {
+        var map = new HashMap<String, Object>();
+        map.put(ServiceFields.MODEL_ID, TEST_MODEL_ID);
+        map.put(DefaultSecretSettings.API_KEY, "my-api-key");
+
+        // The api_key field is declared as a no-op in the request parser; must not throw.
+        var serviceSettings = createGivenCommonSettings(map, ConfigurationParseContext.REQUEST);
+
+        assertThat(serviceSettings.commonSettings().modelId(), is(TEST_MODEL_ID));
+    }
+
     public void testUpdateServiceSettings_ApiKey_IsIgnored() {
         var serviceSettings = createGivenCommonSettings(
             new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),

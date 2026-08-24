@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -15,8 +14,10 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -36,7 +37,7 @@ public class ServiceSettingsOPBuilder<Value> {
      */
     public static <V> ServiceSettingsOPBuilder<V> of(
         boolean ignoreUnknownFields,
-        @Nullable Supplier<V> valueSupplier,
+        Supplier<V> valueSupplier,
         RateLimitSettings defaultRateLimitSettings,
         BiConsumer<V, RateLimitSettings> rateLimitSettingsSetter
     ) {
@@ -50,11 +51,11 @@ public class ServiceSettingsOPBuilder<Value> {
     private final Supplier<Value> valueSupplier;
     private RateLimitSettings defaultRateLimitSettings;
     private BiConsumer<Value, RateLimitSettings> rateLimitSettingsSetter;
-    private final List<String> secretFields = new ArrayList<>();
+    private final Set<String> secretFields = new LinkedHashSet<>();
 
-    public ServiceSettingsOPBuilder(boolean ignoreUnknownFields, @Nullable Supplier<Value> valueSupplier) {
+    public ServiceSettingsOPBuilder(boolean ignoreUnknownFields, Supplier<Value> valueSupplier) {
         this.ignoreUnknownFields = ignoreUnknownFields;
-        this.valueSupplier = valueSupplier;
+        this.valueSupplier = Objects.requireNonNull(valueSupplier);
     }
 
     public ServiceSettingsOPBuilder<Value> allowApiKey() {
@@ -65,6 +66,9 @@ public class ServiceSettingsOPBuilder<Value> {
      * Declares the given field names as no-ops in the parser. Secret fields (e.g. {@code api_key}, {@code access_key}) appear in the
      * same JSON block as service settings in requests. The service's secret settings extract them separately; these declarations prevent
      * the strict parser from rejecting them as unknown fields.
+     * <p>
+     * Duplicate field names — whether from multiple calls or within a single varargs list — are ignored. It is therefore safe to call
+     * this method with a field that was already declared by a previous call or by {@link #allowApiKey()}.
      */
     public ServiceSettingsOPBuilder<Value> allowSecretFields(String... fieldNames) {
         secretFields.addAll(List.of(fieldNames));

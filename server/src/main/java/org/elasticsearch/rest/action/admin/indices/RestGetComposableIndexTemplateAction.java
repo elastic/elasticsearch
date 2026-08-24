@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -55,6 +57,9 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         RestUtils.consumeDeprecatedLocalParameter(request);
 
+        // registry_installed is an internal marker; never expose it over the REST API
+        request.params().put(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true");
+
         final boolean implicitAll = getRequest.name() == null;
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
@@ -69,7 +74,9 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
+        Set<String> params = new HashSet<>(Settings.FORMAT_PARAMS);
+        params.add(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM);
+        return params;
     }
 
 }

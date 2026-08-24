@@ -64,6 +64,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -234,6 +235,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
+
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
     private final IndicesService indicesService;
@@ -360,7 +363,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
                 "Histogram for time in milliseconds from sending a new-uploaded-commit notification until the search tier responds "
                     + "(or the notification timeout fires), broken down by the ["
-                    + BCC_SIZE_ATTRIBUTE_KEY
+                    + BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",
                 "ms"
             );
@@ -996,7 +999,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         virtualBcc,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
-                            Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(bccBlobLength))
+                            Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
                         )
                     );
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);

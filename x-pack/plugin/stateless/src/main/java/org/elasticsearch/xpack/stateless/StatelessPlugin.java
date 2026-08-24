@@ -1347,7 +1347,7 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
             StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
             StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE,
-            StatelessCommitService.STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT,
+            StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,

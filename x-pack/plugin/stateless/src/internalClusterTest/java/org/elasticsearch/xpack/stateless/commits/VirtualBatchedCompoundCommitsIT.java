@@ -112,6 +112,7 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
@@ -1469,7 +1470,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             assertThat(measurements.get(0).getLong(), greaterThanOrEqualTo(0L));
             assertThat(
                 measurements.get(0).attributes(),
-                equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, StatelessCommitService.bccSizeBucket(totalSize)))
+                equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(totalSize)))
             );
         });
     }

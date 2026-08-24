@@ -188,8 +188,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Property.NodeScope
     );
 
+    /**
+     * Multiplier applied to the source's serialized size to approximate its retained on-heap footprint, which is what
+     * actually risks OOM. An unscaled charge would not trip until the true heap was already several times over the limit,
+     * because the object graph (query-builder objects, boxed values, {@code String} + backing {@code byte[]} pairs) retains
+     * far more than its compact serialized form. {@code SearchSourceBuilderRamAccountingBenchmark} measures the
+     * retained/serialized ratio via {@code RamUsageTester} across representative shapes; the worst case among shapes large
+     * enough to be charged (a terms query of ~1k short strings, just above {@link #SEARCH_SOURCE_MIN_CHARGE_BYTES}) is
+     * ~5.85x. Set to 7.0: the measured worst case rounded up, with headroom for heaps too large for compressed oops
+     * (~30-50% more per object, so a higher ratio there). {@code SearchSourceHeapOverheadTests} is the regression guard
+     * that this stays a conservative upper bound. Mirrors the agg-reduce accounting, which models in-memory size as 1.5x
+     * serialized, and the msearch coordinator accounting, which uses a hardcoded 2x; kept a hardcoded constant for the same
+     * reason (not a tunable knob callers can foot-gun).
+     */
+    static final double SEARCH_SOURCE_HEAP_OVERHEAD_FACTOR = 7.0;
+
     /** Breaker label for the retained search source charge, surfaced in {@link CircuitBreakingException} messages. */
     static final String SEARCH_SOURCE_BREAKER_LABEL = "<search_source>";
+
+    /**
+     * Sources below this serialized size are not charged: too small to matter even at high concurrency (their aggregate
+     * stays far below any node heap), so charging only adds breaker traffic and risks a spurious 429. Kept small on
+     * purpose: a large floor would re-open the many-medium-sources path this guard is meant to bound.
+     */
+    static final long SEARCH_SOURCE_MIN_CHARGE_BYTES = 16 * 1024L;
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -2282,7 +2304,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // single non-prefilter pass, so can-match is intentionally left uncharged. A trip here throws before any
                 // fan-out (searchPhase.start()), and the finally gives the bytes back if we never hand off to the action.
                 // When the hatch is off the returned releasable is a no-op, so nothing is charged, registered or released.
-                sourceBreakerRelease = chargeSearchSource(chargeSearchSourceBreaker, circuitBreaker, searchRequest.source());
+                sourceBreakerRelease = chargeSearchSource(
+                    chargeSearchSourceBreaker,
+                    SEARCH_SOURCE_HEAP_OVERHEAD_FACTOR,
+                    circuitBreaker,
+                    searchRequest.source()
+                );
                 final AbstractSearchAsyncAction<?> searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
                     searchPhase = new SearchDfsQueryThenFetchAsyncAction(
@@ -2349,21 +2376,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
-     * Charges the request circuit breaker for the uncompressed serialized size of the retained search {@code source} and
-     * returns an idempotent {@link Releasable} that gives the bytes back on close. When {@code enabled} is false, or the
-     * source is {@code null} (default match_all), or the estimate is zero, this charges nothing and yields a no-op — so a
-     * disabled hatch can never half-charge. Throws {@link CircuitBreakingException} if the charge trips.
+     * Charges the request circuit breaker for the retained search {@code source} and returns an idempotent
+     * {@link Releasable} that gives the same bytes back on close. The charge is {@code overhead} times the source's
+     * uncompressed serialized size, approximating the retained on-heap object graph (see
+     * {@link #SEARCH_SOURCE_HEAP_OVERHEAD_FACTOR}). When {@code enabled} is false, the source is {@code null}
+     * (default match_all), the source cannot be sized, or it serializes below {@link #SEARCH_SOURCE_MIN_CHARGE_BYTES},
+     * this charges nothing and yields a no-op, so a disabled hatch can never half-charge. Throws
+     * {@link CircuitBreakingException} if the charge trips.
      */
-    static Releasable chargeSearchSource(boolean enabled, CircuitBreaker circuitBreaker, SearchSourceBuilder source) {
+    static Releasable chargeSearchSource(boolean enabled, double overhead, CircuitBreaker circuitBreaker, SearchSourceBuilder source) {
         if (enabled == false || source == null) {
             return () -> {};
         }
-        final long sourceBytes = DelayableWriteable.getUncompressedSerializedSize(source);
-        if (sourceBytes <= 0) {
+        final long sourceBytes;
+        try {
+            sourceBytes = DelayableWriteable.getUncompressedSerializedSize(source);
+        } catch (Exception e) {
+            // Fail open: a source we cannot size must not fail the search (matches TransportMultiSearchAction).
+            logger.warn("failed to size search source for the request breaker; skipping the charge", e);
             return () -> {};
         }
-        circuitBreaker.addEstimateBytesAndMaybeBreak(sourceBytes, SEARCH_SOURCE_BREAKER_LABEL);
-        return Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-sourceBytes));
+        if (sourceBytes < SEARCH_SOURCE_MIN_CHARGE_BYTES) {
+            return () -> {};
+        }
+        final long charge = Math.round(overhead * sourceBytes);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(charge, SEARCH_SOURCE_BREAKER_LABEL);
+        return Releasables.releaseOnce(() -> circuitBreaker.addWithoutBreaking(-charge, SEARCH_SOURCE_BREAKER_LABEL));
     }
 
     private static void validateAndResolveWaitForCheckpoint(

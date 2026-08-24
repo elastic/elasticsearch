@@ -969,8 +969,9 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     }
 
     private static SearchSourceBuilder sourceWithTerms() {
+        // 2000 terms serialize to ~34KB, above TransportSearchAction.SEARCH_SOURCE_MIN_CHARGE_BYTES so the charge fires.
         List<String> terms = new ArrayList<>();
-        for (int i = 0; i < 64; i++) {
+        for (int i = 0; i < 2000; i++) {
             terms.add(randomAlphaOfLength(16));
         }
         return new SearchSourceBuilder().query(new TermsQueryBuilder("field", terms));
@@ -1008,7 +1009,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             )
         );
 
-        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, request.source());
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, request.source());
         action.addReleasable(release);
         assertThat(breaker.getUsed(), greaterThan(0L));
 
@@ -1027,7 +1028,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(new HashSet<>(), new ArrayList<>(), numFailures);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(request, phaseResults, listener, false, new AtomicLong());
 
-        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, request.source());
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, request.source());
         action.addReleasable(release);
         assertThat(breaker.getUsed(), greaterThan(0L));
 
@@ -1072,7 +1073,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             task
         );
 
-        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, request.source());
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, request.source());
         action.addReleasable(release);
         assertThat(breaker.getUsed(), greaterThan(0L));
 

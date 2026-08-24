@@ -2169,12 +2169,12 @@ public class TransportSearchActionTests extends ESTestCase {
 
     public void testChargeSearchSourceReservesAndReleasesRequestBreaker() {
         CircuitBreaker breaker = newRequestBreaker("1gb");
-        SearchSourceBuilder source = sourceWithTerms(between(50, 100));
+        SearchSourceBuilder source = sourceWithTerms(between(1500, 3000)); // above SEARCH_SOURCE_MIN_CHARGE_BYTES
         long expected = DelayableWriteable.getUncompressedSerializedSize(source);
-        assertThat(expected, greaterThan(0L));
+        assertThat(expected, greaterThan(TransportSearchAction.SEARCH_SOURCE_MIN_CHARGE_BYTES));
         assertThat(breaker.getUsed(), equalTo(0L));
 
-        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, source);
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, source);
         assertThat("source bytes must be charged at start", breaker.getUsed(), equalTo(expected));
 
         release.close();
@@ -2183,7 +2183,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
     public void testChargeSearchSourceReleaseIsIdempotent() {
         CircuitBreaker breaker = newRequestBreaker("1gb");
-        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, sourceWithTerms(between(5, 20)));
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, sourceWithTerms(between(1500, 3000)));
         assertThat(breaker.getUsed(), greaterThan(0L));
 
         release.close();
@@ -2193,7 +2193,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
     public void testChargeSearchSourceWithNullSourceChargesNothing() {
         CircuitBreaker breaker = newRequestBreaker("1gb");
-        Releasable release = TransportSearchAction.chargeSearchSource(true, breaker, null);
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, null);
         assertThat(breaker.getUsed(), equalTo(0L));
         release.close();
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -2201,7 +2201,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
     public void testChargeSearchSourceDisabledHatchChargesNothing() {
         CircuitBreaker breaker = newRequestBreaker("1gb");
-        Releasable release = TransportSearchAction.chargeSearchSource(false, breaker, sourceWithTerms(between(50, 100)));
+        Releasable release = TransportSearchAction.chargeSearchSource(false, 1.0, breaker, sourceWithTerms(between(50, 100)));
         assertThat(breaker.getUsed(), equalTo(0L));
         release.close();
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -2209,15 +2209,44 @@ public class TransportSearchActionTests extends ESTestCase {
 
     public void testChargeSearchSourceTripsBreakerBeforeFanOut() {
         CircuitBreaker breaker = newRequestBreaker("100b");
-        SearchSourceBuilder source = sourceWithTerms(between(200, 400));
-        assertThat(DelayableWriteable.getUncompressedSerializedSize(source), greaterThan(100L));
+        SearchSourceBuilder source = sourceWithTerms(between(1500, 3000)); // above the floor, so the charge is attempted and trips
+        assertThat(
+            DelayableWriteable.getUncompressedSerializedSize(source),
+            greaterThan(TransportSearchAction.SEARCH_SOURCE_MIN_CHARGE_BYTES)
+        );
 
         CircuitBreakingException e = expectThrows(
             CircuitBreakingException.class,
-            () -> TransportSearchAction.chargeSearchSource(true, breaker, source)
+            () -> TransportSearchAction.chargeSearchSource(true, 1.0, breaker, source)
         );
         assertThat(e.getMessage(), containsString(TransportSearchAction.SEARCH_SOURCE_BREAKER_LABEL));
         // a tripped charge must leave nothing reserved
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeSearchSourceBelowFloorChargesNothing() {
+        CircuitBreaker breaker = newRequestBreaker("1gb");
+        SearchSourceBuilder source = sourceWithTerms(between(1, 50));
+        assertTrue(
+            "test source must be below the floor",
+            DelayableWriteable.getUncompressedSerializedSize(source) < TransportSearchAction.SEARCH_SOURCE_MIN_CHARGE_BYTES
+        );
+        Releasable release = TransportSearchAction.chargeSearchSource(true, 1.0, breaker, source);
+        assertThat("a source below the floor must not be charged", breaker.getUsed(), equalTo(0L));
+        release.close();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testChargeSearchSourceAppliesOverhead() {
+        CircuitBreaker breaker = newRequestBreaker("1gb");
+        SearchSourceBuilder source = sourceWithTerms(between(1500, 3000));
+        long serialized = DelayableWriteable.getUncompressedSerializedSize(source);
+        double overhead = TransportSearchAction.SEARCH_SOURCE_HEAP_OVERHEAD_FACTOR;
+
+        Releasable release = TransportSearchAction.chargeSearchSource(true, overhead, breaker, source);
+        assertThat("charge must be overhead x serialized size", breaker.getUsed(), equalTo(Math.round(overhead * serialized)));
+
+        release.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 

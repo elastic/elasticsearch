@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -77,7 +78,10 @@ public class PerFieldFormatSupplier {
     }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
-    private static final DocValuesFormat columnarDocValuesFormatInstance = new ColumNARDocValuesFormat();
+    // Only keyword fields are routed to ColumNAR, so the column type is always a string.
+    private static final DocValuesFormat keywordColumnarDocValuesFormatInstance = new ColumNARDocValuesFormat(
+        field -> ColumnarFieldType.STRING
+    );
     private final KnnVectorsFormat knnVectorsFormat;
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
@@ -90,7 +94,7 @@ public class PerFieldFormatSupplier {
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
     private final DocValuesFormat tsdbDocValuesFormat;
-    private final DocValuesFormat columnarDocValuesFormat;
+    private final DocValuesFormat keywordColumnarDocValuesFormat;
 
     @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
@@ -106,8 +110,10 @@ public class PerFieldFormatSupplier {
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
-        this.columnarDocValuesFormat = mapperService != null
-            && ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings()) ? columnarDocValuesFormatInstance : null;
+        this.keywordColumnarDocValuesFormat = mapperService != null
+            && ColumnarDocValuesFormatSelector.useColumnarCodec(mapperService.getIndexSettings())
+                ? keywordColumnarDocValuesFormatInstance
+                : null;
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
         this.idBloomFilterDocValuesFormat = bloomFilterSettings == null
             ? new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME) // fallback to the defaults if no settings are present
@@ -233,8 +239,8 @@ public class PerFieldFormatSupplier {
             return idBloomFilterDocValuesFormat;
         }
 
-        if (columnarDocValuesFormat != null && isKeywordField(field)) {
-            return columnarDocValuesFormat;
+        if (keywordColumnarDocValuesFormat != null && isKeywordField(field)) {
+            return keywordColumnarDocValuesFormat;
         }
 
         if (useTSDBDocValuesFormat(field)) {

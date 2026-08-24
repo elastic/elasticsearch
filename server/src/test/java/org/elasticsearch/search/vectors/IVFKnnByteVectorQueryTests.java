@@ -14,10 +14,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -84,6 +86,59 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             Query filter = new TermQuery(new Term("id", "text"));
             query = getKnnVectorQuery("field", new byte[] { 0, 1 }, 10, filter);
             assertEquals("IVFKnnByteVectorQuery:field[0,...][10][id:text]", query.toString("ignored"));
+        }
+    }
+
+    /**
+     * Byte IVF must collect the same detailed codec-level breakdown as float IVF. Guards against the
+     * regression where the byte path built the strategy without profile data, producing an all-zeros
+     * {@code ivf} block.
+     */
+    public void testProfileDataCollected() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            IndexSearcher searcher = newSearcher(reader);
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 0 }, 3);
+            query.enableProfiling();
+            searcher.rewrite(query);
+
+            assertNotNull("profileData should be set after rewrite", query.profileData);
+            java.util.Map<String, Object> map = query.profileData.toMap();
+            assertEquals("ivf", map.get("algorithm"));
+            assertTrue("total_time_ns should be > 0", (long) map.get("total_time_ns") > 0);
+            assertTrue("segments_searched should be > 0", (int) map.get("segments_searched") > 0);
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> ivf = (java.util.Map<String, Object>) map.get("ivf");
+            assertNotNull("ivf section should be present", ivf);
+            assertTrue("centroids_evaluated should be > 0", (int) ivf.get("centroids_evaluated") > 0);
+            assertTrue("postings_scored should be > 0", (long) ivf.get("postings_scored") > 0);
+
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> timings = (java.util.Map<String, Object>) ivf.get("timings");
+            assertNotNull("timings should be present", timings);
+            assertTrue("posting_visit_ns should be > 0", (long) timings.get("posting_visit_ns") > 0);
+        }
+    }
+
+    public void testProfileDataTransferredToProfiler() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            IndexSearcher searcher = newSearcher(reader);
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 0 }, 3);
+            query.enableProfiling();
+            searcher.rewrite(query);
+
+            QueryProfiler profiler = new QueryProfiler();
+            query.profile(profiler);
+
+            assertNotNull("knnProfileBreakdown should be set on profiler", profiler.getKnnProfileBreakdown());
+            assertEquals("ivf", profiler.getKnnProfileBreakdown().get("algorithm"));
+            assertTrue("vectorOpsCount should be > 0", profiler.getVectorOpsCount() > 0);
         }
     }
 }

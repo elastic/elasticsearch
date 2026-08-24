@@ -237,10 +237,19 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         }
         rescore.put("doc_count", rescoreDocCount);
 
-        Map<String, Object> existing = queryProfiler.getKnnProfileBreakdown();
-        Map<String, Object> merged = existing == null ? new LinkedHashMap<>() : new LinkedHashMap<>(existing);
-        merged.put("rescore", rescore);
-        queryProfiler.setKnnProfileBreakdown(merged);
+        // Merge into the breakdown the inner query just appended (single-threaded rewrite guarantees it is
+        // the last one). When the inner query published nothing (e.g. rescore over a non-ES query), append a
+        // new breakdown carrying only the rescore section so its timing is never lost.
+        Map<String, Object> existing = queryProfiler.getLastKnnProfileBreakdown();
+        if (existing == null) {
+            Map<String, Object> rescoreOnly = new LinkedHashMap<>();
+            rescoreOnly.put("rescore", rescore);
+            queryProfiler.addKnnProfileBreakdown(rescoreOnly);
+        } else {
+            Map<String, Object> merged = new LinkedHashMap<>(existing);
+            merged.put("rescore", rescore);
+            queryProfiler.setLastKnnProfileBreakdown(merged);
+        }
     }
 
     @Override

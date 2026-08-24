@@ -87,6 +87,27 @@ public class VectorSimilarityQuery extends Query implements QueryProfilerProvide
     }
 
     @Override
+    public void enableProfiling() {
+        if (innerKnnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.enableProfiling();
+        }
+    }
+
+    @Override
+    public void setQuantization(String quantization) {
+        if (innerKnnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.setQuantization(quantization);
+        }
+    }
+
+    @Override
+    public void setProfilingSuppressed(boolean suppressed) {
+        if (innerKnnQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.setProfilingSuppressed(suppressed);
+        }
+    }
+
+    @Override
     public String toString(String field) {
         return "VectorSimilarityQuery["
             + "similarity="

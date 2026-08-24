@@ -143,7 +143,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
         if (profileData != null) {
-            queryProfiler.setKnnProfileBreakdown(profileData.toMap());
+            queryProfiler.addKnnProfileBreakdown(profileData.toMap());
         }
     }
 

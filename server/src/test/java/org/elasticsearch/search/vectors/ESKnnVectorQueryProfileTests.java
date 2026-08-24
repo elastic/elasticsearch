@@ -91,12 +91,22 @@ public class ESKnnVectorQueryProfileTests extends ESTestCase {
                 Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
                 assertThat(breakdown, notNullValue());
                 assertThat(breakdown.get("algorithm"), equalTo("hnsw"));
+                assertThat((long) breakdown.get("total_time_ns"), greaterThan(0L));
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> hnsw = (Map<String, Object>) breakdown.get("hnsw");
                 assertThat(hnsw, notNullValue());
                 assertThat(hnsw.get("k"), equalTo(5));
+                assertThat(hnsw.get("num_candidates"), equalTo(10));
                 assertThat((int) hnsw.get("leaf_searches"), greaterThan(0));
+                assertThat((long) hnsw.get("nodes_visited"), greaterThan(0L));
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> timings = (Map<String, Object>) hnsw.get("timings");
+                assertThat(timings, notNullValue());
+                assertThat((long) timings.get("avg_leaf_search_ns"), greaterThan(0L));
+
+                assertThat(breakdown, not(hasKey("ivf")));
             }
         }
     }
@@ -181,6 +191,42 @@ public class ESKnnVectorQueryProfileTests extends ESTestCase {
                 assertThat(breakdown.get("algorithm"), equalTo("hnsw"));
                 assertThat((long) breakdown.get("total_time_ns"), greaterThan(0L));
                 assertThat(profiler.getVectorOpsCount(), greaterThan(0L));
+            }
+        }
+    }
+
+    /**
+     * Several kNN queries sharing one {@link QueryProfiler} (as happens in the query phase for a bool with
+     * multiple {@code knn} clauses) must each contribute a breakdown rather than overwriting a single slot.
+     * The collapsed view wraps them under {@code knn_queries}.
+     */
+    public void testMultipleKnnQueriesAccumulate() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexFloatDocs(dir, 20, 4);
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = contextSearcher(reader);
+                QueryProfiler profiler = new QueryProfiler();
+                searcher.setProfiler(profiler);
+
+                searcher.rewrite(new ESKnnFloatVectorQuery("vector", new float[] { 1f, 2f, 3f, 4f }, 5, 10, null, null));
+                searcher.rewrite(new ESKnnFloatVectorQuery("vector", new float[] { 4f, 3f, 2f, 1f }, 3, 8, null, null));
+
+                assertThat(profiler.getKnnProfileBreakdowns().size(), equalTo(2));
+
+                Map<String, Object> collapsed = profiler.getKnnProfileBreakdown();
+                assertThat(collapsed, hasKey("knn_queries"));
+                @SuppressWarnings("unchecked")
+                java.util.List<Map<String, Object>> queries = (java.util.List<Map<String, Object>>) collapsed.get("knn_queries");
+                assertThat(queries.size(), equalTo(2));
+                assertThat(queries.get(0).get("algorithm"), equalTo("hnsw"));
+                assertThat(queries.get(1).get("algorithm"), equalTo("hnsw"));
+                // k is per-query, confirming the two breakdowns are distinct
+                @SuppressWarnings("unchecked")
+                Map<String, Object> hnsw0 = (Map<String, Object>) queries.get(0).get("hnsw");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> hnsw1 = (Map<String, Object>) queries.get(1).get("hnsw");
+                assertThat(hnsw0.get("k"), equalTo(5));
+                assertThat(hnsw1.get("k"), equalTo(3));
             }
         }
     }

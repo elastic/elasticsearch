@@ -68,12 +68,14 @@ public class DfsProfiler extends AbstractProfileBreakdown<DfsTimingType> {
         if (knnQueryProfilers.size() > 0) {
             final List<QueryProfileShardResult> queryProfileShardResult = new ArrayList<>(knnQueryProfilers.size());
             for (QueryProfiler queryProfiler : knnQueryProfilers) {
+                // Match the query phase: omit vector_operations_count when zero rather than emitting 0.
+                long vectorOps = queryProfiler.getVectorOpsCount();
                 queryProfileShardResult.add(
                     new QueryProfileShardResult(
                         queryProfiler.getTree(),
                         queryProfiler.getRewriteTime(),
                         queryProfiler.getCollectorResult(),
-                        queryProfiler.getVectorOpsCount(),
+                        vectorOps == 0 ? null : vectorOps,
                         queryProfiler.getKnnProfileBreakdown()
                     )
                 );

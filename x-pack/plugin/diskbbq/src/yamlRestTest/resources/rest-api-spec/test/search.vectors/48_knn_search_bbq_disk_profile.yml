@@ -1,0 +1,78 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.bbq_disk_support"]
+      reason: Needs bbq_disk support
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ knn_search_profile ]
+      reason: "detailed knn_profile breakdown requires the knn_search_profile capability"
+
+  - do:
+      indices.create:
+        index: bbq_disk_profile
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 8
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_disk
+
+  - do:
+      bulk:
+        index: bbq_disk_profile
+        refresh: true
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"vector": [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "2"}}'
+          - '{"vector": [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "3"}}'
+          - '{"vector": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "4"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "5"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "6"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]}'
+          - '{"index": {"_id": "7"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]}'
+          - '{"index": {"_id": "8"}}'
+          - '{"vector": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}'
+
+  - do:
+      indices.forcemerge:
+        index: bbq_disk_profile
+        max_num_segments: 1
+
+  - do:
+      indices.refresh: {}
+---
+"Detailed knn_profile breakdown for an IVF (bbq_disk) search":
+  # The top-level `knn` option runs in the DFS phase, so the breakdown surfaces under dfs.knn[].
+  - do:
+      search:
+        index: bbq_disk_profile
+        body:
+          profile: true
+          knn:
+            field: vector
+            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            k: 3
+            num_candidates: 5
+
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.algorithm: ivf }
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.ivf
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.total_time_ns: 0 }
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments_searched: 1 }
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.ivf.visit_ratio_used
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.ivf.timings

@@ -72,6 +72,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     private long totalVectorOps;
     private final BitSetProducer parentsFilter;
     private final float postFilterSelectivityThreshold;
+    private String quantization;
 
     public PostFilterKnnQuery(
         PostFilterableKnnQuery innerQuery,
@@ -150,7 +151,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     private void pushPostFilterProfile(QueryProfiler profiler, PostFilterProfiler postFilterProfiler) {
         profiler.addVectorOpsCount(totalVectorOps);
-        profiler.setKnnProfileBreakdown(postFilterProfiler.toBreakdown(totalVectorOps));
+        profiler.addKnnProfileBreakdown(postFilterProfiler.toBreakdown(totalVectorOps));
     }
 
     private Query postFilterRewrite(
@@ -166,6 +167,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // delegate by createPostFilterDelegate.
         int delegateK = postFilterQuery.k();
         if (postFilterProfiler != null) {
+            applyQuantization(delegate);
             PostFilterProfiler.prepare(delegate);
         }
         var topDocs = searcher.search(delegate, delegateK);
@@ -224,6 +226,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             int remaining = k - scoreDocs.length;
             Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, seedDocsPerLeaf, remaining);
             if (postFilterProfiler != null) {
+                applyQuantization(retry);
                 PostFilterProfiler.prepare(retry);
             }
             TopDocs retryDocs = searcher.search(retry, remaining);
@@ -290,9 +293,10 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             if (roundQuery instanceof QueryProfilerProvider queryProfilerProvider) {
                 QueryProfiler roundProfiler = new QueryProfiler();
                 queryProfilerProvider.profile(roundProfiler);
-                Map<String, Object> inner = roundProfiler.getKnnProfileBreakdown();
-                if (inner != null) {
-                    round.put("inner", inner);
+                // The round query publishes at most one breakdown onto this throwaway profiler.
+                List<Map<String, Object>> innerBreakdowns = roundProfiler.getKnnProfileBreakdowns();
+                if (innerBreakdowns.isEmpty() == false) {
+                    round.put("inner", innerBreakdowns.get(0));
                 }
             }
             rounds.add(round);
@@ -530,6 +534,24 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     Query innerQuery() {
         assert innerQuery instanceof Query : "[innerQuery] should always be a Query instance";
         return (Query) innerQuery;
+    }
+
+    @Override
+    public void setQuantization(String quantization) {
+        // The mapper sets quantization on this outer query after the post-filter wrap, so forward it to the
+        // wrapped inner query. Per-round delegates are fresh copies built in postFilterRewrite and receive it
+        // separately via applyQuantization.
+        this.quantization = quantization;
+        if (innerQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.setQuantization(quantization);
+        }
+    }
+
+    /** Propagates the configured quantization onto a freshly-built per-round delegate so its inner breakdown carries the label. */
+    private void applyQuantization(Query roundQuery) {
+        if (quantization != null && roundQuery instanceof QueryProfilerProvider queryProfilerProvider) {
+            queryProfilerProvider.setQuantization(quantization);
+        }
     }
 
     @Override

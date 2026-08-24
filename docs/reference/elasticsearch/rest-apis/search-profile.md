@@ -1181,6 +1181,36 @@ When the kNN search performs exact rescoring (for example when an `oversample` f
 }
 ```
 
+When a filter is applied via post-filtering, `knn_profile` instead contains a `post_filter` section describing each retrieval round (`initial`, an optional `retry`, and a `fallthrough`/`fallback` when the rounds come up short of `k`). Each round embeds the breakdown of the kNN query it ran under `inner`:
+
+```js
+"knn_profile" : {
+    "algorithm" : "hnsw",
+    "post_filter" : {
+        "selectivity" : 0.6,
+        "threshold" : 0.5,
+        "early_exit" : false,
+        "total_vector_ops" : 240,
+        "rounds" : [
+            {
+                "name" : "initial",
+                "docs_found" : 20,
+                "docs_passing_filter" : 8,
+                "vector_ops" : 160,
+                "inner" : { "algorithm" : "hnsw", "quantization" : "bbq_hnsw", "hnsw" : { } }
+            },
+            {
+                "name" : "retry",
+                "docs_found" : 10,
+                "docs_passing_filter" : 4,
+                "vector_ops" : 80,
+                "inner" : { "algorithm" : "hnsw", "hnsw" : { } }
+            }
+        ]
+    }
+}
+```
+
 The common `knn_profile` fields are:
 
 * `algorithm`: the vector search algorithm used, either `hnsw` or `ivf`.
@@ -1198,6 +1228,17 @@ Where the `knn_profile` object appears depends on how the kNN search was express
 
 * The top-level `knn` search option and the `knn` retriever both run in the DFS phase, so their breakdown appears under `profile.shards[].dfs.knn[].knn_profile`, as shown above.
 * A `knn` query used inside the query DSL (`"query": { "knn": { ... } }`) runs in the query phase instead. Its breakdown — together with `vector_operations_count` — appears under `profile.shards[].searches[].knn_profile`, next to the `query` array. The object has the same shape in both cases.
+
+When a single search runs several kNN queries in the query phase (for example a `bool` query with multiple `knn` clauses), each query contributes its own breakdown. In that case `knn_profile` holds a `knn_queries` array with one element per query, each element having the shape described above:
+
+```js
+"knn_profile" : {
+    "knn_queries" : [
+        { "algorithm" : "hnsw", "hnsw" : { } },
+        { "algorithm" : "hnsw", "hnsw" : { } }
+    ]
+}
+```
 
 
 

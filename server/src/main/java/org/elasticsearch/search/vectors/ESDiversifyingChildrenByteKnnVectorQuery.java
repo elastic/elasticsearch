@@ -15,7 +15,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TimeLimitingKnnCollectorManager;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnCollectorManager;
@@ -38,6 +41,9 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     private final int[][] seedDocsPerLeaf;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
+    private KnnSearchProfileData profileData;
+    private String quantization;
+    private boolean profilingSuppressed;
 
     public ESDiversifyingChildrenByteKnnVectorQuery(
         String field,
@@ -84,9 +90,42 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     }
 
     @Override
+    public void enableProfiling() {
+        profileData = new KnnSearchProfileData();
+        profileData.setAlgorithmType("hnsw");
+        profileData.setQuantization(quantization);
+    }
+
+    @Override
+    public void setQuantization(String quantization) {
+        this.quantization = quantization;
+    }
+
+    @Override
+    public void setProfilingSuppressed(boolean suppressed) {
+        this.profilingSuppressed = suppressed;
+    }
+
+    @Override
+    protected TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, TimeLimitingKnnCollectorManager cm) throws IOException {
+        long start = profileData != null ? System.nanoTime() : 0;
+        TopDocs result = super.searchLeaf(ctx, filterWeight, cm);
+        if (profileData != null) {
+            // totalHits.value() is KnnCollector.visitedCount() — the number of HNSW graph nodes visited
+            profileData.addHnswLeafSearch(System.nanoTime() - start, result.totalHits.value(), result.scoreDocs.length);
+        }
+        return result;
+    }
+
+    @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         this.rawPerLeafResults = perLeafResults;
+        long start = profileData != null ? System.nanoTime() : 0;
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
+        if (profileData != null) {
+            profileData.setMergeTimeNs(System.nanoTime() - start);
+            profileData.setEarlyTerminated(topK.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        }
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -94,11 +133,21 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         this.leaves = searcher.getIndexReader().leaves();
-        Query result = super.rewrite(searcher);
-        // Self-publish the vector-op count when a profiler is attached, so it surfaces in both the DFS and
-        // query phases without an explicit profile() call. This query carries no detailed breakdown.
+        // Self-enable when a profiler is attached, so profiling works in both the DFS and query phases without
+        // an explicit enableProfiling() call. Suppressed when driven by PostFilterKnnQuery.
         QueryProfiler profiler = QueryProfilerProvider.activeProfiler(searcher);
-        if (profiler != null) {
+        if (profiler != null && profilingSuppressed == false && profileData == null) {
+            enableProfiling();
+        }
+        if (profileData != null) {
+            profileData.setHnswQueryParams(kParam, getK(), getFilter() != null);
+        }
+        long start = profileData != null ? System.nanoTime() : 0;
+        Query result = super.rewrite(searcher);
+        if (profileData != null) {
+            profileData.setTotalSearchTimeNs(System.nanoTime() - start);
+        }
+        if (profiler != null && profilingSuppressed == false) {
             profile(profiler);
         }
         return result;
@@ -107,6 +156,9 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
+        if (profileData != null) {
+            queryProfiler.addKnnProfileBreakdown(profileData.toMap());
+        }
     }
 
     @Override

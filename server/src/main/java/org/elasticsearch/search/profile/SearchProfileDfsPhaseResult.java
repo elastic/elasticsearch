@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ParserConstructor;
@@ -21,9 +20,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject {
@@ -101,37 +98,5 @@ public class SearchProfileDfsPhaseResult implements Writeable, ToXContentObject 
 
     public List<QueryProfileShardResult> getQueryProfileShardResult() {
         return queryProfileShardResult;
-    }
-
-    QueryProfileShardResult combineQueryProfileShardResults() {
-        if (queryProfileShardResult == null) {
-            return null;
-        }
-        List<CollectorResult> subCollectorResults = new ArrayList<>(queryProfileShardResult.size());
-        long totalRewriteTime = 0;
-        long totalCollectionTime = 0;
-        List<ProfileResult> profileResults = new ArrayList<>();
-        List<Map<String, Object>> knnProfiles = new ArrayList<>();
-        for (QueryProfileShardResult queryProfiler : queryProfileShardResult) {
-            totalRewriteTime += queryProfiler.getRewriteTime();
-            profileResults.addAll(queryProfiler.getQueryResults());
-            subCollectorResults.add(queryProfiler.getCollectorResult());
-            totalCollectionTime += queryProfiler.getCollectorResult().getTime();
-            if (queryProfiler.getKnnProfileBreakdown() != null) {
-                knnProfiles.add(queryProfiler.getKnnProfileBreakdown());
-            }
-        }
-        Map<String, Object> combinedKnnProfile = null;
-        if (knnProfiles.isEmpty() == false) {
-            combinedKnnProfile = new java.util.LinkedHashMap<>();
-            combinedKnnProfile.put("knn_queries", knnProfiles);
-        }
-        return new QueryProfileShardResult(
-            profileResults,
-            totalRewriteTime,
-            new CollectorResult("KnnQueryCollector", CollectorResult.REASON_SEARCH_MULTI, totalCollectionTime, subCollectorResults),
-            null,
-            combinedKnnProfile
-        );
     }
 }

@@ -302,7 +302,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     public final void profile(QueryProfiler queryProfiler) {
         queryProfiler.addVectorOpsCount(vectorOpsCount);
         if (profileData != null) {
-            queryProfiler.setKnnProfileBreakdown(profileData.toMap());
+            queryProfiler.addKnnProfileBreakdown(profileData.toMap());
         }
     }
 

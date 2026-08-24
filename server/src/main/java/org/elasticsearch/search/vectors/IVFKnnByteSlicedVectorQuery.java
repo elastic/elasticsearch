@@ -65,8 +65,7 @@ public class IVFKnnByteSlicedVectorQuery extends IVFKnnByteVectorQuery {
             ctx,
             filterWeight,
             knnCollectorManager,
-            // byte IVF does not emit detailed profiling breakdowns, matching IVFKnnByteVectorQuery#approximateSearch
-            null,
+            profileData,
             visitRatio,
             numCands,
             k,

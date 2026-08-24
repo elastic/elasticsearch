@@ -13,6 +13,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
 import org.elasticsearch.search.profile.Timer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
@@ -37,7 +39,13 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
 
     private long vectorOpsCount;
 
-    private Map<String, Object> knnProfileBreakdown;
+    /**
+     * One entry per kNN query subtree that self-published to this profiler. A single search can carry
+     * several kNN queries (e.g. a {@code bool} with multiple {@code knn} clauses), so breakdowns are
+     * accumulated rather than overwritten. Wrapper queries (rescore) augment the most recently appended
+     * entry via {@link #getLastKnnProfileBreakdown()} / {@link #setLastKnnProfileBreakdown(Map)}.
+     */
+    private final List<Map<String, Object>> knnProfileBreakdowns = new ArrayList<>();
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
@@ -60,17 +68,47 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     }
 
     /**
-     * Sets the KNN profile breakdown data for this query.
+     * Appends a new kNN profile breakdown for a distinct kNN query subtree. Called by each ES kNN query
+     * (and {@link org.elasticsearch.search.vectors.PostFilterKnnQuery}) when it self-publishes.
      */
-    public void setKnnProfileBreakdown(Map<String, Object> knnProfileBreakdown) {
-        this.knnProfileBreakdown = knnProfileBreakdown;
+    public void addKnnProfileBreakdown(Map<String, Object> knnProfileBreakdown) {
+        this.knnProfileBreakdowns.add(knnProfileBreakdown);
     }
 
     /**
-     * Returns the KNN profile breakdown data, or null if not set.
+     * Returns the most recently appended kNN profile breakdown, or {@code null} if none. Used by wrapper
+     * queries (rescore) to merge their section into the breakdown their inner query just published.
+     */
+    public Map<String, Object> getLastKnnProfileBreakdown() {
+        return knnProfileBreakdowns.isEmpty() ? null : knnProfileBreakdowns.get(knnProfileBreakdowns.size() - 1);
+    }
+
+    /**
+     * Replaces the most recently appended kNN profile breakdown (used after a wrapper merges its section).
+     * If none exists yet, the breakdown is appended so a wrapper over a non-ES inner query is not lost.
+     */
+    public void setLastKnnProfileBreakdown(Map<String, Object> knnProfileBreakdown) {
+        if (knnProfileBreakdowns.isEmpty()) {
+            knnProfileBreakdowns.add(knnProfileBreakdown);
+        } else {
+            knnProfileBreakdowns.set(knnProfileBreakdowns.size() - 1, knnProfileBreakdown);
+        }
+    }
+
+    /**
+     * Returns all kNN profile breakdowns published to this profiler, in publish order (may be empty).
+     */
+    public List<Map<String, Object>> getKnnProfileBreakdowns() {
+        return knnProfileBreakdowns;
+    }
+
+    /**
+     * Returns the accumulated kNN breakdowns collapsed into the single {@code knn_profile} map that is
+     * serialized: {@code null} when none, the single breakdown when there is one, and a
+     * {@code {"knn_queries": [...]}} wrapper when a search carried several kNN queries.
      */
     public Map<String, Object> getKnnProfileBreakdown() {
-        return knnProfileBreakdown;
+        return QueryProfileShardResult.collapseKnnProfileBreakdowns(knnProfileBreakdowns);
     }
 
     /** Set the collector result that is associated with this profiler. */

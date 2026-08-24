@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.resourceexhaustion.painless;
+package org.elasticsearch.painless.resourceexhaustion;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -20,7 +20,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Stress-tests the Painless allocation limit in the {@code score} context against a
+ * Stress-tests the Painless allocation limit in the {@code filter} context against a
  * heap-constrained node. The cluster runs with a 512 MB heap and a 200 MB per-execution
  * allocation limit. Scripts loop-allocate 2 MB chunks: 50 iterations (100 MB) succeed;
  * 150 iterations throw a {@code PainlessError} when the running total crosses 200 MB,
@@ -30,9 +30,9 @@ import static org.hamcrest.Matchers.equalTo;
  * never exceeds the limit in actual heap usage — it stops at the chunk that would push
  * the running total over the threshold.
  */
-public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCase {
+public class PainlessFilterAllocationIT extends ResourceExhaustionPainlessTestCase {
 
-    private static final String INDEX = "painless-score-alloc";
+    private static final String INDEX = "painless-filter-alloc";
     // Each iteration allocates a 2 MB byte array.
     private static final int CHUNK_BYTES = 2 * 1024 * 1024;
     // 50 × 2 MB = 100 MB — safely under the 200 MB limit.
@@ -45,7 +45,7 @@ public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCas
         .nodes(1)
         .module("lang-painless")
         .setting("xpack.security.enabled", "false")
-        .setting("script.painless.max_allocation_bytes.context.score.limit", "200mb")
+        .setting("script.painless.max_allocation_bytes.context.filter.limit", "200mb")
         .jvmArg("-Xmx512m")
         .build();
 
@@ -67,31 +67,22 @@ public class PainlessScoreAllocationIT extends ResourceExhaustionPainlessTestCas
         client().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
     }
 
-    public void testScoreScriptUnderLimitSucceeds() throws IOException {
-        assertThat(client().performRequest(scoreSearch(SUCCESS_ITERS)).getStatusLine().getStatusCode(), equalTo(200));
+    public void testFilterScriptUnderLimitSucceeds() throws IOException {
+        assertThat(client().performRequest(filterSearch(SUCCESS_ITERS)).getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    public void testScoreScriptOverLimitFails() throws IOException {
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(scoreSearch(FAILURE_ITERS)));
+    public void testFilterScriptOverLimitFails() throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(filterSearch(FAILURE_ITERS)));
         assertAllocationLimitExceeded(e);
     }
 
-    private Request scoreSearch(int iters) {
-        // Build the script source via concatenation so integer literals are always ASCII,
-        // regardless of the randomized test locale.
-        String script = "long total = 0; for (int i = 0; i < "
-            + iters
-            + "; i++) { byte[] chunk = new byte["
-            + CHUNK_BYTES
-            + "]; total += chunk.length; } return (double) total;";
+    private Request filterSearch(int iters) {
+        String script = "for (int i = 0; i < " + iters + "; i++) { byte[] chunk = new byte[" + CHUNK_BYTES + "]; } return true;";
         Request search = new Request("POST", "/" + INDEX + "/_search");
         search.setJsonEntity("""
             {
               "query": {
-                "function_score": {
-                  "query": { "match_all": {} },
-                  "script_score": { "script": { "source": "%s" } }
-                }
+                "script": { "script": { "source": "%s" } }
               }
             }
             """.formatted(script));

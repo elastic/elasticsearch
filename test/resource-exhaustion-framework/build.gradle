@@ -7,13 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
-
-esplugin {
-  description = 'Test module for resource exhaustion and 429 response verification'
-  classname = 'org.elasticsearch.test.resourceexhaustion.ResourceExhaustionPlugin'
-}
+apply plugin: 'elasticsearch.build'
 
 dependencies {
-  clusterModules project(':modules:lang-painless')
+    api project(':test:framework')
+    compileOnly project(':test:test-clusters')
 }
+
+// Main sources are test infrastructure; use test forbidden-api signatures.
+tasks.named('forbiddenApisMain').configure {
+    replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
+}
+
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }

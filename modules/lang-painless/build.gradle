@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-resource-exhaustion-test'
 
 esplugin {
     description = 'An easy, safe and fast scripting language for Elasticsearch'

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.test.resourceexhaustion.painless;
+package org.elasticsearch.painless.resourceexhaustion;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;

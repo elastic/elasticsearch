@@ -16,8 +16,13 @@ echo --- Preparing
 sudo NEEDRESTART_MODE=l apt-get update -y
 sudo NEEDRESTART_MODE=l apt-get install -y libxml2-utils python3.10-venv
 
-RM_BRANCH="$BRANCH"
-if [[ "$BRANCH" == "main" ]]; then
+# Branch used to resolve dependency manifests (beats, ml-cpp) and reported to
+# release-manager. Defaults to the current Buildkite branch, but is overridable
+# so feature branches can point at a real release branch's manifests when
+# testing DRA changes (the ml-cpp / beats DRA pipelines only build the actual
+# release branches, so a feature branch would otherwise fail manifest lookup).
+RM_BRANCH="${RM_BRANCH:-$BRANCH}"
+if [[ "$RM_BRANCH" == "main" ]]; then
   RM_BRANCH=master
 fi
 

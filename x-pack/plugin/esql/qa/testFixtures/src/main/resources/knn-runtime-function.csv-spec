@@ -1,0 +1,161 @@
+// Tests for KNN() function operating on runtime expressions (non-index-mapped dense_vector).
+//
+// All tests require:
+//   - knn_runtime_field capability (snapshot builds only)
+//   - runtime_knn_search pragma to enable the runtime execution path
+//
+// The knn_hex_vectors dataset stores vectors as hex strings which is converted at runtime into
+// dense_vector field. It does not matter how the runtime dense_vector field is created;
+// multi-valued float field was considered but the insertion order is not preserved (unless columnar mode).
+// 
+// Cosine similarities between to_dense_vector(emb_hex) and query [64,0,0]:
+//   id=0 [64,0,0]     cosine ≈ 1.000
+//   id=4 [57,29,0]    cosine ≈ 0.891
+//   id=3 [45,45,0]    cosine ≈ 0.707
+//   id=5 [32,39,39]   cosine ≈ 0.502
+//   id=1 [0,64,0]     cosine = 0.0
+//   id=2 [0,0,64]     cosine = 0.0
+
+// Test 1: KNN on ROW data using to_dense_vector() on a hex string literal.
+// The hex string "400000" decodes to bytes [64,0,0], which is the only row and
+// has cosine similarity 1.0 with the query [64,0,0], so it passes the filter.
+knnRuntimeOnRow
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+ROW emb_hex = "400000"
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0])
+| KEEP dv
+;
+
+dv:dense_vector
+[64.0, 0.0, 0.0]
+;
+
+// Test 2: KNN on runtime field dense_vector field with no _score and no options
+// With no similarity threshold all six documents pass the KNN filter; results
+// are sorted by id for a deterministic output.
+knnRuntimeNoScore
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0])
+| SORT id ASC
+| KEEP id, label
+| LIMIT 10
+;
+
+id:integer | label:keyword 
+0          | x
+1          | y
+2          | z
+3          | xy
+4          | xz
+5          | xyz
+;
+
+// Test 3: KNN on runtime field dense_vector field with _score and no options
+// With no similarity threshold all six documents pass the KNN filter; scores should
+// be generated based on cosine similarity.
+knnRuntimeWithScore
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+FROM knn_hex_vectors metadata _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0])
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 1.000
+1          | 0.0
+2          | 0.0
+3          | 0.7071067690849304
+4          | 0.8912780284881592
+5          | 0.5018411874771118
+;
+
+
+// Test 4: KNN on runtime field dense_vector field with sorting on _score and no options
+// All six documents pass the KNN filter, but [sort + limit] limits to two highest
+// scoring rows.
+knnRuntimeWithSortOnScore
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+FROM knn_hex_vectors metadata _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0])
+| SORT _score DESC
+| KEEP id
+| LIMIT 2
+;
+
+id:integer
+0
+4
+;
+
+// Test 5: KNN on runtime field dense_vector field with similarity threshold option
+knnRuntimeWithSimThreshold
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+FROM knn_hex_vectors
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"similarity": 0.6})
+| SORT id ASC
+| KEEP id
+| LIMIT 10
+;
+
+id:integer
+0
+3
+4
+;
+
+// Test 6: KNN on runtime field dense_vector field with boost option
+knnRuntimeWithBoost
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"boost": 2.0})
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+0          | 2.000
+1          | 0.0
+2          | 0.0
+3          | 1.4142135381698608
+4          | 1.7825560569763184
+5          | 1.0036823749542236
+;
+
+// Test 7: KNN on runtime field dense_vector field: combined filtering and scoring
+knnRuntimeCombinedFilter
+required_capability: knn_runtime_field
+pragma: runtime_knn_search=true
+
+FROM knn_hex_vectors METADATA _score
+| EVAL dv = to_dense_vector(emb_hex)
+| WHERE knn(dv, [64, 0, 0], {"boost": 2.0}) and match(label, "xyz")
+| SORT id ASC
+| KEEP id, _score
+| LIMIT 10
+;
+
+id:integer | _score:double
+5          | 2.544127345085144
+;

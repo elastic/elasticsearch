@@ -190,6 +190,34 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     * Number of parallel drivers to use for the coordinator-side stage that pulls from an
+     * intermediate-aggregation exchange (typically the {@code FINAL} aggregation stage).
+     * {@code 0} (the default) means a single driver — existing behaviour.
+     * When set to {@code N > 1}, {@code N} independent drivers are created, each with its own
+     * {@link org.elasticsearch.compute.operator.HashAggregationOperator} instance, all competing
+     * for pages from the shared exchange buffer.
+     *
+     * <p>This is a measurement lever for the parallel-aggregation ceiling experiment: it lets us
+     * quantify the upper-bound speedup of parallelising the final aggregation stage before
+     * implementing a full {@code ParallelHashAggregationOperator}. It also doubles as the scaffold
+     * for the eventual per-query worker-count override in that operator.
+     *
+     * <p>For high-cardinality {@code GROUP BY} queries on unique group keys the results are
+     * near-correct even with {@code N > 1}: each key appears exactly once in the intermediate
+     * stream (because {@code INITIAL} partial-emit batches are per-driver and keys are unique),
+     * so no group is split across drivers. For low-cardinality queries or queries where the same
+     * group key appears in multiple batches the results will be wrong (multiple partial rows for
+     * the same group). Use only for benchmarking, not production.
+     */
+    public static final Setting<Integer> PARALLEL_AGG_FINAL_DRIVERS = Setting.intSetting("parallel_agg_final_drivers", 0, 0);
+
+    /**
+     * Number of background worker threads for parallel in-operator hash aggregation.
+     * Returns {@code 0} when unset (use serial aggregation — existing behaviour).
+     */
+    public static final Setting<Integer> PARALLEL_AGG_WORKERS = Setting.intSetting("parallel_agg_workers", 0, 0);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -214,6 +242,9 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
+        MIN_DOCS_PER_SLICE,
+        PARALLEL_AGG_FINAL_DRIVERS,
+        PARALLEL_AGG_WORKERS,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS
     ).map(Setting::getKey).toList();
 
@@ -414,6 +445,22 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * Number of parallel drivers for the coordinator-side intermediate-agg exchange stage.
+     * Returns {@code 0} when unset (use a single driver — existing behaviour).
+     */
+    public int parallelAggFinalDrivers() {
+        return PARALLEL_AGG_FINAL_DRIVERS.get(settings);
+    }
+
+    /**
+     * Number of background worker threads for parallel in-operator hash aggregation.
+     * Returns {@code 0} when unset (use serial aggregation — existing behaviour).
+     */
+    public int parallelAggWorkers() {
+        return PARALLEL_AGG_WORKERS.get(settings);
     }
 
     public boolean isEmpty() {

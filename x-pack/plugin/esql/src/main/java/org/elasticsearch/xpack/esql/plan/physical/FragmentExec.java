@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +30,12 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         FragmentExec::new
     );
 
+    /**
+     * Transport version added when {@link #singlePassAgg} was introduced. Older data nodes always
+     * read {@code singlePassAgg = false} and run the normal two-phase aggregation path.
+     */
+    private static final TransportVersion SINGLE_PASS_AGG_TV = TransportVersion.fromName("esql_single_pass_agg");
+
     private final LogicalPlan fragment;
     private final QueryBuilder esFilter;
 
@@ -38,15 +45,31 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      */
     private final int estimatedRowSize;
 
+    /**
+     * When {@code true}, the data node should map the top-level aggregation to
+     * {@link org.elasticsearch.compute.aggregation.AggregatorMode#SINGLE} and run a single driver
+     * instead of splitting the work across many parallel instances. The coordinator receives the
+     * final aggregation output directly, with no intermediate merging step.
+     * <p>
+     * Set by {@code CollapseSingleShardAggregate} when the query touches exactly one shard and the
+     * {@code esql.single_shard_single_pass_aggregation} cluster setting is enabled.
+     */
+    private final boolean singlePassAgg;
+
     public FragmentExec(LogicalPlan fragment) {
-        this(fragment.source(), fragment, null, 0);
+        this(fragment.source(), fragment, null, 0, false);
     }
 
     public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize) {
+        this(source, fragment, esFilter, estimatedRowSize, false);
+    }
+
+    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize, boolean singlePassAgg) {
         super(source);
         this.fragment = fragment;
         this.esFilter = esFilter;
         this.estimatedRowSize = estimatedRowSize;
+        this.singlePassAgg = singlePassAgg;
     }
 
     private FragmentExec(StreamInput in) throws IOException {
@@ -54,6 +77,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.estimatedRowSize = in.readVInt();
+        this.singlePassAgg = in.getTransportVersion().supports(SINGLE_PASS_AGG_TV) && in.readBoolean();
     }
 
     @Override
@@ -62,6 +86,9 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
         out.writeVInt(estimatedRowSize);
+        if (out.getTransportVersion().supports(SINGLE_PASS_AGG_TV)) {
+            out.writeBoolean(singlePassAgg);
+        }
     }
 
     @Override
@@ -83,7 +110,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<FragmentExec> info() {
-        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize);
+        return NodeInfo.create(this, FragmentExec::new, fragment, esFilter, estimatedRowSize, singlePassAgg);
     }
 
     @Override
@@ -96,20 +123,30 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         int estimatedRowSize = state.consumeAllFields(false);
         return Objects.equals(estimatedRowSize, this.estimatedRowSize)
             ? this
-            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize);
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, singlePassAgg);
     }
 
     public FragmentExec withFragment(LogicalPlan fragment) {
-        return Objects.equals(fragment, this.fragment) ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize);
+        return Objects.equals(fragment, this.fragment)
+            ? this
+            : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, singlePassAgg);
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {
-        return Objects.equals(filter, this.esFilter) ? this : new FragmentExec(source(), fragment, filter, estimatedRowSize);
+        return Objects.equals(filter, this.esFilter) ? this : new FragmentExec(source(), fragment, filter, estimatedRowSize, singlePassAgg);
+    }
+
+    public FragmentExec withSinglePassAgg(boolean singlePassAgg) {
+        return this.singlePassAgg == singlePassAgg ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, singlePassAgg);
+    }
+
+    public boolean singlePassAgg() {
+        return singlePassAgg;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fragment, esFilter, estimatedRowSize);
+        return Objects.hash(fragment, esFilter, estimatedRowSize, singlePassAgg);
     }
 
     @Override
@@ -125,7 +162,8 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         FragmentExec other = (FragmentExec) obj;
         return Objects.equals(fragment, other.fragment)
             && Objects.equals(esFilter, other.esFilter)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && singlePassAgg == other.singlePassAgg;
     }
 
     @Override
@@ -135,6 +173,9 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         // the opaque mapper so it prints raw under identity and redacts under anonymization.
         sb.append("[filter=").append(mapper.opaque(String.valueOf(esFilter)));
         sb.append(", estimatedRowSize=").append(estimatedRowSize);
+        if (singlePassAgg) {
+            sb.append(", singlePassAgg=true");
+        }
         sb.append(", reducer=[], fragment=[<>\n");
         sb.append(fragment.toString(format, mapper));
         sb.append("<>]]");

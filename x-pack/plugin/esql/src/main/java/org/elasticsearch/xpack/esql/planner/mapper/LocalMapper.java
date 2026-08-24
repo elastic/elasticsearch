@@ -57,13 +57,26 @@ public class LocalMapper {
     private LocalMapper() {}
 
     public PhysicalPlan map(LogicalPlan p) {
+        return map(p, AggregatorMode.INITIAL);
+    }
+
+    /**
+     * Maps a (local) logical plan to a (local) physical plan.
+     *
+     * @param topAggMode the {@link AggregatorMode} to use for the top-level {@link
+     *                   org.elasticsearch.xpack.esql.plan.logical.Aggregate} in the plan, if one
+     *                   is present. Use {@link AggregatorMode#INITIAL} for the normal two-phase
+     *                   path and {@link AggregatorMode#SINGLE} when the coordinator has collapsed
+     *                   the aggregation (see {@code CollapseSingleShardAggregate}).
+     */
+    public PhysicalPlan map(LogicalPlan p, AggregatorMode topAggMode) {
 
         if (p instanceof LeafPlan leaf) {
             return mapLeaf(leaf);
         }
 
         if (p instanceof UnaryPlan unary) {
-            return mapUnary(unary);
+            return mapUnary(unary, topAggMode);
         }
 
         if (p instanceof BinaryPlan binary) {
@@ -98,7 +111,8 @@ public class LocalMapper {
         return MapperUtils.mapLeaf(leaf);
     }
 
-    private PhysicalPlan mapUnary(UnaryPlan unary) {
+    private PhysicalPlan mapUnary(UnaryPlan unary, AggregatorMode topAggMode) {
+        // Nested plans use the normal INITIAL path; only the outermost aggregate is affected.
         PhysicalPlan mappedChild = map(unary.child());
 
         //
@@ -106,7 +120,7 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            return MapperUtils.aggExec(aggregate, mappedChild, topAggMode, intermediate);
         }
 
         if (unary instanceof Limit limit) {

@@ -52,6 +52,11 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
+        // This rule rewrites the aggregate into an EsStatsQueryExec that emits intermediate-state
+        // blocks. A SINGLE-mode aggregate expects final output, so skip it here.
+        if (aggregateExec.getMode().isOutputPartial() == false) {
+            return aggregateExec;
+        }
         PhysicalPlan child = aggregateExec.child();
         EsQueryExec queryExec;
         AttributeMap<Attribute> aliasReplacedBy;

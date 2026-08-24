@@ -758,3 +758,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
   method: testSearchShardRecoveryRegistersCommit
   issue: https://github.com/elastic/elasticsearch/issues/157463
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Use the percolate query in mixed cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/157467

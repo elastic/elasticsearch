@@ -44,7 +44,7 @@ public final class StringColumnReader {
         this.values = meta.numDocsWithField() == 0 ? null : meta.values().open(data);
     }
 
-    /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#index()}. */
+    /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#rank()}. */
     public ColumnIterator iterator() throws IOException {
         return iteratorReader.iterator();
     }

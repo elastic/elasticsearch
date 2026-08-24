@@ -1155,6 +1155,13 @@ public class EsqlCapabilities {
         IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
+         * When multiple aliases are defined in a single EVAL, an implicit CASTing is missed because of a premature exit due
+         * to failing to immediately resolve a field referenced in one of the EVALed aliases.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/155979">#155979</a>.
+         */
+        FIX_MISSED_IMPLICIT_CASTING_INSIDE_INTERLEAVED_EVALS,
+
+        /**
          * LOOKUP JOIN
          */
         JOIN_LOOKUP_V12,
@@ -1306,7 +1313,11 @@ public class EsqlCapabilities {
          * Support for COMPLETION command
          */
         COMPLETION,
-
+        /**
+         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
+         * {@code isDevVersion()} in the grammar.
+         */
+        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -1474,6 +1485,14 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_VIEW,
 
         /**
+         * Fixes a false "Only a single FORK command is supported, but found multiple" error when a FORK appears
+         * inside an IN subquery that is itself nested inside another IN subquery containing a FORK. Each subquery
+         * is its own query scope, so FORKs in different subquery scopes are independent and must not be counted
+         * together.
+         */
+        FORK_INSIDE_IN_SUBQUERY_FIX,
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW,
@@ -1488,6 +1507,42 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS,
+
+        /**
+         * Fix for {@code PropagateEmptyRelation} not folding away {@code AbstractSubqueryJoin} nodes when their left side is an empty
+         * {@code LocalRelation}. Without the fix, a {@code WHERE false} followed by a {@code WHERE … OR field IN (subquery) AND match(…)}
+         * caused the server to hang or error out because the {@code LuceneQueryExpressionEvaluator} found no Lucene shard contexts.
+         */
+        PROPAGATE_EMPTY_RELATION_PAST_WHERE_IN_SUBQUERY,
+
+        /**
+         * Fixed a bug where a FORK or UnionAll preceding a WHERE IN subquery would fail with "Unknown column" because the early-exit tree
+         * traversal triggered by FORK skipped the subquery's right child during field-caps resolution.
+         */
+        WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
+
+        /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,
+
+        /**
+         * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command,
+         * even if the {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions are nested inside another expression, where an
+         * IN subquery is not directly supported there.
+         */
+        WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL_DEEPLY_NESTED,
+
+        /**
+         * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
+         */
+        WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * Support non-correlated IN subqueries in the {@code EVAL} command.
+         */
+        EVAL_IN_SUBQUERY,
+
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -1634,6 +1689,15 @@ public class EsqlCapabilities {
          */
         INCREASE,
         DELTA_TS_AGG,
+
+        /**
+         * Fix {@code delta} and {@code idelta} with a window shorter than the time bucket. Previously, the optimizer
+         * could replace the {@code Bucket} child of {@code WindowFilter} with an {@code Attribute}, causing a
+         * {@code ClassCastException} in {@code toEvaluator()}. The fix removes {@code bucket} from the children list
+         * so it is invisible to optimizer rewrites.
+         */
+        FIX_WINDOW_FILTER_BUCKET_CHILD,
+
         CLAMP_FUNCTIONS,
 
         /**
@@ -2126,9 +2190,9 @@ public class EsqlCapabilities {
         DATE_RANGE_FIELD_TYPE_V6,
 
         /**
-         * Support for the DOUBLE_RANGE field type.
+         * Tech preview support for the DOUBLE_RANGE field type.
          */
-        DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V4(Build.current().isSnapshot()),
+        DOUBLE_RANGE_TECH_PREVIEW,
 
         /**
          * Network direction function.
@@ -2323,6 +2387,11 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
+         * Disable ReplaceFieldWithConstantOrNull rule for time-series aggregation
+         */
+        DISABLE_REPLACE_NULL_RULE_FOR_TIME_SERIES,
+
+        /**
          * Window filters use the rounded bucket label's floor and ceiling when filtering windows
          * smaller than a {@code TSTEP} bucket. Also covers {@code rate()}/{@code increase()} now
          * extrapolating over the window's own range instead of the outer time bucket's range when
@@ -2363,6 +2432,12 @@ public class EsqlCapabilities {
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
+
+        /**
+         * Support constant expressions on the RHS of LIKE/RLIKE, e.g. {@code WHERE x LIKE CONCAT("prefix", "*")}.
+         * https://github.com/elastic/elasticsearch/issues/147671
+         */
+        LIKE_RLIKE_CONSTANT_EXPRESSION,
 
         /**
          * PromQL support in ESQL, in the state it was when first available in non-snapshot builds.
@@ -3284,6 +3359,25 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FORK_DROP_MATERIALIZES_SIBLINGS,
 
         /**
+         * Support for {@code unmapped_fields="LOAD_ALL"}, which loads every unmapped source field as its own
+         * {@code keyword} output column without requiring each field to be referenced in the query.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL(Build.current().isSnapshot()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a net-zero projection (e.g. {@code KEEP x | DROP x}) that leaves no columns and
+         * expands no unmapped fields no longer fails with {@code "blocks is empty"}; it returns a zero-column result preserving the row
+         * count. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
+         * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED,
@@ -3344,9 +3438,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
-         * Snapshot-only.
          */
-        DEDUP_COMMAND(Build.current().isSnapshot()),
+        DEDUP_COMMAND,
 
         /**
          * Support for VALUES with date_range type.
@@ -3548,6 +3641,21 @@ public class EsqlCapabilities {
         PROMQL_TOPK,
 
         /**
+         * Support for the PromQL {@code bottomk()} order-statistic aggregation.
+         */
+        PROMQL_BOTTOMK,
+
+        /**
+         * Support for the PromQL {@code limitk()} arbitrary-selection function.
+         */
+        PROMQL_LIMITK,
+
+        /**
+         * Support for PromQL {@code histogram_fraction()} on native histograms.
+         */
+        PROMQL_HISTOGRAM_FRACTION,
+
+        /**
          * Fix PromQL {@code topk()} over an already-aggregated vector (e.g. {@code topk(k, sum by (...) (...))}).
          * The outer aggregate must wrap the passthrough value in {@code VALUES} so physical planning registers it
          * in the layout; without that, execution fails with {@code can't find input for [topk(...)]}.
@@ -3588,6 +3696,15 @@ public class EsqlCapabilities {
         FIX_INFER_IS_NOT_NULL_ALLOWLIST,
 
         /**
+         * A {@code TS} aggregation whose time bucket is named after the timestamp field, e.g.
+         * {@code TS metrics | STATS max(cost) BY @timestamp = BUCKET(@timestamp, 1 minute)}, no longer fails with
+         * {@code optimized incorrectly due to missing references [@timestamp]}: the internal first-pass bucket alias no
+         * longer shadows the field that the per-time-series aggregation reads.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/153030">#153030</a>
+         */
+        FIX_TS_TIME_BUCKET_NAMED_AFTER_TIMESTAMP,
+
+        /**
          * When {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate} expands a
          * {@code TS} {@code STATS} with PackDims, drop second-pass aggregate aliases whose names collide with a
          * grouping key (grouping wins), matching non-TS {@code STATS} shadowing via
@@ -3596,6 +3713,32 @@ public class EsqlCapabilities {
          * See <a href="https://github.com/elastic/elasticsearch/issues/153507">#153507</a>.
          */
         FIX_TS_STATS_ALIAS_GROUPING_SHADOW,
+
+        /*
+         * CHANGE_POINT now uses EventDetector (multiple events, log-space p-values), which can report
+         * a change point at a slightly different bucket and with different p-values than the previous
+         * implementation.
+         */
+        CHANGE_POINT_MULTIPLE_EVENTS,
+
+        /**
+         * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource} pushing only a
+         * pushable <em>prefix</em> of a compound {@code SORT}'s keys together with the full {@code LIMIT}. Lucene then
+         * truncated to {@code LIMIT} documents ordered by that prefix alone, so when the prefix had ties straddling the
+         * limit boundary, documents the full sort would have ranked into the top-N were dropped at the source and could
+         * never be recovered - returning wrong results (e.g. {@code SORT score, ABS(x) | LIMIT n}). The compound TopN is
+         * now pushed only when every sort key is pushable.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/155923">#155923</a>.
+         */
+        FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
+        /**
+         * Time-series windows are dispatched per aggregate: the time bucket is pure emission cadence and each
+         * aggregate independently decomposes its window as {@code W = k * B + r}, aggregating {@code k} full buckets
+         * plus the state of a partial sibling aggregate over the trailing remainder. Replaces the GCD sub-bucketing
+         * of {@link #TIME_SERIES_WINDOW_NON_MULTIPLE}, lifts its 128 sub-bucket limit, and supports combining
+         * windows smaller than the time bucket with non-multiple windows in the same aggregation.
+         */
+        PER_AGGREGATE_WINDOWS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

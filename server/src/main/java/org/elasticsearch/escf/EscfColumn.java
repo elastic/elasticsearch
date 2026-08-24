@@ -44,6 +44,7 @@ public abstract class EscfColumn implements SliceableColumn {
                 "docCount " + docCount + " must be less than DocIdSetIterator.NO_MORE_DOCS (" + DocIdSetIterator.NO_MORE_DOCS + ")"
             );
         }
+        assert validity == null || validity.length() == docCount : "validity length " + validity.length() + " != docCount " + docCount;
         this.docCount = docCount;
         this.validity = validity;
     }
@@ -101,6 +102,11 @@ public abstract class EscfColumn implements SliceableColumn {
         return docCount;
     }
 
+    /** A forward-only iterator over this column's present (non-absent) doc ids. */
+    public final PresentDocIterator presentDocs() {
+        return new PresentDocIterator(validity, docCount);
+    }
+
     final boolean isAbsent(int row) {
         if (row < 0 || row >= docCount) {
             return true;
@@ -113,6 +119,11 @@ public abstract class EscfColumn implements SliceableColumn {
     /** Returns {@code true} if the document at {@code row} is present (has a value). */
     public final boolean isPresent(int row) {
         return isAbsent(row) == false;
+    }
+
+    /** Returns {@code true} if every document in this column is present (no validity bitset). */
+    public final boolean isDense() {
+        return validity == null;
     }
 
     final byte getTypeByte(int row) {
@@ -184,8 +195,13 @@ public abstract class EscfColumn implements SliceableColumn {
     /**
      * Returns a forward-only {@link ObjectTupleCursor}{@code <BytesRef>} positioned before the first
      * row. Subtypes that hold byte-string values override this; the default throws.
+     *
+     * @param retainValues {@code false} to reuse a single {@link BytesRef} across the whole scan (valid
+     *                     only until the next {@link ObjectTupleCursor#nextDoc()}, and allocation-free);
+     *                     {@code true} to hand back a fresh {@link BytesRef} per value, for callers that
+     *                     keep values past the cursor position
      */
-    public ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
         throw notA("binary");
     }
 

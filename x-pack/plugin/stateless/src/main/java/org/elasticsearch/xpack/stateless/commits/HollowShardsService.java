@@ -97,7 +97,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
      */
     public static final Setting<TimeValue> SETTING_HOLLOW_INGESTION_TTL = Setting.positiveTimeSetting(
         "stateless.hollow_index_shards.ingestion.ttl",
-        TimeValue.timeValueDays(3),
+        TimeValue.timeValueDays(1),
         Setting.Property.NodeScope
     );
 
@@ -368,6 +368,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
     }
 
     protected void unhollow(ShardId shardId) {
+        assert commitService != null : "commit service must be initialized for index nodes";
         var hollowShardInfo = hollowShards.get(shardId);
         if (hollowShardInfo != null && hollowShardInfo.unhollowing.compareAndSet(false, true)) {
             threadPool.generic().execute(new AbstractRunnable() {

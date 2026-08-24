@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -20,12 +22,16 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.function.Consumer;
+import java.util.function.Function;
+
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -291,6 +297,47 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
     }
 
     /**
+     * With {@code operator: AND}, query terms spread across the values of a multivalued position still match:
+     * as with an indexed multi-valued text field, all values belong to one document.
+     */
+    public void testTextWithOperatorAndMatchesAcrossValues() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick dog"), KEYWORD, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("quick fox")); // "quick" here...
+                builder.appendBytesRef(new BytesRef("lazy dog"));  // ..."dog" here: together they satisfy the AND
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("quick fox")); // "quick" but no value has "dog"
+                builder.appendBytesRef(new BytesRef("lazy cat"));
+                builder.endPositionEntry();
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
+     * {@code minimum_should_match} counts matched terms across all values of a multivalued position.
+     */
+    public void testTextWithMinimumShouldMatchAcrossValues() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick lazy fox"), KEYWORD, mapOptions("minimum_should_match", "2")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick cat")); // "quick" = 1
+                builder.appendBytesRef(new BytesRef("a lazy dog"));    // + "lazy" = 2
+                builder.endPositionEntry();
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("the quick cat")); // only "quick" = 1
+                builder.appendBytesRef(new BytesRef("a brown dog"));
+                builder.endPositionEntry();
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    /**
      * {@code zero_terms_query: none} returns no results when the query analyzes to zero tokens (the default).
      */
     public void testTextWithZeroTermsQueryNoneMatchesNothing() {
@@ -369,6 +416,311 @@ public class MatchRuntimeSearchEvaluatorTests extends AbstractRuntimeSearchEvalu
             factory -> bytesRefBlock(factory, builder -> builder.appendBytesRef(new BytesRef("the quick brown fox")))
         );
         assertArrayEquals(new Boolean[] { false }, result);
+    }
+
+    public void testTextWithWhitespaceAnalyzerIsCaseSensitive() {
+        // The whitespace analyzer does not lowercase, unlike the standard analyzer.
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Fox"), KEYWORD, mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Fox jumped"));
+                builder.appendBytesRef(new BytesRef("the fox jumped"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithKeywordAnalyzerMatchesWholeValueOnly() {
+        // The keyword analyzer emits the whole value as a single token.
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("brown fox"), KEYWORD, mapOptions("analyzer", "keyword")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("brown fox"));
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
+    public void testTextWithAnalyzerAndOperatorCombined() {
+        Boolean[] result = evaluate(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Quick Fox"), KEYWORD, mapOptions("analyzer", "whitespace", "operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("Quick brown Fox"));
+                builder.appendBytesRef(new BytesRef("quick brown fox"));
+                builder.appendBytesRef(new BytesRef("Quick brown dog"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false, false }, result);
+    }
+
+    // ---- scoring: runtime match contributes boost x matched-query-term count to _score ----
+
+    public void testScoreTextSingleTerm() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("fox"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("This is a brown fox"));
+            builder.appendBytesRef(new BytesRef("nothing here"));
+        }));
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    public void testScoreTextCountsMatchedTerms() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("fox dog"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+            builder.appendBytesRef(new BytesRef("fox and dog"));
+            builder.appendBytesRef(new BytesRef("nothing here"));
+        }));
+        assertArrayEquals(new Double[] { 1.0, 2.0, 0.0 }, result);
+    }
+
+    /**
+     * A query term repeated N times weighs N.
+     */
+    public void testScoreTextDuplicateQueryTerms() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("fox fox"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a fox"));
+            builder.appendBytesRef(new BytesRef("nothing here"));
+        }));
+        assertArrayEquals(new Double[] { 2.0, 0.0 }, result);
+    }
+
+    public void testScoreTextRepeatedValueTermCountedOnce() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("fox"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("fox fox fox"));
+        }));
+        assertArrayEquals(new Double[] { 1.0 }, result);
+    }
+
+    /**
+     * All values of a multivalued position form one document: matched terms are the union across values, and a term
+     * found in several values only counts once.
+     */
+    public void testScoreTextMultiValueUnionAndDedup() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("fox dog"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("quick fox"));
+            builder.appendBytesRef(new BytesRef("lazy dog"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("fox a"));
+            builder.appendBytesRef(new BytesRef("fox b"));
+            builder.endPositionEntry();
+        }));
+        assertArrayEquals(new Double[] { 2.0, 1.0 }, result);
+    }
+
+    public void testScoreTextNullAndEmptyValues() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("fox"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef(""));
+        }));
+        assertArrayEquals(new Double[] { 0.0, 0.0 }, result);
+    }
+
+    public void testScoreTextIsAnalyzed() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("brown"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a Brown fox"));
+        }));
+        assertArrayEquals(new Double[] { 1.0 }, result);
+    }
+
+    public void testScoreTextZeroQueryTerms() {
+        Double[] result = score(runtimeMatch(TEXT, new BytesRef("! ! !"), TEXT), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("a brown fox"));
+        }));
+        assertArrayEquals(new Double[] { 0.0 }, result);
+    }
+
+    public void testScoreTextWithOperatorAnd() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick fox"), KEYWORD, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the quick brown fox"));
+                builder.appendBytesRef(new BytesRef("the quick dog"));
+            })
+        );
+        assertArrayEquals(new Double[] { 2.0, 0.0 }, result);
+    }
+
+    public void testScoreTextWithBoost() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("fox"), KEYWORD, mapOptions("boost", "2.0")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+            })
+        );
+        assertArrayEquals(new Double[] { 2.0, 0.0 }, result);
+    }
+
+    public void testScoreTextWithOperatorAndBoost() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("fox dog"), KEYWORD, mapOptions("operator", "AND", "boost", "1.5")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("fox and dog"));
+            })
+        );
+        assertArrayEquals(new Double[] { 3.0 }, result);
+    }
+
+    public void testScoreTextWithMinimumShouldMatch() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick lazy fox"), KEYWORD, mapOptions("minimum_should_match", "2")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the quick brown fox"));
+                builder.appendBytesRef(new BytesRef("the lazy dog"));
+            })
+        );
+        assertArrayEquals(new Double[] { 2.0, 0.0 }, result);
+    }
+
+    public void testScoreTextWithAnalyzer() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("Fox"), KEYWORD, mapOptions("analyzer", "whitespace")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the Fox jumped"));
+                builder.appendBytesRef(new BytesRef("the fox jumped"));
+            })
+        );
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    public void testScoreTextWithZeroTermsQuery() {
+        Double[] all = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef(""), KEYWORD, mapOptions("zero_terms_query", "all")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+            })
+        );
+        assertArrayEquals(new Double[] { 1.0, 1.0 }, all);
+
+        Double[] none = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef(""), KEYWORD, mapOptions("zero_terms_query", "none")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a fox"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+            })
+        );
+        assertArrayEquals(new Double[] { 0.0, 0.0 }, none);
+    }
+
+    /**
+     * A boosted match-all (zero_terms_query: all) rewrites to a BoostQuery and takes the generic Lucene-query
+     * scoring path rather than the constant-score shortcut.
+     */
+    public void testScoreTextWithZeroTermsQueryAllAndBoost() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef(""), KEYWORD, mapOptions("zero_terms_query", "all", "boost", "3.0")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("anything"));
+            })
+        );
+        assertArrayEquals(new Double[] { 3.0 }, result);
+    }
+
+    public void testScoreTextWithFuzziness() {
+        // FuzzyQuery scales the boost by edit distance
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("bron"), KEYWORD, mapOptions("fuzziness", "1")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the quick brown fox"));
+                builder.appendBytesRef(new BytesRef("the lazy dog"));
+            })
+        );
+        assertThat(result[0], greaterThan(0.0));
+        assertEquals(0.0, result[1], 0.0);
+    }
+
+    public void testScoreTextMultiValueSpanningAnd() {
+        Double[] result = score(
+            runtimeMatchWithOptions(TEXT, new BytesRef("quick dog"), KEYWORD, mapOptions("operator", "AND")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("quick fox"));
+                builder.appendBytesRef(new BytesRef("lazy dog"));
+                builder.endPositionEntry();
+            })
+        );
+        assertArrayEquals(new Double[] { 2.0 }, result);
+    }
+
+    /**
+     * The token-stream scorer (no options) and the Lucene-query scorer (options) must agree: the default operator
+     * is OR, so making it explicit must not change any score, including for duplicate query terms and multivalues.
+     */
+    public void testScoreTextConsistentAcrossScorerImplementations() {
+        for (String query : new String[] { "fox dog", "fox fox" }) {
+            Function<BlockFactory, Block> data = factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("a brown fox"));
+                builder.appendBytesRef(new BytesRef("fox and dog"));
+                builder.appendBytesRef(new BytesRef("nothing here"));
+                builder.beginPositionEntry();
+                builder.appendBytesRef(new BytesRef("quick fox"));
+                builder.appendBytesRef(new BytesRef("lazy dog"));
+                builder.endPositionEntry();
+                builder.appendNull();
+            });
+            Double[] withoutOptions = score(runtimeMatch(TEXT, new BytesRef(query), KEYWORD), data);
+            Double[] withOrOption = score(runtimeMatchWithOptions(TEXT, new BytesRef(query), KEYWORD, mapOptions("operator", "OR")), data);
+            assertArrayEquals("query [" + query + "]", withoutOptions, withOrOption);
+        }
+    }
+
+    public void testScoreKeywordExact() {
+        Double[] result = score(runtimeMatch(KEYWORD, new BytesRef("hello"), KEYWORD), factory -> bytesRefBlock(factory, builder -> {
+            builder.appendBytesRef(new BytesRef("hello"));
+            builder.appendBytesRef(new BytesRef("Hello"));
+        }));
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    public void testScoreInteger() {
+        Double[] result = score(runtimeMatch(INTEGER, 7, INTEGER), factory -> {
+            try (var builder = factory.newIntBlockBuilder(2)) {
+                builder.appendInt(7);
+                builder.appendInt(8);
+                return builder.build();
+            }
+        });
+        assertArrayEquals(new Double[] { 1.0, 0.0 }, result);
+    }
+
+    /**
+     * The options-path {@link org.apache.lucene.index.memory.MemoryIndex} is allocated per evaluator (via a
+     * {@code THREAD_LOCAL}-scoped {@code @Fixed}) and reset per row: terms from an earlier row — or an earlier page
+     * of the same evaluator — must not leak into later ones.
+     */
+    public void testMemoryIndexIsResetBetweenRowsAndPages() {
+        Match match = runtimeMatchWithOptions(TEXT, new BytesRef("quick dog"), KEYWORD, mapOptions("operator", "AND"));
+        DriverContext context = driverContext();
+        try (ExpressionEvaluator evaluator = match.toEvaluator(toEvaluator()).get(context)) {
+            // If the first row's terms leaked, they would satisfy the AND for every row after it.
+            assertPage(evaluator, context, builder -> {
+                builder.appendBytesRef(new BytesRef("quick dog"));
+                builder.appendBytesRef(new BytesRef("quick fox"));
+            }, new Boolean[] { true, false });
+            // A later page through the same evaluator reuses the same MemoryIndex.
+            assertPage(evaluator, context, builder -> builder.appendBytesRef(new BytesRef("lazy dog")), new Boolean[] { false });
+        }
+    }
+
+    private static void assertPage(
+        ExpressionEvaluator evaluator,
+        DriverContext context,
+        Consumer<BytesRefBlock.Builder> build,
+        Boolean[] expected
+    ) {
+        Page page = new Page(bytesRefBlock(context.blockFactory(), build));
+        try (BooleanBlock result = (BooleanBlock) evaluator.eval(page)) {
+            Boolean[] out = new Boolean[result.getPositionCount()];
+            for (int p = 0; p < out.length; p++) {
+                out[p] = result.isNull(p) ? null : result.getBoolean(result.getFirstValueIndex(p));
+            }
+            assertArrayEquals(expected, out);
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     /**

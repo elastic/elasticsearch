@@ -132,8 +132,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initAutoMigrationMock() throws Exception {
         autoMigration = mock();
         doAnswer(ans -> {
             ActionListener<?> listener = ans.getArgument(1);
@@ -371,7 +370,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(
@@ -900,13 +900,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     ) {
         var mockAuditor = mock(TransformAuditor.class);
         when(credentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var transformCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
-            configManager,
-            mockAuditor,
-            mock(CrossProjectModeDecider.class),
-            credentialManager
-        );
+        var transformCheckpointService = new TransformCheckpointService(Clock.systemUTC(), configManager, mockAuditor, credentialManager);
         return new TransformServices(
             configManager,
             transformCheckpointService,
@@ -958,7 +952,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.DEFAULT
+                ShardRouting.Role.DEFAULT,
+                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -1118,7 +1113,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             Clock.systemUTC(),
             configManager,
             mockAuditor,
-            mock(CrossProjectModeDecider.class),
             cloudCredentialManager
         );
         return new TransformServices(

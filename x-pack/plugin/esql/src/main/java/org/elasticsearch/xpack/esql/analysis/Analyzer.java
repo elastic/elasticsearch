@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolvePromqlFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveUnmapped;
@@ -179,6 +180,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -305,6 +307,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         new Batch<>(
             "Finish Analysis",
             Limiter.ONCE,
+            new DetermineUnmappedFieldsToKeep(),
             new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolvedProjects(),
             new AddImplicitLimit(),
@@ -416,7 +419,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.indexMode(),
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
+                esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }
@@ -554,7 +557,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 IndexMode.STANDARD,
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
+                esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }
@@ -613,7 +616,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 IndexMode.STANDARD,
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
+                esIndex.indexProperties(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
         }
@@ -1122,6 +1125,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
                 case MMR mmr -> resolveMMR(mmr, childrenOutput);
+                case DenseVector e -> resolveDenseVector(e, childrenOutput);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1245,6 +1249,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
+        }
+
+        private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
+            // Resolve the input fields once. Re-running is a no-op and the plan converges: after the first pass
+            // generatedFields is populated (or the field list is empty), so later analyzer iterations return the same instance.
+            if (p.generatedAttributes().isEmpty() == false || p.fields().isEmpty()) {
+                return p;
+            }
+
+            List<NamedExpression> resolvedFields = new ArrayList<>();
+            // Dedupe on NameId: `title, title` resolves to the same attribute; embedding it twice would double the inference
+            // cost and generate shadowing duplicate output columns.
+            Set<NameId> seen = new HashSet<>();
+            for (NamedExpression field : p.fields()) {
+                if (field instanceof UnresolvedAttribute ua) {
+                    // explicitly-named field -> keep all matches; an unknown column or a non-text type fails verification
+                    for (Attribute resolved : resolveAgainstList(ua, childrenOutput)) {
+                        if (resolved.resolved()) {
+                            if (seen.add(resolved.id())) {
+                                resolvedFields.add(resolved);
+                            }
+                        } else {
+                            // keep unresolved results so verification can report the unknown column
+                            resolvedFields.add(resolved);
+                        }
+                    }
+                } else {
+                    resolvedFields.add(field);
+                }
+            }
+
+            return p.withResolvedFields(resolvedFields, DenseVector.generatedAttributesFor(p.source(), resolvedFields));
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -1552,8 +1588,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Skip when the right field failed to resolve (multi-column subquery, empty mapping)
             // since we have no concrete attribute to project.
             LogicalPlan right = subqueryJoin.right();
-            if (rightFields.size() == 1
-                && rightFields.get(0).resolved()
+            if (rightFields.stream().allMatch(Attribute::resolved)
                 && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
                 right = new Project(subqueryJoin.source(), right, rightFields);
             }
@@ -1586,25 +1621,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
                 if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
                     List<Attribute> rightOutput = semiJoin.right().output();
-                    if (rightOutput.size() == 1) {
-                        return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+                    int expectedCount2 = semiJoin.config().leftFields().size();
+                    if (rightOutput.size() == expectedCount2) {
+                        List<Attribute> reresolved = new ArrayList<>(expectedCount2);
+                        for (Attribute rightAttr : rightOutput) {
+                            reresolved.add(resolveSingleRightField(semiJoin, rightAttr));
+                        }
+                        return reresolved;
                     }
                 }
                 return rightFields;
             }
             List<Attribute> rightOutput = semiJoin.right().output();
-            if (rightOutput.size() != 1) {
-                return singletonList(
-                    new UnresolvedAttribute(
-                        semiJoin.source(),
-                        "*",
-                        "IN subquery must return exactly one column, found ["
-                            + rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "))
-                            + "]"
-                    )
-                );
+            int expectedCount = semiJoin.config().leftFields().size();
+            if (rightOutput.size() != expectedCount) {
+                String foundCols = rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "));
+                String msg = expectedCount == 1
+                    ? "IN subquery must return exactly one column, found [" + foundCols + "]"
+                    : "Multi-column IN subquery with ["
+                        + expectedCount
+                        + "] left fields must return exactly ["
+                        + expectedCount
+                        + "] columns, found ["
+                        + foundCols
+                        + "]";
+                return List.of(new UnresolvedAttribute(semiJoin.source(), "*", msg));
             }
-            return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+            List<Attribute> resolved = new ArrayList<>(expectedCount);
+            for (Attribute rightAttr : rightOutput) {
+                resolved.add(resolveSingleRightField(semiJoin, rightAttr));
+            }
+            return resolved;
         }
 
         /**
@@ -1641,7 +1688,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // sources and are handled in ResolveUnmapped. See #142033.
             boolean alignUnmappedAcrossBranches = switch (unmappedResolution) {
                 case LOAD, NULLIFY -> fork instanceof UnionAll == false;
-                case DEFAULT -> false;
+                // FORK is rejected under LOAD_ALL (see Verifier#checkLoadAllModeSupportedCommands), so this path is
+                // effectively unreachable for LOAD_ALL; treat it like DEFAULT and do no cross-branch alignment.
+                case DEFAULT, LOAD_ALL -> false;
             };
             List<Attribute> outputUnion = Fork.outputUnion(fork.children());
             // DROP of an unmapped field in a branch is a mention: the field is materialized in that branch's source but dropped from its
@@ -2100,11 +2149,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            Set<String> evalFieldNames = new HashSet<>(fields.size());
+            for (Alias f : fields) {
+                evalFieldNames.add(f.name());
+            }
             List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : fields) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> {
+                    Attribute resolved = resolveAttribute(ua, allResolvedInputs);
+                    // If the unresolved attribute references another EVAL field, give it another opportunity to resolve
+                    // in the next pass (after implicit casting has run). If we set customMessage() it won't try to resolve again
+                    if (resolved instanceof UnresolvedAttribute u && u.customMessage() && evalFieldNames.contains(ua.name())) {
+                        return ua;
+                    }
+                    return resolved;
+                });
 
                 changed |= result != field;
                 newFields.add(result);
@@ -2155,13 +2216,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolveKeep(Keep keep, UnmappedResolution unmappedResolution) {
             if (unmappedResolution != UnmappedResolution.DEFAULT) {
+                UnmatchedPatterns unmatchedPatterns = unmappedResolution.loadsAllUnmappedFields()
+                    ? UnmatchedPatterns.IGNORE
+                    : UnmatchedPatterns.FAIL;
                 return new ResolvingProject(
                     keep.source(),
                     keep.child(),
-                    inputAttributes -> keepResolver(keep.projections(), inputAttributes)
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.KEEP,
+                        keep.projections(),
+                        inputAttributes -> keepResolver(keep.projections(), inputAttributes, unmatchedPatterns)
+                    )
                 );
             }
-            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output());
+            List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output(), UnmatchedPatterns.FAIL);
             // Provenance for the external-metadata surfacing rule: when an explicit KEEP names an
             // engine-synthesized virtual column (external metadata: _file.*, _index, ...), keep the
             // result as a Keep node — NOT a bare Project — so planWithoutSyntheticAttributes can tell
@@ -2196,7 +2264,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return filtered;
         }
 
-        private static List<NamedExpression> keepResolver(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
+        /** What a wildcard projection that matches nothing in the child output should do. */
+        private enum UnmatchedPatterns {
+            /** Drop the wildcard, letting the {@code _unmapped_fields} expansion apply it later. */
+            IGNORE,
+            /** Keep the unresolved attribute so the {@code Verifier} reports "No matches found". */
+            FAIL
+        }
+
+        private static List<NamedExpression> keepResolver(
+            List<? extends NamedExpression> projections,
+            List<Attribute> childOutput,
+            UnmatchedPatterns unmatchedPatterns
+        ) {
             List<NamedExpression> resolvedProjections;
             // start with projections
 
@@ -2216,7 +2296,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         resolved = excludeExternalMetadata(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
-                        resolved = resolveAgainstList(up, childOutput);
+                        List<Attribute> matched = resolveAgainstList(up, childOutput);
+                        // A wildcard that matches nothing resolves to a single unresolved UnresolvedAttribute. Under
+                        // LOAD_ALL it may match only (not-yet-visible) unmapped source fields, so skip it here and let
+                        // the _unmapped_fields expansion apply it later, instead of failing with "No matches found".
+                        if (unmatchedPatterns == UnmatchedPatterns.IGNORE
+                            && matched.size() == 1
+                            && matched.getFirst() instanceof UnresolvedAttribute) {
+                            continue;
+                        }
+                        resolved = matched;
                         priority = 3;
                     } else if (proj instanceof UnsupportedAttribute) {
                         resolved = List.of(proj.toAttribute());
@@ -2246,14 +2335,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static LogicalPlan resolveDrop(Drop drop, UnmappedResolution unmappedResolution) {
             return unmappedResolution != UnmappedResolution.DEFAULT
-                ? new ResolvingProject(drop.source(), drop.child(), inputAttributes -> dropResolver(drop.removals(), inputAttributes, true))
-                : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), false));
+                ? new ResolvingProject(
+                    drop.source(),
+                    drop.child(),
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.DROP,
+                        drop.removals(),
+                        inputAttributes -> dropResolver(drop.removals(), inputAttributes, UnmatchedPatterns.IGNORE)
+                    )
+                )
+                : new Project(drop.source(), drop.child(), dropResolver(drop.removals(), drop.output(), UnmatchedPatterns.FAIL));
         }
 
         private static List<NamedExpression> dropResolver(
             List<NamedExpression> removals,
             List<Attribute> childOutput,
-            boolean ignoreUnmatchedPatterns
+            UnmatchedPatterns unmatchedPatterns
         ) {
             // DROP must operate over the full childOutput — including any external metadata
             // (`_file.*`, partition columns) the user already pulled in via KEEP — so it can
@@ -2267,8 +2364,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 if (ne instanceof UnresolvedNamePattern np) {
                     resolved = resolveAgainstList(np, childOutput);
-                    // A wildcard that matches no field resolves to a single unresolved UnresolvedPattern.
-                    if (ignoreUnmatchedPatterns && resolved.size() == 1 && resolved.getFirst() instanceof UnresolvedAttribute) {
+                    // A wildcard that matches no field resolves to a single unresolved UnresolvedAttribute.
+                    if (unmatchedPatterns == UnmatchedPatterns.IGNORE
+                        && resolved.size() == 1
+                        && resolved.getFirst() instanceof UnresolvedAttribute) {
                         continue;
                     }
                 } else if (ne instanceof UnresolvedAttribute ua) {
@@ -2300,7 +2399,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new ResolvingProject(
                     rename.source(),
                     rename.child(),
-                    inputAttributes -> projectionsForRename(rename, inputAttributes, log)
+                    new ResolvingProject.Command(
+                        ResolvingProject.Kind.RENAME,
+                        rename.renamings(),
+                        inputAttributes -> projectionsForRename(rename, inputAttributes, log)
+                    )
                 );
         }
 
@@ -3164,7 +3267,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
                 if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
-                    boolean loadUnmappedFields = context.unmappedResolution() == UnmappedResolution.LOAD;
+                    boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
                     if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
                     }
@@ -3401,7 +3504,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We start by dropping synthetic attributes if the plan is resolved
             LogicalPlan cleanPlan = plan.resolved() ? planWithoutSyntheticAttributes(plan) : plan;
 
-            if (context.unmappedResolution() == UnmappedResolution.LOAD && cleanPlan.resolved()) {
+            if (context.unmappedResolution().loadsUnmappedFields() && cleanPlan.resolved()) {
                 // A single-type PUNK that survives to here has neither an implicit nor an explicit KEYWORD conversion (those turn it into a
                 // UnionTypeEsField earlier), so it falls back to null where unmapped. Warn once for each such field whose value the user
                 // can actually observe (it reaches the final output or is consumed by some, non-conversion expression).
@@ -3413,13 +3516,58 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // unsupported / unresolved fields can be explicitly retained
             return cleanPlan.transformUp(
                 LogicalPlan.class,
-                p -> p.transformExpressionsOnly(
-                    FieldAttribute.class,
-                    fa -> fa.field() instanceof PotentiallyUnmappedSingleTypeEsField punk
-                        ? fallbackToMappedType(fa, punk)
-                        : fa.flagTypeConflicts()
-                )
+                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
             );
+        }
+
+        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
+            EsField field = fa.field();
+            FieldAttribute shipped;
+            if (field instanceof PotentiallyUnmappedSingleTypeEsField punk) {
+                // Falls back to its single mapped type; that mapped field may still carry a nested conflict to neutralize.
+                shipped = fallbackToMappedType(fa, punk);
+            } else if (field instanceof TypeConflictedField) {
+                // A top-level conflict is representable as an UnsupportedAttribute; its properties never ship.
+                return fa.flagTypeConflicts();
+            } else {
+                shipped = fa;
+            }
+            EsField cleaned = stripNestedConflicts(shipped.field());
+            return cleaned == shipped.field() ? shipped : shipped.withField(cleaned);
+        }
+
+        /**
+         * A conflict object nested in a healthy parent's {@code properties} throws when the parent serializes, so swap it for a
+         * transportable {@link UnsupportedEsField} instead of stripping the properties: a text parent resolves its exact keyword
+         * sub-field from this map on the data node ({@code TextEsField#getExactInfo}, used by Lucene pushdown), and the unsupported
+         * replacement keeps the conflict's original types for error messages. Healthy sub-fields are kept as-is (rebuilding the
+         * parent would downgrade an unsupported one and lose its original types), so the parent is rebuilt only when a nested
+         * conflict was actually replaced.
+         */
+        private static EsField stripNestedConflicts(EsField field) {
+            Map<String, EsField> properties = field.getProperties();
+            if (properties == null || properties.isEmpty()) {
+                return field;
+            }
+            Map<String, EsField> rewritten = new LinkedHashMap<>(properties.size());
+            boolean changed = false;
+            for (Map.Entry<String, EsField> entry : properties.entrySet()) {
+                EsField child = entry.getValue();
+                EsField cleanedChild = asTransportable(child);
+                rewritten.put(entry.getKey(), cleanedChild);
+                changed |= cleanedChild != child;
+            }
+            return changed ? field.withProperties(rewritten) : field;
+        }
+
+        private static EsField asTransportable(EsField field) {
+            if (field instanceof TypeConflictedField tcf) {
+                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+            }
+            if (field instanceof InvalidMappedTsField imtf) {
+                return new UnsupportedEsField(imtf.getName(), List.of());
+            }
+            return stripNestedConflicts(field);
         }
 
         private static void warnObservedNonLoadablePunks(LogicalPlan plan, AnalyzerContext context) {
@@ -3556,7 +3704,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
             // so that it can be resolved via the union types / UnionTypeEsField mechanism instead.
-            if (context.unmappedResolution() == UnmappedResolution.LOAD && tcf.isPotentiallyUnmapped()) {
+            if (context.unmappedResolution().loadsUnmappedFields() && tcf.isPotentiallyUnmapped()) {
                 return false;
             }
             return true;
@@ -3578,7 +3726,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveTwoLeggedPunksInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+            if (context.unmappedResolution().loadsUnmappedFields() == false) {
                 return plan;
             }
 

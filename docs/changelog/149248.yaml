@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149248
-summary: Cut S3 download + Snappy copies on hot path
-type: enhancement

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements;
 import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,15 +32,16 @@ import static org.elasticsearch.cluster.BoostedAndUnboostedCacheRequirements.NO_
 
 /**
  * Deprioritizes allocation of search shards to a node whose shared cache is already, or would become, over-subscribed, by returning
- * {@link Decision#NOT_PREFERRED}. The decider reasons about the boosted/unboosted cache commitment data recorded in
- * {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
+ * {@link Decision#NOT_PREFERRED} from {@link #canAllocate}, and deprioritizes leaving a search shard on a node whose shared cache is
+ * already over-subscribed by returning {@link Decision#NOT_PREFERRED} from {@link #canRemain}. The decider reasons about the
+ * boosted/unboosted cache commitment data recorded in {@link org.elasticsearch.cluster.ClusterInfo#getShardCacheRequirements()} and
  * {@link org.elasticsearch.cluster.ClusterInfo#getNodeCacheSizeAndCommitments()}. The decider as a whole is disabled by default via
  * {@link #ENABLED_SETTING}.
  */
 public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(SharedCacheCapacityAllocationDecider.class);
-    private static final String NAME = "shared_cache_capacity";
+    public static final String NAME = "shared_cache_capacity";
 
     /**
      * Whether the decider considers only boosted cache commitment, or the combined boosted and unboosted commitment, when comparing
@@ -101,8 +103,8 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
-     * The {@code canRemain} threshold. Above this, the decider will return {@link Decision#NOT_PREFERRED} for canRemain decisions for
-     * existing shards. Note: canRemain will be implemented in a future change.
+     * The {@code canRemain} threshold. Above this, the decider returns {@link Decision#NOT_PREFERRED} for shards already allocated to
+     * the node.
      */
     public static final Setting<RatioValue> HIGH_WATERMARK_SETTING = new Setting<>(
         "cluster.routing.allocation.shared_cache_capacity.watermark.high",
@@ -113,11 +115,34 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
     );
 
     /**
+     * A dynamic override for {@link #canRemain} specifically. When this is disabled, {@link #canRemain} always returns
+     * {@link Decision#YES}, even when the decider as a whole ({@link #ENABLED_SETTING}) is enabled.
+     */
+    public static final Setting<Boolean> CAN_REMAIN_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.shared_cache_capacity.can_remain.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Rate-limits how often the debug-level explanation message is logged for a given canAllocate decision path.
      */
     public static final Setting<TimeValue> MINIMUM_LOGGING_INTERVAL = Setting.timeSetting(
         "cluster.routing.allocation.shared_cache_capacity.log_interval",
         TimeValue.timeValueMinutes(1),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Rate-limits how often {@link SharedCacheCapacityMonitor} retries a reroute for nodes still over the high watermark. A newly
+     * observed watermark transition always reroutes immediately and is never subject to this interval.
+     */
+    public static final Setting<TimeValue> REROUTE_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.shared_cache_capacity.reroute_interval",
+        TimeValue.timeValueSeconds(15),
+        TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -134,19 +159,32 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
         "shared cache capacity decider is applicable only to search nodes"
     );
 
+    private static final Decision YES_CAN_REMAIN_DISABLED = Decision.single(
+        Decision.Type.YES,
+        NAME,
+        "shared cache capacity decider's canRemain check is disabled"
+    );
+
     private final FrequencyCappedAction logCanAllocateMessage;
+    private final FrequencyCappedAction logCanRemainMessage;
     private volatile boolean enabled;
+    private volatile boolean canRemainEnabled;
     private volatile CacheAccountingMode accountingMode;
     private volatile RatioValue lowWatermark;
     private volatile RatioValue highWatermark;
 
     public SharedCacheCapacityAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(ENABLED_SETTING, value -> this.enabled = value);
+        clusterSettings.initializeAndWatch(CAN_REMAIN_ENABLED_SETTING, value -> this.canRemainEnabled = value);
         clusterSettings.initializeAndWatch(ACCOUNTING_MODE_SETTING, value -> this.accountingMode = value);
         clusterSettings.initializeAndWatch(LOW_WATERMARK_SETTING, value -> this.lowWatermark = value);
         clusterSettings.initializeAndWatch(HIGH_WATERMARK_SETTING, value -> this.highWatermark = value);
         logCanAllocateMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
-        clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, logCanAllocateMessage::setMinInterval);
+        logCanRemainMessage = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        clusterSettings.initializeAndWatch(MINIMUM_LOGGING_INTERVAL, value -> {
+            logCanAllocateMessage.setMinInterval(value);
+            logCanRemainMessage.setMinInterval(value);
+        });
     }
 
     @Override
@@ -248,6 +286,75 @@ public class SharedCacheCapacityAllocationDecider extends AllocationDecider {
             currentCommitmentBytes,
             newCommitmentBytes,
             thresholdBytes,
+            accountingMode
+        );
+    }
+
+    @Override
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (enabled == false) {
+            return YES_SHARED_CACHE_CAPACITY_DECIDER_DISABLED;
+        }
+
+        if (canRemainEnabled == false) {
+            return YES_CAN_REMAIN_DISABLED;
+        }
+
+        if (node.node().getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) == false) {
+            return YES_SHARED_CACHE_CAPACITY_FOR_SEARCH_NODE_ONLY;
+        }
+
+        final Map<String, NodeCacheSizeAndCommitments> nodeCacheSizeAndCommitments = allocation.clusterInfo()
+            .getNodeCacheSizeAndCommitments();
+        assert nodeCacheSizeAndCommitments != null;
+        final NodeCacheSizeAndCommitments nodeCommitments = nodeCacheSizeAndCommitments.get(node.nodeId());
+        if (nodeCommitments == null) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "no cache size and commitment data available for node [%s]",
+                node.getShortNodeDescription()
+            );
+        }
+
+        // The shard being evaluated is already allocated to this node, so its cost is already reflected in nodeCommitments. If a different
+        // shard move alleviates the pressure, the simulation updates nodeCommitments accordingly before the node is re-evaluated for
+        // any remaining shards.
+
+        // Snapshot the dynamic settings once so a concurrent settings update can't mix values from different accounting modes (or
+        // watermarks) within a single decision.
+        final CacheAccountingMode accountingMode = this.accountingMode;
+        final RatioValue highWatermark = this.highWatermark;
+        final long currentCommitmentBytes = accountingMode.getCurrentCommitmentBytes(nodeCommitments);
+        final long thresholdBytes = (long) (nodeCommitments.cacheSizeInBytes() * highWatermark.getAsRatio());
+
+        if (currentCommitmentBytes > thresholdBytes) {
+            if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                final String message = Strings.format(
+                    "node [%s] cache commitment [%d] bytes exceeds the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
+                    node.getShortNodeDescription(),
+                    currentCommitmentBytes,
+                    thresholdBytes,
+                    highWatermark.getAsPercent(),
+                    accountingMode
+                );
+                if (logger.isDebugEnabled()) {
+                    logCanRemainMessage.maybeExecute(() -> logger.debug(message));
+                }
+                return allocation.decision(Decision.NOT_PREFERRED, NAME, message);
+            } else {
+                return Decision.NOT_PREFERRED;
+            }
+        }
+
+        return allocation.decision(
+            Decision.YES,
+            NAME,
+            "node [%s] cache commitment [%d] bytes is below the high watermark [%d] bytes ([%.2f%%], accounting mode [%s])",
+            node.getShortNodeDescription(),
+            currentCommitmentBytes,
+            thresholdBytes,
+            highWatermark.getAsPercent(),
             accountingMode
         );
     }

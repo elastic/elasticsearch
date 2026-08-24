@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import java.nio.charset.StandardCharsets;
 
 /**
- * A forward-only reader over a key-value structure in EIRF format.
+ * A forward-only reader over a key-value structure in the batch key-value format (see {@link SourceBatchEncodeHelper}).
  *
  * <p>Layout: a sequence of entries, each being:
  * <pre>
@@ -71,6 +71,7 @@ public final class KeyValueReader {
         }
         int keyLen = ByteUtils.readIntLE(data, pos);
         pos += 4;
+        // TODO: if performance is a concern we can lazy decode this key.
         currentKey = new String(data, pos, keyLen, StandardCharsets.UTF_8);
         pos += keyLen;
         currentType = data[pos];

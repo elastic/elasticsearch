@@ -78,7 +78,7 @@ setup:
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "3"}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source
@@ -136,7 +136,7 @@ setup:
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "3"}
 
-  # Make sure reindex closed all the scroll contexts
+  # Make sure reindex closed all the search contexts
   - do:
       indices.stats:
         index: source

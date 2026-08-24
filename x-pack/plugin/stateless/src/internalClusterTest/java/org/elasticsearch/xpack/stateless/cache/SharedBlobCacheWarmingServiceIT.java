@@ -45,8 +45,8 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -1484,7 +1484,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
             MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService maybeNoFreeRegionForWarmingBlobCacheService =
                 new MaybeNoFreeRegionForWarmingStatelessSharedBlobCacheService(
@@ -1493,9 +1494,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     threadPool,
                     blobCacheMetrics,
                     clusterService,
-                    indicesService
+                    indicesService,
+                    metricHolder
                 );
-            maybeNoFreeRegionForWarmingBlobCacheService.assertInvariants();
             return maybeNoFreeRegionForWarmingBlobCacheService;
         }
     }
@@ -1509,17 +1510,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             ThreadPool threadPool,
             BlobCacheMetrics blobCacheMetrics,
             ClusterService clusterService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder
         ) {
-            super(
-                environment,
-                settings,
-                threadPool,
-                blobCacheMetrics,
-                clusterService,
-                indicesService,
-                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
-            );
+            super(environment, settings, threadPool, blobCacheMetrics, clusterService, indicesService, metricHolder);
         }
 
         @Override
@@ -1530,13 +1524,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             long blobLength,
             RangeMissingHandler writer,
             Executor fetchExecutor,
+            long timestampMillis,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, listener);
+                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
             }
         }
     }

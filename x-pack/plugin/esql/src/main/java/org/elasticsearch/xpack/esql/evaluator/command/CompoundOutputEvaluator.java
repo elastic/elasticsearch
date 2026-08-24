@@ -74,9 +74,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
     ) implements ColumnExtractOperator.Evaluator.Factory {
 
         public CompoundOutputEvaluator create(DriverContext driverContext) {
-            Warnings warnings = (driverContext == null || source == null)
-                ? Warnings.NOOP_WARNINGS
-                : Warnings.createWarnings(driverContext.warningsMode(), source);
+            Warnings warnings = (driverContext == null || source == null) ? Warnings.NOOP_WARNINGS : driverContext.createWarnings(source);
             OutputFieldsCollector outputFieldsCollector = outputFieldsCollectorProvider.createOutputFieldsCollector();
             return new CompoundOutputEvaluator(inputType, multiValueStrategy, warnings, outputFieldsCollector);
         }
@@ -149,7 +147,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         }
 
         /**
-         * A {@link Block.Builder[]} holder that is being set before each row evaluation.
+         * A {@link Block.Builder Block.Builder[]} holder that is being set before each row evaluation.
          * In addition, it tracks the status of the output fields for the current row.
          */
         protected final RowOutput rowOutput;
@@ -188,7 +186,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
     }
 
     /**
-     * A {@link Block.Builder[]} holder that is being set before each row evaluation.
+     * A {@link Block.Builder Block.Builder[]} holder that is being set before each row evaluation.
      * In addition, it tracks the status of the output fields for the current row.
      * <p>
      * All {@code append*} methods are allocation-free on the steady-state per-row path:

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -34,20 +35,29 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class FilteringAllocationIT extends ESIntegTestCase {
 
     public void testDecommissionNodeNoReplicas() {
         logger.info("--> starting 2 nodes");
-        List<String> nodesIds = internalCluster().startNodes(2);
-        final String node_0 = nodesIds.get(0);
-        final String node_1 = nodesIds.get(1);
+        List<String> nodesNames = internalCluster().startNodes(2);
+        final String node_0 = nodesNames.get(0);
+        final String node_1 = nodesNames.get(1);
         assertThat(cluster().size(), equalTo(2));
 
-        logger.info("--> creating an index with no replicas");
-        createIndex("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
+        int numShards = randomIntBetween(5, 10);
+        logger.info("--> creating an index with no replicas and {} shards", numShards);
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .build()
+        );
         ensureGreen("test");
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
@@ -56,12 +66,6 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
-        final boolean closed = randomBoolean();
-        if (closed) {
-            assertAcked(indicesAdmin().prepareClose("test"));
-            ensureGreen("test");
-        }
-
         logger.info("--> decommission the second node");
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1));
         ensureGreen("test");
@@ -69,6 +73,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> verify all are allocated on node1 now");
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            assertThat(indexRoutingTable.size(), equalTo(numShards));
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
                 for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
@@ -77,12 +82,77 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             }
         }
 
-        if (closed) {
-            assertAcked(indicesAdmin().prepareOpen("test"));
+        indicesAdmin().prepareRefresh().get();
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
+
+        List<ShardRouting.RecoveryPriority> shardRecoveryPriorities = retrieveShardRecoveryPriorities("test");
+        assertThat(
+            shardRecoveryPriorities,
+            // The shards which were initially assigned to node_0 should have been recovered there with priority UNASSIGNED_NEW_PRIMARY.
+            // Those which were initially assigned to node_1 should have been recovered on node_0 with priority RELOCATION_CAN_REMAIN_NO.
+            everyItem(
+                anyOf(
+                    equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY),
+                    equalTo(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO)
+                )
+            )
+        );
+    }
+
+    public void testDecommissionNodeWhileIndexClosedNoReplicas() {
+        logger.info("--> starting 2 nodes");
+        List<String> nodesNames = internalCluster().startNodes(2);
+        final String node_0 = nodesNames.get(0);
+        final String node_1 = nodesNames.get(1);
+        assertThat(cluster().size(), equalTo(2));
+
+        int numShards = randomIntBetween(5, 10);
+        logger.info("--> creating an index with no replicas and {} shards", numShards);
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+                .build()
+        );
+        ensureGreen("test");
+        logger.info("--> index some data");
+        for (int i = 0; i < 100; i++) {
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
+        indicesAdmin().prepareRefresh().get();
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
+
+        assertAcked(indicesAdmin().prepareClose("test"));
+        ensureGreen("test");
+
+        logger.info("--> decommission the second node");
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", node_1));
+        ensureGreen("test");
+
+        logger.info("--> verify all are allocated on node1 now");
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            assertThat(indexRoutingTable.size(), equalTo(numShards));
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                    assertThat(clusterState.nodes().get(indexShardRoutingTable.shard(copy).currentNodeId()).getName(), equalTo(node_0));
+                }
+            }
+        }
+
+        assertAcked(indicesAdmin().prepareOpen("test"));
 
         indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
+
+        List<ShardRouting.RecoveryPriority> shardRecoveryPriorities = retrieveShardRecoveryPriorities("test");
+        assertThat(
+            shardRecoveryPriorities,
+            // The shards should all have been recovered with priority UNASSIGNED_EXPECTED when the index was reopened.
+            everyItem(equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED))
+        );
     }
 
     public void testAutoExpandReplicasToFilteredNodes() {
@@ -270,5 +340,16 @@ public class FilteringAllocationIT extends ESIntegTestCase {
                 includeNodes.contains(node)
             );
         }
+    }
+
+    private static List<ShardRouting.RecoveryPriority> retrieveShardRecoveryPriorities(String index) {
+        return admin().indices()
+            .prepareRecoveries(index)
+            .get()
+            .shardRecoveryStates()
+            .get(index)
+            .stream()
+            .map(RecoveryState::getRecoveryPriority)
+            .toList();
     }
 }

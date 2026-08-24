@@ -135,6 +135,16 @@ $$$knn-query-query-vector-builder$$$ `query_vector_builder`
 :   (Optional, float) The percentage of vectors to explore per shard while doing knn search with `bbq_disk`. Must be between 0 and 100.  0 will default to using `num_candidates` for calculating the percent visited. Increasing `visit_percentage` tends to improve the accuracy of the final results.  If `visit_percentage` is set for `bbq_disk`, `num_candidates` is ignored. Defaults to ~1% per shard for every 1 million vectors.
 
 
+`near_real_time` {applies_to}`stack: ga 9.5`
+:   (Optional, boolean) Controls whether approximate kNN search includes vectors from data that was indexed recently but not yet fully optimized for search.
+    
+    - When `true`, kNN search can include vectors from newly indexed data, even if {{es}} has not finished optimizing them yet.
+   -  When `false`, kNN search skips vectors that are not yet fully optimized. Indexing throughput is higher on large vector workloads, but newly indexed documents won't appear in kNN results immediately.
+    
+    Defaults to `true` for [`standard`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) index mode and `false` for [`vectordb_document`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).
+    Refer to [Near-real-time kNN](docs-content://solutions/search/vector/knn.md#near-real-time-knn) for an example of how to override the default behavior.
+
+
 `filter`
 :   (Optional, query object) Query to filter the documents that can match. The kNN search will return the top documents that also match this filter. The value can be a single query or a list of queries. If `filter` is not provided, all documents are allowed to match.
 

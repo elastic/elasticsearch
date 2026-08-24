@@ -161,16 +161,22 @@ public final class CsvSpecReader {
      * @param resource  the decoded resource URI or {@code {{template}}} placeholder: surrounding quotes
      *                  removed and backslash escapes resolved (e.g. {@code \"} -&gt; {@code "})
      * @param withJson  the brace-delimited JSON options object (e.g. {@code {"header_row": false}}), or
-     *                  {@code null} when the directive carries no {@code WITH} clause
+     *                  {@code null} when the directive carries no {@code WITH} clause. Uninterpreted here;
+     *                  the reserved {@code mappings} key is split out downstream by {@code DatasetRegistry}
      */
     public record DatasetSource(String name, String resource, String withJson) {}
 
     /**
      * Parses {@code dataset:} preamble directives of the form
      * {@code dataset: <name>: "<resource>" [WITH {<json>}] [// comment]}. Each declares one named external
-     * source whose format options are exactly today's EXTERNAL {@code WITH} options; storage connection
-     * settings are still injected by the test harness, never written in the spec. The directive is
+     * source. The {@code WITH} object is the dataset's option surface: every key is a format option except
+     * the reserved {@code mappings}, whose value is the dataset's declared schema and which
+     * {@code DatasetRegistry} lifts out to the PUT body's top-level {@code mappings} field. Storage
+     * connection settings are still injected by the test harness, never written in the spec. The directive is
      * repeatable so a single query can reference multiple datasets.
+     * <p>
+     * This parser does not interpret the JSON at all -- it only delimits it -- so the reserved key needs no
+     * grammar support here.
      * <p>
      * The resource string supports {@code \\}-escapes (so it may contain an embedded {@code "}), and a
      * trailing {@code //} comment is permitted after the resource or after the {@code WITH} object.
@@ -544,6 +550,21 @@ public final class CsvSpecReader {
             expectedWarningsRegexString.replaceAll(updater::apply);
             expectedWarningsRegex.clear();
             expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+        }
+
+        /**
+         * Makes expected warnings optional: they may or may not appear in the response.
+         * Any actual warning must still match one of the expected patterns.
+         * Used in mixed/multi-cluster tests where older nodes (pre-9.6) may not propagate
+         * warnings correctly due to a threading bug fixed in 9.6.
+         */
+        public void makeWarningsOptional() {
+            if (expectedWarnings.isEmpty() == false) {
+                expectedWarningsRegexString.addAll(expectedWarnings.stream().map(Pattern::quote).toList());
+                expectedWarnings.clear();
+                expectedWarningsRegex.clear();
+                expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
+            }
         }
 
         /**

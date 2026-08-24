@@ -225,7 +225,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerLongAsyncCounter(
+            registry.registerLongGauge(
                 "es.translog.earliest_last_modified.time",
                 "Earliest last modified age for the transaction log.",
                 "time",
@@ -693,7 +693,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "The total time flushes have been executed excluding waiting time on locks",
                 "milliseconds",
                 () -> new LongWithAttributes(
-                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeInMillis() : 0L
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getFlush())
+                        .map(o -> o.getTotalTimeInMillis())
+                        .orElse(0L)
                 )
             )
         );
@@ -704,9 +708,11 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 "The total time flushes have been executed excluding waiting time on locks",
                 "milliseconds",
                 () -> new LongWithAttributes(
-                    stats.getOrRefresh() != null
-                        ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingOnLockMillis()
-                        : 0L
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getFlush())
+                        .map(o -> o.getTotalTimeExcludingWaitingOnLockMillis())
+                        .orElse(0L)
                 )
             )
         );

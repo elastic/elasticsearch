@@ -12,8 +12,8 @@ package org.elasticsearch.benchmark.index.codec.columnar;
 import org.apache.lucene.util.NumericUtils;
 
 /**
- * Deterministic numeric data shapes for the ColumNAR benchmarks. A given workload always produces the
- * same values, so every format sees identical input.
+ * Deterministic numeric data shapes for the ColumNAR benchmarks. A given workload always produces
+ * the same values, so every format sees identical input.
  */
 final class NumericData {
 
@@ -25,6 +25,7 @@ final class NumericData {
         Rng rng = new Rng(workloadSeed(workload));
         long[] values = new long[count];
         long timestamp = 1_700_000_000_000L;
+        double counterValue = 0.0;
         for (int i = 0; i < count; i++) {
             values[i] = switch (workload) {
                 case "MONOTONIC_TIMESTAMPS" -> {
@@ -34,6 +35,11 @@ final class NumericData {
                 }
                 case "COUNTER_STEADY" -> 1000L * i;
                 case "GAUGE" -> 50_000_000L + rng.nextInt(201) - 100;
+                case "DOUBLE_GAUGE" -> NumericUtils.doubleToSortableLong(50.0 + (rng.nextInt(201) - 100) * 0.01);
+                case "DOUBLE_COUNTER" -> {
+                    counterValue += 1.5 + rng.nextInt(100) * 0.001;
+                    yield NumericUtils.doubleToSortableLong(counterValue);
+                }
                 case "LOW_CARDINALITY" -> LOW_CARDINALITY_CODES[rng.nextInt(LOW_CARDINALITY_CODES.length)];
                 case "SMALL_INTS" -> rng.nextInt(256);
                 case "RANDOM_FULL" -> rng.nextLong();
@@ -68,11 +74,13 @@ final class NumericData {
             case "DECREASING" -> 10L;
             case "GCD_FRIENDLY" -> 11L;
             case "NEAR_CONSTANT_OUTLIERS" -> 12L;
+            case "DOUBLE_GAUGE" -> 13L;
+            case "DOUBLE_COUNTER" -> 14L;
             default -> throw new IllegalArgumentException("Unknown workload: " + workload);
         };
     }
 
-    /** A tiny deterministic SplitMix64 generator — reproducible and dependency-free. */
+    /** A tiny deterministic SplitMix64 generator, reproducible and dependency-free. */
     static final class Rng {
         private long state;
 

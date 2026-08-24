@@ -14,10 +14,10 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
-import org.elasticsearch.simdvec.IndexInputUtils;
-import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
@@ -35,7 +35,7 @@ import java.util.Optional;
  */
 public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
-    private static final VectorSimilarityFunctions DISTANCE_FUNCS = NativeAccess.instance()
+    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
@@ -228,7 +228,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             checkOrdinal(node);
             long nodeOffset = (long) node * vectorPitch;
             input.seek(nodeOffset);
-            return IndexInputUtils.withSlice(input, vectorPitch, scratch::getScratch, seg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
                 int rawScore = DISTANCE_FUNCS.dotProductI4(query.unpackedQuery(), seg, packedDims);
                 return applyCorrections(rawScore, seg.asSlice(packedDims, CORRECTIONS_BYTES), query);
             });
@@ -244,7 +244,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             }
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
             MemorySegment scoresSeg = MemorySegment.ofArray(scores);
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
                 DISTANCE_FUNCS.dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg);
                 maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes, query);
             });

@@ -201,6 +201,16 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
         assertThat(decoratedRandom, Matchers.instanceOf(RandomAccessInput.class));
     }
 
+    public void testCreateLeavesSelfAccountingInputsUnwrapped() {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput selfAccounting = mock(IndexInput.class, withSettings().extraInterfaces(SelfAccountingIndexInput.class));
+
+        IndexInput created = StoreMetricsIndexInput.create("test", selfAccounting, metricHolder);
+
+        assertThat(created, Matchers.sameInstance(selfAccounting));
+        verify((SelfAccountingIndexInput) selfAccounting).accountBytesReadTo(metricHolder);
+    }
+
     // Verifies that withMemorySegmentSlice delegates to the wrapped input when it implements DirectAccessInput.
     @SuppressWarnings("unchecked")
     public void testWithByteBufferSliceDelegatesToDAI() throws IOException {

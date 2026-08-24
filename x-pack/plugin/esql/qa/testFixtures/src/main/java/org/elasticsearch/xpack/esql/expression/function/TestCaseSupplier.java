@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Nullable;
@@ -431,6 +432,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean allowRhsZero
     ) {
+        return forBinaryComparisonWithWidening(typeStuff, lhsName, rhsName, warnings, allowRhsZero, false);
+    }
+
+    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
+        NumericTypeTestConfigs<Boolean> typeStuff,
+        String lhsName,
+        String rhsName,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
+        boolean allowRhsZero,
+        boolean forceLiteralRhs
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
 
@@ -448,15 +460,24 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "="
                     + getCastEvaluator("Attribute[channel=1]", rhs, expected)
                     + "]";
+                List<TypedDataSupplier> rhsSuppliers = getSuppliersForNumericType(
+                    rhsType,
+                    expectedTypeStuff.min(),
+                    expectedTypeStuff.max(),
+                    allowRhsZero
+                );
+                if (forceLiteralRhs) {
+                    rhsSuppliers = rhsSuppliers.stream().map(s -> new TypedDataSupplier(s.name(), s.supplier(), s.type(), true)).toList();
+                }
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    rhsSuppliers,
                     (lhs, rhs) -> equalTo(evaluatorToString.apply(lhs, rhs)),
                     warnings,
                     suppliers,
                     DataType.BOOLEAN,
-                    true
+                    forceLiteralRhs == false
                 );
             }
         }
@@ -953,6 +974,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 warnings
             );
         }
+    }
+
+    public static void forUnaryDoubleRange(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<DoubleRangeBlockBuilder.DoubleRange, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(
+            suppliers,
+            expectedEvaluatorToString,
+            doubleRangeCases(),
+            expectedType,
+            v -> expectedValue.apply((DoubleRangeBlockBuilder.DoubleRange) v),
+            warnings
+        );
     }
 
     public static void forUnaryExponentialHistogram(
@@ -1737,10 +1775,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return List.of(new TypedDataSupplier("<random date range>", TestCaseSupplier::randomDateRange, DataType.DATE_RANGE));
     }
 
+    public static List<TypedDataSupplier> doubleRangeCases() {
+        return List.of(new TypedDataSupplier("<random double range>", TestCaseSupplier::randomDoubleRange, DataType.DOUBLE_RANGE));
+    }
+
     public static LongRangeBlockBuilder.LongRange randomDateRange() {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
         return new LongRangeBlockBuilder.LongRange(from, to);
+    }
+
+    public static DoubleRangeBlockBuilder.DoubleRange randomDoubleRange() {
+        double first = randomDouble();
+        double second;
+        do {
+            second = randomDouble();
+        } while (first == second);
+        return new DoubleRangeBlockBuilder.DoubleRange(Math.min(first, second), Math.max(first, second));
     }
 
     /**

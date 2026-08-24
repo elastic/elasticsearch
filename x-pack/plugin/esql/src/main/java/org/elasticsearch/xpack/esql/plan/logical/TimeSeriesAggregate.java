@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -356,11 +355,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             }
         });
         if ((timestamp instanceof TypedAttribute) == false || timestamp.dataType().isDate() == false) {
-            if (timestamp instanceof UnresolvedTimestamp unresolvedTimestamp) {
-                failures.add(fail(unresolvedTimestamp, unresolvedTimestamp.unresolvedMessage()));
-            } else if (timestamp instanceof UnresolvedAttribute unresolvedAttr) {
-                // e.g. ENRICH p WITH @timestamp = nonexistent -> timestamp is UnresolvedAttribute(@timestamp);
-                // dataType() would throw UnresolvedException without this branch.
+            if (timestamp instanceof UnresolvedAttribute unresolvedAttr) {
                 failures.add(fail(unresolvedAttr, unresolvedAttr.unresolvedMessage()));
             } else {
                 failures.add(

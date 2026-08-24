@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.esql-csv-spec-tests'
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -56,7 +57,7 @@ def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
 def serverProject = project(xpackModule('esql:qa:server'))
 def ndjsonFixtureOutputRoot = file("${buildDir}/ndjson-iceberg-fixtures")
-def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books', 'employees_no_mv']
+def standaloneNdjsonFromCsv = fixtureMatrix.datasetsFor('ndjson')
 
 def generateStandaloneNdjsonTasks = []
 standaloneNdjsonFromCsv.each { baseName ->
@@ -77,7 +78,7 @@ standaloneNdjsonFromCsv.each { baseName ->
   generateStandaloneNdjsonTasks.add(tasks.named(taskName))
 }
 
-// Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.ndjson.
+// Multifile-split fixtures: employees.csv split into multifile_split/employees_NN.ndjson, layout.split.parts ways.
 // Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
 // NdJsonFormatSpecIT's readScriptSpec is broadened to include them.
 def multifileSplitDir = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/multifile_split")
@@ -87,7 +88,7 @@ tasks.register('generateMultifileSplitNdjson_employees', JavaExec) {
   dependsOn testFixturesProject.tasks.named('processResources')
   classpath = serverProject.configurations.ndjsonFixtureGenerator + serverProject.sourceSets.ndjsonFixtureGenerator.output
   mainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
-  args = [multifileSplitCsv.path, multifileSplitDir.path, '3']
+  args = [multifileSplitCsv.path, multifileSplitDir.path, fixtureMatrix.splitParts as String]
   inputs.file(multifileSplitCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'

@@ -15,6 +15,7 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPreco
 apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
 
 dependencies {
   // Test fixtures and spec reader infrastructure
@@ -61,7 +62,7 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv'
+    include fixtureMatrix.datasetsFor('csv').collect { "${it}.csv" }
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
@@ -108,7 +109,7 @@ tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
 // line content (no parsing) so multi-value bracket syntax and typed headers stay intact.
 def multifileSplitDir = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_split")
 def multifileEmployeesCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
-def multifileSplitParts = 3
+def multifileSplitParts = fixtureMatrix.splitParts
 tasks.register('generateMultifileCsvSplit_employees') {
   dependsOn testFixturesProject.tasks.named('processResources')
   inputs.file(multifileEmployeesCsv)
@@ -143,7 +144,7 @@ tasks.register('generateMultifileCsvSplit_employees') {
 }
 
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
-def csvBasenamesForTsv = ['employees', 'web_logs', 'books', 'mv_sample', 'employees_no_mv']
+def csvBasenamesForTsv = fixtureMatrix.datasetsFor('tsv')
 
 def generateStandaloneTsvTasks = []
 csvBasenamesForTsv.each { baseName ->
@@ -163,7 +164,7 @@ csvBasenamesForTsv.each { baseName ->
   generateStandaloneTsvTasks.add(tasks.named(taskName))
 }
 
-// Multifile-split TSV fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.tsv.
+// Multifile-split TSV fixtures: employees.csv split into multifile_split/employees_NN.tsv, layout.split.parts ways.
 // Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
 // TsvFormatSpecIT's readScriptSpec is broadened to include them.
 def tsvMultifileSplitDir = file("${tsvFixtureOutputRoot}/iceberg-fixtures/multifile_split")
@@ -173,7 +174,7 @@ tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
   dependsOn testFixturesProject.tasks.named('processResources')
   classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
   mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
-  args = [tsvMultifileSplitCsv.path, tsvMultifileSplitDir.path, '3']
+  args = [tsvMultifileSplitCsv.path, tsvMultifileSplitDir.path, fixtureMatrix.splitParts as String]
   inputs.file(tsvMultifileSplitCsv)
   outputs.dir(tsvMultifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'

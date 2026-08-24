@@ -40,11 +40,13 @@ dependencies {
 }
 
 // Generate Parquet fixtures at build time from CSV — mirrors the multi-node build exactly.
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
 ext.serverProject = project(xpackModule('esql:qa:server'))
 ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
+// This module runs the baseline datasets only, not the full Parquet set.
+ext.csvToParquetFixtures = fixtureMatrix.baseline()
 // Capture into locals so task configuration closures can reference them without going through ext.
 def serverProj = ext.serverProject
 def testFixturesProj = ext.testFixturesProject

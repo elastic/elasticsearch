@@ -56,13 +56,16 @@ tasks.named('javaRestTestTestingConventions').configure {
 
 // Generate Parquet fixtures at build time from CSV.
 // Uses shared ParquetFixtureGenerator from esql:qa:server.
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
+
 ext.serverProject = project(xpackModule('esql:qa:server'))
 ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
 def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
 // CSV base names for sync + Parquet generation; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
+// This module runs the baseline datasets only, not the full Parquet set.
+ext.csvToParquetFixtures = fixtureMatrix.baseline()
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')

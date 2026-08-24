@@ -1,0 +1,72 @@
+/*
+ * Reads fixture-matrix.properties and hands back the datasets a format must materialise.
+ *
+ * Apply it from a QA build.gradle:
+ *   apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
+ *   def datasets = fixtureMatrix.datasetsFor('parquet')
+ *
+ * The point is that the list is derived, not written down again. Five modules used to keep
+ * their own hand-written copy and three of them had independently converged on the same four
+ * datasets; a dataset added to one was invisible to the rest.
+ */
+
+def matrixFile = buildscript.sourceFile.parentFile.toPath()
+  .resolve('src/main/resources/fixture-matrix.properties').toFile()
+assert matrixFile.exists(): "fixture matrix not found at ${matrixFile}"
+
+def props = new Properties()
+matrixFile.withInputStream { props.load(it) }
+
+// The format axis. Adding a format here is all it takes for every "*" dataset to be
+// materialised in it -- which is the whole reason the declaration is dataset-first.
+def allFormats = ['csv', 'tsv', 'ndjson', 'orc', 'parquet']
+
+def datasetsByFormat = allFormats.collectEntries { [(it): []] }
+// Datasets declared "*" -- the ones every format carries. A module that deliberately runs a
+// reduced set asks for these by name rather than repeating them.
+def baselineDatasets = []
+
+props.stringPropertyNames()
+  .findAll { it.startsWith('dataset.') && it.endsWith('.reason') == false }
+  .sort()
+  .each { key ->
+    def name = key.substring('dataset.'.length())
+    def value = props.getProperty(key).trim()
+    def formats
+    if (value == '*') {
+      formats = allFormats
+      baselineDatasets << name
+    } else {
+      // Opting out is a claim, and a claim needs a reason. This is the gate that keeps a
+      // restriction from being quietly widened into "we just never got round to it".
+      def reason = props.getProperty("${key}.reason")
+      if (reason == null || reason.trim().isEmpty()) {
+        throw new GradleException(
+          "Dataset '${name}' is restricted to [${value}] but declares no reason. Add " +
+          "'${key}.reason = rule: <why no format can carry it>' or " +
+          "'${key}.reason = gap: <why it has not been propagated yet>' to ${matrixFile.name}."
+        )
+      }
+      formats = value.split(',').collect { it.trim() }.findAll { it.isEmpty() == false }
+      def unknown = formats - allFormats
+      if (unknown.isEmpty() == false) {
+        throw new GradleException("Dataset '${name}' names unknown format(s) ${unknown}; known formats are ${allFormats}.")
+      }
+    }
+    formats.each { datasetsByFormat[it] << name }
+  }
+
+ext.fixtureMatrix = [
+  /** Datasets this format must materialise, in declaration order. */
+  datasetsFor: { String format ->
+    if (datasetsByFormat.containsKey(format) == false) {
+      throw new GradleException("Unknown fixture format '${format}'; known formats are ${allFormats}.")
+    }
+    return datasetsByFormat[format].asImmutable()
+  },
+  /** The datasets every format carries, for modules that deliberately run a reduced set. */
+  baseline: { -> baselineDatasets.asImmutable() },
+  /** How many files a split layout produces. */
+  splitParts: Integer.parseInt(props.getProperty('layout.split.parts').trim()),
+  allFormats: allFormats.asImmutable(),
+]

@@ -21,9 +21,10 @@ public class HttpUtils {
     public static final String DATE = "date";
     static final String KEEP_ALIVE = "keep-alive";
 
-    private static final DateTimeFormatter HTTP_DATE_FORMATTER =
-        DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.ENGLISH)
-            .withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter HTTP_DATE_FORMATTER = DateTimeFormatter.ofPattern(
+        "EEE, dd MMM yyyy HH:mm:ss 'GMT'",
+        Locale.ENGLISH
+    ).withZone(ZoneOffset.UTC);
 
     // Determine if the request connection should be closed on completion.
     public static boolean shouldCloseConnection(HttpRequest httpRequest) {
@@ -37,9 +38,9 @@ public class HttpUtils {
         }
     }
 
-    static void addDateHeader(HttpResponse response) {
+    static void addDateHeader(HttpResponse response, Instant now) {
         if (response.containsHeader(DATE) == false) {
-            response.addHeader(DATE, HTTP_DATE_FORMATTER.format(Instant.now()));
+            response.addHeader(DATE, HTTP_DATE_FORMATTER.format(now));
         }
     }
 }

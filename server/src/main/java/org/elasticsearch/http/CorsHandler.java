@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -140,7 +141,7 @@ public class CorsHandler {
     }
 
     private static void setPreflightHeaders(final HttpResponse response) {
-        HttpUtils.addDateHeader(response);
+        HttpUtils.addDateHeader(response, Instant.now());
         response.addHeader("content-length", "0");
     }
 

@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 156640
+pr: 156640
+summary: Fix assignment planner ignoring leftover node capacity for models with memory metadata
+type: bug

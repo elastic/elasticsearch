@@ -45,6 +45,13 @@ public class RestHttpResponseHeadersIT extends AbstractHttpSmokeTestIT {
         assertThat(responseAllowHeaderStringArray, containsInAnyOrder("GET"));
     }
 
+    public void testDateHttpHeader() throws Exception {
+        Response response = client().performRequest(new Request("HEAD", "/"));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getHeader("date"), notNullValue());
+    }
+
+
     /**
      * For requests to a valid REST endpoint using an unsupported HTTP method,
      * verify that a 405 HTTP response code is returned, and that the response

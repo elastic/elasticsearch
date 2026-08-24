@@ -1394,7 +1394,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // tier (or the configured timeout fires), at which point the cleanup fires, removing the entry and closing the VBCC. This ensures
         // search nodes can still fetch VBCC chunks from the indexing node during the notification window. See
         // createAfterNotificationCleanup
-        // and STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
+        // and STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
         private AtomicLong pendingUploadBytes = new AtomicLong(0);

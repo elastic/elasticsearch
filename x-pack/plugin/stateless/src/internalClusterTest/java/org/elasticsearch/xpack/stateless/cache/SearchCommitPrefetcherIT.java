@@ -633,7 +633,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
             .put(
-                StatelessCommitService.STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
                 immediateVbccRelease ? TimeValue.ZERO : TimeValue.timeValueMinutes(5)
             )
             .build();

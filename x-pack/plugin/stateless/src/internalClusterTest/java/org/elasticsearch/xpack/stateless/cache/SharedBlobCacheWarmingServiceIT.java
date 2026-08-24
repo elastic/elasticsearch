@@ -704,7 +704,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(disableIndexingDiskAndMemoryControllersNodeSettings());
         if (immediateVbccRelease) {
             nodeSettingsBuilder.put(
-                StatelessCommitService.STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
+                StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(),
                 TimeValue.ZERO
             );
         }

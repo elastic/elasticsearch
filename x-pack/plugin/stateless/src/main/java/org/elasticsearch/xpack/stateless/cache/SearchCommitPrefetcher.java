@@ -291,6 +291,8 @@ public class SearchCommitPrefetcher {
                 // prefetch completes so that searches don't see isUploaded=true before the cache is populated.
                 // Using the blob store for uploaded files avoids unnecessary load on the indexing node, which
                 // has limited bandwidth compared to the object store.
+                // TODO: the cache still only allows one filler for a region and if warming started filling a
+                // region, a searcher can still incur a partial blob store cache miss wait.
                 var latestUploadedTermAndGen = notification.latestUploadedBatchedCompoundCommitTermAndGen();
                 var fileIsUploaded = latestUploadedTermAndGen != null
                     && blobFile.termAndGeneration().compareTo(latestUploadedTermAndGen) <= 0;

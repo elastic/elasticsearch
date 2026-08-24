@@ -776,3 +776,6 @@ tests:
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options tokens weight out of bounds}
   issue: https://github.com/elastic/elasticsearch/issues/157502
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/50_sparse_vector/Check sparse_vector token pruning index_options mappings defaults}
+  issue: https://github.com/elastic/elasticsearch/issues/157503

@@ -224,8 +224,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * received from the search tier, or when this timeout elapses (whichever happens first). A value of {@code 0} fires immediately and
      * effectively restores the previous behavior of releasing files without waiting for the search tier.
      */
-    public static final Setting<TimeValue> STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT = Setting.timeSetting(
-        "stateless.commits.release_files_after_notification_timeout",
+    public static final Setting<TimeValue> STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT = Setting.timeSetting(
+        "stateless.upload.release_files_after_notification_timeout",
         TimeValue.timeValueSeconds(5),
         TimeValue.ZERO,
         Setting.Property.NodeScope
@@ -342,7 +342,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         this.bccUploadMaxIoRetries = STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES.get(settings).intValue();
         this.bccUploadSlowLogThresholdMillis = STATELESS_UPLOAD_SLOW_LOG_THRESHOLD.get(settings).millis();
-        this.releaseFilesAfterNotificationTimeout = STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.get(settings);
+        this.releaseFilesAfterNotificationTimeout = STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.get(settings);
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
         this.cacheRegionSizeInBytes = cacheService.getRegionSize();
         this.estimatedMaxHeaderSizeInBytes = BlobCacheUtils.toIntBytes(Math.max(0L, cacheRegionSizeInBytes - bccUploadMaxSizeInBytes));

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import java.util.Set;
+
 /**
  * Per-segment (per-field) IVF configuration persisted in {@code mivf}. It has four parts:
  * <ul>
@@ -45,20 +47,72 @@ public record IvfSegmentConfig(
     /**
      * ASH (Asymmetric Scalar Hashing) configuration — used by ASH writers/readers.
      * ASH handles its own packing via {@code AsymmetricHashingScorer} and does not use {@link QuantEncoding}.
+     *
+     * <p>Mirrors how {@link OsqConfig} wraps {@link QuantEncoding} with both document and query bit widths:
+     * {@code bitsPerDim} controls document encoding while {@code queryBitsPerDim} controls query-time
+     * quantization precision. The writer uses document-side parameters for indexing; the reader uses
+     * {@code queryBitsPerDim} for scoring. Set {@code queryBitsPerDim} to 0 for the float scoring path.
+     *
+     * <p>Use {@link #of(int, int, float)} to construct with validation, analogous to
+     * {@link QuantEncoding#fromDocAndQueryBits(byte, byte)} for OSQ.
      */
-    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int trainingIterations, int trainingFactor)
+    public record AshConfig(float projectedDimsFraction, int bitsPerDim, int queryBitsPerDim, int trainingIterations, int trainingFactor)
         implements
             QuantConfig {
+        private static final Set<Integer> SUPPORTED_BITS_PER_DIM = Set.of(1, 2, 3, 4, 8);
+
         public static final float DEFAULT_PROJECTED_DIMS_FRACTION = 0.5f;
         public static final int DEFAULT_BITS_PER_DIM = 2;
+        public static final int DEFAULT_QUERY_BITS_PER_DIM = 4;
         public static final int DEFAULT_TRAINING_ITERATIONS = 5;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
+
+        /**
+         * Returns {@code true} if the given bits-per-dimension value is supported for ASH document encoding.
+         */
+        public static boolean isValidBitsPerDim(int bits) {
+            return SUPPORTED_BITS_PER_DIM.contains(bits);
+        }
+
+        /**
+         * Validates that the given bits-per-dimension value is supported for ASH document encoding.
+         * @throws IllegalArgumentException if {@code bits} is not a supported value
+         */
+        public static void validateBitsPerDim(int bits) {
+            if (isValidBitsPerDim(bits) == false) {
+                throw new IllegalArgumentException("ASH bitsPerDim must be one of " + SUPPORTED_BITS_PER_DIM + ", got: " + bits);
+            }
+        }
+
+        /**
+         * Validates ASH parameters and returns an {@code AshConfig} with default training settings.
+         * Analogous to {@link QuantEncoding#fromDocAndQueryBits(byte, byte)} for OSQ — callers get
+         * validated configuration from a single factory call.
+         *
+         * @param bitsPerDim document encoding bits per projected dimension
+         * @param queryBitsPerDim query quantization bits (0 for float scoring path)
+         * @param projectedDimsFraction fraction of original dimensions to project to, in (0, 1]
+         * @throws IllegalArgumentException if any parameter is out of range
+         */
+        public static AshConfig of(int bitsPerDim, int queryBitsPerDim, float projectedDimsFraction) {
+            validateBitsPerDim(bitsPerDim);
+            if (queryBitsPerDim < 0 || queryBitsPerDim > 8) {
+                throw new IllegalArgumentException(
+                    "ASH queryBitsPerDim must be between 0 and 8 (0 for float scoring path), got: " + queryBitsPerDim
+                );
+            }
+            if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
+                throw new IllegalArgumentException("ASH projectedDimsFraction must be in (0, 1], got: " + projectedDimsFraction);
+            }
+            return new AshConfig(projectedDimsFraction, bitsPerDim, queryBitsPerDim, DEFAULT_TRAINING_ITERATIONS, DEFAULT_TRAINING_FACTOR);
+        }
 
         /** Returns an AshConfig with all default values. */
         public static AshConfig defaults() {
             return new AshConfig(
                 DEFAULT_PROJECTED_DIMS_FRACTION,
                 DEFAULT_BITS_PER_DIM,
+                DEFAULT_QUERY_BITS_PER_DIM,
                 DEFAULT_TRAINING_ITERATIONS,
                 DEFAULT_TRAINING_FACTOR
             );

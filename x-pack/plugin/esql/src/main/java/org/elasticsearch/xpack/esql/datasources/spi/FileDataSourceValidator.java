@@ -271,8 +271,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
-        // partition_detection enum via its owning parser (partition_path/hive_partitioning are free-form,
-        // matching the query path which treats any non-"false" hive value as enabled).
+        // partition_detection enum, plus the combinations in which one of the three partition settings would be
+        // silently ignored, via the owning parser. Stricter than the query path deliberately: PartitionConfig
+        // resolves stored datasets leniently so an upgrade cannot turn a working dataset into a query-time error,
+        // which means a new registration is the only place a contradiction can still be caught.
         validateEnum(
             settings,
             result,
@@ -281,6 +283,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             PartitionConfig.Strategy::parse,
             errors
         );
+        validate(() -> PartitionConfig.validate(settings), errors);
         Object schemaResolution = settings.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
         if (schemaResolution != null) {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);

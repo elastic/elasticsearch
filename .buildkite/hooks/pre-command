@@ -201,6 +201,23 @@ if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
   export ORG_GRADLE_PROJECT_signingPassword
 fi
 
+# Credentials for the DRA maven/javadoc publisher (dra-publish-maven.sh).
+# The `unified-release-maven` AWS role is scoped to the `maven/` and `javadoc/`
+# prefixes on both snapshots.elastic.co and artifacts.elastic.co, provisioned by
+# Artifact Management in
+# https://github.com/elastic/platform-engineering-productivity/issues/2840.
+if [[ "${USE_MAVEN_S3_CREDENTIALS:-}" == "true" ]]; then
+  aws_creds=$(vault_with_retry read -format=json aws-elastic-ci-prod/creds/unified-release-maven)
+  AWS_ACCESS_KEY_ID=$(echo "$aws_creds" | jq -r .data.access_key)
+  AWS_SECRET_ACCESS_KEY=$(echo "$aws_creds" | jq -r .data.secret_key)
+  AWS_SESSION_TOKEN=$(echo "$aws_creds" | jq -r '.data.security_token // empty')
+  export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+  if [[ -n "$AWS_SESSION_TOKEN" ]]; then
+    export AWS_SESSION_TOKEN
+  fi
+  unset aws_creds
+fi
+
 if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
   DRA_VAULT_ROLE_ID_SECRET=$(vault_with_retry read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
   export DRA_VAULT_ROLE_ID_SECRET

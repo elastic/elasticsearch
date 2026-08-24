@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -284,9 +283,9 @@ final class PrefetchedRowGroupBuilder {
             }
             return new PrefetchedPageReader(decompressor, allocator, pages, dictPage, valueCount);
         } catch (IOException e) {
-            throw new IllegalArgumentException(
-                "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]"
             );
         }
     }
@@ -334,13 +333,9 @@ final class PrefetchedRowGroupBuilder {
             }
             return makeDictionaryPage(header, payload);
         } catch (IOException e) {
-            throw new UncheckedIOException(
-                "Failed to parse dictionary page for column ["
-                    + column.getPath().toDotString()
-                    + "] in row group ["
-                    + rowGroupOrdinal
-                    + "]",
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to parse dictionary page for column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]"
             );
         }
     }
@@ -362,9 +357,9 @@ final class PrefetchedRowGroupBuilder {
             ByteBuffer payload = sliceFromBuffer(pageSlice, headerLen, compressedPageSize);
             return makeDataPage(header, payload, primitiveType, firstRowIndex, indexRowCount);
         } catch (IOException e) {
-            throw new UncheckedIOException(
-                "Failed to parse page header for column [" + path + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to parse page header for column [" + path + "] in row group [" + rowGroupOrdinal + "]"
             );
         }
     }

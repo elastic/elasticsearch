@@ -138,7 +138,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                     null,
                     throwingOnStream(injected),
                     codecFactory,
-                    blockFactory.arrowAllocator()
+                    blockFactory.breaker()
                 )
             );
             assertThat(ex, instanceOf(ExternalClientException.class));
@@ -166,7 +166,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                     null,
                     throwingOnStream(injected),
                     codecFactory,
-                    blockFactory.arrowAllocator()
+                    blockFactory.breaker()
                 )
             );
             assertSame(injected, ex);

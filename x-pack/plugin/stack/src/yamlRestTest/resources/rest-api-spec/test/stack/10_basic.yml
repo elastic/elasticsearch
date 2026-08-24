@@ -86,6 +86,13 @@ setup:
 
   - is_false: index_templates.0.index_template.registry_installed
 
+  - do:
+      indices.get_index_template:
+        name: logs
+        hide_registry_installed: false
+
+  - is_true: index_templates.0.index_template.registry_installed
+
 ---
 "Test logs index auto creation":
   - do:

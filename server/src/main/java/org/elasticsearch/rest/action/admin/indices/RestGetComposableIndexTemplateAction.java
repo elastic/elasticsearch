@@ -57,8 +57,8 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         RestUtils.consumeDeprecatedLocalParameter(request);
 
-        // registry_installed is an internal marker; never expose it over the REST API
-        request.params().put(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true");
+        // registry_installed is an internal marker hide it by default
+        request.params().putIfAbsent(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true");
 
         final boolean implicitAll = getRequest.name() == null;
 

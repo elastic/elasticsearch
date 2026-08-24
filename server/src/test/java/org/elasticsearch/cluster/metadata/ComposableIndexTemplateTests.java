@@ -247,7 +247,6 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             assertThat(Strings.toString(builder), containsString("\"registry_installed\":true"));
         }
 
-        // Hidden when REST response param is set (as done by GetComposableIndexTemplateAction.Response)
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             ToXContent.Params params = new ToXContent.MapParams(Map.of(ComposableIndexTemplate.HIDE_REGISTRY_INSTALLED_PARAM, "true"));
             template.toXContent(builder, params);

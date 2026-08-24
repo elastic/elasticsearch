@@ -57,6 +57,11 @@
         "type": "boolean",
         "default": false,
         "description": "Return all relevant default configurations for the index template (default: false)"
+      },
+      "hide_registry_installed": {
+        "type": "boolean",
+        "default": true,
+        "description": "Hides index templates installed by a built-in registry (default: true)"
       }
     }
   }

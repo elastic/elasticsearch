@@ -354,17 +354,12 @@ public class PushQueriesFieldExtractIT extends ESRestTestCase {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
         indexDocs(List.of("aaa", "mmm", "zzz"));
 
-        runAndAssert(
-            String.format(Locale.ROOT, """
-                FROM test
-                | EVAL ext = field_extract(%s, "%s")
-                | WHERE ext >= "b" AND ext <= "y"
-                | KEEP id
-                """, FLATTENED_ROOT, SUBKEY),
-            equalTo(expectedRangeQuery("b", true, "y", true)),
-            ComputeSignature.FILTER_FROM_EVAL,
-            1
-        );
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | EVAL ext = field_extract(%s, "%s")
+            | WHERE ext >= "b" AND ext <= "y"
+            | KEEP id
+            """, FLATTENED_ROOT, SUBKEY), equalTo(expectedRangeQuery("b", true, "y", true)), ComputeSignature.FILTER_FROM_EVAL, 1);
     }
 
     /**

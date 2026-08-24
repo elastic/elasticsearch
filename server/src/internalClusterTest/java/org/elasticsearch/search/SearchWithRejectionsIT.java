@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,10 +85,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         refresh();
 
-        SearchResponse openResponse = prepareSearch("test-scroll").setQuery(matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(5))
-            .get();
+        SearchResponse openResponse = openScrollRetryingRejection("test-scroll");
         String scrollId = openResponse.getScrollId();
         Set<String> seenIds = new HashSet<>();
         try {
@@ -131,7 +129,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                     if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
                         throw new AssertionError("retry scroll after rejection", e);
                     }
-                    throw new AssertionError(e);
+                    throw e;
                 }
                 assertThat(seenIds, equalTo(expectedIds));
             }, 10, TimeUnit.SECONDS);
@@ -139,6 +137,21 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             openResponse.decRef();
             client().prepareClearScroll().addScrollId(scrollId).get();
         }
+    }
+
+    private SearchResponse openScrollRetryingRejection(String index) throws Exception {
+        AtomicReference<SearchResponse> openHolder = new AtomicReference<>();
+        assertBusy(() -> {
+            try {
+                openHolder.set(prepareSearch(index).setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(5)).get());
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                    throw new AssertionError("retry scroll after rejection", e);
+                }
+                throw e;
+            }
+        }, 10, TimeUnit.SECONDS);
+        return openHolder.get();
     }
 
     /**

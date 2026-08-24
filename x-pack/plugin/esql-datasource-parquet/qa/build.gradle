@@ -110,7 +110,7 @@ ext.fixtureLayoutFormat = 'parquet'
 ext.fixtureLayoutRoot = ext.parquetFixtureOutputDir
 ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
 ext.fixtureLayoutGenerator = 'parquetFixtureGenerator'
-ext.fixtureLayoutSkip = (fixtureMatrix.authoredLayouts() - ['multifile']) + ['hive'] as Set
+ext.fixtureLayoutSkip = fixtureMatrix.authoredLayouts() + ['hive'] as Set
 ext.fixtureLayoutTasks = ext.generateParquetTasks
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 

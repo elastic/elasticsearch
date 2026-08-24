@@ -35,10 +35,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Validates and builds operators for the deliberately small post-fetch pushdown fragment supported by fetch.
+ * Validates and builds operators for a constrained post-fetch fragment.
  * <p>
- * At runtime, this class translates a supported pushdown {@link FragmentExec} into an operator pipeline that is
- * appended to the exchange server's data-node driver pipeline.
+ * Production planning currently creates a fragment that contains only {@link FetchSource}. The {@link Eval},
+ * {@link Filter}, and {@link Project} forms are scaffolding for future pushdown work and are not part of the current
+ * fetch contract. When a request contains a recognized {@link FragmentExec}, this class translates it into operators
+ * for the exchange server's data-node driver pipeline.
  * <p>
  * The source fragment's last output attribute is the synthetic position-mapping attribute. It corresponds to the final
  * {@link IntBlock} in the data-node pipeline and must remain the last output block after pushdown execution.
@@ -47,7 +49,7 @@ final class FetchPushdownOperatorBuilder {
     private record PushdownPipeline(Layout layout, NameId positionAttributeId) {}
 
     /**
-     * Validates the fetch pushdown shape used on the wire.
+     * Validates a fetch fragment shape used on the wire.
      * <p>
      * Accepted forms are {@link FragmentExec} wrapping logical nodes from the constrained
      * {@link FetchSource}/{@link Eval}/{@link Filter}/{@link Project} family.
@@ -79,7 +81,7 @@ final class FetchPushdownOperatorBuilder {
     }
 
     /**
-     * Builds runtime operators from a supported, non-null pushdown plan.
+     * Builds runtime operators from a recognized, non-null pushdown plan.
      * <p>
      * Callers should validate request-time payloads with {@link #validateSupportedPlan(PhysicalPlan)} before invoking
      * this method, and skip the call entirely when the request carries no pushdown plan.
@@ -176,6 +178,8 @@ final class FetchPushdownOperatorBuilder {
             PushdownPipeline child = buildFragmentPipeline(evalPlan.child(), factories, shardContexts, foldContext);
             Layout childLayout = child.layout();
             Layout.Builder builder = childLayout.builder();
+            // TODO: Before enabling Eval pushdowns, build each evaluator against the progressively extended layout so
+            // a later alias can reference an alias declared earlier in the same Eval.
             for (Alias field : evalPlan.fields()) {
                 factories.add(new EvalOperatorFactory(EvalMapper.toEvaluator(foldContext, field.child(), childLayout, shardContexts)));
                 builder.append(field.toAttribute());

@@ -53,10 +53,11 @@ import java.util.concurrent.atomic.AtomicLong;
  *     <li>collects response pages from the exchange and merges fetched columns back onto the input rows</li>
  *     <li>emits one output page once every group for that input page has completed</li>
  * </ol>
- * An optional {@code pushdownPlan} may be supplied so filtering happens on the data node. Mapped responses
- * include a trailing position-mapping column ({@link FetchSource#POSITION_ATTRIBUTE_NAME})
- * so rows pruned by pushdown can be omitted from the merged output; see {@link FetchPushdownOperatorBuilder} for the
- * supported pushdown shape.
+ * The {@code pushdownPlan} contains the {@link FetchSource} for the current bare-fetch path. The {@code Eval},
+ * {@code Filter}, and {@code Project} forms are scaffolding for future pushdown work. They are not part of the current
+ * fetch contract. A response from a future pushdown has a trailing position-mapping column
+ * ({@link FetchSource#POSITION_ATTRIBUTE_NAME}). The operator uses this column to omit rows that the pushdown removed.
+ * See {@link FetchPushdownOperatorBuilder} for the recognized plan forms.
  * <p>
  * Transport and data-node execution are handled by {@link FetchService}; this operator owns the coordinator
  * merge and exchange lifecycle only.
@@ -200,6 +201,9 @@ public final class FetchOperator implements Operator {
         if (outputFields.isEmpty()) {
             throw new IllegalArgumentException("fetch requires at least one output field");
         }
+        // TODO: Before enabling fetch pushdowns, replace this bare-fetch width check with separate validation of the
+        // FetchSource inputs against extractionSpecs and the final pushdown output against outputFields, excluding
+        // the synthetic position attribute.
         if (extractionSpecs.size() != outputFields.size()) {
             throw new IllegalArgumentException(
                 "fetch extraction specifications [" + extractionSpecs.size() + "] must match output fields [" + outputFields.size() + "]"
@@ -218,8 +222,9 @@ public final class FetchOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        // TODO: Bound pending groups rather than input pages. One page can fan out into one batch per target session,
-        // so this limit does not cap the number of outstanding fetch batches.
+        // TODO: Before increasing fetch concurrency or fan-out, queue undispatched groups and propagate each target
+        // exchange's write readiness into this operator. Add explicit global and per-target batch bounds so dispatch
+        // honors the exchange buffer capacity instead of relying only on the finite pending-input-page bound.
         return finishing == false && failure == null && pendingInputs.size() < maxPendingInputs;
     }
 

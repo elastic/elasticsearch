@@ -78,10 +78,18 @@ public final class FetchBoundaryExec extends UnaryExec {
         return handoffOutput;
     }
 
+    /**
+     * Indicates that data nodes must retain their search contexts after initial compute. The coordinator uses these
+     * contexts when it resolves the returned fetch handles in a later phase.
+     */
     public boolean requiresRetainedSearchContexts() {
         return true;
     }
 
+    /**
+     * Returns the minimum transport version for this boundary. The planner uses this value to reject data nodes that
+     * cannot process the boundary before it sends the plan.
+     */
     public TransportVersion minimumTransportVersion() {
         return ESQL_FETCH_BOUNDARY;
     }

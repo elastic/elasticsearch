@@ -383,7 +383,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
             Settings.builder()
                 .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 // Use a long timeout so only the notification response (not the timeout) ends the window in this test.
-                .put(StatelessCommitService.STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), "30s")
+                .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), "30s")
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
                 .build()
         );
@@ -474,7 +474,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
             Settings.builder()
                 .put(disableIndexingDiskAndMemoryControllersNodeSettings())
                 // Short timeout so the VBCC is released quickly without waiting for a response.
-                .put(StatelessCommitService.STATELESS_COMMITS_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), "100ms")
+                .put(StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.getKey(), "100ms")
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
                 .build()
         );

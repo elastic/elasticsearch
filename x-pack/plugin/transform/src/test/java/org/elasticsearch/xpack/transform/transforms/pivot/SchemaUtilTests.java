@@ -120,6 +120,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     null,
                     listener
                 ),
@@ -132,6 +133,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] {},
                     listener
                 ),
@@ -144,6 +146,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] { "field-1", "field-2" },
                     listener
                 ),
@@ -161,6 +164,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings, null),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] { "field-1", "field-2" },
                     listener
                 ),
@@ -191,6 +195,7 @@ public class SchemaUtilTests extends ESTestCase {
                         IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
                         projectRouting
                     ),
+                    IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
                     new String[] { "field-1" },
                     listener
                 ),
@@ -211,6 +216,7 @@ public class SchemaUtilTests extends ESTestCase {
                     client,
                     emptyMap(),
                     new SourceConfig(new String[] { "index-1" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     new String[] { "field-1" },
                     listener
                 ),
@@ -298,6 +304,7 @@ public class SchemaUtilTests extends ESTestCase {
                     new SettingsConfig.Builder().setDeduceMappings(randomBoolean() ? randomBoolean() : null).build(),
                     pivotConfig,
                     new SourceConfig(new String[] { "index-1", "index-2" }),
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
                     listener
                 ),
                 mappings -> assertThat(mappings, is(equalTo(expectedMappings)))

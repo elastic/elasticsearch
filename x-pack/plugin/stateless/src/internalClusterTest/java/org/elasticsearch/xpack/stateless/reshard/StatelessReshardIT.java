@@ -5267,6 +5267,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final Set<String> deletedIndexUUIDs = ConcurrentHashMap.newKeySet();
         final Set<String> observedSplitStates = ConcurrentHashMap.newKeySet();
 
+        // Run the indices concurrently so that a single run covers several phases of resharding, and so that the test also exercises
+        // multiple indices being resharded at the same time in one cluster.
         runInParallel(indexCount, i -> {
             final String indexName = indexNamePrefix + "-" + i;
             createIndex(indexName, indexSettings(1, 1).build());
@@ -5338,11 +5340,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             .orElse(true); // no split to wait for
     }
 
-    /// How far the split had got in {@code state}, reported as the state of the given target shard: {@code CLONE}, {@code HANDOFF},
-    /// {@code SPLIT} or {@code DONE}.
-    ///
-    /// Returns {@code null} once the split has finished and its metadata has been removed, so a {@code null} in the log means that
-    /// index's delete missed the split entirely.
+    /// The state of the split's target shard in {@code state}, or {@code null} once the split has finished and its metadata has been
+    /// removed.
     @Nullable
     private static IndexReshardingState.Split.TargetShardState getSplitTargetShardState(
         ClusterState state,

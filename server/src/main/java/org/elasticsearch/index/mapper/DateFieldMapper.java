@@ -45,6 +45,7 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1259,18 +1260,6 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain date mappers can be driven through parseCreateField by the bulk batch path.
-        // Excludes: scripts, copy_to, multi-fields, and the data-stream @timestamp field
-        // (which has an additional side effect in indexValue that the v1 batch path does
-        // not handle).
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && isDataStreamTimestampField == false;
-    }
-
-    @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
         // Columnar support requires strict-columnar index mode or TIME_SERIES (for @timestamp),
         // and a doc-values date field. doc_values.multi_value and ignore_malformed are not
@@ -1312,7 +1301,7 @@ public final class DateFieldMapper extends FieldMapper {
         // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's
         // DataStreamTimestampFieldMapper.storeTimestampValueForReuse call on the row path.
         if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
-            ctx.recordTimestampColumn(outData);
+            ctx.setTimestamps((EscfLongColumn) EscfColumn.from(outData));
         }
     }
 

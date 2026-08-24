@@ -27,14 +27,21 @@ import java.util.Map;
 final class RoaringBitmapAggregator extends MetricsAggregator {
 
     // Roaring's size calculation walks every container, so doing it for every insertion makes sparse
-    // 64-bit collection quadratic. Reserve a conservative estimate in small O(1) batches, then reconcile
-    // it against Roaring's estimate infrequently and once collection is complete.
+    // 64-bit collection quadratic. Reserve a conservative per-value estimate in small O(1) batches
+    // between reconciliations, then reconcile the whole running total against ramBytesUsed() (which
+    // itself corrects for JVM object/array overhead Roaring's own estimate excludes -- see
+    // InternalRoaringBitmap's IntMutableBitmap/LongMutableBitmap#ramBytesUsed). Reconciliation
+    // recomputes the estimate from scratch each time, so its accuracy tracks how closely
+    // ramBytesUsed() approximates real heap use, not the reconciliation interval.
     static final int BREAKER_RESERVATION_VALUES = 1 << 10;
     private static final int MEMORY_RECONCILIATION_INTERVAL = 1 << 18;
-    // These estimates exceed Roaring's reported growth for a new sparse value. In particular, a new
-    // Roaring64 high-word entry reports 56 bytes of map overhead plus a small nested 32-bit bitmap.
-    static final long INT_BYTES_PER_VALUE = 8;
-    static final long LONG_BYTES_PER_VALUE = 72;
+    // A new sparse container/high-word entry's corrected ramBytesUsed() growth (Roaring's own reported
+    // growth times InternalRoaringBitmap's overhead-correction factor) is roughly 56 bytes/value for
+    // INT and 288 bytes/value for LONG in the worst case. These reservation rates keep comfortable
+    // headroom above that so a small change in Roaring's container internals doesn't require also
+    // shrinking the safety margin to zero.
+    static final long INT_BYTES_PER_VALUE = 80;
+    static final long LONG_BYTES_PER_VALUE = 384;
 
     private final ValuesSource.Numeric valuesSource;
     private final InternalRoaringBitmap.BitmapFormat width;
@@ -112,11 +119,18 @@ final class RoaringBitmapAggregator extends MetricsAggregator {
         // room for both copies before serializing, then release the temporary reservation.
         long serializationBytes = 2L * accountedBitmap.accountedBytes;
         addRequestCircuitBreakerBytes(serializationBytes);
+        byte[] serialized;
         try {
-            return new InternalRoaringBitmap(name, width, accountedBitmap.bitmap.serialize(), metadata());
+            serialized = accountedBitmap.bitmap.serialize();
         } finally {
             addRequestCircuitBreakerBytes(-serializationBytes);
         }
+        // The returned array is retained by the result tree (e.g. once per bucket under a parent
+        // `terms` aggregation) well past this call, unlike the transient serialization scratch above.
+        // Give it its own standing reservation so it isn't invisible to the breaker; this aggregator's
+        // own close() releases it along with the rest of requestBytesUsed.
+        addRequestCircuitBreakerBytes(serialized.length);
+        return new InternalRoaringBitmap(name, width, serialized, metadata());
     }
 
     @Override

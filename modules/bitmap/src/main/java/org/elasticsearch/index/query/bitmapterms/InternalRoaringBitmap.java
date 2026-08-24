@@ -68,6 +68,20 @@ public final class InternalRoaringBitmap extends InternalAggregation {
         BitmapFormat width();
     }
 
+    // Roaring's own size accounting (getLongSizeInBytes()) is a payload-only estimate: it excludes
+    // object headers, array headers, the Container[] reference array, and char[] slack. Code review
+    // measured actual heap use exceeding this by up to ~6.9x for sparse INT bitmaps and ~3.7x for
+    // sparse LONG bitmaps (JDK 25). Apply a conservative correction, rounded up from those
+    // measurements, so callers sizing circuit breaker reservations from ramBytesUsed() don't under-reserve.
+    private static final long INT_RAM_OVERHEAD_FACTOR = 7;
+    private static final long LONG_RAM_OVERHEAD_FACTOR = 4;
+
+    // Deserializing a portable Roaring bitmap expands well past its serialized size (the same review
+    // observed 7-9x from serialized bytes to heap). Reserve against that estimate before deserializing
+    // so the breaker sees the cost before the allocation happens, then true up against the corrected
+    // ramBytesUsed() above once the real object exists.
+    private static final long DESERIALIZATION_EXPANSION_FACTOR = 9;
+
     private final BitmapFormat width;
     private final byte[] bitmap;
 
@@ -150,29 +164,35 @@ public final class InternalRoaringBitmap extends InternalAggregation {
                 if (next.width == BitmapFormat.UNMAPPED) {
                     return;
                 }
+                if (reduced != null && reduced.width() != next.width) {
+                    throw new IllegalArgumentException(
+                        "[roaring_bitmap] aggregation cannot reduce [integer] and [long] field results together"
+                    );
+                }
+                // Reserve against the deserialized size before deserializing, not after: deserialization
+                // fully allocates the bitmap before ramBytesUsed() can be read, so accounting for it only
+                // afterward lets the allocation land before the breaker sees the cost.
+                long estimatedBytes = next.bitmap.length * DESERIALIZATION_EXPANSION_FACTOR;
+                adjustBreaker(estimatedBytes);
+                MutableBitmap decoded;
                 try {
-                    if (reduced == null) {
-                        reduced = deserialize(next.width, next.bitmap);
-                        adjustBreaker(reduced.ramBytesUsed());
-                    } else {
-                        if (reduced.width() != next.width) {
-                            throw new IllegalArgumentException(
-                                "[roaring_bitmap] aggregation cannot reduce [integer] and [long] field results together"
-                            );
-                        }
-                        MutableBitmap decoded = deserialize(next.width, next.bitmap);
-                        long decodedBytes = decoded.ramBytesUsed();
-                        adjustBreaker(decodedBytes);
-                        try {
-                            long before = reduced.ramBytesUsed();
-                            reduced.or(decoded);
-                            adjustBreaker(reduced.ramBytesUsed() - before);
-                        } finally {
-                            adjustBreaker(-decodedBytes);
-                        }
-                    }
+                    decoded = deserialize(next.width, next.bitmap);
                 } catch (IOException e) {
+                    adjustBreaker(-estimatedBytes);
                     throw new IllegalArgumentException("failed to deserialize [roaring_bitmap] aggregation result", e);
+                }
+                long decodedBytes = decoded.ramBytesUsed();
+                adjustBreaker(decodedBytes - estimatedBytes);
+                if (reduced == null) {
+                    reduced = decoded;
+                } else {
+                    try {
+                        long before = reduced.ramBytesUsed();
+                        reduced.or(decoded);
+                        adjustBreaker(reduced.ramBytesUsed() - before);
+                    } finally {
+                        adjustBreaker(-decodedBytes);
+                    }
                 }
             }
 
@@ -306,7 +326,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
         @Override
         public long ramBytesUsed() {
-            return bitmap.getLongSizeInBytes();
+            return bitmap.getLongSizeInBytes() * INT_RAM_OVERHEAD_FACTOR;
         }
 
         @Override
@@ -348,7 +368,7 @@ public final class InternalRoaringBitmap extends InternalAggregation {
 
         @Override
         public long ramBytesUsed() {
-            return bitmap.getLongSizeInBytes();
+            return bitmap.getLongSizeInBytes() * LONG_RAM_OVERHEAD_FACTOR;
         }
 
         @Override

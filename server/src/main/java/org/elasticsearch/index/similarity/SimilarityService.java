@@ -133,6 +133,15 @@ public final class SimilarityService {
         return new NonZeroNormSimilarity(defaultSimilarity);
     }
 
+    /**
+     * Unwraps a {@link NonZeroNormSimilarity} wrapper, if present, and returns the underlying
+     * {@link Similarity}. Useful in tests that need to inspect the configured similarity type
+     * without being affected by the transparent zero-norm guard wrapper.
+     */
+    public static Similarity unwrap(Similarity similarity) {
+        return similarity instanceof NonZeroNormSimilarity w ? w.getDelegate() : similarity;
+    }
+
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
         if (sim == null) {

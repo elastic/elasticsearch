@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
@@ -113,7 +114,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
             maxHeap,
             state -> bytesOf(maxHeap, usedPercent),
             () -> 0L,
-            TimeValue.ZERO
+            TimeValue.ZERO,
+            MeterRegistry.NOOP
         );
         assertBlocks(gate);
 
@@ -165,7 +167,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 return estimate.get();
             },
             nowMillis::get,
-            TimeValue.timeValueMillis(validityMillis)
+            TimeValue.timeValueMillis(validityMillis),
+            MeterRegistry.NOOP
         );
 
         assertRuns(gate); // computes at t=0
@@ -197,7 +200,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 return bytesOf(maxHeap, usedPercent);
             },
             () -> 0L,
-            TimeValue.timeValueMillis(randomLongBetween(1, 30_000))
+            TimeValue.timeValueMillis(randomLongBetween(1, 30_000)),
+            MeterRegistry.NOOP
         );
         assertRuns(gate); // fails open
 
@@ -303,7 +307,7 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
     }
 
-    public void testRecordsFailedEstimateComputation() {
+    public void testRecordsFailedEstimateComputationTime() {
         final long maxHeap = randomMaxHeapBytes();
         final long computationTimeMillis = randomLongBetween(1, 1_000);
         final AtomicLong nowMillis = new AtomicLong();
@@ -325,14 +329,6 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(
-                    InstrumentType.LONG_COUNTER,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_FAILURE_TOTAL_METRIC
-                ),
-            RecordingMeterRegistry.measures(1)
-        );
-        assertThat(
-            meterRegistry.getRecorder()
-                .getMeasurements(
                     InstrumentType.LONG_HISTOGRAM,
                     EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
                 ),
@@ -348,7 +344,8 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
             maxHeapBytes,
             estimator,
             () -> 0L,
-            TimeValue.ZERO
+            TimeValue.ZERO,
+            MeterRegistry.NOOP
         );
     }
 

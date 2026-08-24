@@ -30,9 +30,6 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.metric.LongGauge;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -59,7 +56,6 @@ import java.util.function.Supplier;
 public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
-    public static final String RECOVERY_GATE_BLOCKED_CURRENT_METRIC = "es.recovery.gate.blocked.current";
 
     /// Controls the max number of concurrent recoveries allowed on this data node. Excludes peer recoveries for which this
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]. Includes both
@@ -108,7 +104,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final RecoverySchedulingListener schedulingListener;
     private final RecoveryGateMonitor recoveryGateMonitor;
     private final AtomicReference<BlockedState> blockedState = new AtomicReference<>();
-    private final LongGauge recoveryGateBlockedCurrentMetric;
 
     private final RecoveriesThrottle recoveriesThrottle = new RecoveriesThrottle();
 
@@ -131,17 +126,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         RecoverySchedulingListener schedulingListener,
         RecoveryGateMonitor recoveryGateMonitor
     ) {
-        this(threadPool, projectResolver, clusterService, schedulingListener, recoveryGateMonitor, MeterRegistry.NOOP);
-    }
-
-    public ThrottlingRecoveryService(
-        ThreadPool threadPool,
-        ProjectResolver projectResolver,
-        ClusterService clusterService,
-        RecoverySchedulingListener schedulingListener,
-        RecoveryGateMonitor recoveryGateMonitor,
-        MeterRegistry meterRegistry
-    ) {
         this.executor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
         this.threadPool = threadPool;
@@ -149,12 +133,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         this.schedulingListener = schedulingListener;
         this.clusterService = clusterService;
         this.recoveryGateMonitor = recoveryGateMonitor;
-        this.recoveryGateBlockedCurrentMetric = meterRegistry.registerLongGauge(
-            RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
-            "Whether recovery dispatch is currently blocked by recovery gates",
-            "unit",
-            () -> new LongWithAttributes(blockedState.get() == null ? 0L : 1L)
-        );
     }
 
     @Override
@@ -355,9 +333,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     }
 
     @Override
-    protected void doClose() {
-        recoveryGateBlockedCurrentMetric.close();
-    }
+    protected void doClose() {}
 
     /// Is the service closed, and therefore rejecting further recoveries? It closes in a single step (there's no separate `stop()` call
     /// first) so we count both [org.elasticsearch.common.component.Lifecycle.State#STOPPED] and

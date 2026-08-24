@@ -18,7 +18,6 @@ import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -48,8 +47,6 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
     public static final String ESTIMATED_HEAP_USAGE_METRIC = "es.recovery.gate.estimated_heap.usage.current";
     public static final String ESTIMATED_HEAP_USAGE_DELTA_METRIC = "es.recovery.gate.estimated_heap.usage_delta.current";
     public static final String ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS = "es.recovery.gate.estimated_heap.computation.time";
-    public static final String ESTIMATED_HEAP_COMPUTATION_FAILURE_TOTAL_METRIC =
-        "es.recovery.gate.estimated_heap.computation.failure.total";
 
     /// How long a computed estimate is cached. The heap estimate needs to loop through every shard on the node, so the result is
     /// cached.
@@ -61,7 +58,6 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
     private final LongGaugeMetric estimatedHeapUsageMetric;
     private final LongGaugeMetric estimatedHeapUsageDeltaMetric;
     private final LongHistogram estimatedHeapComputationTimeMetric;
-    private final LongCounter estimatedHeapComputationFailureMetric;
 
     /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the
     /// collector publishes to the master, fed through the master's own summation.
@@ -87,29 +83,10 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
                 // collect shard heap usage estimate from local node
                 shardsMappingSizeCollector.collectShardMappingSizes()
             ).totalHeapUsage(),
-            threadPool::relativeTimeInMillis,
+            // raw instead of cached, to capture elapsed time smaller than the cache period
+            threadPool::rawRelativeTimeInMillis,
             ESTIMATE_VALIDITY,
             meterRegistry
-        );
-    }
-
-    // Visible for testing
-    EstimatedHeapUsageRecoveryGate(
-        EstimatedHeapSettings heapSettings,
-        Supplier<ClusterState> clusterStateSupplier,
-        long maxHeapBytes,
-        ToLongFunction<ClusterState> estimatedHeapUsageBytes,
-        LongSupplier relativeTimeInMillis,
-        TimeValue estimateValidity
-    ) {
-        this(
-            heapSettings,
-            clusterStateSupplier,
-            maxHeapBytes,
-            estimatedHeapUsageBytes,
-            relativeTimeInMillis,
-            estimateValidity,
-            MeterRegistry.NOOP
         );
     }
 
@@ -143,20 +120,12 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
             "Time spent computing the node-local estimated heap usage",
             "ms"
         );
-        this.estimatedHeapComputationFailureMetric = meterRegistry.registerLongCounter(
-            ESTIMATED_HEAP_COMPUTATION_FAILURE_TOTAL_METRIC,
-            "Number of failed node-local estimated heap usage computations",
-            "unit"
-        );
         this.estimateCache = new SingleObjectCache<>(estimateValidity, 0L, relativeTimeInMillis) {
             @Override
             protected Long refresh() {
                 final long startTimeMillis = relativeTimeInMillis.getAsLong();
                 try {
                     return estimatedHeapUsageBytes.applyAsLong(clusterStateSupplier.get());
-                } catch (RuntimeException e) {
-                    estimatedHeapComputationFailureMetric.increment();
-                    throw e;
                 } finally {
                     estimatedHeapComputationTimeMetric.record(relativeTimeInMillis.getAsLong() - startTimeMillis);
                 }

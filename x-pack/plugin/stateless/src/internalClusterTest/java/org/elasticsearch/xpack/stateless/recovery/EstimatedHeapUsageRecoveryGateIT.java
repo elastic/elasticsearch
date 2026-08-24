@@ -21,7 +21,6 @@ import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -76,7 +75,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         final String indexName = createIndexWithBlockedRecovery(indexNodeName);
 
         telemetry.collect();
-        assertThat(getLastLongGaugeValue(ThrottlingRecoveryService.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
+        assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
         final List<Measurement> blockCount = telemetry.getLongCounterMeasurement(
             RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC
         );
@@ -102,7 +101,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         ensureGreen(indexName);
 
         telemetry.collect();
-        assertThat(getLastLongGaugeValue(ThrottlingRecoveryService.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(0L));
+        assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(0L));
         assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC, telemetry), greaterThan(0L));
         assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), hasSize(1));
     }

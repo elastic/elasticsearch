@@ -19,14 +19,16 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.io.Closeable;
 import java.util.Map;
 
 /// Collects and emits recovery metrics.
-public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener {
+public class RecoveryMetricsCollector implements IndexEventListener, RecoverySchedulingListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
 
@@ -43,6 +45,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
     public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
+    public static final String RECOVERY_GATE_BLOCKED_CURRENT_METRIC = "es.recovery.gate.blocked.current";
     public static final String RECOVERY_GATE_BLOCKED_TOTAL_METRIC = "es.recovery.gate.blocked.total";
     public static final String RECOVERY_GATE_BLOCKED_DURATION_METRIC = "es.recovery.gate.blocked.time";
     public static final String RECOVERY_GATE_NAME_ATTRIBUTE_KEY = "es_recovery_gate_name";
@@ -62,6 +65,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
 
     private final LongCounter shardRecoveryDirectCancellationsMetric;
+    private final LongGaugeMetric recoveryGateBlockedCurrentMetric;
     private final LongCounter recoveryGateBlockedMetric;
     private final LongHistogram recoveryGateBlockedDurationMetric;
 
@@ -120,6 +124,12 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
             RECOVERY_DIRECT_CANCELLATIONS_METRIC,
             "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
+            "unit"
+        );
+        recoveryGateBlockedCurrentMetric = LongGaugeMetric.create(
+            meterRegistry,
+            RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
+            "Whether recovery dispatch is currently blocked by recovery gates",
             "unit"
         );
         recoveryGateBlockedMetric = meterRegistry.registerLongCounter(
@@ -262,12 +272,19 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void onRecoveriesBlocked(String gateName) {
+        recoveryGateBlockedCurrentMetric.set(1L);
         recoveryGateBlockedMetric.incrementBy(1, Map.of(RECOVERY_GATE_NAME_ATTRIBUTE_KEY, gateName));
     }
 
     @Override
     public void onRecoveriesUnblocked(long blockedTimeMillis) {
+        recoveryGateBlockedCurrentMetric.set(0L);
         recoveryGateBlockedDurationMetric.record(blockedTimeMillis);
+    }
+
+    @Override
+    public void close() {
+        recoveryGateBlockedCurrentMetric.gauge().close();
     }
 
     private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {

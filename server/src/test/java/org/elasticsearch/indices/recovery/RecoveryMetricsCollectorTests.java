@@ -10,11 +10,13 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_NAME_ATTRIBUTE_KEY;
@@ -34,11 +36,16 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
         assertThat(telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC), empty());
         assertThat(telemetryPlugin.getLongHistogramMeasurement(RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
+        assertBlockedCurrentMetric(telemetryPlugin, 0L);
 
         collector.onRecoveriesBlocked(gateName);
+        assertBlockedCurrentMetric(telemetryPlugin, 1L);
         collector.onRecoveriesUnblocked(blockedTimeMillis);
+        assertBlockedCurrentMetric(telemetryPlugin, 0L);
         collector.onRecoveriesBlocked(secondGateName);
+        assertBlockedCurrentMetric(telemetryPlugin, 1L);
         collector.onRecoveriesUnblocked(secondBlockedTimeMillis);
+        assertBlockedCurrentMetric(telemetryPlugin, 0L);
 
         final var blockedMeasurements = telemetryPlugin.getLongCounterMeasurement(RECOVERY_GATE_BLOCKED_TOTAL_METRIC);
         assertThat(blockedMeasurements, hasSize(2));
@@ -49,5 +56,13 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         assertThat(blockedDurationMeasurements, hasSize(2));
         assertThat(blockedDurationMeasurements.getFirst().getLong(), equalTo(blockedTimeMillis));
         assertThat(blockedDurationMeasurements.getLast().getLong(), equalTo(secondBlockedTimeMillis));
+
+        collector.close();
+        assertFalse(telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_METRIC));
+    }
+
+    private static void assertBlockedCurrentMetric(TestTelemetryPlugin telemetryPlugin, long expected) {
+        telemetryPlugin.collect();
+        assertThat(telemetryPlugin.getLongGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(), equalTo(expected));
     }
 }

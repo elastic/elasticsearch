@@ -24,7 +24,7 @@ GPU vector indexing requires the following:
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
   installed on the node. Refer to the
-  [Elastic support matrix](https://www.elastic.co/support/matrix) for
+  [Elastic support matrix](https://www.elastic.co/support/matrix#vector-indexing) for
   supported CUDA and cuVS versions.
 * `LD_LIBRARY_PATH` environment variable configured to include the cuVS
   libraries path and its dependencies (CUDA, rmm, etc.)
@@ -51,7 +51,7 @@ like our official Docker images.
 
 The example is configured for Elasticsearch 9.5. When using a different
 {{es}} version, update both `ELASTICSEARCH_VERSION` and `CUVS_VERSION`
-to a supported combination from the [Elastic support matrix](https://www.elastic.co/support/matrix).
+to a supported combination from the [Elastic support matrix](https://www.elastic.co/support/matrix#vector-indexing).
 
 ::::{dropdown} Example Dockerfile
 :::{include} _snippets/docker-gpu-indexing.md
@@ -147,7 +147,7 @@ Version mismatch: outdated libcuvs_c (libcuvs_c [25.12.0], cuvs-java version [26
 ```
 
 Install a cuVS runtime version supported for your {{es}} version in the
-[Elastic support matrix](https://www.elastic.co/support/matrix).
+[Elastic support matrix](https://www.elastic.co/support/matrix#vector-indexing).
 
 
 ### Node fails to start with `vectors.indexing.use_gpu: true`

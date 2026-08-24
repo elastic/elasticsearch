@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -307,7 +308,6 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         // The query value can only be converted to the field's runtime type once it has been folded down to a
         // Literal; if it hasn't yet (e.g. pre-optimization), this check is skipped here and retried once
         // postOptimizationPlanVerification runs.
-        // TODO: this may be dead code
         if (query() instanceof Literal) {
             if (query().dataType() != DENSE_VECTOR) {
                 failures.add(
@@ -319,16 +319,6 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                     )
                 );
             }
-        }
-
-        if (options() != null) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "Options are currently not supported for [KNN] function call on non-index-mapped field [{}]",
-                    field.sourceText()
-                )
-            );
         }
     }
 
@@ -734,12 +724,16 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
                             continue;
                         }
                         float[] fieldVector = readVector(fieldBlock, p);
-                        double score = (double) similarityFunction.calculateSimilarity(fieldVector, queryVector) * boost;
+                        double score = score(fieldVector);
                         builder.appendDouble(score);
                     }
                     return builder.build();
                 }
             }
+        }
+
+        private double score(float[] vector) {
+            return VectorUtil.normalizeToUnitInterval(similarityFunction.calculateSimilarity(vector, queryVector)) * boost;
         }
 
         private float[] readVector(FloatBlock block, int position) {

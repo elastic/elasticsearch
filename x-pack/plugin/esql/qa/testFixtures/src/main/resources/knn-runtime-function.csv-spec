@@ -73,12 +73,12 @@ FROM knn_hex_vectors metadata _score
 ;
 
 id:integer | _score:double
-0          | 1.000
-1          | 0.0
-2          | 0.0
-3          | 0.7071067690849304
-4          | 0.8912780284881592
-5          | 0.5018411874771118
+0          | 1.0
+1          | 0.5
+2          | 0.5
+3          | 0.8535534143447876
+4          | 0.9456390142440796
+5          | 0.7509205937385559
 ;
 
 
@@ -135,12 +135,12 @@ FROM knn_hex_vectors METADATA _score
 ;
 
 id:integer | _score:double
-0          | 2.000
-1          | 0.0
-2          | 0.0
-3          | 1.4142135381698608
-4          | 1.7825560569763184
-5          | 1.0036823749542236
+0          | 2.0
+1          | 1.0
+2          | 1.0
+3          | 1.7071068286895752
+4          | 1.8912780284881592
+5          | 1.5018411874771118
 ;
 
 // Test 7: KNN on runtime field dense_vector field: combined filtering and scoring
@@ -157,5 +157,5 @@ FROM knn_hex_vectors METADATA _score
 ;
 
 id:integer | _score:double
-5          | 2.544127345085144
+5          | 3.0422861576080322
 ;

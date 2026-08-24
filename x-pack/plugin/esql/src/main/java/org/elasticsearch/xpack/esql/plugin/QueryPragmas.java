@@ -193,7 +193,7 @@ public final class QueryPragmas implements Writeable {
     /**
      *  When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
      */
-    public static final Setting<Boolean> RUNTIME_KNN_SEARCH = Setting.boolSetting("runtime_knn_search", false);
+    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -220,7 +220,7 @@ public final class QueryPragmas implements Writeable {
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
-        RUNTIME_KNN_SEARCH
+        KNN_RUNTIME_FIELD
 
     ).map(Setting::getKey).toList();
 
@@ -427,7 +427,7 @@ public final class QueryPragmas implements Writeable {
      * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
      */
     public boolean runtimeKnnSearch() {
-        return RUNTIME_KNN_SEARCH.get(settings);
+        return KNN_RUNTIME_FIELD.get(settings);
     }
 
     public boolean isEmpty() {

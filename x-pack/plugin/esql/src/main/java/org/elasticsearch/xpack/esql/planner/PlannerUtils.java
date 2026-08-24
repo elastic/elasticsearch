@@ -223,7 +223,12 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
+            // CATEGORIZE groupings require two-phase state transfer; node-level reduction would misalign the
+            // intermediate channel schema (catId + state columns), so fall through to pass-through reduction.
+            case TopNByExec topNBy when topNBy.categorizeMode() != LimitByExec.CategorizeGroupingMode.SINGLE ->
+                SimplePlanReduction.NO_REDUCTION;
             case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
+            case LimitByExec limitBy when limitBy.mode() != LimitByExec.CategorizeGroupingMode.SINGLE -> SimplePlanReduction.NO_REDUCTION;
             case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(

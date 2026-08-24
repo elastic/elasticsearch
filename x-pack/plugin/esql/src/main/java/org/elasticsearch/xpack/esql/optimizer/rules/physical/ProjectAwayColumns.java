@@ -14,10 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -43,6 +46,18 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
         return apply(plan, false);
+    }
+
+    private static boolean hasCategorizeGrouping(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan fragment) {
+        if (fragment instanceof TopNBy topNBy) {
+            return topNBy.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
+        }
+        if (fragment instanceof LimitBy limitBy) {
+            return limitBy.groupings()
+                .stream()
+                .anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction));
+        }
+        return false;
     }
 
     private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch) {
@@ -92,9 +107,15 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
                     // The only exception is when we are dealing with a FORK branch, because we might be dealing with a combination
                     // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
+                    //
+                    // Also skip projection for TopNBy / LimitBy with CATEGORIZE groupings. Data nodes append extra
+                    // physical-only channels (cat_id + serialized state) beyond the logical output via
+                    // CategorizeEvalOperator and CategorizeStateEmitOperator. A logical Project wrapping the fragment
+                    // would strip those channels before they reach the exchange sink, breaking two-phase CATEGORIZE.
                     if ((logicalFragment instanceof Aggregate == false
                         && logicalFragment instanceof MetricsInfo == false
-                        && logicalFragment instanceof TsInfo == false)) {
+                        && logicalFragment instanceof TsInfo == false
+                        && hasCategorizeGrouping(logicalFragment) == false)) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {

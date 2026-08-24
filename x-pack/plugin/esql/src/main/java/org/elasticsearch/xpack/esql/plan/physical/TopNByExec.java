@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Physical plan node for {@code SORT order1, order2 | LIMIT N BY grouping1, grouping2, ...}.
  * Sorts the input rows retaining at most N rows per group defined by the grouping expressions.
@@ -66,6 +68,34 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
      */
     private final OutputOrdering outputOrdering;
 
+    /**
+     * Local-only execution mode for CATEGORIZE groupings. Not serialized.
+     * Defaults to {@link LimitByExec.CategorizeGroupingMode#SINGLE}.
+     * See {@link LimitByExec.CategorizeGroupingMode} for semantics.
+     */
+    private final LimitByExec.CategorizeGroupingMode categorizeMode;
+
+    /**
+     * For {@link LimitByExec.CategorizeGroupingMode#FINAL}: the extra intermediate attributes
+     * on the exchange (category-ID + serialized-state attributes per CATEGORIZE grouping).
+     * Not serialized.
+     */
+    private final List<Attribute> intermediateAttributes;
+
+    /**
+     * Snapshot of {@code child().output()} taken at INITIAL-mode creation time.
+     * <p>
+     * In {@link LimitByExec.CategorizeGroupingMode#INITIAL} mode, the data node's local physical
+     * optimizer may add technical fields (e.g. {@code _doc}) to the child plan's output for late
+     * materialization. Because the default {@link #output()} delegates to {@code child().output()},
+     * those extra fields would propagate upward, causing {@code LocalPhysicalPlanOptimizer.verify}
+     * to fail. Storing the output at creation time and returning it from {@link #output()} makes
+     * the declared output stable across local optimization.
+     * </p>
+     * Not serialized — only used on the data node.
+     */
+    private final List<Attribute> initialCategorizeOutput;
+
     public TopNByExec(
         Source source,
         PhysicalPlan child,
@@ -74,7 +104,19 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         List<Expression> groupings,
         Integer estimatedRowSize
     ) {
-        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, Set.of(), OutputOrdering.SORTED);
+        this(
+            source,
+            child,
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            Set.of(),
+            OutputOrdering.SORTED,
+            LimitByExec.CategorizeGroupingMode.SINGLE,
+            emptyList(),
+            null
+        );
     }
 
     private TopNByExec(
@@ -87,6 +129,34 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         Set<Attribute> docValuesAttributes,
         OutputOrdering outputOrdering
     ) {
+        this(
+            source,
+            child,
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            LimitByExec.CategorizeGroupingMode.SINGLE,
+            emptyList(),
+            null
+        );
+    }
+
+    private TopNByExec(
+        Source source,
+        PhysicalPlan child,
+        List<Order> order,
+        Expression limitPerGroup,
+        List<Expression> groupings,
+        Integer estimatedRowSize,
+        Set<Attribute> docValuesAttributes,
+        OutputOrdering outputOrdering,
+        LimitByExec.CategorizeGroupingMode categorizeMode,
+        List<Attribute> intermediateAttributes,
+        List<Attribute> initialCategorizeOutput
+    ) {
         super(source, child);
         this.order = order;
         this.limitPerGroup = limitPerGroup;
@@ -94,6 +164,9 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
         this.docValuesAttributes = docValuesAttributes;
         this.outputOrdering = outputOrdering;
+        this.categorizeMode = categorizeMode;
+        this.intermediateAttributes = intermediateAttributes;
+        this.initialCategorizeOutput = initialCategorizeOutput;
     }
 
     private TopNByExec(StreamInput in) throws IOException {
@@ -105,7 +178,8 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readOptionalVInt()
         );
-        // docValueAttributes and outputOrdering are only used on the data node and never serialized.
+        // docValueAttributes, outputOrdering, categorizeMode, and intermediateAttributes are only
+        // used on the local node and never serialized.
     }
 
     @Override
@@ -130,11 +204,35 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public TopNByExec replaceChild(PhysicalPlan newChild) {
-        return new TopNByExec(source(), newChild, order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering);
+        return new TopNByExec(
+            source(),
+            newChild,
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            categorizeMode,
+            intermediateAttributes,
+            initialCategorizeOutput
+        );
     }
 
     public TopNByExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new TopNByExec(source(), child(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering);
+        return new TopNByExec(
+            source(),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            categorizeMode,
+            intermediateAttributes,
+            initialCategorizeOutput
+        );
     }
 
     public TopNByExec withSortedOutput() {
@@ -146,7 +244,10 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             groupings,
             estimatedRowSize,
             docValuesAttributes,
-            OutputOrdering.SORTED
+            OutputOrdering.SORTED,
+            categorizeMode,
+            intermediateAttributes,
+            initialCategorizeOutput
         );
     }
 
@@ -159,8 +260,83 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             groupings,
             estimatedRowSize,
             docValuesAttributes,
-            OutputOrdering.NOT_SORTED
+            OutputOrdering.NOT_SORTED,
+            categorizeMode,
+            intermediateAttributes,
+            initialCategorizeOutput
         );
+    }
+
+    public TopNByExec withCategorizeMode(LimitByExec.CategorizeGroupingMode newMode) {
+        return new TopNByExec(
+            source(),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            newMode,
+            emptyList(),
+            null
+        );
+    }
+
+    /**
+     * Sets INITIAL mode and records the logical output as the stable declared output.
+     * The logical output must match {@code ExchangeExec.output()} so that the coordinator-side
+     * {@code channelsBefore} computation is consistent with the data-node channel layout.
+     */
+    public TopNByExec withInitialCategorizeMode(List<Attribute> logicalOutput) {
+        return new TopNByExec(
+            source(),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            LimitByExec.CategorizeGroupingMode.INITIAL,
+            emptyList(),
+            logicalOutput
+        );
+    }
+
+    public TopNByExec withFinalCategorizeMode(List<Attribute> newIntermediateAttributes) {
+        return new TopNByExec(
+            source(),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            LimitByExec.CategorizeGroupingMode.FINAL,
+            newIntermediateAttributes,
+            null
+        );
+    }
+
+    @Override
+    public List<Attribute> output() {
+        // In INITIAL mode the local physical optimizer may add _doc to the child plan's output
+        // for late materialization. Return the snapshot taken at INITIAL-mode creation time so
+        // LocalPhysicalPlanOptimizer.verify sees a stable output.
+        if (categorizeMode == LimitByExec.CategorizeGroupingMode.INITIAL && initialCategorizeOutput != null) {
+            return initialCategorizeOutput;
+        }
+        return super.output();
+    }
+
+    public LimitByExec.CategorizeGroupingMode categorizeMode() {
+        return categorizeMode;
+    }
+
+    public List<Attribute> intermediateAttributes() {
+        return intermediateAttributes;
     }
 
     public OutputOrdering outputOrdering() {
@@ -200,12 +376,34 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new TopNByExec(source(), child(), order, limitPerGroup, groupings, size, docValuesAttributes, outputOrdering);
+            : new TopNByExec(
+                source(),
+                child(),
+                order,
+                limitPerGroup,
+                groupings,
+                size,
+                docValuesAttributes,
+                outputOrdering,
+                categorizeMode,
+                intermediateAttributes,
+                initialCategorizeOutput
+            );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limitPerGroup, groupings, estimatedRowSize, docValuesAttributes, outputOrdering);
+        return Objects.hash(
+            super.hashCode(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            docValuesAttributes,
+            outputOrdering,
+            categorizeMode,
+            intermediateAttributes
+        );
     }
 
     @Override
@@ -218,7 +416,9 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(groupings, other.groupings)
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes)
-                && outputOrdering == other.outputOrdering;
+                && outputOrdering == other.outputOrdering
+                && categorizeMode == other.categorizeMode
+                && Objects.equals(intermediateAttributes, other.intermediateAttributes);
         }
         return equals;
     }

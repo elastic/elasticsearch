@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
+import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
@@ -44,16 +46,40 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
         private final int textChannel;
         private final CategorizeDef categorizeDef;
         private final AnalysisRegistry analysisRegistry;
+        /**
+         * Optional single-element array; when non-null, the created operator is stored at index 0
+         * so that a downstream {@link CategorizeStateEmitOperator} can read the categorizer state.
+         */
+        private final CategorizeEvalOperator[] captureInto;
 
         public Factory(int textChannel, CategorizeDef categorizeDef, AnalysisRegistry analysisRegistry) {
+            this(textChannel, categorizeDef, analysisRegistry, null);
+        }
+
+        public Factory(
+            int textChannel,
+            CategorizeDef categorizeDef,
+            AnalysisRegistry analysisRegistry,
+            CategorizeEvalOperator[] captureInto
+        ) {
             this.textChannel = textChannel;
             this.categorizeDef = categorizeDef;
             this.analysisRegistry = analysisRegistry;
+            this.captureInto = captureInto;
         }
 
         @Override
         public CategorizeEvalOperator get(DriverContext driverContext) {
-            return new CategorizeEvalOperator(textChannel, categorizeDef, analysisRegistry, driverContext.blockFactory());
+            CategorizeEvalOperator op = new CategorizeEvalOperator(
+                textChannel,
+                categorizeDef,
+                analysisRegistry,
+                driverContext.blockFactory()
+            );
+            if (captureInto != null) {
+                captureInto[0] = op;
+            }
+            return op;
         }
 
         @Override
@@ -155,6 +181,26 @@ public class CategorizeEvalOperator extends AbstractPageMappingOperator {
             return NULL_ORD;
         }
         return category.getId() + 1;
+    }
+
+    /**
+     * Serializes the current categorizer state as a {@link BytesRef}.
+     * Wire format: {@code writeBoolean(false)} (seenNull always false here) +
+     * {@code writeVInt(count)} + each {@link SerializableTokenListCategory#writeTo}.
+     * Mirrors {@code CategorizeBlockHash.serializeCategorizer()}.
+     */
+    BytesRef serializeCategorizer() {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeBoolean(false); // seenNull: CategorizeEvalOperator uses NULL_ORD=0, not a separate null flag
+            int count = categorizer.getCategoryCount();
+            out.writeVInt(count);
+            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
+                category.writeTo(out);
+            }
+            return out.bytes().toBytesRef();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

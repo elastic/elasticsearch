@@ -144,7 +144,7 @@ public final class ServiceUtils {
             ServiceUtils.removeAsType(settingsMap, MAX_NUMBER_OF_ALLOCATIONS.getPreferredName(), Integer.class, validationException)
         );
         for (String settingName : settingsMap.keySet()) {
-            validationException.addValidationError(Strings.format("[%s] does not allow the setting [%s]", key, settingName));
+            validationException.addValidationError(invalidSettingError(settingName, key));
         }
         ActionRequestValidationException exception = settings.validate();
         if (exception != null) {
@@ -284,17 +284,8 @@ public final class ServiceUtils {
         );
     }
 
-    public static String invalidValue(String settingName, SettingsScope scope, String invalidType, String[] requiredValues) {
-        var copyOfRequiredValues = requiredValues.clone();
-        Arrays.sort(copyOfRequiredValues);
-
-        return Strings.format(
-            "[%s] Invalid value [%s] received. [%s] must be one of [%s]",
-            scope,
-            invalidType,
-            settingName,
-            String.join(", ", copyOfRequiredValues)
-        );
+    public static String invalidSettingError(String settingName, String scope) {
+        return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
     public static String invalidSettingError(String settingName, SettingsScope scope) {
@@ -430,25 +421,7 @@ public final class ServiceUtils {
         SettingsScope scope,
         ValidationException validationException
     ) {
-        int initialValidationErrorCount = validationException.validationErrors().size();
-        String requiredField = ServiceUtils.removeAsType(map, settingName, String.class, validationException);
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
-            // new validation error occurred
-            return null;
-        }
-
-        if (requiredField == null) {
-            validationException.addValidationError(missingSettingErrorMsg(settingName, scope.toString()));
-        } else if (requiredField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
-        }
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
-            return null;
-        }
-
-        return requiredField;
+        return extractRequiredString(map, settingName, scope.toString(), validationException);
     }
 
     public static String extractOptionalEmptyString(Map<String, Object> map, String settingName, ValidationException validationException) {
@@ -519,31 +492,13 @@ public final class ServiceUtils {
         return requiredField;
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, Object> extractRequiredMap(
         Map<String, Object> map,
         String settingName,
         SettingsScope scope,
         ValidationException validationException
     ) {
-        int initialValidationErrorCount = validationException.validationErrors().size();
-        Map<String, Object> requiredField = ServiceUtils.removeAsType(map, settingName, Map.class, validationException);
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
-            return null;
-        }
-
-        if (requiredField == null) {
-            validationException.addValidationError(missingSettingErrorMsg(settingName, scope.toString()));
-        } else if (requiredField.isEmpty()) {
-            validationException.addValidationError(ServiceUtils.mustBeNonEmptyMap(settingName, scope));
-        }
-
-        if (validationException.validationErrors().size() > initialValidationErrorCount) {
-            return null;
-        }
-
-        return requiredField;
+        return extractRequiredMap(map, settingName, scope.toString(), validationException);
     }
 
     @SuppressWarnings("unchecked")

@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
@@ -66,11 +64,6 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.DoubleHistogram;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -99,7 +92,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -218,13 +210,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
-    public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
-    public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
-    public static final String BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC = "es.bcc.timestamp_range.histogram";
-    public static final String BCC_MISSING_TIMESTAMP_METRIC = "es.bcc.missing_timestamp.total";
-    public static final String BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC = "es.bcc.average_upload_throughput.current";
-    public static final String BCC_SIZE_ATTRIBUTE_KEY = "es_bcc_size";
+    /// We use an optimistic default value of 1 Gb/sec to run unrestricted on a fresh node.
+    /// This is loosely based on the fact that a node provides at least 15 Gigabit max network throughput (which is about ~1.7 GiB).
+    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
+        "stateless.upload.average_throughput_initial_value",
+        ByteSizeValue.ofGb(1),
+        Setting.Property.NodeScope
+    );
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -248,7 +240,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
     private final TimeValue gcpListenerTranslogSyncTimeout;
-    private final ExponentiallyWeightedMovingAverage commitUploadThroughputMiBSec;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
@@ -256,12 +247,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final long bccUploadSlowLogThresholdMillis;
     private final boolean useInternalFilesReplicatedContent;
     private final int cacheRegionSizeInBytes;
-    private final LongHistogram bccSizeInMegabytesHistogram;
-    private final LongHistogram bccNumberCommitsHistogram;
-    private final LongHistogram bccAgeHistogram;
-    private final DoubleHistogram bccTimestampRangeHistogram;
-    private final LongCounter bccMissingTimestampCounter;
-    private final DoubleGauge averageCommitUploadThroughputGauge;
+    private final BccUploadMetrics metrics;
 
     /**
      * An estimate of the maximum size in bytes that the header and replicated contents are likely to fill in a region. This is used when a
@@ -330,13 +316,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             threadPool.generic(),
             STATELESS_UPLOAD_MONITOR_INTERVAL.get(settings)
         );
-        /// `alpha` determines how much older data points influence the average, a value of 1 means that the mean is equal
-        /// to the latest data point.
-        /// We use a slight recency biased value to react to burst of load while still having smoothing.
-        /// We also use an optimistic initial value of 1 GiB/sec to run unrestricted on a fresh node.
-        /// An average node provides at least 15 Gigabit of network throughput (which is about ~1.7 GiB)
-        /// so this is somewhat realistic and it saves us from trying to calculate this in some smart way.
-        this.commitUploadThroughputMiBSec = new ExponentiallyWeightedMovingAverage(0.6, ByteSizeValue.ofGb(1).getMb());
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         final var bccUploadMaxSize = STATELESS_UPLOAD_MAX_SIZE.get(settings);
         this.bccUploadMaxSizeInBytes = bccUploadMaxSize.getBytes();
@@ -356,46 +335,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             useInternalFilesReplicatedContent ? "enabled" : "disabled",
             estimatedMaxHeaderSizeInBytes
         );
-        this.bccSizeInMegabytesHistogram = telemetryProvider.getMeterRegistry()
-            .registerLongHistogram(
-                BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
-                "Histogram for total size in megabytes of batched compound commits",
-                "megabytes"
-            );
-        this.bccNumberCommitsHistogram = telemetryProvider.getMeterRegistry()
-            .registerLongHistogram(
-                BCC_NUMBER_COMMITS_HISTOGRAM_METRIC,
-                "Histogram for number of commits per batched compound commit",
-                "unit"
-            );
-        this.bccAgeHistogram = telemetryProvider.getMeterRegistry()
-            .registerLongHistogram(
-                BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC,
-                "Histogram for elapsed time in milliseconds of batched compound commits before freezing",
-                "ms"
-            );
-        this.bccTimestampRangeHistogram = telemetryProvider.getMeterRegistry()
-            .registerDoubleHistogram(
-                BCC_TIMESTAMP_RANGE_HISTOGRAM_METRIC,
-                "Span of the max minus min @timestamp range of uploaded batched compound commits, in minutes, "
-                    + "broken down by the ["
-                    + BCC_SIZE_ATTRIBUTE_KEY
-                    + "] size bucket",
-                "minutes"
-            );
-        this.bccMissingTimestampCounter = telemetryProvider.getMeterRegistry()
-            .registerLongCounter(
-                BCC_MISSING_TIMESTAMP_METRIC,
-                "Number of uploaded batched compound commits where none of the compound commits have a @timestamp range",
-                "count"
-            );
-        this.averageCommitUploadThroughputGauge = telemetryProvider.getMeterRegistry()
-            .registerDoubleGauge(
-                BCC_AVERAGE_COMMIT_UPLOAD_THROUGHPUT_METRIC,
-                "moving average of batch compound commit upload throughput",
-                "MiB/s",
-                () -> new DoubleWithAttributes(commitUploadThroughputMiBSec.getAverage())
-            );
+        this.metrics = new BccUploadMetrics(telemetryProvider, STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings));
     }
 
     public boolean useReplicatedRanges() {
@@ -530,6 +470,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
+    }
+
+    public double getAverageCommitUploadThroughputMiBSec() {
+        return metrics.getAverageUploadThroughputMiBSec();
+    }
+
+    public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
+        return shardsCommitsStates.values().stream().filter(scs -> scs.isClosed() == false);
     }
 
     @Override
@@ -691,6 +639,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         });
     }
 
+    /**
+     * Reads the {@code @timestamp} field value range for the additional segments in the given commit.
+     * Package protected so that tests can override this to simulate legacy compound commits that lack a timestamp range.
+     */
+    @Nullable
+    TimestampFieldValueRange readTimestampFieldValueRange(ShardCommitState commitState, StatelessCommitRef reference) {
+        return commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
+    }
+
     public void onCommitCreation(StatelessCommitRef reference) {
         boolean success = false;
         try {
@@ -720,7 +677,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final boolean commitAfterRelocationStarted;
             final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
             // reads the timestamp field value range outside the commit state synchronized block (because this does blocking IO)
-            var timestampFieldValueRange = commitState.readTimestampFieldValueRangeAcrossAdditionalSegments(reference);
+            var timestampFieldValueRange = readTimestampFieldValueRange(commitState, reference);
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -877,31 +834,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             hotThreadsLogInterval,
             newUploadTaskListener(commitState, virtualBcc, blobReference)
         );
-
-        // Update the histograms with the new remote blob store upload info.
-        bccSizeInMegabytesHistogram.record(ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
-        bccNumberCommitsHistogram.record(virtualBcc.size());
-        bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis());
-        recordBccTimestampRangeMetric(virtualBcc);
-
-        bccUpload.run();
-    }
-
-    private void recordBccTimestampRangeMetric(VirtualBatchedCompoundCommit virtualBcc) {
-        final OptionalDouble spanMinutes = bccTimestampSpanMinutes(
+        metrics.recordBccUpload(
+            virtualBcc.getTotalSizeInBytes(),
+            virtualBcc.size(),
+            threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
             Iterators.map(
                 virtualBcc.getPendingCompoundCommits().iterator(),
                 pc -> pc.getStatelessCompoundCommit().getTimestampFieldValueRange()
             )
         );
-        if (spanMinutes.isEmpty()) {
-            bccMissingTimestampCounter.increment();
-        } else {
-            bccTimestampRangeHistogram.record(
-                spanMinutes.getAsDouble(),
-                Map.of(BCC_SIZE_ATTRIBUTE_KEY, bccSizeBucket(virtualBcc.getTotalSizeInBytes()))
-            );
-        }
+        bccUpload.run();
     }
 
     ActionListener<BccUploadResult> newUploadTaskListener(
@@ -913,8 +855,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
-                commitUploadThroughputMiBSec.addValue(uploadResult.uploadThroughputMiBPerSec());
-
+                metrics.recordUploadThroughput(uploadResult.uploadThroughputMiBPerSec());
+                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -1364,7 +1306,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return getSafe(shardsCommitsStates, shardId);
     }
 
-    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
+    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver, ShardCommitUploadStats {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
         private enum State {
@@ -1391,6 +1333,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // uploaded which is then removed from pendingUploadBccGenerations.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        private AtomicLong pendingUploadBytes = new AtomicLong(0);
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1797,6 +1740,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        @Override
+        public ShardId shardId() {
+            return shardId;
+        }
+
+        @Override
+        public long pendingUploadBytes() {
+            return pendingUploadBytes.get();
+        }
+
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
             return pendingUploadBccGenerations.values()
                 .stream()
@@ -1987,6 +1940,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                     expectedVirtualBcc
                 );
+                pendingUploadBytes.addAndGet(expectedVirtualBcc.getTotalSizeInBytes());
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
@@ -3689,37 +3643,4 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
     }
 
-    // visible for testing
-    static OptionalDouble bccTimestampSpanMinutes(final Iterator<TimestampFieldValueRange> ranges) {
-        long min = Long.MAX_VALUE;
-        long max = Long.MIN_VALUE;
-        boolean any = false;
-        while (ranges.hasNext()) {
-            final TimestampFieldValueRange range = ranges.next();
-            if (range == null) {
-                continue;
-            }
-            any = true;
-            min = Math.min(min, range.minMillis());
-            max = Math.max(max, range.maxMillis());
-        }
-        if (any == false) {
-            return OptionalDouble.empty();
-        }
-        // Subtract in double space so that for astronomically large spans we lose precision rather than overflow a Long.
-        return OptionalDouble.of(((double) max - (double) min) / 60_000d);
-    }
-
-    public static String bccSizeBucket(long totalSizeBytes) {
-        assert totalSizeBytes > 0 : "was " + totalSizeBytes;
-        if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(16)) {
-            return "<=16MiB";
-        } else if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(64)) {
-            return "<=64MiB";
-        } else if (totalSizeBytes <= ByteSizeUnit.MB.toBytes(256)) {
-            return "<=256MiB";
-        } else {
-            return ">256MiB";
-        }
-    }
 }

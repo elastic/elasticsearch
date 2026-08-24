@@ -9,13 +9,12 @@
 
 package org.elasticsearch.escf;
 
-import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /** An ESCF column whose values are all {@code long}s (JSON ints and longs upcast to 64-bit). */
-final class EscfLongColumn extends AbstractFixed64Column {
+public final class EscfLongColumn extends AbstractFixed64Column {
 
     EscfLongColumn(int docCount, FixedBitSet validity, BytesReference data) {
         super(docCount, validity, data);
@@ -36,14 +35,13 @@ final class EscfLongColumn extends AbstractFixed64Column {
         return rawLong(row);
     }
 
-    /**
-     * Returns a new dense {@link LongValuesCursor} positioned before the first row of this column's
-     * window. The column must be fully present ({@link #validity} {@code == null}); call this only on
-     * dense columns.
-     */
-    DenseLongValuesCursor longValuesCursor() {
-        assert validity == null : "values cursor is only valid for dense (fully-present) columns";
-        return new DenseLongValuesCursor(docCount, this);
+    public long longValueAt(int row) {
+        return rawLong(row);
+    }
+
+    @Override
+    public DenseLongValuesCursor longValuesCursor() {
+        return super.longValuesCursor();
     }
 
     @Override

@@ -20,7 +20,7 @@ group = "${group}.client.test"
 dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   // mockito
@@ -37,10 +37,9 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  modifyBundledSignatures { bundledSignatures ->
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
-    bundledSignatures
+  configureBundledSignaturesFromDefaults {
+    remove 'jdk-non-portable'
+    add 'jdk-internal'
   }
   //client does not depend on core, so only jdk signatures should be checked
   replaceSignatureFiles 'jdk-signatures'

@@ -134,8 +134,6 @@ import static org.mockito.Mockito.doAnswer;
  */
 public abstract class IndexShardTestCase extends ESTestCase {
 
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
-
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
     private static final AtomicBoolean failOnShardFailures = new AtomicBoolean(true);
@@ -218,11 +216,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         );
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     protected ThreadPool setUpThreadPool(Settings settings) {
         return new TestThreadPool(getClass().getName(), settings);
     }
@@ -231,11 +224,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
     public void tearDownShardTestResources() throws Exception {
         IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
         IOUtils.rm(shardTempDirs.toArray(new Path[0]));
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
     }
 
     protected void tearDownThreadPool() {
@@ -556,7 +544,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             searchListeners,
             listeners
         );
@@ -777,7 +765,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             Collections.emptyList(),
             listeners
         );

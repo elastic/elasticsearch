@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
@@ -43,6 +44,13 @@ import java.util.function.LongConsumer;
 class FetchPhaseResponseStream extends AbstractRefCounted {
 
     private static final Logger logger = LogManager.getLogger(FetchPhaseResponseStream.class);
+
+    /**
+     * Label used for both the per-chunk accumulation admits here and the embedded-last-chunk admit in
+     * {@link TransportFetchPhaseCoordinationAction}, so all chunked-fetch coordination memory is tracked under a
+     * single {@code fetch} sub-category.
+     */
+    static final String FETCH_CHUNK_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[chunk]";
 
     private final int shardIndex;
     private final int expectedTotalDocs;
@@ -98,7 +106,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         boolean success = false;
         try {
             long estimatedRetainedBytes = chunk.estimatedRetainedBytes();
-            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, "fetch_chunk_accumulation");
+            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRetainedBytes, FETCH_CHUNK_BREAKER_LABEL);
             totalBreakerBytes.addAndGet(estimatedRetainedBytes);
 
             chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
@@ -209,7 +217,7 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
-            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get());
+            circuitBreaker.addWithoutBreaking(-totalBreakerBytes.get(), FETCH_CHUNK_BREAKER_LABEL);
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     "Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",

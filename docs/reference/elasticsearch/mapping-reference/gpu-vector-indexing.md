@@ -50,7 +50,7 @@ like our official Docker images.
 ::::
 
 The example is configured for Elasticsearch 9.5. When using a different
-Elasticsearch version, update both `ELASTICSEARCH_VERSION` and `CUVS_VERSION`
+{{es}} version, update both `ELASTICSEARCH_VERSION` and `CUVS_VERSION`
 to a supported combination from the [Elastic support matrix](https://www.elastic.co/support/matrix).
 
 ::::{dropdown} Example Dockerfile
@@ -139,14 +139,14 @@ libraries, or an incompatible GPU.
 ### cuVS runtime version mismatch
 
 If the cuVS runtime library is older than the `cuvs-java` library bundled with
-Elasticsearch, you see a warning similar to:
+{{es}}, you see a warning similar to:
 
 ```
 GPU based vector indexing is not supported on this platform; Cannot create JDKProvider:
 Version mismatch: outdated libcuvs_c (libcuvs_c [25.12.0], cuvs-java version [26.02.0])
 ```
 
-Install a cuVS runtime version supported for your Elasticsearch version in the
+Install a cuVS runtime version supported for your {{es}} version in the
 [Elastic support matrix](https://www.elastic.co/support/matrix).
 
 

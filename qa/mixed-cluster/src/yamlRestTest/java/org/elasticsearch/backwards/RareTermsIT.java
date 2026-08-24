@@ -9,13 +9,18 @@
 
 package org.elasticsearch.backwards;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,9 +28,18 @@ import java.util.List;
 /**
  * Test that index enough data to trigger the creation of Cuckoo filters.
  */
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RareTermsIT extends ESRestTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = Clusters.CLUSTER;
+
     private static final String index = "idx";
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private int indexDocs(int numDocs, int id) throws Exception {
         final Request request = new Request("POST", "/_bulk");

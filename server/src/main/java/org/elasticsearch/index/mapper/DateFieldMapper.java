@@ -45,6 +45,7 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -1300,7 +1301,7 @@ public final class DateFieldMapper extends FieldMapper {
         // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's
         // DataStreamTimestampFieldMapper.storeTimestampValueForReuse call on the row path.
         if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
-            ctx.recordTimestampColumn(outData);
+            ctx.setTimestamps((EscfLongColumn) EscfColumn.from(outData));
         }
     }
 

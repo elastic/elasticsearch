@@ -1313,7 +1313,11 @@ public class EsqlCapabilities {
          * Support for COMPLETION command
          */
         COMPLETION,
-
+        /**
+         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
+         * {@code isDevVersion()} in the grammar.
+         */
+        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */

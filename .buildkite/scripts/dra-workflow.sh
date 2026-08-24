@@ -107,7 +107,7 @@ find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 if [[ "${PUBLISH_MAVEN_TO_S3:-}" == "true" ]]; then
   echo --- Publishing maven aggregation to S3
   ES_VERSION="$ES_VERSION" VERSION_SUFFIX="$VERSION_SUFFIX" \
-    .buildkite/scripts/dra-publish-maven.sh
+    .buildkite/scripts/dra-maven-snapshots-publish.sh
 fi
 
 echo --- Running release-manager

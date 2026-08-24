@@ -226,7 +226,10 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     @Override
     public void testEmbeddingsFieldAndFormat() throws IOException {
-        FieldAndFormat expected = new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT);
+        MappedFieldType.EmbeddingsField expected = new MappedFieldType.EmbeddingsField(
+            new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT),
+            MappedFieldType.EmbeddingsFieldSource.FIELDS
+        );
 
         // Without model_settings, the field has never seen inference results and skips type validation — every requested vector type
         // is accepted.

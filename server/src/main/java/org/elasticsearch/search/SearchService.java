@@ -2238,27 +2238,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchFieldsContext(fetchFieldsContext);
         }
         if (source.fetchEmbeddingsFields().isEmpty() == false) {
-            List<FieldAndFormat> fields = new ArrayList<>();
+            List<FieldAndFormat> fetchFields = new ArrayList<>();
+            List<FieldAndFormat> docValueFields = new ArrayList<>();
             for (Map.Entry<String, VectorType> embeddingsField : source.fetchEmbeddingsFields().entrySet()) {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(embeddingsField.getKey());
                 if (fieldType == null) {
                     // Unmapped on this shard — skip, consistent with how the `fields` option treats unmapped fields.
                     continue;
                 }
-                FieldAndFormat fieldAndFormat = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
-                if (fieldAndFormat == null) {
+                MappedFieldType.EmbeddingsField embeddings = fieldType.embeddingsFieldAndFormat(embeddingsField.getValue());
+                if (embeddings == null) {
                     // The field cannot produce embeddings of the requested type — skip, as with an unmapped field.
                     continue;
                 }
-                fields.add(fieldAndFormat);
+                switch (embeddings.source()) {
+                    case FIELDS -> fetchFields.add(embeddings.fieldAndFormat());
+                    case DOC_VALUES -> docValueFields.add(embeddings.fieldAndFormat());
+                }
             }
 
-            if (fields.isEmpty() == false) {
+            if (fetchFields.isEmpty() == false) {
                 FetchFieldsContext existingFetchFieldsContext = context.fetchFieldsContext();
                 if (existingFetchFieldsContext != null && existingFetchFieldsContext.fields() != null) {
-                    fields.addAll(existingFetchFieldsContext.fields());
+                    fetchFields.addAll(existingFetchFieldsContext.fields());
                 }
-                context.fetchFieldsContext(new FetchFieldsContext(fields));
+                context.fetchFieldsContext(new FetchFieldsContext(fetchFields));
+            }
+
+            if (docValueFields.isEmpty() == false) {
+                FetchDocValuesContext existingDocValuesContext = context.docValuesContext();
+                if (existingDocValuesContext != null && existingDocValuesContext.fields() != null) {
+                    docValueFields.addAll(existingDocValuesContext.fields());
+                }
+                context.docValuesContext(new FetchDocValuesContext(context.getSearchExecutionContext(), docValueFields));
             }
         }
         if (source.highlighter() != null) {

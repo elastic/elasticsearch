@@ -1097,7 +1097,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         @Override
-        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        public EmbeddingsField embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
             // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
             // the field has no indexed values and has never seen inference results from the endpoint; the fetcher will short-circuit at
             // fetch time and return empty.
@@ -1118,7 +1118,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 }
             }
 
-            return new FieldAndFormat(name(), EMBEDDINGS_FORMAT);
+            return new EmbeddingsField(new FieldAndFormat(name(), EMBEDDINGS_FORMAT), EmbeddingsFieldSource.FIELDS);
         }
 
         @Override

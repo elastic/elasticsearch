@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.ColumnSpec;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

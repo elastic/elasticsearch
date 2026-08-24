@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource.csv;
+package org.elasticsearch.xpack.esql.datasources.fixtures;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Set;
 
 /**
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
- * multi-value support, matching the behavior of {@link CsvFormatReader}.
+ * multi-value support, matching the behavior of {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}.
  * <p>
  * Used by OrcFixtureGenerator, ParquetFixtureGenerator, NdJsonFixtureGenerator, and TsvFixtureGenerator to read CSV fixtures
  * with correct multi-value handling (e.g. {@code [a,b,c]} as a list, not just first element).
@@ -109,7 +109,7 @@ public final class CsvFixtureParser {
      * RFC-4180-style: a {@code "} only opens quoting at field start (after {@code ,} or line-start, optionally
      * preceded by whitespace) and is ignored inside {@code [..]} MVC cells. Stray {@code "} chars in unquoted
      * cells are literal bytes and must not cause multi-line gluing — kept consistent with
-     * {@link CsvFormatReader} so fixture parsing matches runtime parsing.
+     * {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader} so fixture parsing matches runtime parsing.
      */
     private static boolean hasUnclosedQuote(String s, char quote) {
         boolean inQuotes = false;
@@ -156,7 +156,10 @@ public final class CsvFixtureParser {
         return inQuotes;
     }
 
-    /** Same as {@link CsvFormatReader}: whitespace-only prefix still allows bracket MVC to open at {@code [}. */
+    /**
+     * Same as {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: a whitespace-only prefix still
+     * allows bracket MVC to open at {@code [}.
+     */
     private static boolean isWhitespaceOnlyFieldPrefix(StringBuilder current) {
         for (int k = 0; k < current.length(); k++) {
             if (Character.isWhitespace(current.charAt(k)) == false) {
@@ -218,7 +221,7 @@ public final class CsvFixtureParser {
                 }
                 i++;
             } else if (bracketDepth > 0) {
-                // See {@link CsvFormatReader} for the rationale: keep accumulating after the cell closes,
+                // See CsvFormatReader in the CSV datasource plugin for the rationale: keep accumulating after the cell closes,
                 // so a field like `[37] Title` stays a single field instead of producing a phantom column.
                 current.append(c);
                 if (c == '[') {

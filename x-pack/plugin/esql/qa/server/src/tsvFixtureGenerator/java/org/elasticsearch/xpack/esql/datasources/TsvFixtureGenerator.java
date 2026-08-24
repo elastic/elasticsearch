@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.ColumnSpec;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +33,7 @@ import java.util.Locale;
  * tests which glob {@code multifile_split/*.tsv}.
  * <p>
  * Uses {@link CsvFixtureParser} for bracket-aware parsing (same multi-value semantics as
- * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader} with {@code multi_value_syntax: brackets}).
+ * {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader} with {@code multi_value_syntax: brackets}).
  * Output uses TAB as the field delimiter; list cells are written as {@code [a,b,c]} with commas inside the brackets.
  */
 public final class TsvFixtureGenerator {

@@ -1,0 +1,36 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Tooling shared by every external-source fixture generator, and the one place the
+ * fixture matrix is declared.
+ *
+ * This module exists because the shared pieces had no home. `CsvFixtureParser` and
+ * `SplitPartitioner` ended up inside the esql-datasource-csv PLUGIN -- a production
+ * artifact -- because the canonical fixture source format happens to be CSV. Four
+ * generators' build-time classpaths therefore depend on a query-time plugin to get
+ * two classes that have nothing to do with reading CSV at query time.
+ *
+ * The cost of that accident is visible in the fixture matrix: what was shared spread
+ * to every format, and what was not did not. Hive bucketing stayed inside
+ * ParquetFixtureGenerator, so hive fixtures exist for Parquet alone.
+ *
+ * Dependency-free by design, and it must stay that way: the ORC and Parquet generator
+ * configurations deliberately isolate their Hadoop jars, and anything this module drags
+ * in would land on those classpaths.
+ */
+apply plugin: 'elasticsearch.build'
+
+base {
+  archivesName = 'x-pack-esql-fixture-common'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // Pure JDK, no Elasticsearch types -- it has to be loadable from every generator's
+  // isolated classpath.
+  replaceSignatureFiles 'jdk-signatures'
+}

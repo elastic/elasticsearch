@@ -19,8 +19,8 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

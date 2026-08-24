@@ -24,8 +24,8 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
-import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.elasticsearch.xpack.esql.datasources.fixtures.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasources.fixtures.SplitPartitioner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

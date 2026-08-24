@@ -15,6 +15,7 @@ import org.elasticsearch.columnar.ColumnMetadata;
 import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
+import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
 
@@ -27,8 +28,12 @@ import java.io.IOException;
  * <p>{@link #layout()} says how a block is encoded, and which trailing fields are meaningful.
  * {@link StringColumnLayout#PLAIN} reads its values straight out of {@link #values()}.
  * {@link StringColumnLayout#DICTIONARY} instead reads an ordinal from {@link #ordinals()} and resolves it
- * against {@link #dictionary()}; its {@link #values()} stream holds nothing, since every value is named by
- * a term.
+ * against {@link #dictionary()}; its {@link #values()} stream holds nothing, since a value is either named
+ * by a term or held in {@link #exceptions()}.
+ *
+ * <p>An ordinal equal to {@link #dictionarySize()} is the escape: the value is not in the dictionary and
+ * its bytes are in the exceptions stream instead. Which one is found by counting escapes, which
+ * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
  */
 public record StringColumnMetadata(
     ColumnIteratorMetadata iterator,
@@ -38,6 +43,8 @@ public record StringColumnMetadata(
     ValueStream.Metadata values,
     ValueStream.Metadata dictionary,
     NumericColumnMetadata ordinals,
+    ValueStream.Metadata exceptions,
+    MonotonicWriter.Table escapeRanks,
     int dictionarySize
 ) implements ColumnMetadata {
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
@@ -51,16 +58,32 @@ public record StringColumnMetadata(
         long numValues,
         ValueStream.Metadata values
     ) {
-        return new StringColumnMetadata(iterator, numDocsWithField, numValues, StringColumnLayout.PLAIN, values, null, null, 0);
+        return new StringColumnMetadata(
+            iterator,
+            numDocsWithField,
+            numValues,
+            StringColumnLayout.PLAIN,
+            values,
+            null,
+            null,
+            null,
+            MonotonicWriter.Table.NONE,
+            0
+        );
     }
 
-    /** A column that names every value with an ordinal into {@code dictionary}. */
+    /**
+     * A column that names its values with ordinals into {@code dictionary}. Values the dictionary does not
+     * hold escape into {@code exceptions}, found through {@code escapeRanks}.
+     */
     public static StringColumnMetadata dictionary(
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
+        ValueStream.Metadata exceptions,
+        MonotonicWriter.Table escapeRanks,
         int dictionarySize
     ) {
         return new StringColumnMetadata(
@@ -71,8 +94,15 @@ public record StringColumnMetadata(
             ValueStream.Metadata.empty(),
             dictionary,
             ordinals,
+            exceptions,
+            escapeRanks,
             dictionarySize
         );
+    }
+
+    /** Whether any value escaped the dictionary. */
+    public boolean hasEscapes() {
+        return exceptions != null && exceptions.numValues() > 0;
     }
 
     /** True when at least one document has more than one value. */
@@ -95,6 +125,13 @@ public record StringColumnMetadata(
                 out.writeVInt(dictionarySize);
                 dictionary.writeTo(out);
                 ordinals.writeTo(out);
+                exceptions.writeTo(out);
+                if (exceptions.numValues() > 0) {
+                    out.writeVLong(escapeRanks.dataOffset());
+                    out.writeVLong(escapeRanks.dataLength());
+                    out.writeVInt(escapeRanks.meta().length);
+                    out.writeBytes(escapeRanks.meta(), 0, escapeRanks.meta().length);
+                }
             }
         }
     }
@@ -124,14 +161,17 @@ public record StringColumnMetadata(
             case DICTIONARY -> {
                 final int dictionarySize = in.readVInt();
                 final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
-                yield dictionary(
-                    iterator,
-                    numDocsWithField,
-                    numValues,
-                    dictionary,
-                    NumericColumnMetadata.readFrom(in, maxDoc, formatVersion),
-                    dictionarySize
-                );
+                final NumericColumnMetadata ordinals = NumericColumnMetadata.readFrom(in, maxDoc, formatVersion);
+                final ValueStream.Metadata exceptions = ValueStream.Metadata.readFrom(in);
+                MonotonicWriter.Table escapeRanks = MonotonicWriter.Table.NONE;
+                if (exceptions.numValues() > 0) {
+                    final long dataOffset = in.readVLong();
+                    final long dataLength = in.readVLong();
+                    final byte[] meta = new byte[in.readVInt()];
+                    in.readBytes(meta, 0, meta.length);
+                    escapeRanks = new MonotonicWriter.Table(dataOffset, dataLength, meta);
+                }
+                yield dictionary(iterator, numDocsWithField, numValues, dictionary, ordinals, exceptions, escapeRanks, dictionarySize);
             }
         };
     }

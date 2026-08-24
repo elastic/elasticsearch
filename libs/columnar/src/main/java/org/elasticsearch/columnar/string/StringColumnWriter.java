@@ -12,9 +12,12 @@ package org.elasticsearch.columnar.string;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnValues;
 import org.elasticsearch.columnar.numeric.NumericColumnWriter;
@@ -23,8 +26,11 @@ import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ColumnIteratorMetadata;
 import org.elasticsearch.columnar.substrate.ColumnIteratorWriter;
+import org.elasticsearch.columnar.substrate.MonotonicWriter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Writes a string column. Values are written in the order the {@link StringColumnValues} cursor yields them and
@@ -45,6 +51,12 @@ public final class StringColumnWriter {
      * narrow ordinals has to reach before a single wide one stops widening it.
      */
     private static final int ORDINAL_BLOCK_SIZE = 128;
+
+    /**
+     * Values per entry in the escape-rank table. Finding an escaped value means counting the escapes before
+     * it, which this bounds to one block's worth of ordinals however many escaped.
+     */
+    static final int ESCAPE_RANK_BLOCK = 128;
 
     private StringColumnWriter() {}
 
@@ -84,12 +96,8 @@ public final class StringColumnWriter {
 
         if (policy.enabled()) {
             final Vocabulary.Terms vocabulary = Vocabulary.survey(cursors.get(), policy, numValues);
-            // Only a vocabulary that names every value is written today: with nowhere for an unknown value
-            // to go, a term the survey missed would have no ordinal to take. An escape carries that case,
-            // and follows.
-            if (vocabulary != null
-                && vocabulary.complete()
-                && policy.worthKeeping(1.0, vocabulary.dictionaryBytes(), vocabulary.columnBytes())) {
+            // Coverage is a lower bound, so a column admitted here covers at least as much as it claims.
+            if (vocabulary != null && policy.worthKeeping(vocabulary.coverage(), vocabulary.dictionaryBytes(), vocabulary.columnBytes())) {
                 return writeDictionary(
                     iterator,
                     numDocsWithField,
@@ -97,6 +105,7 @@ public final class StringColumnWriter {
                     cursors,
                     vocabulary,
                     valuesPerBlock,
+                    chunkCodec,
                     targetChunkBytes,
                     directory,
                     context,
@@ -130,8 +139,12 @@ public final class StringColumnWriter {
     }
 
     /**
-     * Writes the dictionary and an ordinal per value. Every value is named by a term, so nothing is stored
-     * twice: the values stream holds nothing and the column's bytes are the terms plus the ordinals.
+     * Writes the dictionary, an ordinal per value, and the values no term names.
+     *
+     * <p>Both the ordinals and the escaped values are staged in temporary files first. The escapes because
+     * how many there are is not known until the pass is over — the survey's counts are lower bounds — and a
+     * stream has to be told its length before it starts; the ordinals because the numeric column reads its
+     * input more than once, and a second pass over the values would have to look every term up again.
      */
     private static StringColumnMetadata writeDictionary(
         ColumnIteratorMetadata iterator,
@@ -140,6 +153,7 @@ public final class StringColumnWriter {
         IOSupplier<StringColumnValues> cursors,
         Vocabulary.Terms vocabulary,
         int valuesPerBlock,
+        ChunkCodec chunkCodec,
         int targetChunkBytes,
         Directory directory,
         IOContext context,
@@ -171,23 +185,137 @@ public final class StringColumnWriter {
             dictionary = writer.finish();
         }
 
-        final NumericColumnMetadata ordinals = NumericColumnWriter.write(
-            numDocsWithField,
-            numDocsWithField,
-            numValues,
-            () -> ordinalCursor(cursors.get(), vocabulary),
-            NumericPipeline.defaultPipeline(ORDINAL_BLOCK_SIZE),
-            BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
-            null,
-            directory,
-            context,
-            data
-        );
-        return StringColumnMetadata.dictionary(iterator, numDocsWithField, numValues, dictionary, ordinals, dictionarySize);
+        String ordinalTempName = null;
+        String exceptionTempName = null;
+        final List<IndexInput> replays = new ArrayList<>();
+        try {
+            long escapes = 0;
+            final ValueStream.Metadata exceptions;
+            final MonotonicWriter.Table escapeRanks;
+            try (MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues))) {
+                try (
+                    IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context);
+                    IndexOutput exceptionTemp = directory.createTempOutput(data.getName(), "columnar-exceptions", context)
+                ) {
+                    ordinalTempName = ordinalTemp.getName();
+                    exceptionTempName = exceptionTemp.getName();
+                    final StringColumnValues values = cursors.get();
+                    long index = 0;
+                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        for (int i = 0, count = values.valueCount(); i < count; i++) {
+                            if (index % ESCAPE_RANK_BLOCK == 0) {
+                                ranks.add(escapes);
+                            }
+                            final BytesRef value = values.nextValue();
+                            final int id = vocabulary.terms().find(value);
+                            final int ordinal = id >= 0 ? vocabulary.ordinalOfId()[id] : Vocabulary.DROPPED;
+                            if (ordinal == Vocabulary.DROPPED) {
+                                // The escape is one past the last ordinal, so it costs nothing to tell apart
+                                // and widens the ordinals only where the dictionary was already that wide.
+                                ordinalTemp.writeVInt(dictionarySize);
+                                exceptionTemp.writeVInt(value.length);
+                                exceptionTemp.writeBytes(value.bytes, value.offset, value.length);
+                                escapes++;
+                            } else {
+                                ordinalTemp.writeVInt(ordinal);
+                            }
+                            index++;
+                        }
+                    }
+                    // One past the end, so the escapes in the last block can be counted like any other.
+                    ranks.add(escapes);
+                }
+                exceptions = replayExceptions(
+                    directory,
+                    context,
+                    exceptionTempName,
+                    escapes,
+                    chunkCodec,
+                    targetChunkBytes,
+                    valuesPerBlock,
+                    data
+                );
+                escapeRanks = escapes == 0 ? MonotonicWriter.Table.NONE : ranks.finish(data);
+            }
+
+            final String staged = ordinalTempName;
+            final NumericColumnMetadata ordinals = NumericColumnWriter.write(numDocsWithField, numDocsWithField, numValues, () -> {
+                final IndexInput in = directory.openInput(staged, context);
+                replays.add(in);
+                return stagedOrdinals(cursors.get(), in);
+            },
+                NumericPipeline.defaultPipeline(ORDINAL_BLOCK_SIZE),
+                BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
+                null,
+                directory,
+                context,
+                data
+            );
+            return StringColumnMetadata.dictionary(
+                iterator,
+                numDocsWithField,
+                numValues,
+                dictionary,
+                ordinals,
+                exceptions,
+                escapeRanks,
+                dictionarySize
+            );
+        } finally {
+            IOUtils.close(replays);
+            IOUtils.deleteFilesIgnoringExceptions(directory, ordinalTempName, exceptionTempName);
+        }
     }
 
-    /** The values of {@code source}, as the ordinals their terms take, so they can be written as a numeric column. */
-    private static NumericColumnValues ordinalCursor(StringColumnValues source, Vocabulary.Terms vocabulary) {
+    /** One entry per block of values, plus one past the end. */
+    static long escapeRankEntries(long numValues) {
+        return (numValues + ESCAPE_RANK_BLOCK - 1) / ESCAPE_RANK_BLOCK + 1L;
+    }
+
+    /** Writes the staged escaped values, now that how many of them there are is known. */
+    private static ValueStream.Metadata replayExceptions(
+        Directory directory,
+        IOContext context,
+        String name,
+        long count,
+        ChunkCodec chunkCodec,
+        int targetChunkBytes,
+        int valuesPerBlock,
+        IndexOutput data
+    ) throws IOException {
+        if (count == 0) {
+            return ValueStream.Metadata.empty();
+        }
+        try (
+            IndexInput staged = directory.openInput(name, context);
+            ValueStream.Writer writer = new ValueStream.Writer(
+                chunkCodec,
+                targetChunkBytes,
+                valuesPerBlock,
+                count,
+                directory,
+                context,
+                data.getName(),
+                data
+            )
+        ) {
+            final BytesRef value = new BytesRef();
+            for (long i = 0; i < count; i++) {
+                final int length = staged.readVInt();
+                if (value.bytes.length < length) {
+                    value.bytes = new byte[ArrayUtil.oversize(length, Byte.BYTES)];
+                }
+                staged.readBytes(value.bytes, 0, length);
+                value.offset = 0;
+                value.length = length;
+                writer.add(value);
+            }
+            return writer.finish();
+        }
+    }
+
+    /** The staged ordinals, over the documents {@code source} walks, so they can be written as a numeric column. */
+    private static NumericColumnValues stagedOrdinals(StringColumnValues source, IndexInput staged) {
         return new NumericColumnValues() {
             @Override
             public int valueCount() {
@@ -196,10 +324,7 @@ public final class StringColumnWriter {
 
             @Override
             public long nextValue() throws IOException {
-                final int id = vocabulary.terms().find(source.nextValue());
-                assert id >= 0 && vocabulary.ordinalOfId()[id] != Vocabulary.DROPPED
-                    : "a complete vocabulary named every value, but this one is missing";
-                return vocabulary.ordinalOfId()[id];
+                return staged.readVInt();
             }
 
             @Override

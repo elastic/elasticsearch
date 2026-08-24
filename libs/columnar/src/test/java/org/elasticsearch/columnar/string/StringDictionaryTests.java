@@ -56,11 +56,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
-    /**
-     * One term seen once is enough to keep the column plain: that term is turned away by the survey, which
-     * leaves it with no ordinal to take, and there is nowhere yet for a value to escape to.
-     */
-    public void testOneUnrepeatedValueKeepsItPlain() throws IOException {
+    /** A term seen once is turned away by the survey, so its value escapes rather than taking an ordinal. */
+    public void testOneUnrepeatedValueEscapes() throws IOException {
         final String[] terms = { "alpha", "bravo", "charlie" };
         final BytesRef[] docValues = new BytesRef[between(300, 900)];
         for (int d = 0; d < docValues.length; d++) {
@@ -68,7 +65,73 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         }
         docValues[between(0, docValues.length - 1)] = new BytesRef("seen-exactly-once");
         withDictionary(docValues, (metadata, reader) -> {
-            assertEquals("layout", StringColumnLayout.PLAIN, metadata.layout());
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertTrue("the lone value escaped", metadata.hasEscapes());
+            assertEquals("one escape", 1L, metadata.exceptions().numValues());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /**
+     * A head of repeated terms over a long tail seen once each. The head takes ordinals and the tail
+     * escapes, which is the shape most real columns have.
+     */
+    public void testHeadTakesOrdinalsAndTailEscapes() throws IOException {
+        final String[] head = { "alpha", "bravo", "charlie", "delta" };
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 4000; i++) {
+            values.add(new BytesRef(head[i % head.length]));
+        }
+        for (int i = 0; i < 400; i++) {
+            values.add(new BytesRef("rare-" + i));
+        }
+        java.util.Collections.shuffle(values, random());
+        final BytesRef[] docValues = values.toArray(BytesRef[]::new);
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("the head is the dictionary", head.length, metadata.dictionarySize());
+            assertEquals("the tail escaped", 400L, metadata.exceptions().numValues());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /**
+     * Escapes far apart, so a value is reached from a rank-table entry several blocks back and the count
+     * of escapes between has to be right.
+     */
+    public void testEscapesSpreadAcrossManyBlocks() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(2000, 5000)];
+        for (int d = 0; d < docValues.length; d++) {
+            // Roughly one in three hundred is unique, so most blocks hold no escape at all.
+            docValues[d] = d % 300 == 7 ? new BytesRef("unique-" + d) : new BytesRef(d % 2 == 0 ? "on" : "off");
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertTrue("some values escaped", metadata.hasEscapes());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /** Every value escaping is the degenerate case: the rank of one is its own position. */
+    public void testEscapesInEveryPosition() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(300, 800)];
+        for (int d = 0; d < docValues.length; d++) {
+            // Two terms carry the dictionary; everything else is distinct and escapes.
+            docValues[d] = d % 50 == 0 ? new BytesRef(d % 100 == 0 ? "yes" : "no") : new BytesRef("x-" + d);
+        }
+        withDictionary(docValues, (metadata, reader) -> assertEveryValueReadsBack(docValues, reader));
+    }
+
+    /** A column that escapes nothing writes no exception stream and no rank table. */
+    public void testNoEscapesWritesNoExceptions() throws IOException {
+        final String[] terms = { "DEBUG", "ERROR", "INFO" };
+        final BytesRef[] docValues = new BytesRef[between(300, 900)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = new BytesRef(terms[d % terms.length]);
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertFalse("nothing escaped", metadata.hasEscapes());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -123,6 +186,22 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             assertEquals("dictionary terms", metadata.dictionary().numValues(), read.dictionary().numValues());
             assertEquals("ordinals", metadata.ordinals().numValues(), read.ordinals().numValues());
             assertEquals("numValues", metadata.numValues(), read.numValues());
+            assertEquals("escapes", metadata.exceptions().numValues(), read.exceptions().numValues());
+        });
+    }
+
+    /** The same, over a column that escaped values, so the rank table is written and read too. */
+    public void testMetadataRoundTripWithEscapes() throws IOException {
+        final BytesRef[] docValues = new BytesRef[between(500, 2000)];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 40 == 3 ? new BytesRef("rare-" + d) : new BytesRef(d % 2 == 0 ? "up" : "down");
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertTrue("some values escaped", metadata.hasEscapes());
+            final StringColumnMetadata read = roundTrip(metadata, docValues.length);
+            assertEquals("escapes", metadata.exceptions().numValues(), read.exceptions().numValues());
+            assertEquals("rank table length", metadata.escapeRanks().dataLength(), read.escapeRanks().dataLength());
+            assertEquals("rank table offset", metadata.escapeRanks().dataOffset(), read.escapeRanks().dataOffset());
         });
     }
 

@@ -11,9 +11,11 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
 
@@ -39,6 +41,9 @@ public final class StringColumnReader {
     /** Set on a dictionary column: the terms, and an ordinal into them for every value. */
     private final ValueStream.Reader dictionary;
     private final NumericColumnReader ordinals;
+    /** Set on a dictionary column that any value escaped: their bytes, and where each one's is. */
+    private final ValueStream.Reader exceptions;
+    private final LongValues escapeRanks;
 
     private final BytesRef value = new BytesRef();
 
@@ -50,10 +55,25 @@ public final class StringColumnReader {
             this.values = null;
             this.dictionary = meta.dictionary().open(data);
             this.ordinals = new NumericColumnReader(meta.ordinals(), data);
+            if (meta.hasEscapes()) {
+                this.exceptions = meta.exceptions().open(data);
+                this.escapeRanks = MonotonicReader.open(
+                    data,
+                    meta.escapeRanks().meta(),
+                    StringColumnWriter.escapeRankEntries(meta.numValues()),
+                    meta.escapeRanks().dataOffset(),
+                    meta.escapeRanks().dataLength()
+                );
+            } else {
+                this.exceptions = null;
+                this.escapeRanks = null;
+            }
         } else {
             this.values = meta.numDocsWithField() == 0 ? null : meta.values().open(data);
             this.dictionary = null;
             this.ordinals = null;
+            this.exceptions = null;
+            this.escapeRanks = null;
         }
     }
 
@@ -83,11 +103,32 @@ public final class StringColumnReader {
     public BytesRef valueAt(long valueAddress) throws IOException {
         if (dictionary != null) {
             // The ordinals are one per value in the same order, so a value address addresses them directly.
-            dictionary.get(ordinals.valueAt(valueAddress), value);
+            final long ordinal = ordinals.valueAt(valueAddress);
+            if (ordinal == meta.dictionarySize()) {
+                exceptions.get(escapeRankOf(valueAddress), value);
+            } else {
+                dictionary.get(ordinal, value);
+            }
         } else {
             values.get(valueAddress, value);
         }
         return value;
+    }
+
+    /**
+     * Where an escaped value's bytes are: how many values escaped before it. The table gives that for the
+     * start of its block, and the ordinals between there and the value give the rest, so the count never
+     * runs longer than a block however many escaped.
+     */
+    private long escapeRankOf(long valueAddress) throws IOException {
+        final long block = valueAddress / StringColumnWriter.ESCAPE_RANK_BLOCK;
+        long rank = escapeRanks.get(block);
+        for (long at = block * StringColumnWriter.ESCAPE_RANK_BLOCK; at < valueAddress; at++) {
+            if (ordinals.valueAt(at) == meta.dictionarySize()) {
+                rank++;
+            }
+        }
+        return rank;
     }
 
     /** How many terms the dictionary holds, or zero on a column that stores its values. */

@@ -1,0 +1,5 @@
+area: "ILM, Data streams"
+issues: []
+pr: 157195
+summary: Lifecycle features skip lookup indices
+type: bug

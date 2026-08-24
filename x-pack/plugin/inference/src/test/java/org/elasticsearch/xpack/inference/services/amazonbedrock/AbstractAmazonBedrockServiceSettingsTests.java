@@ -20,9 +20,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
@@ -191,6 +193,20 @@ public abstract class AbstractAmazonBedrockServiceSettingsTests<T extends Amazon
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_AwsCredentials_AreIgnored() {
+        var originalServiceSettings = createServiceSettings(
+            INITIAL_TEST_REGION,
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_PROVIDER,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(ACCESS_KEY_FIELD, "access-key-value", SECRET_KEY_FIELD, "secret-key-value"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

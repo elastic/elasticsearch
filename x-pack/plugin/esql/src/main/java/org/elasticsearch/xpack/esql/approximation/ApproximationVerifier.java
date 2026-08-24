@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -109,6 +110,7 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(Aggregate.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(ChangePoint.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Completion.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
+        new SimpleImmutableEntry<>(DenseVector.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Dissect.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(Enrich.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(EsRelation.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
@@ -174,6 +176,7 @@ public class ApproximationVerifier {
      */
     private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
         Completion.class,
+        DenseVector.class,
         Dissect.class,
         Enrich.class,
         Eval.class,

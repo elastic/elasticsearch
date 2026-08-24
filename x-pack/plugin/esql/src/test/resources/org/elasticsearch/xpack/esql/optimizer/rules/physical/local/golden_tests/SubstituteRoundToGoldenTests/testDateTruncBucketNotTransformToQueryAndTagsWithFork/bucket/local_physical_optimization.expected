@@ -4,7 +4,7 @@ LimitExec[1000[INTEGER],null]
     \_MergeExec[[date{r}#4]]
       |_ExchangeExec[[date{f}#5],false]
       | \_ProjectExec[[date{f}#5]]
-      |   \_FieldExtractExec[date{f}#5]<[],[],[]>
+      |   \_FieldExtractExec[[date{f}#5]<[],[],[]>,_doc{f}#6]
       |     \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "integer",
@@ -21,7 +21,7 @@ LimitExec[1000[INTEGER],null]
 }, tags=[]]]]
       \_ExchangeExec[[date{f}#7],false]
         \_ProjectExec[[date{f}#7]]
-          \_FieldExtractExec[date{f}#7]<[],[],[]>
+          \_FieldExtractExec[[date{f}#7]<[],[],[]>,_doc{f}#8]
             \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#8], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "match" : {
     "keyword" : {

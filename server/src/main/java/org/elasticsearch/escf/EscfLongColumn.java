@@ -40,6 +40,11 @@ public final class EscfLongColumn extends AbstractFixed64Column {
     }
 
     @Override
+    public DenseLongValuesCursor longValuesCursor() {
+        return super.longValuesCursor();
+    }
+
+    @Override
     EscfColumn sliceInternal(int from, int count) {
         return new EscfLongColumn(count, windowValidity(validity, from, count), data.slice(from * 8, count * 8));
     }

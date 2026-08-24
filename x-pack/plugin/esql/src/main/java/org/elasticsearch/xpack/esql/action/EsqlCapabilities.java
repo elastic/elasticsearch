@@ -1313,7 +1313,11 @@ public class EsqlCapabilities {
          * Support for COMPLETION command
          */
         COMPLETION,
-
+        /**
+         * Support for the DENSE_VECTOR command. Dev/snapshot-only — the command is gated behind
+         * {@code isDevVersion()} in the grammar.
+         */
+        DENSE_VECTOR_COMMAND(Build.current().isSnapshot()),
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least
          */
@@ -1533,6 +1537,11 @@ public class EsqlCapabilities {
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * Support non-correlated IN subqueries in the {@code EVAL} command.
+         */
+        EVAL_IN_SUBQUERY,
 
         /**
          * Support for views in cluster state (and REST API).

@@ -1735,3 +1735,90 @@ ROW cluster = "qa"
 cluster:keyword
 qa
 ;
+
+mainTsWithEvalInSubqueryTsWithAggBefore
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+TS k8s
+| STATS m1 = max(to_long(network.total_bytes_in)) BY cluster
+| EVAL is_match = cluster IN (TS k8s
+                              | STATS m2 = max(rate(network.total_bytes_in)) BY cluster
+                              | WHERE m2 > 10
+                              | KEEP cluster)
+| WHERE is_match
+| SORT cluster
+| KEEP cluster
+;
+
+cluster:keyword
+qa
+;
+
+mainTsWithEvalInSubqueryTsWithAggAfter
+skip_flattened_rewrite: complicated_in_subquery_in_eval
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+TS k8s
+| EVAL is_match = cluster IN (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster | WHERE m > 10 | KEEP cluster)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, is_match
+| SORT cluster, is_match
+;
+
+max_bytes:long | cluster:keyword | is_match:boolean
+10277          | prod            | false
+10797          | qa              | true
+7403           | staging         | false
+;
+
+
+mainFromWithEvalInSubqueryTsWithAggBefore
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+FROM employees
+| STATS c = COUNT(*) BY gender
+| EVAL is_match = gender IN (TS k8s
+                             | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                             | WHERE cluster == "qa"
+                             | EVAL gender = "F"
+                             | KEEP gender)
+| SORT gender
+;
+
+c:long | gender:keyword | is_match:boolean
+33     | F              | true
+57     | M              | false
+10     | null           | null
+;
+
+mainFromWithEvalInSubqueryTsWithAggAfter
+skip_flattened_rewrite: complicated_in_subquery_in_eval
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_ts
+required_capability: ts_command_v0
+required_capability: eval_in_subquery
+
+
+FROM employees
+| EVAL is_match = gender IN (TS k8s
+                             | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                             | WHERE cluster == "qa"
+                             | EVAL gender = "F"
+                             | KEEP gender)
+| STATS c = COUNT(*) BY is_match
+| SORT is_match
+;
+
+c:long | is_match:boolean
+57     | false
+33     | true
+10     | null
+;

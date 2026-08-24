@@ -63,6 +63,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
@@ -194,6 +195,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testExistsQueryMinimalMapping() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    /**
+     * Most field types expose no embeddings, so they must return {@code null} for every requested vector type. Field types that can
+     * produce embeddings override this test.
+     */
+    public void testEmbeddingsFieldAndFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertNull(fieldType.embeddingsFieldAndFormat(null));
+        for (VectorType vectorType : VectorType.values()) {
+            assertNull(fieldType.embeddingsFieldAndFormat(vectorType));
+        }
         assertParseMinimalWarnings();
     }
 

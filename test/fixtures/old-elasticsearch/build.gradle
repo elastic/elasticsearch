@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.deploy-test-fixtures'
 
 description = 'Testcontainers fixture for old Elasticsearch versions'
 
-def fixtureVersion = '1.3'
+def fixtureVersion = '1.4'
 def sharedDockerContext = project.file('src/main/resources/docker')
 
 // Elasticsearch only started publishing native linux-aarch64 distributions in 7.8.0. Earlier

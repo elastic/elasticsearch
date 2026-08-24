@@ -735,6 +735,154 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    // ---- EVAL IN subquery: filter path vs hash-join path ----
+
+    /**
+     * Parity check for a bare EVAL IN subquery mark. {@code EVAL m = id IN (subquery)} exposes
+     * a boolean mark column; both the filter path (default) and the hash-join path (threshold=0)
+     * must produce identical mark values for every row.
+     */
+    public void testEvalInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | EVAL m = id IN (FROM test | WHERE color == "red" | KEEP id)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for EVAL IN subquery when the subquery's right side contains NULLs. A
+     * non-matching left row against a right side with NULLs receives a NULL mark (three-valued
+     * logic), not FALSE. Both execution paths must agree on the null-mark rows.
+     */
+    public void testEvalInSubqueryWithNullMarksFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. Red rows get mark=TRUE; blue rows get mark=NULL.
+        String query = """
+            FROM test
+            | EVAL m = color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for CASE wrapping an EVAL IN subquery mark. {@code CASE(id IN (subquery),
+     * "red", "other")} maps TRUE to "red" and FALSE to "other". Both execution paths must
+     * produce the same label for every row.
+     */
+    public void testEvalCaseWithInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        String query = """
+            FROM test
+            | EVAL label = CASE(id IN (FROM test | WHERE color == "red" | KEEP id), "red", "other")
+            | SORT id
+            | KEEP id, label
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for COALESCE wrapping an EVAL IN subquery mark when the right side contains
+     * NULLs. Non-matching left rows receive a NULL mark; {@code COALESCE(null, false)} must
+     * yield {@code false} on both execution paths.
+     */
+    public void testEvalCoalesceWithInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. COALESCE(null mark, false) = false on both paths.
+        String query = """
+            FROM test
+            | EVAL m = COALESCE(color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color), false)
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for IS NULL applied to an EVAL IN subquery mark when the right side contains
+     * NULLs. A NULL mark (non-matching row against a right side that has NULLs) gives IS NULL
+     * = TRUE; a TRUE or FALSE mark gives IS NULL = FALSE. Both paths must agree on every row.
+     */
+    public void testEvalIsNullOfInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        // Subquery right side: {"red", null}. Red rows: IS NULL=FALSE; blue rows: IS NULL=TRUE.
+        String query = """
+            FROM test
+            | EVAL m = (color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)) IS NULL
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
+    /**
+     * Parity check for IS NOT NULL applied to an EVAL IN subquery mark when the right side
+     * contains NULLs. Complement of {@link #testEvalIsNullOfInSubqueryFilterAndHashJoinPathsAgree}:
+     * a non-null mark (TRUE or FALSE) yields IS NOT NULL = TRUE; a NULL mark yields FALSE.
+     * Both paths must agree on every row.
+     */
+    public void testEvalIsNotNullOfInSubqueryFilterAndHashJoinPathsAgree() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        client().prepareBulk()
+            .add(new IndexRequest("test").id("7").source("id", 7))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String query = """
+            FROM test
+            | EVAL m = (color IN (FROM test | WHERE id == 1 OR id == 7 | KEEP color)) IS NOT NULL
+            | SORT id
+            | KEEP id, m
+            """;
+        try (
+            var defaultResp = run(syncEsqlQueryRequest(query).pragmas(QueryPragmas.EMPTY));
+            var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
+        ) {
+            assertEquals(getValuesList(defaultResp), getValuesList(forcedResp));
+        }
+    }
+
     // ---- views referenced from inside an IN subquery ----
 
     public void testInSubqueryReferencingSimpleView() {

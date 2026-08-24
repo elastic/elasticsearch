@@ -188,6 +188,9 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
 
         static {
             RateLimitSettings.declareUpdatableRateLimitSettings(PARSER, Update::setRateLimitSettings);
+            // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+            // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
+            PARSER.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
         }
 
         private StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();

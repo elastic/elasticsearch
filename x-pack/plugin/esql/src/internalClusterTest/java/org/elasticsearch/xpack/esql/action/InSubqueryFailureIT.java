@@ -59,16 +59,6 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     // ---- IN subquery in unsupported positions ----
 
-    public void testRejectsInSubqueryInEval() {
-        var e = expectThrows(VerificationException.class, () -> run("FROM test | EVAL x = id IN (FROM test | KEEP id)"));
-        assertThat(e.getMessage(), containsString("IN subquery is not supported in [EVAL x = id IN (FROM test | KEEP id)]"));
-    }
-
-    public void testRejectsNotInSubqueryInEval() {
-        var e = expectThrows(VerificationException.class, () -> run("FROM test | EVAL x = id NOT IN (FROM test | KEEP id)"));
-        assertThat(e.getMessage(), containsString("IN subquery is not supported in [EVAL x = id NOT IN (FROM test | KEEP id)]"));
-    }
-
     public void testRejectsInSubqueryInSort() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | SORT id IN (FROM test | KEEP id)"));
         assertThat(e.getMessage(), containsString("IN subquery is not supported in [SORT id IN (FROM test | KEEP id)]"));
@@ -94,7 +84,7 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (FROM main_index), [true, false])]")
+            containsString("IN subquery is not supported within expression [MV_CONTAINS(x IN (FROM main_index), [true, false])]")
         );
     }
 

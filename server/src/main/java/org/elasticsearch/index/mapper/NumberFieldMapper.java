@@ -2850,18 +2850,6 @@ public class NumberFieldMapper extends FieldMapper {
         return fieldType.type.typeName();
     }
 
-    @Override
-    public boolean supportsBatchIndexing() {
-        // Plain number mappers can be driven through parseCreateField by the bulk batch path.
-        // ignore_malformed is allowed — parseCreateField handles it and only needs
-        // addIgnoredField on the context. Dimensions, copy_to, multi-fields, and scripts pull
-        // in behavior that the v1 batch path does not support.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && dimension == false;
-    }
-
     // FieldType constants for the Lucene field variants emitted by the columnar parse path.
     // The compat harness compares frozen FieldType, so the column must carry exactly the same type
     // as the corresponding field produced by the row-major path.

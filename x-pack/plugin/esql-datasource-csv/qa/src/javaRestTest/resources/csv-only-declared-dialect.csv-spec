@@ -1,0 +1,33 @@
+// CSV-ONLY spec: declaration x dialect cases that depend on the CSV materialization of the fixture.
+//
+// Note that `csv-*.csv-spec` does NOT mean CSV-only -- TSV loads csv-basic and csv-declared-schema too, because
+// both formats go through the same delimited reader. This file exists for the narrower set of cases that TSV
+// genuinely cannot run: employees_no_mv.csv is column-aligned with space-padded string fields, and the TSV
+// generator writes those fields unpadded, so a case that observes padding has nothing to observe on TSV.
+//
+// Keep the portable declaration x dialect cases in csv-declared-schema.csv-spec, where TSV runs them too. Only
+// put a case here when it depends on a property of the CSV file that the other formats' materializations lack.
+
+// DECLARATION x DIALECT. The two are orthogonal knobs and each must survive the other. This fixture's string
+// columns are space-padded to a fixed width ("Georgi" occupies 11 bytes), and the harness injects trim_spaces:true
+// unless the WITH already sets it, so pinning trim_spaces:false is what makes the padding observable. The padding
+// is asserted through LENGTH rather than by writing a padded literal: a csv-spec expected table trims its cells,
+// so trailing whitespace cannot be expressed there and a padded value can only be checked via a derived scalar.
+// Discriminating on both axes -- lose the dialect setting and every length drops to the trimmed width, lose the
+// declaration and there is no `name` column to measure. Note a keyword declaration does NOT imply trimming: it
+// takes the field's bytes as the dialect resolved them.
+strictDeclaredSchemaDoesNotImplyTrimming
+required_capability: dataset_in_from_command
+dataset: employees_declared_untrimmed: "{{employees_no_mv}}" WITH {"trim_spaces": false, "mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}}}}
+
+FROM employees_declared_untrimmed
+| EVAL padded_width = LENGTH(name)
+| KEEP id, padded_width
+| SORT id
+| LIMIT 3;
+
+id:long | padded_width:integer
+10001   | 11
+10002   | 11
+10003   | 11
+;

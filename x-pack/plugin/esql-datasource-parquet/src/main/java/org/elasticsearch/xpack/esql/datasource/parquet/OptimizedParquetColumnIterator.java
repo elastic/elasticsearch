@@ -1016,9 +1016,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         try {
             return advanceRowGroup();
         } catch (IOException e) {
-            throw new IllegalArgumentException(
-                "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
             );
         }
     }
@@ -1543,14 +1543,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // No manual breaker accounting here: the Arrow allocator that backs the
             // prefetch's direct memory automatically releases the reservation when the
             // failed future is drained by the caller's cleanup path.
-            throw new IllegalArgumentException(
-                "Trivially-passes Phase-2 fetch failed for row group ["
-                    + rowGroupOrdinal
-                    + "] in ["
-                    + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Trivially-passes Phase-2 fetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]"
             );
         }
         // Merge the two chunk maps. Both phases prefetched disjoint columns (predicate vs.
@@ -1616,10 +1611,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // No manual breaker accounting here: the Arrow allocator that backs the
             // prefetch's direct memory automatically releases the reservation when the
             // failed future is drained by the caller's cleanup path.
-            throw new IllegalArgumentException(
-                "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]: " + e.getMessage(),
-                e
-            );
+            throw ParquetReadFailures.wrap(e, "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]");
         }
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = result != null ? result.chunks() : null;
         // The Phase-2 chunks' allocator-backed memory is the sole breaker accounting for this row
@@ -2060,16 +2052,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } catch (RuntimeException e) {
             Releasables.closeExpectNoException(blocks);
             Releasables.closeExpectNoException(predicateBlocks);
-            throw new IllegalArgumentException(
+            throw ParquetReadFailures.wrap(
+                e,
                 "Failed to emit two-phase Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] batch ["
                     + state.nextBatchIndex()
                     + "] in file ["
                     + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+                    + "]"
             );
         }
 
@@ -2159,26 +2150,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } catch (CircuitBreakingException e) {
                     // Let breaker exceptions flow through unwrapped: callers (and tests) match
                     // on the exact type to distinguish memory-pressure failures from data errors.
-                    Releasables.closeExpectNoException(blocks);
                     throw e;
                 } catch (Exception e) {
-                    Releasables.closeExpectNoException(blocks);
-                    Attribute attr = attributes.get(col);
-                    throw new IllegalArgumentException(
-                        "Failed to read Parquet column ["
-                            + attr.name()
-                            + "] (type "
-                            + attr.dataType()
-                            + ") at row group ["
-                            + (rowGroupOrdinal + 1)
-                            + "] page batch ["
-                            + pageBatchIndexInRowGroup
-                            + "] in file ["
-                            + fileLocation
-                            + "]: "
-                            + e.getMessage(),
-                        e
-                    );
+                    throw wrapColumnReadException(col, e);
                 }
             }
             if (producedRows < 0) {
@@ -2189,20 +2163,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
             }
-        } catch (IllegalArgumentException | CircuitBreakingException e) {
+        } catch (CircuitBreakingException e) {
+            Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new IllegalArgumentException(
+            throw ParquetReadFailures.wrap(
+                e,
                 "Failed to create Page batch at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
                     + pageBatchIndexInRowGroup
                     + "] in file ["
                     + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+                    + "]"
             );
         }
         counters.addRowsEmitted(rowsToRead);
@@ -2295,21 +2269,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
-        } catch (IllegalArgumentException | CircuitBreakingException e) {
+        } catch (CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new IllegalArgumentException(
+            throw ParquetReadFailures.wrap(
+                e,
                 "Failed to create late-materialized Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
                     + pageBatchIndexInRowGroup
                     + "] in file ["
                     + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+                    + "]"
             );
         }
     }
@@ -2368,9 +2341,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private IllegalArgumentException wrapColumnReadException(int colIndex, Exception e) {
+    private RuntimeException wrapColumnReadException(int colIndex, Exception e) {
         Attribute attr = attributes.get(colIndex);
-        return new IllegalArgumentException(
+        return ParquetReadFailures.wrap(
+            e,
             "Failed to read Parquet column ["
                 + attr.name()
                 + "] (type "
@@ -2381,9 +2355,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 + pageBatchIndexInRowGroup
                 + "] in file ["
                 + fileLocation
-                + "]: "
-                + e.getMessage(),
-            e
+                + "]"
         );
     }
 

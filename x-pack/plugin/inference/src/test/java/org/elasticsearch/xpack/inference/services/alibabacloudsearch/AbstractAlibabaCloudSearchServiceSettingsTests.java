@@ -272,6 +272,15 @@ public abstract class AbstractAlibabaCloudSearchServiceSettingsTests<T extends S
         );
     }
 
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
     public void testUpdateServiceSettings_MutableCommonFields_AreUpdated() {
         var originalServiceSettings = createServiceSettings(initialCommonServiceSettings());
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(

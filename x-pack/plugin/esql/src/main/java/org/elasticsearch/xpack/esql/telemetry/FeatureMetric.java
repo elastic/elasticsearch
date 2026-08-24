@@ -53,9 +53,12 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -90,9 +93,10 @@ public enum FeatureMetric {
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
-    // SemiJoin/AntiJoin/MarkJoin only originate from `WHERE x IN (sub)` (rewritten by InSubqueryResolver),
-    // so seeing one in the plan implies the user wrote a WHERE clause — count it for WHERE.
-    WHERE(plan -> plan instanceof Filter || plan instanceof AbstractSubqueryJoin),
+    // SemiJoin and AntiJoin only originate from `WHERE x IN (sub)` at the top of an AND-conjunct (rewritten by InSubqueryResolver).
+    // MarkJoin can also originate from `EVAL m = x IN (sub)`, so it is not counted here; the surrounding Eval node (above the MarkJoin)
+    // counts for EVAL. Every WHERE MarkJoin path also creates a Filter above the join, so Filter covers that case.
+    WHERE(plan -> plan instanceof Filter || plan instanceof SemiJoin || plan instanceof AntiJoin),
     ENRICH(Enrich.class::isInstance),
     EXPLAIN(Explain.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
@@ -113,6 +117,7 @@ public enum FeatureMetric {
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
+    DENSE_VECTOR(DenseVector.class::isInstance),
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(node -> node instanceof Subquery && !(node instanceof NamedSubquery)),
     VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
@@ -150,7 +155,8 @@ public enum FeatureMetric {
         DatasetShadowRelation.class, // CPS lenient-lookup marker for datasets, stripped by StripDatasetShadowRelations after ResolveTable
         TimeSeriesCollapse.class, // TS_COLLAPSE is rolled into the PROMQL counter via the wrapped PromqlCommand below it
         TopNBy.class, // produced by PROMQL `or` (union) translation for left-preferring dedup; otherwise only appears post-analysis
-        InsertEmptyBuckets.class // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
+        InsertEmptyBuckets.class, // not a user command; produced by setting BUCKET(..., {"include_empty_buckets": true})
+        MarkJoin.class // MarkJoin's enclosing command(filter, eval) already records the telemetry.
     );
 
     private Predicate<LogicalPlan> planCheck;

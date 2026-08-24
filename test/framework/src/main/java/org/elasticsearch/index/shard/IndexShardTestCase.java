@@ -135,8 +135,6 @@ import static org.mockito.Mockito.doAnswer;
  */
 public abstract class IndexShardTestCase extends ESTestCase {
 
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
-
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
     private static final AtomicBoolean failOnShardFailures = new AtomicBoolean(true);
@@ -547,7 +545,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             searchListeners,
             listeners
         );
@@ -768,7 +766,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             Collections.emptyList(),
             listeners
         );

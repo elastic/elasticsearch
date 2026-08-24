@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -64,6 +65,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     private static final String SECURITY_IT_OTHER_DATASOURCE = "other_tenant_ds";
 
     private static boolean securityItDatasourcesInitialized;
+
+    @BeforeClass
+    public static void resetSecurityItDatasourcesInitialized() {
+        // reset this for the subclasses
+        securityItDatasourcesInitialized = false;
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

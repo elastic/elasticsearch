@@ -191,7 +191,7 @@ book_no:keyword
 ;
 
 matchWithFunctionPushedToLucene
-skip_flattened_rewrite: match_family_rejects_field_extract
+skip_flattened_rewrite: runtime_search_reorders_conjunct_warnings
 required_capability: match_function
 
 from hosts 

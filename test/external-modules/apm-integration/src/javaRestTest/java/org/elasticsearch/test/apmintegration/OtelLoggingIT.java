@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.otelfilter.TestOtelFilterPlugin;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
@@ -96,11 +95,6 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(API_USER, new SecureString("api-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Before
-    void checkFIPS() {
-        assumeFalse("Disabled for FIPS mode: https://github.com/elastic/elasticsearch/issues/154330", inFipsJvm());
     }
 
     public void testAuditEventArrivesAsOtlpLogRecord() throws Exception {

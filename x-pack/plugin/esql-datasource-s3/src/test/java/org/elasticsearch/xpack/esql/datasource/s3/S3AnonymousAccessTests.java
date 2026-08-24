@@ -16,7 +16,10 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -90,7 +93,8 @@ public class S3AnonymousAccessTests extends ESTestCase {
 
     /**
      * When the suffix-range GET fails with a non-403 S3 error, falls back to HEAD.
-     * If HEAD also fails, the error propagates as IOException.
+     * A retryable HEAD status (500) maps like a retryable GET: {@link ExternalUnavailableException}
+     * (HTTP 503), not a client-class {@link IOException}.
      */
     public void testHeadNon403ErrorPropagates() {
         when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(
@@ -102,8 +106,10 @@ public class S3AnonymousAccessTests extends ESTestCase {
 
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
-        IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("HeadObject request failed"));
+        ExternalUnavailableException eue = expectThrows(ExternalUnavailableException.class, obj::length);
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(eue));
+        assertThat(eue.getMessage(), containsString("HTTP 500"));
+        assertFalse(eue.throttling());
     }
 
     /**
@@ -126,8 +132,8 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When HeadObject returns 403 and the range GET also fails (non-404), the error
-     * should propagate with a descriptive message.
+     * When suffix-range GET and the bytes=0-0 fallback both return 403, the error
+     * is a client-class {@link IOException} (not retryable).
      */
     public void testHeadFallbackRangeGetAlsoFails() {
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
@@ -140,7 +146,8 @@ public class S3AnonymousAccessTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 
         IOException e = expectThrows(IOException.class, obj::length);
-        assertThat(e.getMessage(), containsString("HEAD denied, range GET also failed"));
+        assertThat(e.getMessage(), containsString("Failed to get metadata for"));
+        assertThat(e.getMessage(), containsString("HTTP 403"));
     }
 
     /**

@@ -256,6 +256,10 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             new ParseField(RateLimitSettings.FIELD_NAME),
             ObjectParser.ValueType.OBJECT_OR_NULL
         );
+        // access_key/secret_key appear in the same JSON block as service settings in update requests; AwsSecretSettings extracts them
+        // separately. Declare them here as no-ops so the strict update parser does not reject them as unknown fields.
+        parser.declareString((u, v) -> {}, new ParseField(ACCESS_KEY_FIELD));
+        parser.declareString((u, v) -> {}, new ParseField(SECRET_KEY_FIELD));
     }
 
     /**

@@ -510,7 +510,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes = pageBytes;
             }
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to read V1 page bytes: " + e.getMessage(), e);
+            throw ParquetReadFailures.wrap(e, "Failed to read V1 page bytes");
         }
     }
 
@@ -524,7 +524,7 @@ final class PageColumnReader implements Releasable {
             }
             currentValueBytes = v2.getData().toByteBuffer();
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to read V2 page bytes: " + e.getMessage(), e);
+            throw ParquetReadFailures.wrap(e, "Failed to read V2 page bytes");
         }
     }
 
@@ -549,10 +549,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes.duplicate().get(bytes);
                 fallbackReader.initFromPage(currentPageValueCount, bytes, 0);
             } catch (IOException e) {
-                throw new IllegalArgumentException(
-                    "Failed to init fallback decoder for encoding " + currentEncoding + ": " + e.getMessage(),
-                    e
-                );
+                throw ParquetReadFailures.wrap(e, "Failed to init fallback decoder for encoding " + currentEncoding);
             }
         }
     }

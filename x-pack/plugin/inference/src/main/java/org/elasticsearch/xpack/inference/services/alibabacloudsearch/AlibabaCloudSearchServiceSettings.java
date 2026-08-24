@@ -160,6 +160,9 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             return value;
         }, new ParseField(HTTP_SCHEMA_NAME), ObjectParser.ValueType.STRING_OR_NULL);
         RateLimitSettings.declareUpdatableRateLimitSettings(parser, (update, value) -> update.rateLimitSettings = value);
+        // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
+        parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     /**

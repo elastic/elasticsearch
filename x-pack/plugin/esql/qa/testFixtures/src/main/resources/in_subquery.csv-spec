@@ -4288,3 +4288,465 @@ FROM employees
 c:long
 4
 ;
+
+inSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+;
+
+notInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | false
+10002          | false
+10003          | false
+10004          | true
+;
+
+inSubqueryInEvalAttributeReferencedInWhere
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE m
+| STATS c = COUNT(*)
+;
+
+c:long
+3
+;
+
+notInSubqueryInEvalAttributeReferencedInWhere
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE m
+| STATS c = COUNT(*)
+;
+
+c:long
+97
+;
+
+inSubqueryInEvalWithMultipleAttributes
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL a = emp_no * 2, m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), b = salary + 1
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, a, m
+;
+
+emp_no:integer | a:integer | m:boolean
+10001          | 20002     | true
+10002          | 20004     | true
+10003          | 20006     | true
+;
+
+inSubqueryInEvalWithAttributeDefinedInSameEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL a = emp_no + 10000, m = a IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, a, m
+;
+
+emp_no:integer | a:integer | m:boolean
+10001          | 20001     | false
+10002          | 20002     | false
+10003          | 20003     | false
+;
+
+// Null semantics: RHS has NULLs → non-matching LHS gets NULL
+
+inSubqueryInEvalNoMatchRHSHasNulls
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// languages has 10 NULLs; emp_no (10001-10100) cannot match language values (1-5)
+// → every mark is NULL; confirm all 100 rows have a NULL mark
+FROM employees
+| EVAL m = emp_no IN (FROM employees | KEEP languages)
+| WHERE m IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+
+inSubqueryInEvalNoMatchLHSHasNulls
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// LHS is languages (10 NULLs); RHS has no NULLs (top 3 emp_no values)
+// languages (1-5) do not match emp_no (10001-10003): FALSE for non-null LHS, NULL for null LHS
+// Confirm 10 employees with null languages produce a NULL mark
+FROM employees
+| EVAL m = languages IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE m IS NULL
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+conjunctiveInSubqueriesInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)
+    AND emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10006
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+10005          | false
+10006          | false
+;
+
+disjunctiveInAndNotInSubqueriesInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// The top 3 match the first IN; employee numbers above the top 5 match the NOT IN.
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+    OR emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)
+| WHERE emp_no <= 10006
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+10005          | false
+10006          | true
+;
+
+inSubqueryAndLessThanOrEqualsInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no) AND emp_no <= 10003
+| WHERE emp_no <= 10006
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+10005          | false
+10006          | false
+;
+
+inSubqueryOrEqualsInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no) OR emp_no == 10005
+| WHERE emp_no <= 10006
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+10005          | true
+10006          | false
+;
+
+caseWithInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = CASE(emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no), "yes", "no")
+| WHERE emp_no <= 10004
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:keyword
+10001          | yes
+10002          | yes
+10003          | yes
+10004          | no
+;
+
+coalesceWithInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// Subquery returns languages (which has NULLs) → mark is NULL for non-matching rows
+// COALESCE(null, false) = false for all (emp_no never matches language values)
+FROM employees
+| EVAL m = COALESCE(emp_no IN (FROM employees | KEEP languages), false)
+| WHERE m == false
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+isNullWithInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// languages has NULLs; emp_no can never match language values → mark is always NULL
+// IS NULL(NULL) = TRUE for all 100 rows
+FROM employees
+| EVAL m = (emp_no IN (FROM employees | KEEP languages)) IS NULL
+| WHERE m
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+caseWithConjunctiveInSubqueriesInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = CASE(
+    emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no)
+      AND emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+    "yes", "no")
+| WHERE emp_no <= 10006
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:keyword
+10001          | yes
+10002          | yes
+10003          | yes
+10004          | no
+10005          | no
+10006          | no
+;
+
+coalesceWithDisjunctiveInAndNotInSubqueriesInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+FROM employees
+| EVAL m = COALESCE(
+    emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+      OR emp_no NOT IN (FROM employees | SORT emp_no ASC | LIMIT 5 | KEEP emp_no),
+    false)
+| WHERE emp_no <= 10006
+| SORT emp_no ASC
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:boolean
+10001          | true
+10002          | true
+10003          | true
+10004          | false
+10005          | false
+10006          | true
+;
+
+isNullWithInSubqueryAndGreaterThanInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// The nullable RHS makes every non-matching IN mark NULL; NULL AND TRUE remains NULL.
+FROM employees
+| EVAL m = (emp_no IN (FROM employees | KEEP languages) AND emp_no > 0) IS NULL
+| WHERE m
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+isNotNullWithInSubqueryOrLessThanInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// The nullable RHS makes every non-matching IN mark NULL; NULL OR FALSE remains NULL.
+FROM employees
+| EVAL m = (emp_no IN (FROM employees | KEEP languages) OR emp_no < 0) IS NOT NULL
+| WHERE m
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+rowSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| EVAL m = emp_no IN (ROW a = 10001)
+| WHERE m
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+;
+
+rowSubqueryWithNotInInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: subquery_with_row
+
+FROM employees
+| EVAL m = emp_no NOT IN (ROW a = 10001)
+| WHERE m == false
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+;
+
+rowSourceWithFromInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+ROW a = 10001
+| EVAL m = a IN (FROM employees | KEEP emp_no)
+| KEEP a, m
+;
+
+a:integer | m:boolean
+10001     | true
+;
+
+rowSourceWithRowInSubqueryInEval
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+required_capability: subquery_with_row
+
+ROW a = 10001
+| EVAL m = a IN (ROW b = 10001)
+| KEEP a, m
+;
+
+a:integer | m:boolean
+10001     | true
+;
+
+// ---- EVAL IN subquery: name-collision flush correctness ----
+
+evalInSubqueryNameCollisionFlushesInterveningAlias
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// The third field reuses alias `a`. The resolver must flush Eval[a=emp_no+10000, z=a*2] before
+// stacking the MarkJoin, so that `z` can correctly reference the original `a`. The final `a` is
+// the IN result; `z` uses the intermediate value emp_no+10000 (not the overwritten mark).
+FROM employees
+| EVAL a = emp_no + 10000, z = a * 2, a = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, z, a
+;
+
+emp_no:integer | z:integer | a:boolean
+10001          | 40002     | true
+10002          | 40004     | true
+10003          | 40006     | true
+;
+
+evalInSubqueryNameCollisionNoInterveningField
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// Simple name collision: the second definition of `a` overwrites the first with an IN result.
+// The original `a = emp_no + 10000` must still be flushed (not lost), though nothing depends on it.
+FROM employees
+| EVAL a = emp_no + 10000, a = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, a
+;
+
+emp_no:integer | a:boolean
+10001          | true
+10002          | true
+10003          | true
+;
+
+evalInSubqueryNameCollisionBothInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: eval_in_subquery
+
+// Both `a` definitions use InSubquery. The second must flush the first before stacking its MarkJoin.
+// The final `a` is the result of the second IN (emp_no in the bottom-3 by emp_no: 10098, 10099, 10100),
+// so rows 10001-10003 produce false.
+FROM employees
+| EVAL a = emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no),
+       a = emp_no IN (FROM employees | SORT emp_no DESC | LIMIT 3 | KEEP emp_no)
+| WHERE emp_no <= 10003
+| SORT emp_no ASC
+| KEEP emp_no, a
+;
+
+emp_no:integer | a:boolean
+10001          | false
+10002          | false
+10003          | false
+;

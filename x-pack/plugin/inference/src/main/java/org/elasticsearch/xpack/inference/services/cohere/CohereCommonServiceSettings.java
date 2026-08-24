@@ -298,6 +298,9 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
             (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
+        // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
+        parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     public static class CommonUpdate {

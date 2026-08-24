@@ -1053,8 +1053,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 } finally {
                     // Upload failed: the VBCC never made it to recentlyUploadedVbccs/recentlyUploadedCleanups so close it directly.
-                    IOUtils.closeWhileHandlingException(virtualBcc);
-                    blobReference.decRef();
+                    cleanup();
                 }
             }
 

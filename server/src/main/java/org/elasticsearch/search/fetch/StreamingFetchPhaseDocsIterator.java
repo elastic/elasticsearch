@@ -76,6 +76,15 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     }
 
     /**
+     * Invoked by the chunk producer immediately after a hit has been serialized into the current chunk buffer and its
+     * reference released. Streaming source-memory accounting overrides this to release the per-hit request-breaker bytes it
+     * reserved while building the hit, because in streaming mode a hit's decompressed source is short-lived (unlike the
+     * non-streaming path, which retains all hits until the response is sent). Always invoked, including when serialization
+     * fails, so it must be idempotent with respect to already-released bytes. The default implementation is a no-op.
+     */
+    protected void onHitSerialized() {}
+
+    /**
      * Asynchronous iteration using {@link ThrottledIterator} for streaming mode.
      *
      * @param shardTarget         the shard being fetched from
@@ -355,6 +364,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                         hit.writeTo(chunkBuffer);
                     } finally {
                         hit.decRef();
+                        onHitSerialized();
                     }
                     currentIdx++;
                     hitsInChunk++;

@@ -32,6 +32,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
             assertEquals("layout", metadata.layout(), read.layout());
             assertEquals("stream values", metadata.values().numValues(), read.values().numValues());
             assertEquals("values per block", metadata.values().valuesPerBlock(), read.values().valuesPerBlock());
+            assertEquals("stream value bytes", metadata.values().valueBytes(), read.values().valueBytes());
             assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
         });
     }

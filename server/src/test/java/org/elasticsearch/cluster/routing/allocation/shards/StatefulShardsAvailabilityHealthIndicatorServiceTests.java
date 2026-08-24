@@ -198,36 +198,35 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     public void testShouldBeYellowWhenReplicaIsInitializing() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        var clusterState = createClusterStateWith(
-            projectId,
-            List.of(
+        var clusterState = clusterStateWith(
+            () -> List.of(
                 index("replicated-index", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), INITIALIZING))
-            ),
-            List.of()
+            )
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
+        var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
             equalTo(
                 createExpectedResult(
                     YELLOW,
-                    "This cluster has 1 initializing replica shard.",
-                    Map.of("started_primaries", 1, "initializing_replicas", 1),
+                    shardSymptom(1, "initializing replica shard", "initializing replica shards"),
+                    Map.of("started_primaries", projectIds.size(), "initializing_replicas", projectIds.size()),
                     List.of(
                         new HealthIndicatorImpact(
                             NAME,
                             ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_IMPACT_ID,
                             2,
-                            "Searches might be slower than usual. Fewer redundant copies of the data exist on 1 index [replicated-index].",
+                            "Searches might be slower than usual. Fewer redundant copies of the data exist on "
+                                + indexPhrase("replicated-index")
+                                + ".",
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
                     List.of(
                         new Diagnosis(
                             DIAGNOSIS_WAIT_FOR_INITIALIZATION,
-                            List.of(new Diagnosis.Resource(INDEX, List.of("replicated-index")))
+                            List.of(new Diagnosis.Resource(INDEX, indexNameList("replicated-index")))
                         )
                     )
                 )
@@ -773,13 +772,11 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     public void testShouldBeGreenWhenThereAreNoReplicasExpected() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        var clusterState = createClusterStateWith(
-            projectId,
-            List.of(index("primaries-only-index", new ShardAllocation(randomNodeId(), AVAILABLE))),
+        var clusterState = clusterStateWith(
+            () -> List.of(index("primaries-only-index", new ShardAllocation(randomNodeId(), AVAILABLE))),
             List.of(new NodeShutdown("node-0", RESTART, 60))
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
+        var service = createShardsAvailabilityIndicatorService(NO_GRACE_PERIOD_SETTINGS, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -787,7 +784,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
-                    Map.of("started_primaries", 1),
+                    Map.of("started_primaries", projectIds.size()),
                     emptyList(),
                     emptyList()
                 )
@@ -3143,6 +3140,43 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
     private int scale(int perProject) {
         return perProject * projectIds.size();
+    }
+
+    private String shardSymptom(int perProject, String singular, String plural) {
+        return "This cluster has " + countPhrase(perProject, singular, plural) + ".";
+    }
+
+    private String countPhrase(int perProject, String singular, String plural) {
+        int count = scale(perProject);
+        return count == 1 ? "1 " + singular : count + " " + plural;
+    }
+
+    private String indexPhrase(String indexName) {
+        return indexPhrase(List.of(indexName));
+    }
+
+    private String indexPhrase(List<String> indexNamesHighestFirst) {
+        List<String> names = indexNameList(indexNamesHighestFirst);
+        int count = names.size();
+        return (count == 1 ? "1 index [" : count + " indices [") + String.join(", ", names) + "]";
+    }
+
+    private List<String> indexNameList(List<String> indexNamesHighestFirst) {
+        if (multiProject == false) {
+            return List.copyOf(indexNamesHighestFirst);
+        }
+        List<String> names = new ArrayList<>();
+        for (String indexName : indexNamesHighestFirst) {
+            names.addAll(indexNameList(indexName));
+        }
+        return names;
+    }
+
+    private List<String> indexNameList(String indexName) {
+        if (multiProject == false) {
+            return List.of(indexName);
+        }
+        return projectIds.stream().map(id -> id.id() + "/" + indexName).sorted().toList();
     }
 
     private Map<ProjectId, List<IndexRoutingTable>> routes(Supplier<List<IndexRoutingTable>> perProject) {

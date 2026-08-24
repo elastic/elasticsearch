@@ -53,6 +53,9 @@ public final class ValueStream {
     /** Mean value length below which a block keeps its lengths inline. */
     private static final int INLINE_MEAN_LENGTH = 32;
 
+    /** Bytes a vint length can take, so the block header can be sized before the lengths are known. */
+    private static final int MAX_VINT_BYTES = 5;
+
     /** Where a stream's bytes and offsets landed. */
     /**
      * What a written stream records about itself.
@@ -209,23 +212,28 @@ public final class ValueStream {
         }
 
         private void writeInline() throws IOException {
-            scratch = ArrayUtil.growNoCopy(scratch, 5);
+            // Each length stays in front of its own value rather than leading the block: the two together
+            // are what repeats, so a compressor matches them as one token and separating them would leave
+            // it matching only the shorter halves.
+            //
+            // The block is assembled whole and handed over once. Appending a length and then a value for
+            // every one of them costs two calls and two bounds checks per value, to move a handful of bytes.
+            scratch = ArrayUtil.growNoCopy(scratch, 1 + pendingCount * MAX_VINT_BYTES + pendingLength);
             scratch[0] = INLINE;
-            chunks.append(scratch, 0, 1);
-            final byte[] vint = scratch;
-            int at = 0;
+            int at = 1;
+            int from = 0;
             for (int i = 0; i < pendingCount; i++) {
                 int length = pending[i];
-                int n = 0;
                 while ((length & ~0x7F) != 0) {
-                    vint[n++] = (byte) ((length & 0x7F) | 0x80);
+                    scratch[at++] = (byte) ((length & 0x7F) | 0x80);
                     length >>>= 7;
                 }
-                vint[n++] = (byte) length;
-                chunks.append(vint, 0, n);
-                chunks.append(pendingBytes, at, pending[i]);
+                scratch[at++] = (byte) length;
+                System.arraycopy(pendingBytes, from, scratch, at, pending[i]);
                 at += pending[i];
+                from += pending[i];
             }
+            chunks.append(scratch, 0, at);
         }
 
         public Metadata finish() throws IOException {

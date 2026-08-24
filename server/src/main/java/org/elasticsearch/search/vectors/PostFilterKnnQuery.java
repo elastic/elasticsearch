@@ -151,7 +151,8 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         // retry round - single retry if round 0 came up short of the expected matches.
         if (scoreDocs.length < expectedBaseQueryDocMatches) {
             logger.debug(
-                "post-filter retry firing for field=[{}], k=[{}], expectedBaseQueryDocMatches=[{}], selectivity=[{}], scoreDocs so far=[{}]",
+                "post-filter retry firing for field=[{}], k=[{}],"
+                    + " expectedBaseQueryDocMatches=[{}], selectivity=[{}], scoreDocs so far=[{}]",
                 field,
                 k,
                 expectedBaseQueryDocMatches,

@@ -30,6 +30,13 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     private long vectorOpsCount;
     private final boolean earlyTermination;
     private final int[][] seedDocsPerLeaf;
+    /**
+     * True when this instance is a post-filter delegate or retry rather than the query the user asked for.
+     * Only such instances have their raw per-leaf candidates read back, via {@link #getPostFilterCandidates()},
+     * so nothing else stashes them: retaining the pool would keep the reader's leaf contexts alive for the
+     * whole search context.
+     */
+    private final boolean postFilterDelegate;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
 
@@ -46,7 +53,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, target, k, numCands, filter, strategy, earlyTermination, null);
+        this(field, target, k, numCands, filter, strategy, earlyTermination, null, false);
     }
 
     ESKnnByteVectorQuery(
@@ -57,24 +64,30 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         Query filter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[][] seedDocsPerLeaf
+        int[][] seedDocsPerLeaf,
+        boolean postFilterDelegate
     ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
         this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
         this.seedDocsPerLeaf = seedDocsPerLeaf;
+        this.postFilterDelegate = postFilterDelegate;
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        this.leaves = searcher.getIndexReader().leaves();
+        if (postFilterDelegate) {
+            this.leaves = searcher.getIndexReader().leaves();
+        }
         return super.rewrite(searcher);
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        this.rawPerLeafResults = perLeafResults;
+        if (postFilterDelegate) {
+            this.rawPerLeafResults = perLeafResults;
+        }
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
@@ -92,6 +105,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
      */
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+        assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         return new ESKnnByteVectorQuery(
             field,
@@ -101,7 +115,8 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             filter,
             searchStrategy,
             earlyTermination,
-            seedDocsPerLeaf
+            seedDocsPerLeaf,
+            true
         );
     }
 
@@ -109,7 +124,17 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(kParam, filterSelectivity);
         int scaledNumCands = PostFilterableKnnQuery.cappedNumCands(numCandsParam, scaledK);
-        return new ESKnnByteVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
+        return new ESKnnByteVectorQuery(
+            field,
+            getTargetCopy(),
+            scaledK,
+            scaledNumCands,
+            null,
+            searchStrategy,
+            earlyTermination,
+            null,
+            true
+        );
     }
 
     @Override

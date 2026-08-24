@@ -36,6 +36,13 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
     private final int[][] seedDocsPerLeaf;
+    /**
+     * True when this instance is a post-filter delegate or retry rather than the query the user asked for.
+     * Only such instances have their raw per-leaf candidates read back, via {@link #getPostFilterCandidates()},
+     * so nothing else stashes them: retaining the pool would keep the reader's leaf contexts alive for the
+     * whole search context.
+     */
+    private final boolean postFilterDelegate;
     private List<LeafReaderContext> leaves;
     private TopDocs[] rawPerLeafResults;
 
@@ -48,7 +55,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, false, null, false);
     }
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
@@ -61,7 +68,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
-        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, null);
+        this(field, query, childFilter, k, numCands, parentsFilter, strategy, earlyTermination, null, false);
     }
 
     ESDiversifyingChildrenFloatKnnVectorQuery(
@@ -73,7 +80,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         BitSetProducer parentsFilter,
         KnnSearchStrategy strategy,
         boolean earlyTermination,
-        int[][] seedDocsPerLeaf
+        int[][] seedDocsPerLeaf,
+        boolean postFilterDelegate
     ) {
         super(field, query, childFilter, numCands, parentsFilter, strategy);
         this.kParam = k;
@@ -81,17 +89,22 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         this.earlyTermination = earlyTermination;
         this.parentsFilter = parentsFilter;
         this.seedDocsPerLeaf = seedDocsPerLeaf;
+        this.postFilterDelegate = postFilterDelegate;
     }
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        this.leaves = searcher.getIndexReader().leaves();
+        if (postFilterDelegate) {
+            this.leaves = searcher.getIndexReader().leaves();
+        }
         return super.rewrite(searcher);
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-        this.rawPerLeafResults = perLeafResults;
+        if (postFilterDelegate) {
+            this.rawPerLeafResults = perLeafResults;
+        }
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
@@ -104,6 +117,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK) {
+        assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
@@ -114,7 +128,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            seedDocsPerLeaf
+            seedDocsPerLeaf,
+            true
         );
     }
 
@@ -131,7 +146,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             parentsFilter,
             searchStrategy,
             earlyTermination,
-            null
+            null,
+            true
         );
     }
 

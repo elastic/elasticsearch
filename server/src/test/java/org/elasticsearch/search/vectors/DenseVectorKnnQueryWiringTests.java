@@ -24,12 +24,17 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Pins how {@code DenseVectorFieldType#createKnnQuery} wires {@code k} and {@code numCands} into the query
  * tree, which differs by engine and is easy to get wrong in a way no search-result assertion would catch.
+ * <p>
+ * Every case is asserted for both {@code float} and {@code byte}, because the two are built by separate
+ * hand-maintained copies of the same logic - {@code createKnnFloatQuery} and {@code createKnnByteQuery}.
+ * They agree today, and nothing other than these tests keeps them in step.
  */
 public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
@@ -43,13 +48,45 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
     private static final float POST_FILTER_ENABLED = 0.7f;
     private static final float POST_FILTER_OFF = 1.0f;
 
-    private static DenseVectorFieldType bbqIvfField(boolean autoCalibrate, float postFilterThreshold) {
+    /**
+     * The element-type-dependent pieces of the wiring: the query vector to hand {@code createKnnQuery}, and
+     * the IVF query classes it is expected to build. Everything else these tests assert - {@code k},
+     * {@code numCands}, the rescore pool - is element-type agnostic, because {@code IvfQueryConfigResolver}
+     * and {@code IvfSegmentConfig} never see the element type. The vector is a supplier so each query gets
+     * its own array rather than sharing one across tests.
+     */
+    private record ElementSpec(
+        ElementType elementType,
+        Supplier<VectorData> queryVector,
+        Class<? extends AbstractIVFKnnVectorQuery> ivfClass,
+        Class<? extends AbstractIVFKnnVectorQuery> diversifyingIvfClass
+    ) {}
+
+    private static final ElementSpec FLOAT_SPEC = new ElementSpec(
+        ElementType.FLOAT,
+        () -> VectorData.fromFloats(new float[DIMS]),
+        IVFKnnFloatVectorQuery.class,
+        DiversifyingChildrenIVFKnnFloatVectorQuery.class
+    );
+
+    // byte + bbq_disk is a snapshot-only mapping: VectorIndexType.BBQ_DISK#supportsElementType admits BYTE
+    // only when Build.current().isSnapshot(). These tests construct the field type directly and so never reach
+    // that validation - the wiring below is exercised on every build, and needs no assumeTrue.
+    private static final ElementSpec BYTE_SPEC = new ElementSpec(
+        ElementType.BYTE,
+        () -> VectorData.fromBytes(new byte[DIMS]),
+        IVFKnnByteVectorQuery.class,
+        DiversifyingChildrenIVFKnnByteVectorQuery.class
+    );
+
+    private static DenseVectorFieldType bbqIvfField(ElementSpec spec, boolean autoCalibrate, float postFilterThreshold) {
         return new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
-            ElementType.FLOAT,
+            spec.elementType(),
             DIMS,
             true,
+            // L2_NORM keeps the all-zero query vector legal: COSINE and DOT_PRODUCT reject a zero magnitude.
             VectorSimilarity.L2_NORM,
             new BBQIVFIndexOptions(
                 384,
@@ -70,9 +107,9 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         );
     }
 
-    private static Query knnQuery(DenseVectorFieldType field, Query filter, Float queryOversample) {
+    private static Query knnQuery(ElementSpec spec, DenseVectorFieldType field, Query filter, Float queryOversample) {
         return field.createKnnQuery(
-            VectorData.fromFloats(new float[DIMS]),
+            spec.queryVector().get(),
             K,
             NUM_CANDS,
             null,
@@ -89,15 +126,15 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * Unfiltered default {@code bbq_disk}: an outer rescore over an IVF query that still carries the user's
      * {@code k}. {@code numCands} is widened to at least the rescore pool so the pool is reachable.
      */
-    public void testBbqIvfKeepsFinalKUnderMappingOversample() throws IOException {
-        Query query = knnQuery(bbqIvfField(false, POST_FILTER_OFF), null, null);
+    private void assertBbqIvfKeepsFinalKUnderMappingOversample(ElementSpec spec) throws IOException {
+        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_OFF), null, null);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
         assertEquals("the outer rescore returns the user's k", K, rescore.k());
 
-        assertThat(rescore.innerQuery(), instanceOf(IVFKnnFloatVectorQuery.class));
-        IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) rescore.innerQuery();
+        assertThat(rescore.innerQuery(), instanceOf(spec.ivfClass()));
+        AbstractIVFKnnVectorQuery ivf = (AbstractIVFKnnVectorQuery) rescore.innerQuery();
         assertEquals("IVF must receive the final k, not k*oversample", K, ivf.k());
         assertEquals(Math.max((int) Math.ceil(K * OVERSAMPLE), NUM_CANDS), ivf.numCands());
         assertEquals(
@@ -107,15 +144,32 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
         );
     }
 
+    public void testBbqIvfKeepsFinalKUnderMappingOversample() throws IOException {
+        assertBbqIvfKeepsFinalKUnderMappingOversample(FLOAT_SPEC);
+    }
+
+    public void testByteBbqIvfKeepsFinalKUnderMappingOversample() throws IOException {
+        assertBbqIvfKeepsFinalKUnderMappingOversample(BYTE_SPEC);
+    }
+
     /** A query-time oversample overrides the mapping's, and still must not reach IVF's {@code k}. */
-    public void testBbqIvfKeepsFinalKUnderQueryOversample() throws IOException {
-        Query query = knnQuery(bbqIvfField(false, POST_FILTER_OFF), null, 5.0f);
+    private void assertBbqIvfKeepsFinalKUnderQueryOversample(ElementSpec spec) throws IOException {
+        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_OFF), null, 5.0f);
 
         RescoreKnnVectorQuery rescore = (RescoreKnnVectorQuery) query;
-        IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) rescore.innerQuery();
+        AbstractIVFKnnVectorQuery ivf = (AbstractIVFKnnVectorQuery) rescore.innerQuery();
+        assertThat(ivf, instanceOf(spec.ivfClass()));
         assertEquals(K, ivf.k());
         assertEquals(Math.max((int) Math.ceil(K * 5.0f), NUM_CANDS), ivf.numCands());
         assertEquals(50, ivf.postFilterExpectedBaseQueryDocMatches(List.of()));
+    }
+
+    public void testBbqIvfKeepsFinalKUnderQueryOversample() throws IOException {
+        assertBbqIvfKeepsFinalKUnderQueryOversample(FLOAT_SPEC);
+    }
+
+    public void testByteBbqIvfKeepsFinalKUnderQueryOversample() throws IOException {
+        assertBbqIvfKeepsFinalKUnderQueryOversample(BYTE_SPEC);
     }
 
     /**
@@ -123,13 +177,21 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * rescore - and {@code numCands} keeps the oversample-widened value rather than being reset, because
      * that value is what {@code numCands/k} is calibrated against.
      */
-    public void testBbqIvfAutoCalibrateHasNoOuterRescore() {
-        Query query = knnQuery(bbqIvfField(true, POST_FILTER_OFF), null, null);
+    private void assertBbqIvfAutoCalibrateHasNoOuterRescore(ElementSpec spec) {
+        Query query = knnQuery(spec, bbqIvfField(spec, true, POST_FILTER_OFF), null, null);
 
-        assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
-        IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) query;
+        assertThat(query, instanceOf(spec.ivfClass()));
+        AbstractIVFKnnVectorQuery ivf = (AbstractIVFKnnVectorQuery) query;
         assertEquals(K, ivf.k());
         assertEquals(Math.max((int) Math.ceil(K * OVERSAMPLE), NUM_CANDS), ivf.numCands());
+    }
+
+    public void testBbqIvfAutoCalibrateHasNoOuterRescore() {
+        assertBbqIvfAutoCalibrateHasNoOuterRescore(FLOAT_SPEC);
+    }
+
+    public void testByteBbqIvfAutoCalibrateHasNoOuterRescore() {
+        assertBbqIvfAutoCalibrateHasNoOuterRescore(BYTE_SPEC);
     }
 
     /**
@@ -138,16 +200,24 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * would make it demand that many filter survivors before accepting the post-filtered result, sending
      * most queries down the fallback path.
      */
-    public void testPostFilterWrapperTargetsFinalK() {
-        Query query = knnQuery(bbqIvfField(false, POST_FILTER_ENABLED), new TermQuery(new Term("tag", "a")), null);
+    private void assertPostFilterWrapperTargetsFinalK(ElementSpec spec) {
+        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_ENABLED), new TermQuery(new Term("tag", "a")), null);
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
         assertThat(inner, instanceOf(PostFilterKnnQuery.class));
         PostFilterKnnQuery postFilter = (PostFilterKnnQuery) inner;
         assertEquals("the wrapper targets the final k", K, postFilter.k());
-        assertThat(postFilter.innerQuery(), instanceOf(IVFKnnFloatVectorQuery.class));
-        assertEquals(K, ((IVFKnnFloatVectorQuery) postFilter.innerQuery()).k());
+        assertThat(postFilter.innerQuery(), instanceOf(spec.ivfClass()));
+        assertEquals(K, ((AbstractIVFKnnVectorQuery) postFilter.innerQuery()).k());
+    }
+
+    public void testPostFilterWrapperTargetsFinalK() {
+        assertPostFilterWrapperTargetsFinalK(FLOAT_SPEC);
+    }
+
+    public void testBytePostFilterWrapperTargetsFinalK() {
+        assertPostFilterWrapperTargetsFinalK(BYTE_SPEC);
     }
 
     /**
@@ -155,9 +225,9 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
      * per parent, which breaks the round-1 sizing model and makes the filter-versus-collapse order matter. No
      * post-filter wrapper is built for them.
      */
-    public void testNestedFieldsAreNotPostFiltered() {
-        Query query = bbqIvfField(false, POST_FILTER_ENABLED).createKnnQuery(
-            VectorData.fromFloats(new float[DIMS]),
+    private void assertNestedFieldsAreNotPostFiltered(ElementSpec spec) {
+        Query query = bbqIvfField(spec, false, POST_FILTER_ENABLED).createKnnQuery(
+            spec.queryVector().get(),
             K,
             NUM_CANDS,
             null,
@@ -171,15 +241,31 @@ public class DenseVectorKnnQueryWiringTests extends ESTestCase {
 
         assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
-        assertThat(inner, instanceOf(DiversifyingChildrenIVFKnnFloatVectorQuery.class));
-        assertEquals("the nested query still receives the user's k", K, ((DiversifyingChildrenIVFKnnFloatVectorQuery) inner).k());
+        assertThat(inner, instanceOf(spec.diversifyingIvfClass()));
+        assertEquals("the nested query still receives the user's k", K, ((AbstractIVFKnnVectorQuery) inner).k());
+    }
+
+    public void testNestedFieldsAreNotPostFiltered() {
+        assertNestedFieldsAreNotPostFiltered(FLOAT_SPEC);
+    }
+
+    public void testByteNestedFieldsAreNotPostFiltered() {
+        assertNestedFieldsAreNotPostFiltered(BYTE_SPEC);
     }
 
     /** A dormant threshold (the default 1.0) must not build a wrapper even with a filter present. */
-    public void testDormantThresholdBuildsNoWrapper() {
-        Query query = knnQuery(bbqIvfField(false, POST_FILTER_OFF), new TermQuery(new Term("tag", "a")), null);
+    private void assertDormantThresholdBuildsNoWrapper(ElementSpec spec) {
+        Query query = knnQuery(spec, bbqIvfField(spec, false, POST_FILTER_OFF), new TermQuery(new Term("tag", "a")), null);
 
         Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
-        assertThat(inner, instanceOf(IVFKnnFloatVectorQuery.class));
+        assertThat(inner, instanceOf(spec.ivfClass()));
+    }
+
+    public void testDormantThresholdBuildsNoWrapper() {
+        assertDormantThresholdBuildsNoWrapper(FLOAT_SPEC);
+    }
+
+    public void testByteDormantThresholdBuildsNoWrapper() {
+        assertDormantThresholdBuildsNoWrapper(BYTE_SPEC);
     }
 }

@@ -121,11 +121,14 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     private final float poolScale;
     private final PostFilterMeta postFilterMeta;
     private final BitSetProducer parentsFilter;
+    // Mirrors the real queries' own flag: only a delegate/retry stashes the raw per-leaf candidates, so the
+    // inner query has to be built as one for getPostFilterCandidates() to return anything.
+    private final boolean postFilterDelegate;
 
     private PostFilterableKnnQuery innerDelegate;
 
     AssertingKnnQuery(VectorType vectorType, String field, float[] target, int k, int numCands, Query filter, float postFilterScale) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), null);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), null, false);
     }
 
     /**
@@ -142,7 +145,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         float postFilterScale,
         float poolScale
     ) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, poolScale, new PostFilterMeta(), null);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, poolScale, new PostFilterMeta(), null, false);
     }
 
     AssertingKnnQuery(
@@ -155,7 +158,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         float postFilterScale,
         BitSetProducer parentsFilter
     ) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), parentsFilter);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), parentsFilter, false);
     }
 
     private AssertingKnnQuery(
@@ -168,7 +171,8 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         float postFilterScale,
         float poolScale,
         PostFilterMeta postFilterMeta,
-        BitSetProducer parentsFilter
+        BitSetProducer parentsFilter,
+        boolean postFilterDelegate
     ) {
         this.vectorType = vectorType;
         this.field = field;
@@ -180,6 +184,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         this.poolScale = poolScale;
         this.postFilterMeta = postFilterMeta;
         this.parentsFilter = parentsFilter;
+        this.postFilterDelegate = postFilterDelegate;
     }
 
     PostFilterMeta postFilterMeta() {
@@ -195,8 +200,28 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
 
     private Query createInnerQuery() {
         return switch (vectorType) {
-            case FLOAT -> new ESKnnFloatVectorQuery(field, target, kParam, numCandsParam, filter, Hnsw.DEFAULT);
-            case BYTE -> new ESKnnByteVectorQuery(field, toByteArray(target), kParam, numCandsParam, filter, Hnsw.DEFAULT);
+            case FLOAT -> new ESKnnFloatVectorQuery(
+                field,
+                target,
+                kParam,
+                numCandsParam,
+                filter,
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
+            );
+            case BYTE -> new ESKnnByteVectorQuery(
+                field,
+                toByteArray(target),
+                kParam,
+                numCandsParam,
+                filter,
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
+            );
             case DIVERSIFYING_FLOAT -> new ESDiversifyingChildrenFloatKnnVectorQuery(
                 field,
                 target,
@@ -204,7 +229,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
                 kParam,
                 numCandsParam,
                 parentsFilter,
-                Hnsw.DEFAULT
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
             );
             case DIVERSIFYING_BYTE -> new ESDiversifyingChildrenByteKnnVectorQuery(
                 field,
@@ -213,7 +241,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
                 kParam,
                 numCandsParam,
                 parentsFilter,
-                Hnsw.DEFAULT
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
             );
         };
     }
@@ -238,7 +269,8 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             postFilterScale,
             poolScale,
             postFilterMeta,
-            parentsFilter
+            parentsFilter,
+            true
         );
     }
 
@@ -247,6 +279,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         assert isSorted(excluded) : "excludedDocs must be sorted: " + Arrays.toString(excluded);
         assert allSorted(seedDocsPerLeaf) : "each leaf's seedDocs must be sorted: " + Arrays.deepToString(seedDocsPerLeaf);
         assert remainingK > 0 : "remainingK must be > 0, got " + remainingK;
+        assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
         postFilterMeta.recordRetry(excluded, seedDocsPerLeaf, remainingK);
         Query excludeFilter = excluded.length > 0 ? new ExcludeDocsQuery(excluded, reader) : null;
         return new AssertingKnnQuery(
@@ -259,7 +292,8 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             postFilterScale,
             poolScale,
             postFilterMeta,
-            parentsFilter
+            parentsFilter,
+            true
         );
     }
 

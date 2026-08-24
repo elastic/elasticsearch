@@ -212,9 +212,10 @@ public final class ValueStream {
         }
 
         private void writeInline() throws IOException {
-            // Each length stays in front of its own value rather than leading the block: the two together
-            // are what repeats, so a compressor matches them as one token and separating them would leave
-            // it matching only the shorter halves.
+            // Each length stays in front of its own value rather than leading the block. A value is then
+            // self-describing at its own address and can be handed over without consulting anything else,
+            // which is the shape the binary surface speaks. The two are also what repeats, so a compressor
+            // matches them as one token where separating them would leave it matching the shorter halves.
             //
             // The block is assembled whole and handed over once. Appending a length and then a value for
             // every one of them costs two calls and two bounds checks per value, to move a handful of bytes.

@@ -89,6 +89,11 @@ import static org.mockito.Mockito.when;
  */
 public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
+    private static final Settings NO_GRACE_PERIOD_SETTINGS = Settings.builder()
+        .put(ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
+        .put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), TimeValue.ZERO)
+        .build();
+
     /**
      * Available shards keep the indicator green even when they are spread across multiple projects.
      * Relocating shards are still considered available and are counted in the started_* detail fields
@@ -129,12 +134,77 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         );
     }
 
+    /**
+     * Indices that expect no replicas stay green.
+     */
+    public void testShouldBeGreenWhenThereAreNoReplicasExpected() {
+        int projectCount = randomIntBetween(1, 5);
+        Set<ProjectId> projectIds = randomProjectIds(projectCount);;
+        Set<ProjectId> primariesOnlyProjects = randomProjects(projectIds);
+        int replicatedCount = projectCount - primariesOnlyProjects.size();
+
+        Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes = new HashMap<>();
+        for (ProjectId projectId : projectIds) {
+            final var indexName = randomIndexName();
+            if (primariesOnlyProjects.contains(projectId)) {
+                projectIndexRoutes.put(projectId, List.of(index(indexName, STARTED)));
+            } else {
+                projectIndexRoutes.put(projectId, List.of(index(indexName, STARTED, STARTED)));
+            }
+        }
+
+        // Adds some noise to the cluster by shutting down an unrelated node, but this should have no effect
+        var service = createStatelessIndicator(NO_GRACE_PERIOD_SETTINGS, clusterState(projectIndexRoutes, restartShutdown("node-0", 60)));
+
+        assertThat(
+            service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                new HealthIndicatorResult(
+                    ShardsAvailabilityHealthIndicatorService.NAME,
+                    GREEN,
+                    "This cluster has all shards available.",
+                    new SimpleHealthIndicatorDetails(
+                        detailsWithDefaults(Map.of("started_primaries", projectCount, "started_replicas", replicatedCount))
+                    ),
+                    List.of(),
+                    List.of()
+                )
+            )
+        );
+    }
+
+
     private static Set<ProjectId> randomProjectIds(int projectCount) {
         Set<ProjectId> projectIds = new HashSet<>();
         while (projectIds.size() < projectCount) {
             projectIds.add(randomUniqueProjectId());
         }
         return projectIds;
+    }
+
+    private static Set<ProjectId> randomProjects(Set<ProjectId> projectIds) {
+        return new HashSet<>(randomSubsetOf(randomIntBetween(1, projectIds.size()), projectIds));
+    }
+
+    private static NodesShutdownMetadata restartShutdown(String nodeId, int allocationDelaySeconds) {
+        return nodeShutdown(nodeId, SingleNodeShutdownMetadata.Type.RESTART, allocationDelaySeconds);
+    }
+
+    private static NodesShutdownMetadata nodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, Integer allocationDelaySeconds) {
+        return new NodesShutdownMetadata(
+            Map.of(
+                nodeId,
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(nodeId)
+                    .setNodeEphemeralId(nodeId)
+                    .setType(type)
+                    .setReason("test")
+                    .setNodeSeen(true)
+                    .setStartedAtMillis(System.currentTimeMillis())
+                    .setAllocationDelay(allocationDelaySeconds != null ? TimeValue.timeValueSeconds(allocationDelaySeconds) : null)
+                    .build()
+            )
+        );
     }
 
     private static ShardRoutingState randomStartedOrRelocating() {
@@ -158,30 +228,14 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
     }
 
     private static ShardRouting shardRouting(ShardId shardId, boolean primary, ShardRoutingState state) {
-        var routing = newUnassigned(
+        assert state == STARTED || state == RELOCATING : state;
+        return TestShardRouting.newShardRouting(
             shardId,
+            randomNodeId(),
+            state == RELOCATING ? randomNodeId() : null,
             primary,
-            primary ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            state
         );
-        if (state == UNASSIGNED) {
-            return routing;
-        }
-        routing = routing.initialize(randomNodeId(), null, 0);
-        if (state == INITIALIZING) {
-            return routing;
-        }
-        routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        if (state == RELOCATING) {
-            return routing.relocate(
-                randomNodeId(),
-                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
-            );
-        }
-        return routing;
     }
 
     private static ClusterState clusterState(Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes) {
@@ -190,16 +244,14 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
 
     private static ClusterState clusterState(
         Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes,
-        Map<String, Integer> indexPriorities,
         NodesShutdownMetadata nodesShutdownMetadata
     ) {
-        return clusterState(projectIndexRoutes, indexPriorities, Map.of(), nodesShutdownMetadata);
+        return clusterState(projectIndexRoutes, Map.of(), nodesShutdownMetadata);
     }
 
     private static ClusterState clusterState(
         Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes,
         Map<String, Integer> indexPriorities,
-        Map<String, Settings> extraIndexSettings,
         NodesShutdownMetadata nodesShutdownMetadata
     ) {
         var metadataBuilder = Metadata.builder();
@@ -215,10 +267,6 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                 Integer priority = indexPriorities.get(indexRouting.getIndex().getName());
                 if (priority != null) {
                     settings.put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), priority);
-                }
-                Settings extraSettings = extraIndexSettings.get(indexRouting.getIndex().getName());
-                if (extraSettings != null) {
-                    settings.put(extraSettings);
                 }
                 projectMetadata.put(
                     IndexMetadata.builder(indexRouting.getIndex().getName())

@@ -113,7 +113,8 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
      */
     public void testShouldBeGreenWhenThereAreNoReplicasExpected() {
         int projectCount = randomIntBetween(1, 5);
-        Set<ProjectId> projectIds = randomProjectIds(projectCount);;
+        Set<ProjectId> projectIds = randomProjectIds(projectCount);
+        ;
         Set<ProjectId> primariesOnlyProjects = randomProjects(projectIds);
         int replicatedCount = projectCount - primariesOnlyProjects.size();
 
@@ -146,7 +147,6 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             )
         );
     }
-
 
     private static Set<ProjectId> randomProjectIds(int projectCount) {
         Set<ProjectId> projectIds = new HashSet<>();
@@ -203,13 +203,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
 
     private static ShardRouting shardRouting(ShardId shardId, boolean primary, ShardRoutingState state) {
         assert state == STARTED || state == RELOCATING : state;
-        return TestShardRouting.newShardRouting(
-            shardId,
-            randomNodeId(),
-            state == RELOCATING ? randomNodeId() : null,
-            primary,
-            state
-        );
+        return TestShardRouting.newShardRouting(shardId, randomNodeId(), state == RELOCATING ? randomNodeId() : null, primary, state);
     }
 
     private static ClusterState clusterState(Map<ProjectId, List<IndexRoutingTable>> projectIndexRoutes) {

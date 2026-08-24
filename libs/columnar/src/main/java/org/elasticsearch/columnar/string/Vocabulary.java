@@ -124,11 +124,14 @@ public final class Vocabulary {
                 int id = terms.find(value);
                 if (id < 0) {
                     if (tableBytes + value.length > policy.maxBytes()) {
-                        final long[] freed = { 0 };
-                        counts = evictLeastFrequent(terms, counts, freed);
-                        tableBytes -= freed[0];
+                        if (terms.size() > 0) {
+                            final long[] freed = { 0 };
+                            counts = evictLeastFrequent(terms, counts, freed);
+                            tableBytes -= freed[0];
+                        }
                         if (tableBytes + value.length > policy.maxBytes()) {
-                            // Nothing could be displaced: every term held occurs at least as often as this.
+                            // Nothing could be displaced: either every term held occurs at least as often as
+                            // this one, or the table is empty and the value alone is larger than the bound.
                             continue;
                         }
                     }
@@ -210,6 +213,7 @@ public final class Vocabulary {
      */
     private static int[] evictLeastFrequent(BytesRefHash terms, int[] counts, long[] freed) {
         final int size = terms.size();
+        assert size > 0 : "nothing to evict; an empty table cannot make room";
         // Taking the charge to be the median rather than one frees half the table at a stroke, so a column
         // of mostly distinct values makes room a few times rather than once per value it cannot fit. The
         // bound is unchanged: a round of decrements absorbs as many occurrences as there are terms held, so

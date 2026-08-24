@@ -114,6 +114,32 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertThat("coverage", surveyed.coverage(), lessThanOrEqualTo((double) truly / values.size() + 1e-9));
     }
 
+    /**
+     * A value longer than the whole byte bound cannot be admitted, and with an empty table there is nothing
+     * to evict to make room for it. The survey has to decline it rather than try.
+     */
+    public void testValueLongerThanTheWholeBound() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            values.add(new BytesRef(randomAlphaOfLength(200)));
+        }
+        // Every value is longer than the bound, so the table never holds anything.
+        assertNull("nothing fits", survey(values, new DictionaryPolicy(16, 0.5, 0.2)));
+    }
+
+    /** The first value alone exceeds the bound, and the terms after it still have to be surveyed. */
+    public void testOversizedFirstValueDoesNotStopTheSurvey() throws IOException {
+        final List<BytesRef> values = new ArrayList<>();
+        values.add(new BytesRef(randomAlphaOfLength(500)));
+        for (int i = 0; i < 400; i++) {
+            values.add(new BytesRef(i % 2 == 0 ? "on" : "off"));
+        }
+        final Vocabulary.Terms surveyed = survey(values, new DictionaryPolicy(64, 0.5, 0.2));
+        assertNotNull("the short terms were still found", surveyed);
+        assertTrue("kept what repeats", termsOf(surveyed).contains("on"));
+        assertTrue("kept what repeats", termsOf(surveyed).contains("off"));
+    }
+
     /** A handful of terms holding most of the column, over a long tail of terms seen once. */
     private List<BytesRef> zipfish() {
         final List<BytesRef> values = new ArrayList<>();

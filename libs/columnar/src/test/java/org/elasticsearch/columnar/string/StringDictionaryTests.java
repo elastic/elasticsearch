@@ -288,6 +288,104 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         });
     }
 
+    /**
+     * Escapes at the positions a rank is counted from: the first value, exactly on a block boundary, just
+     * either side of one, and the last. An off-by-one in the base or the count between shows up here and
+     * nowhere else.
+     */
+    public void testEscapesAtBlockBoundaries() throws IOException {
+        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int size = block * 4;
+        final int[] escapeAt = { 0, 1, block - 1, block, block + 1, 2 * block, size - 1 };
+        final BytesRef[] docValues = withEscapesAt(size, escapeAt);
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("one escape per position", escapeAt.length, (int) metadata.exceptions().numValues());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /** Every value in one block escaping, so a later block's base is offset by a whole block of them. */
+    public void testAWholeBlockEscapes() throws IOException {
+        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int size = block * 3;
+        final int[] escapeAt = new int[block];
+        for (int i = 0; i < block; i++) {
+            escapeAt[i] = block + i;
+        }
+        final BytesRef[] docValues = withEscapesAt(size, escapeAt);
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /** Values are read out of order, so a rank is resolved from its own block rather than from the last one. */
+    public void testEscapesResolveInAnyOrder() throws IOException {
+        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
+        final int size = block * 5;
+        final int[] escapeAt = new int[40];
+        for (int i = 0; i < escapeAt.length; i++) {
+            escapeAt[i] = i * 13 % size;
+        }
+        final BytesRef[] docValues = withEscapesAt(size, escapeAt);
+        withDictionary(docValues, (metadata, reader) -> {
+            final List<Integer> order = new ArrayList<>();
+            for (int d = 0; d < size; d++) {
+                order.add(d);
+            }
+            java.util.Collections.shuffle(order, random());
+            for (int doc : order) {
+                assertEquals("value at doc " + doc, docValues[doc], reader.valueAt(reader.firstValueAddress(doc)));
+            }
+        });
+    }
+
+    /** A dictionary of one term: the escape marker is ordinal one, the narrowest it can be. */
+    public void testDictionaryOfOneTerm() throws IOException {
+        final BytesRef[] docValues = new BytesRef[600];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 40 == 7 ? new BytesRef("odd-" + d) : new BytesRef("same");
+        }
+        withDictionary(docValues, (metadata, reader) -> {
+            assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
+            assertEquals("one term", 1, metadata.dictionarySize());
+            assertEveryValueReadsBack(docValues, reader);
+        });
+    }
+
+    /**
+     * Dictionary sizes either side of a byte: the escape marker is one past the last ordinal, so at 255
+     * terms it is the first value that no longer fits where every ordinal did.
+     */
+    public void testDictionarySizesAroundAByte() throws IOException {
+        for (int terms : new int[] { 254, 255, 256, 257 }) {
+            // Enough values per term that the whole vocabulary fits the budget a column of this size allows.
+            final BytesRef[] docValues = new BytesRef[terms * 20];
+            for (int d = 0; d < docValues.length; d++) {
+                docValues[d] = new BytesRef("t" + (d % terms));
+            }
+            withDictionary(docValues, (metadata, reader) -> {
+                assertEquals("layout at " + terms + " terms", StringColumnLayout.DICTIONARY, metadata.layout());
+                assertEquals("dictionary size", terms, metadata.dictionarySize());
+                assertEveryValueReadsBack(docValues, reader);
+            });
+        }
+    }
+
+    /** A column of {@code size} values over a few repeated terms, with a value seen once at each given position. */
+    private static BytesRef[] withEscapesAt(int size, int[] positions) {
+        final String[] terms = { "alpha", "bravo", "charlie", "delta" };
+        final BytesRef[] docValues = new BytesRef[size];
+        for (int d = 0; d < size; d++) {
+            docValues[d] = new BytesRef(terms[d % terms.length]);
+        }
+        for (int at : positions) {
+            docValues[at] = new BytesRef("escape-" + at);
+        }
+        return docValues;
+    }
+
     private void withDictionary(final BytesRef[] docValues, final ColumnCheck check) throws IOException {
         withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, check);
     }

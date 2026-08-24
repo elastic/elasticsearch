@@ -92,6 +92,33 @@ public class StringColumnMergeTests extends ESTestCase {
         });
     }
 
+    /**
+     * Segments of shapes chosen at random, so the merge meets combinations nobody named: a dictionary
+     * segment beside a plain one, segments whose dictionaries overlap partly or not at all, and segments
+     * that escaped different amounts. Every one of those picks a different path through the merge.
+     */
+    public void testRandomShapesMerge() throws IOException {
+        assertRoundTripAndMerge(numDocs -> {
+            final String[] values = new String[numDocs];
+            // The shape changes part way through, so segments flushed at different times disagree.
+            final int shapes = between(2, 5);
+            final int span = Math.max(1, numDocs / shapes);
+            for (int d = 0; d < numDocs; d++) {
+                values[d] = switch ((d / span) % 4) {
+                    // Nothing repeats: this stretch stays plain.
+                    case 0 -> "u-" + d + "-" + randomAlphaOfLength(between(1, 10));
+                    // A few terms: a dictionary that names everything.
+                    case 1 -> "t" + (d % between(2, 6));
+                    // A head over a tail: a dictionary that lets values escape.
+                    case 2 -> rarely() ? "rare-" + d : "h" + (d % 4);
+                    // Terms shared with the stretch above, so the union overlaps rather than being disjoint.
+                    default -> "h" + (d % 8);
+                };
+            }
+            return values;
+        });
+    }
+
     /** Every value distinct, so nothing repeats within or across segments. */
     public void testDistinctValuesRoundTripAndMerge() throws IOException {
         assertRoundTripAndMerge(numDocs -> {

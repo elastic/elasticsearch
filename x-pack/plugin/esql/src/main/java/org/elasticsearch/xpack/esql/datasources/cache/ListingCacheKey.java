@@ -24,7 +24,8 @@ import java.util.TreeMap;
  *
  * <p>The {@code listingDiscriminatorH1/H2} are a 128-bit hash of everything about the query that changes which
  * files the listing contains — the filter hints that narrow it, and the resolved partition config (strategy and
- * path template) that decides whether they can and how partition columns are derived. Without it the key would not determine its value: a filtered query would cache a narrowed
+ * path template) that decides whether they can and how partition columns are derived. Without it the key would
+ * not determine its value: a filtered query would cache a narrowed
  * listing under the key an unfiltered query then hits, silently serving it fewer files than the dataset holds.
  * The discriminator string is produced by {@code GlobExpander.listingCacheDiscriminator} (from the same code the
  * listing itself goes through) and hashed here for the same size reason as the credentials: a filter's

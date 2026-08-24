@@ -22,7 +22,7 @@ interface RoaringBitmapAggregatorSupplier {
     Aggregator build(
         String name,
         ValuesSource.Numeric valuesSource,
-        InternalRoaringBitmap.Width width,
+        InternalRoaringBitmap.BitmapFormat width,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata

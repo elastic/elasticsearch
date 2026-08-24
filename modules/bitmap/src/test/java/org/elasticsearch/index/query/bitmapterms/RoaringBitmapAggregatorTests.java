@@ -48,7 +48,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
     public void testIntegerValuesAreDistinctAndPortable() throws Exception {
         InternalRoaringBitmap result = aggregate(NumberFieldMapper.NumberType.INTEGER, 5, 10, 5);
 
-        assertThat(result.width(), equalTo(InternalRoaringBitmap.Width.INT));
+        assertThat(result.width(), equalTo(InternalRoaringBitmap.BitmapFormat.INT));
         assertThat(drain(IntBitmap.deserialize(result.bitmap())), equalTo(List.of(5L, 10L)));
     }
 
@@ -56,7 +56,7 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         long aboveIntRange = 1L << 40;
         InternalRoaringBitmap result = aggregate(NumberFieldMapper.NumberType.LONG, 1, aboveIntRange, Long.MAX_VALUE, aboveIntRange);
 
-        assertThat(result.width(), equalTo(InternalRoaringBitmap.Width.LONG));
+        assertThat(result.width(), equalTo(InternalRoaringBitmap.BitmapFormat.LONG));
         assertThat(drain(LongBitmap.deserializePortable(result.bitmap())), equalTo(List.of(1L, aboveIntRange, Long.MAX_VALUE)));
     }
 
@@ -124,27 +124,27 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntegerBitmapRejectsValuesAboveIntegerRange() {
-        InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(InternalRoaringBitmap.Width.INT);
+        InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(InternalRoaringBitmap.BitmapFormat.INT);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> bitmap.add(1L + Integer.MAX_VALUE));
         assertThat(exception.getMessage(), containsString("integer field produced out-of-range value"));
     }
 
     public void testBreakerReservationsCoverWorstCaseContainerGrowth() {
         assertReservationCoversReportedGrowth(
-            InternalRoaringBitmap.Width.INT,
+            InternalRoaringBitmap.BitmapFormat.INT,
             RoaringBitmapAggregator.INT_BYTES_PER_VALUE,
             value -> value << 16
         );
         assertReservationCoversReportedGrowth(
-            InternalRoaringBitmap.Width.LONG,
+            InternalRoaringBitmap.BitmapFormat.LONG,
             RoaringBitmapAggregator.LONG_BYTES_PER_VALUE,
             value -> value << 32
         );
     }
 
     public void testReducerRejectsWidthMismatch() throws Exception {
-        InternalRoaringBitmap integerResult = result(InternalRoaringBitmap.Width.INT, 1);
-        InternalRoaringBitmap longResult = result(InternalRoaringBitmap.Width.LONG, 1L << 40);
+        InternalRoaringBitmap integerResult = result(InternalRoaringBitmap.BitmapFormat.INT, 1);
+        InternalRoaringBitmap longResult = result(InternalRoaringBitmap.BitmapFormat.LONG, 1L << 40);
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
@@ -175,14 +175,14 @@ public class RoaringBitmapAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private static InternalRoaringBitmap result(InternalRoaringBitmap.Width width, long value) throws IOException {
+    private static InternalRoaringBitmap result(InternalRoaringBitmap.BitmapFormat width, long value) throws IOException {
         InternalRoaringBitmap.MutableBitmap bitmap = InternalRoaringBitmap.mutable(width);
         bitmap.add(value);
         return new InternalRoaringBitmap("ids", width, bitmap.serialize(), null);
     }
 
     private static void assertReservationCoversReportedGrowth(
-        InternalRoaringBitmap.Width width,
+        InternalRoaringBitmap.BitmapFormat width,
         long estimatedBytesPerValue,
         LongUnaryOperator value
     ) {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LongHash;
@@ -25,6 +26,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -75,8 +78,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                 ElementType.AGGREGATE_METRIC_DOUBLE,
                 ElementType.EXPONENTIAL_HISTOGRAM,
                 ElementType.TDIGEST,
-                ElementType.LONG_RANGE,
-                ElementType.DOUBLE_RANGE
+                ElementType.LONG_RANGE
             )) {
                 continue;
             }
@@ -191,6 +193,7 @@ public class MultivalueDedupeTests extends ESTestCase {
             case INT -> assertIntHash(Set.of(), b);
             case LONG -> assertLongHash(Set.of(), b);
             case DOUBLE -> assertDoubleHash(Set.of(), b);
+            case DOUBLE_RANGE -> assertDoubleRangeHash(Set.of(), b);
             default -> throw new IllegalArgumentException();
         }
     }
@@ -240,6 +243,14 @@ public class MultivalueDedupeTests extends ESTestCase {
                     previousValues.add(randomDouble());
                 }
                 assertDoubleHash(previousValues, b);
+            }
+            case DOUBLE_RANGE -> {
+                int prevSize = between(1, 1000);
+                Set<DoubleRange> previousValues = new HashSet<>(prevSize);
+                while (previousValues.size() < prevSize) {
+                    previousValues.add((DoubleRange) BlockTestUtils.randomValue(ElementType.DOUBLE_RANGE));
+                }
+                assertDoubleRangeHash(previousValues, b);
             }
             default -> throw new IllegalArgumentException();
         }
@@ -349,6 +360,41 @@ public class MultivalueDedupeTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private void assertDoubleRangeHash(Set<DoubleRange> previousValues, RandomBlock b) {
+        for (var hashSupplier : bytesRefHashImpls()) {
+            try (BytesRefHashTable hash = hashSupplier.get()) {
+                previousValues.stream().map(MultivalueDedupeTests::encodeDoubleRange).forEach(hash::add);
+                MultivalueDedupe.HashResult hashes = new MultivalueDedupeDoubleRange((DoubleRangeBlock) b.block()).hashAdd(
+                    blockFactory(),
+                    hash
+                );
+                try (IntBlock ords = hashes.ords()) {
+                    assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
+                    assertHash(b, ords, hash.size(), previousValues, i -> decodeDoubleRange(hash.get(i, new BytesRef())));
+                    long sizeBeforeLookup = hash.size();
+                    try (IntBlock lookup = new MultivalueDedupeDoubleRange((DoubleRangeBlock) b.block()).hashLookup(blockFactory(), hash)) {
+                        assertThat(hash.size(), equalTo(sizeBeforeLookup));
+                        assertLookup(previousValues, b, b, lookup, i -> decodeDoubleRange(hash.get(i, new BytesRef())));
+                    }
+                }
+            }
+        }
+    }
+
+    private static BytesRef encodeDoubleRange(DoubleRange range) {
+        byte[] bytes = new byte[Double.BYTES * 2];
+        ByteUtils.writeLongLE(Double.doubleToLongBits(range.from()), bytes, 0);
+        ByteUtils.writeLongLE(Double.doubleToLongBits(range.to()), bytes, Double.BYTES);
+        return new BytesRef(bytes);
+    }
+
+    private static DoubleRange decodeDoubleRange(BytesRef range) {
+        return new DoubleRange(
+            Double.longBitsToDouble(ByteUtils.readLongLE(range.bytes, range.offset)),
+            Double.longBitsToDouble(ByteUtils.readLongLE(range.bytes, range.offset + Double.BYTES))
+        );
     }
 
     List<Supplier<LongHashTable>> longHashImpls() {
@@ -555,6 +601,7 @@ public class MultivalueDedupeTests extends ESTestCase {
                     case INT -> assertThat(toDecode[i].length, equalTo(Integer.BYTES));
                     case LONG -> assertThat(toDecode[i].length, equalTo(Long.BYTES));
                     case DOUBLE -> assertThat(toDecode[i].length, equalTo(Double.BYTES));
+                    case DOUBLE_RANGE -> assertThat(toDecode[i].length, equalTo(Double.BYTES * 2));
                     case BOOLEAN -> assertThat(toDecode[i].length, equalTo(1));
                     case BYTES_REF -> {
                         // Not a well defined length

@@ -1627,16 +1627,13 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
-    public void testDoubleRangeUnsupportedOperations() {
+    public void testDoubleRangeOperations() {
+        assumeTrue("requires GROUP_BY_DOUBLE_RANGE capability", EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
-        analyzer().addIndex("heights", "mapping-heights.json")
-            .stripErrorPrefix(true)
-            .error(
-                "FROM heights | STATS count(*) BY height_range",
-                containsString("cannot group by on [double_range] type for grouping [height_range]")
-            );
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | STATS count(*) BY height_range");
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | LIMIT 1 BY height_range");
         analyzer().addIndex("heights", "mapping-heights.json")
             .addLookupIndex("heights_lookup", "mapping-heights.json")
             .stripErrorPrefix(true)

@@ -156,6 +156,48 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     Map.ofEntries(Map.entry("TO_STRING", 1)),
                     true
                 ) },
+            new Object[] { new Test("""
+                FROM idx
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)), Map.ofEntries(), true) },
+            new Object[] { new Test("""
+                FROM idx
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                | LOOKUP JOIN _coordinator:lookup_idx ON host
+                """, Map.ofEntries(Map.entry("FROM", 1), Map.entry("COORDINATOR LOOKUP JOIN", 2)), Map.ofEntries(), true) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | LOOKUP JOIN lookup_idx ON host
+                        | LOOKUP JOIN _coordinator:lookup_idx ON host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("LOOKUP JOIN", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | LOOKUP JOIN _coordinator:lookup_idx ON host
+                        | LOOKUP JOIN lookup_idx ON host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("LOOKUP JOIN", 1), Map.entry("COORDINATOR LOOKUP JOIN", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | RENAME host as host_left
+                        | LOOKUP JOIN _coordinator:lookup_idx ON host_left == host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("RENAME", 1), Map.entry("COORDINATOR LOOKUP JOIN ON EXPRESSION", 1)),
+                    Map.ofEntries(),
+                    true
+                ) },
             new Object[] {
                 new Test(
                     """
@@ -265,32 +307,18 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
             );
         }
+
         DiscoveryNode dataNode = randomDataNode();
-        testQuery(dataNode, testCase);
-    }
-
-    private static void testQuery(DiscoveryNode dataNode, Test test) throws InterruptedException {
-        testQuery(dataNode, test.query, test.success, test.expectedCommands, test.expectedFunctions, test.expectedSettings);
-    }
-
-    private static void testQuery(
-        DiscoveryNode dataNode,
-        String query,
-        Boolean success,
-        Map<String, Integer> expectedCommands,
-        Map<String, Integer> expectedFunctions,
-        Map<String, Integer> expectedSettings
-    ) throws InterruptedException {
         final var plugins = internalCluster().getInstance(PluginsService.class, dataNode.getName())
             .filterPlugins(TestTelemetryPlugin.class)
             .toList();
         assertThat(plugins, hasSize(1));
-        TestTelemetryPlugin plugin = plugins.get(0);
+        TestTelemetryPlugin plugin = plugins.getFirst();
 
         try {
             int successIterations = randomInt(10);
             for (int i = 0; i < successIterations; i++) {
-                EsqlQueryRequest request = executeQuery(query);
+                EsqlQueryRequest request = executeQuery(testCase.query);
                 CountDownLatch latch = new CountDownLatch(1);
 
                 final long iteration = i + 1;
@@ -298,32 +326,32 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     try {
                         // test total commands used
                         final List<Measurement> commandMeasurementsAll = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS_ALL);
-                        assertAllUsages(expectedCommands, commandMeasurementsAll, iteration, success);
+                        assertAllUsages(testCase.expectedCommands, commandMeasurementsAll, iteration, testCase.success);
 
                         // test num of queries using a command
                         final List<Measurement> commandMeasurements = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS);
-                        assertUsageInQuery(expectedCommands, commandMeasurements, iteration, success);
+                        assertUsageInQuery(testCase.expectedCommands, commandMeasurements, iteration, testCase.success);
 
                         // test total functions used
                         final List<Measurement> functionMeasurementsAll = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS_ALL);
-                        assertAllUsages(expectedFunctions, functionMeasurementsAll, iteration, success);
+                        assertAllUsages(testCase.expectedFunctions, functionMeasurementsAll, iteration, testCase.success);
 
                         // test number of queries using a function
                         final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
-                        assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
+                        assertUsageInQuery(testCase.expectedFunctions, functionMeasurements, iteration, testCase.success);
 
                         // test total settings used
                         final List<Measurement> settingMeasurementsAll = measurements(plugin, PlanTelemetryManager.SETTING_METRICS_ALL);
-                        assertAllUsages(expectedSettings, settingMeasurementsAll, iteration, success);
+                        assertAllUsages(testCase.expectedSettings, settingMeasurementsAll, iteration, testCase.success);
 
                         // test number of queries using a setting
                         final List<Measurement> settingMeasurements = measurements(plugin, PlanTelemetryManager.SETTING_METRICS);
-                        assertUsageInQuery(expectedSettings, settingMeasurements, iteration, success);
+                        assertUsageInQuery(testCase.expectedSettings, settingMeasurements, iteration, testCase.success);
                     } finally {
                         latch.countDown();
                     }
                 }));
-                latch.await(30, TimeUnit.SECONDS);
+                assertTrue(latch.await(30, TimeUnit.SECONDS));
             }
         } finally {
             plugin.resetMeter();

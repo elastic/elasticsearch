@@ -52,6 +52,8 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -111,6 +113,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.cluster.util.Pair;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -1843,6 +1846,102 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         safeAwait(mgetPrepared);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+        waitForReshardCompletion(indexName);
+    }
+
+    // test that updates apply correctly during resharding, including noops which could previously fail to revert changes
+    public void testUpdate() {
+        startMasterAndIndexNode();
+        startSearchNode();
+        final var coordinator = startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        final var index = resolveIndex(indexName);
+
+        // original field value -> updated field value
+        final var updates = List.of(
+            Pair.of("update", "updated"),
+            // previously this would have failed this test
+            Pair.of("noop", "noop")
+        );
+
+        // block coordinator from seeing transition to HANDOFF (update gets are realtime, so not SPLIT),
+        // then wait for move to handoff and issue updates.
+        final var SHARD_UPDATE_ACTION = TransportUpdateAction.TYPE.name() + "[s]";
+        var getPrepared = new CountDownLatch(updates.size());
+        var handoffDone = new CountDownLatch(1);
+        var coordinatorTransportService = MockTransportService.getInstance(coordinator);
+        coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            // block GET once it is prepared until resharding completes
+            if ((SHARD_UPDATE_ACTION).equals(action)) {
+                // signal that update has been prepared so resharding can start
+                getPrepared.countDown();
+                safeAwait(handoffDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // generate docs to test normal update, noop update, and delete and submit updates to them before resharding
+        // They will be created, and route to shard 0. Submitting them to the shard is blocked until reshard advances
+        // to handoff.
+        final var routingPostSplit = postSplitRouting(clusterService().state(), index, 2);
+        final var updateResponses = new ArrayList<AtomicReference<UpdateResponse>>(updates.size());
+        final var updateThreads = new ArrayList<Thread>(updates.size());
+        final var updatedDocs = new HashMap<String, String>();
+        for (final var update : updates) {
+            final var docId = makeIdThatRoutesToShard(routingPostSplit, 1);
+            updatedDocs.put(docId, update.right);
+            indexDoc(indexName, docId, "field", update.left);
+            final var updateResponse = new AtomicReference<UpdateResponse>();
+            updateResponses.add(updateResponse);
+            final var updateThread = new Thread(
+                () -> updateResponse.set(
+                    client(coordinator).prepareUpdate(indexName, docId)
+                        .setDoc("field", update.right)
+                        .execute()
+                        .actionGet(SAFE_AWAIT_TIMEOUT)
+                )
+            );
+            updateThreads.add(updateThread);
+            updateThread.start();
+        }
+
+        safeAwait(getPrepared);
+        final var reshardRequest = new ReshardIndexRequest(indexName, 2);
+        client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
+
+        awaitClusterState(
+            coordinator,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+
+        // create conflicting writes for updated docs
+        for (final var docId : updatedDocs.keySet()) {
+            indexDoc(indexName, docId, "field", "conflict");
+        }
+
+        // and then release the queued updates, which will route to the source shard instead of the destination,
+        // but with a stale shard count summary.
+        handoffDone.countDown();
+
+        for (var thread : updateThreads) {
+            safeJoin(thread);
+        }
+
+        for (final var responseRef : updateResponses) {
+            assertThat(responseRef.get().getResult(), equalTo(UpdateResponse.Result.UPDATED));
+        }
+        for (final var docId : updatedDocs.keySet()) {
+            final var response = client().prepareGet(indexName, docId).execute().actionGet();
+            assertThat(response.getSource().get("field"), equalTo(updatedDocs.get(docId)));
+        }
+
+        coordinatorTransportService.clearAllRules();
         waitForReshardCompletion(indexName);
     }
 
@@ -5045,7 +5144,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings()
-            // Test framework randomly sets this to 0, but we rely on retries to handle target shards still being in recovery
+            // Test framework randomly sets thixs to 0, but we rely on retries to handle target shards still being in recovery
             // when we start re-splitting bulk requests.
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.

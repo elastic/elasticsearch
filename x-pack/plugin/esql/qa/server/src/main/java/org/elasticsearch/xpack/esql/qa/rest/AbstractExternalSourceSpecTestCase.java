@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHt
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -72,7 +73,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     /** Default base path for fixtures within the resource directory */
-    private static final String FIXTURES_BASE = "standalone";
+    private static final String FIXTURES_BASE = FixtureMatrix.get().layout(FixtureMatrix.STANDALONE).dir();
 
     /**
      * Storage backend for accessing external files.
@@ -539,6 +540,34 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Fail if the matrix does not declare this dataset for this format.
+     * <p>
+     * Without this the spec resolves to a path no generator ever wrote and the failure arrives
+     * as a missing file, or worse as an empty result. The matrix knows whether the cell is
+     * absent because no format could carry it or because nobody propagated it, so the message
+     * says which.
+     */
+    private void requireDeclaredCell(String dataset) {
+        // The suite's format is a file extension: compressed suites run as "csv.gz" and friends,
+        // and the codec dimension does not change which datasets exist.
+        String baseFormat = FixtureMatrix.baseFormat(format);
+        if (MATRIX.declares(baseFormat, dataset)) {
+            return;
+        }
+        String reason = MATRIX.restrictionReason(dataset);
+        StringBuilder message = new StringBuilder("the fixture matrix does not declare dataset [").append(dataset)
+            .append("] for format [")
+            .append(baseFormat)
+            .append("], so this fixture is never generated");
+        if (reason == null) {
+            message.append(". Declare it in fixture-matrix.properties.");
+        } else {
+            message.append(". The matrix says: ").append(reason);
+        }
+        throw new AssertionError(message.toString());
+    }
+
+    /**
      * Override to change the base directory within the resource tree where single-file fixtures live.
      * Defaults to {@code "standalone"}. Subclasses testing compressed Parquet fixtures can override
      * this to point at codec-specific directories (e.g. {@code "standalone-snappy"}).
@@ -549,12 +578,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Override to change the base directory within the resource tree where multi-file split fixtures
-     * live (template {@code {{x_multifile_split}}}). Defaults to {@code "multifile_split"}. Subclasses
-     * testing codec-compressed multi-file fixtures override this to point at codec-specific directories
-     * (e.g. {@code "multifile_split-gzip"}).
+     * live (template {@code {{x_multifile_split}}}). Defaults to the directory the fixture matrix
+     * declares for that layout. Subclasses testing codec-compressed multi-file fixtures override this
+     * to point at codec-specific directories (e.g. {@code "multifile_split-gzip"}).
      */
     protected String multifileSplitDir() {
-        return "multifile_split";
+        return MATRIX.layout(MULTIFILE_SPLIT_LAYOUT).dir();
     }
 
     /**
@@ -796,34 +825,45 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return result.toString();
     }
 
+    /**
+     * The fixture matrix. The suffixes and directories below are read from it rather than
+     * written down here, so the layout a generator writes into and the layout a spec asks for
+     * cannot drift apart -- naming a layout the declaration does not know about fails on the
+     * spot instead of resolving to a path nothing ever wrote.
+     */
+    private static final FixtureMatrix MATRIX = FixtureMatrix.get();
+
+    /** The one layout whose directory a subclass may redirect to a codec-specific variant. */
+    private static final String MULTIFILE_SPLIT_LAYOUT = "multifile_split";
+
     /** Suffix that triggers multi-file glob resolution */
-    private static final String MULTIFILE_SUFFIX = "_multifile";
+    private static final String MULTIFILE_SUFFIX = MATRIX.layout("multifile").suffix();
     /** Suffix that triggers multi-file split glob resolution (same schema, split from a single file) */
-    private static final String MULTIFILE_SPLIT_SUFFIX = "_multifile_split";
+    private static final String MULTIFILE_SPLIT_SUFFIX = MATRIX.layout(MULTIFILE_SPLIT_LAYOUT).suffix();
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
-    private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
+    private static final String MULTIFILE_UBN_SUFFIX = MATRIX.layout("multifile_ubn").suffix();
     /**
      * Suffix that triggers a multi-file glob whose files share the same columns in different
      * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
      * cross-file column-order reconciliation against silent value swaps.
      */
-    private static final String MULTIFILE_PERM_SUFFIX = "_multifile_perm";
+    private static final String MULTIFILE_PERM_SUFFIX = MATRIX.layout("multifile_perm").suffix();
     /**
      * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
      * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
      * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
      * warning; under STRICT it still throws.
      */
-    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = "_multifile_type_drift";
+    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = MATRIX.layout("multifile_type_drift").suffix();
     /**
      * Suffix that triggers a multi-file UBN glob with a mixed-temporal column ({@code date} in one file,
      * {@code date_nanos} in the other) that union_by_name widens LOSSLESSLY to {@code date_nanos} -- no
      * warning. Used to lock warm MIN/MAX over a cross-file mixed-temporal column without perturbing the
      * shared multifile_ubn fixture, whose FFW and widened-column tests depend on its exact schema.
      */
-    private static final String MULTIFILE_TEMPORAL_SUFFIX = "_multifile_temporal";
+    private static final String MULTIFILE_TEMPORAL_SUFFIX = MATRIX.layout("multifile_temporal").suffix();
     /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
-    private static final String HIVE_SUFFIX = "_hive";
+    private static final String HIVE_SUFFIX = MATRIX.layout("hive").suffix();
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.
@@ -832,34 +872,18 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * @return the resolved path
      */
     private String resolveTemplatePath(String templateName) {
+        FixtureMatrix.Layout layout = MATRIX.layoutFor(templateName);
         String relativePath;
-        if (templateName.endsWith(MULTIFILE_TYPE_DRIFT_SUFFIX)) {
-            relativePath = "multifile_type_drift/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_TEMPORAL_SUFFIX)) {
-            relativePath = "multifile_temporal/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_PERM_SUFFIX)) {
-            // Column-permutation multi-file template: x_multifile_perm -> multifile_perm/*.<format>
-            relativePath = "multifile_perm/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
-            // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
-            relativePath = "multifile_ubn/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_SPLIT_SUFFIX)) {
-            // Same-schema multi-file split: employees_multifile_split -> multifile_split/*.<format>.
-            // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir() to
-            // route to codec-specific directories (e.g. "multifile_split-gzip").
-            relativePath = multifileSplitDir() + "/*." + format;
-        } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
-            // Multi-file template: employees_multifile -> multifile/*.parquet
-            relativePath = "multifile/*." + format;
-        } else if (templateName.endsWith(HIVE_SUFFIX)) {
-            // Hive-partitioned template: employees_hive -> hive-partitioned/**/*.parquet
-            // (uses ** so the glob recurses into lang=*/ partition directories; HivePartitionDetector
-            // parses the directory names independently)
-            relativePath = "hive-partitioned/**/*." + format;
+        if (layout.isStandalone()) {
+            // A single file named after the dataset. This is the one layout that is per-dataset,
+            // so it is also the only one where a spec can name a cell that was never generated.
+            requireDeclaredCell(templateName);
+            relativePath = fixturesBase() + "/" + templateName + "." + format;
         } else {
-            // Single-file template: employees -> standalone/employees.parquet
-            String filename = templateName + "." + format;
-            relativePath = fixturesBase() + "/" + filename;
+            // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir()
+            // to route to codec-specific directories (e.g. "multifile_split-gzip").
+            String dir = layout.name().equals(MULTIFILE_SPLIT_LAYOUT) ? multifileSplitDir() : layout.dir();
+            relativePath = dir + "/" + layout.glob() + "." + format;
         }
 
         switch (storageBackend) {

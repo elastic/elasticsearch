@@ -11,15 +11,14 @@
  */
 
 def matrixFile = buildscript.sourceFile.parentFile.toPath()
-  .resolve('src/main/resources/fixture-matrix.properties').toFile()
+  .resolve('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-matrix.properties').toFile()
 assert matrixFile.exists(): "fixture matrix not found at ${matrixFile}"
 
 def props = new Properties()
 matrixFile.withInputStream { props.load(it) }
 
-// The format axis. Adding a format here is all it takes for every "*" dataset to be
-// materialised in it -- which is the whole reason the declaration is dataset-first.
-def allFormats = ['csv', 'tsv', 'ndjson', 'orc', 'parquet']
+// The format axis, declared in the properties file so both sides agree on it.
+def allFormats = props.getProperty('formats').split(',').collect { it.trim() }.findAll { it.isEmpty() == false }
 
 def datasetsByFormat = allFormats.collectEntries { [(it): []] }
 // Datasets declared "*" -- the ones every format carries. A module that deliberately runs a
@@ -63,6 +62,14 @@ ext.fixtureMatrix = [
       throw new GradleException("Unknown fixture format '${format}'; known formats are ${allFormats}.")
     }
     return datasetsByFormat[format].asImmutable()
+  },
+  /** The directory a layout occupies -- the same name the spec suites resolve templates to. */
+  layoutDir: { String layout ->
+    def dir = props.getProperty("layout.${layout}.dir")
+    if (dir == null) {
+      throw new GradleException("undeclared fixture layout '${layout}' in ${matrixFile.name}.")
+    }
+    return dir.trim()
   },
   /** The datasets every format carries, for modules that deliberately run a reduced set. */
   baseline: { -> baselineDatasets.asImmutable() },

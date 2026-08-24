@@ -235,7 +235,7 @@ generateParquetTasks.add(tasks.named('generateMultifileSplitParquet_employees'))
 // column) so the data column stays intact and queries can compare lang against the underlying value.
 // Used by external-hive-partitioned.csv-spec to exercise HivePartitionDetector end-to-end, including
 // the __HIVE_DEFAULT_PARTITION__ sentinel.
-def hivePartitionedDir = file("${parquetFixtureOutputDir}/hive-partitioned")
+def hivePartitionedDir = file("${parquetFixtureOutputDir}/${fixtureMatrix.layoutDir('hive')}")
 def hivePartitionedEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
 tasks.register('generateHivePartitionedParquet_employees', JavaExec) {
   dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')

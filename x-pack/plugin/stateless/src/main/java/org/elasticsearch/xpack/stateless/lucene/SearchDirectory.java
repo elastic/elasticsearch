@@ -63,14 +63,13 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.
 public class SearchDirectory extends BlobStoreCacheDirectory {
     private static final Logger logger = LogManager.getLogger(SearchDirectory.class);
 
-    /// IndexVersion that introduced storing a `@timestamp` field value range in the compound commit header
-    /// (buffered a few versions above the true introduction point to absorb promotion lag). Indices created before
-    /// this version can additionally contain compound commits with no recorded range purely because the field did
-    /// not exist yet, rather than because the commit lacks `@timestamp` data.
-    public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.PATTERN_TEXT_ARGS_IN_BINARY_DOC_VALUES;
+    /// IndexVersion that guarantees the writing node recorded a `@timestamp` field value range in the compound
+    /// commit header. Indices created before this can additionally contain compound commits with no recorded range purely
+    /// because the field did not exist yet, rather than because the commit lacks `@timestamp` data.
+    public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.NESTED_PATH_LIMIT;
 
-    /// Conservative upper bound on the `@timestamp` of any commit written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
-    public static final long PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS = Instant.parse("2025-12-01T00:00:00Z").toEpochMilli();
+    /// Estimated `@timestamp` for commits written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
+    public static final long PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
 
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();

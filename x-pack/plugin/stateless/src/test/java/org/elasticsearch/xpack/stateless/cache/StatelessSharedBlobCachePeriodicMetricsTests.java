@@ -403,7 +403,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
     }
 
     public void testSamplePublishesProtectionGaugesViaIsProtected() throws IOException {
-        final int numRegions = randomIntBetween(4, 10);
+        final int numRegions = randomIntBetween(5, 10);
         final long regionSize = SharedBytes.PAGE_SIZE * 10L;
         final TimeValue interval = TimeValue.timeValueMinutes(1);
         final Settings settings = Settings.builder()

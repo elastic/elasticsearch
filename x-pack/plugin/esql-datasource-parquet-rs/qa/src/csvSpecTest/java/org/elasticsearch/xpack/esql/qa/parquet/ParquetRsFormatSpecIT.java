@@ -80,8 +80,11 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "mvCountFromSplit",
         "mvDedupeFromSplit",
         "mvExpandFromSplit",
+        "mvLikeFromDataset",
+        "mvLikeNotFromDataset",
         "mvMaxFromSplit",
         "mvMinFromSplit",
+        "mvRLikeFromDataset",
         // unknown parquet column [salary_change] referenced in projection (reported in the schema as "element")
         "mvDedupeFromSplit2",
         // unknown parquet column [author] referenced in projection

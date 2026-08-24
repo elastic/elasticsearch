@@ -9,11 +9,12 @@
 
 package org.elasticsearch.telemetry.metric;
 
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.OptionalLong;
 
 import static org.hamcrest.Matchers.empty;
@@ -34,7 +35,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
     public void testGaugeReportsValueAfterSet() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        final long value = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        final long value = randomLong();
         metric.set(value);
 
         registry.getRecorder().collect();
@@ -44,7 +45,7 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
     public void testGaugeValueIsConsumedAfterPoll() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        final long value = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        final long value = randomLong();
         metric.set(value);
 
         registry.getRecorder().collect();
@@ -58,13 +59,13 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
     public void testGaugeReportsAgainAfterSecondSet() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        final long firstValue = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        final long firstValue = randomLong();
         metric.set(firstValue);
 
         registry.getRecorder().collect();
         registry.getRecorder().resetCalls();
 
-        final long secondValue = randomValueOtherThan(firstValue, () -> randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE));
+        final long secondValue = randomValueOtherThan(firstValue, ESTestCase::randomLong);
         metric.set(secondValue);
 
         registry.getRecorder().collect();
@@ -74,59 +75,59 @@ public class ConsumingLongGaugeMetricTests extends ESTestCase {
         );
     }
 
-    public void testGetIfPresentReturnsEmptyForUninitializedGauge() {
+    public void testGetValueIfPresentReturnsEmptyForUninitializedGauge() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        assertThat(metric.getIfPresent(), equalTo(OptionalLong.empty()));
+        assertThat(metric.getValueIfPresent(), equalTo(OptionalLong.empty()));
     }
 
-    public void testGetIfPresentReturnsValueAfterSetOnGauge() {
+    public void testGetValueIfPresentReturnsValueAfterSetOnGauge() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        final long value = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE);
+        final long value = randomLong();
         metric.set(value);
-        assertThat(metric.getIfPresent(), equalTo(OptionalLong.of(value)));
+        assertThat(metric.getValueIfPresent(), equalTo(OptionalLong.of(value)));
     }
 
-    public void testGetIfPresentReturnsEmptyAfterPollOnGauge() {
+    public void testGetValueIfPresentReturnsEmptyAfterPollOnGauge() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        metric.set(randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE));
+        metric.set(randomLong());
         registry.getRecorder().collect();
-        assertThat(metric.getIfPresent(), equalTo(OptionalLong.empty()));
+        assertThat(metric.getValueIfPresent(), equalTo(OptionalLong.empty()));
     }
 
-    public void testGaugeWithCustomNoValue() {
-        final var registry = new RecordingMeterRegistry();
-        final long customNoValue = randomLong();
-        final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes", customNoValue);
-
-        registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), empty());
-
-        final long value = randomValueOtherThan(customNoValue, ESTestCase::randomLong);
-        metric.set(value);
-
-        registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), RecordingMeterRegistry.measures(value));
-
-        registry.getRecorder().resetCalls();
-        registry.getRecorder().collect();
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME), empty());
-    }
-
-    public void testSetGaugeToDefaultNoValueThrowsAssertionError() {
-        assumeTrue("This test only makes sense if assertions are enabled", Assertions.ENABLED);
+    public void testGaugeReportsAttributesAfterSet() {
         final var registry = new RecordingMeterRegistry();
         final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
-        expectThrows(AssertionError.class, () -> metric.set(Long.MIN_VALUE));
+        final long value = randomLong();
+        final var attributes = Map.<String, Object>of("ratio", 12.5d, "label", "x");
+        metric.set(value, attributes);
+
+        registry.getRecorder().collect();
+        final var measurement = registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME).getFirst();
+        assertThat(measurement.getLong(), equalTo(value));
+        assertThat(measurement.attributes(), equalTo(attributes));
     }
 
-    public void testSetGaugeToCustomNoValueThrowsAssertionError() {
-        assumeTrue("This test only makes sense if assertions are enabled", Assertions.ENABLED);
-        final long customNoValue = randomLong();
+    public void testSetWithNullAttributesThrows() {
         final var registry = new RecordingMeterRegistry();
-        final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes", customNoValue);
-        expectThrows(AssertionError.class, () -> metric.set(customNoValue));
+        final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
+        expectThrows(NullPointerException.class, () -> metric.set(randomLong(), null));
+    }
+
+    public void testSetSnapshotsAttributes() {
+        final var registry = new RecordingMeterRegistry();
+        final var metric = ConsumingLongGaugeMetric.create(registry, GAUGE_NAME, "desc", "bytes");
+        final long value = randomLong();
+        final var attributes = new HashMap<String, Object>();
+        attributes.put("label", "before");
+        metric.set(value, attributes);
+        attributes.put("label", "after");
+
+        registry.getRecorder().collect();
+        final var measurement = registry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, GAUGE_NAME).getFirst();
+        assertThat(measurement.getLong(), equalTo(value));
+        assertThat(measurement.attributes(), equalTo(Map.of("label", "before")));
     }
 }

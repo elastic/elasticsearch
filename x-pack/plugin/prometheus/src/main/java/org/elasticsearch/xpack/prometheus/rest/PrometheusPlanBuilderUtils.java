@@ -163,7 +163,7 @@ final class PrometheusPlanBuilderUtils {
                     // Non-equality "__name__" matchers (e.g. {__name__!="foo"}, {__name__=~"bar"}) cannot use
                     // selector.series(). Use the "__name__" label; series without it are excluded.
                     Expression nameField = new UnresolvedAttribute(Source.EMPTY, LabelMatcher.NAME);
-                    Expression matcherCond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, nameField, matcher);
+                    Expression matcherCond = TranslatePromqlToEsqlPlan.emitMatcherConditionExpression(Source.EMPTY, nameField, matcher);
                     if (matcherCond != null) {
                         conditions.add(combineAnd(List.of(new IsNotNull(Source.EMPTY, nameField), matcherCond)));
                     }
@@ -174,7 +174,7 @@ final class PrometheusPlanBuilderUtils {
 
             // Regular label matcher, e.g. job="myjob".
             Expression labelField = new UnresolvedAttribute(Source.EMPTY, matcher.name());
-            Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, labelField, matcher);
+            Expression cond = TranslatePromqlToEsqlPlan.emitMatcherConditionExpression(Source.EMPTY, labelField, matcher);
             if (cond != null) {
                 conditions.add(cond);
             }
@@ -209,7 +209,7 @@ final class PrometheusPlanBuilderUtils {
                     conditions.add(buildNullableNameHint(matcher));
                 }
             } else {
-                Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(
+                Expression cond = TranslatePromqlToEsqlPlan.emitMatcherConditionExpression(
                     Source.EMPTY,
                     new UnresolvedAttribute(Source.EMPTY, matcher.name()),
                     matcher
@@ -224,7 +224,7 @@ final class PrometheusPlanBuilderUtils {
 
     private static Expression buildNullableNameHint(LabelMatcher matcher) {
         Expression nameField = new UnresolvedAttribute(Source.EMPTY, LabelMatcher.NAME);
-        Expression matcherCond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, nameField, matcher);
+        Expression matcherCond = TranslatePromqlToEsqlPlan.emitMatcherConditionExpression(Source.EMPTY, nameField, matcher);
         return combineOr(List.of(new IsNull(Source.EMPTY, nameField), matcherCond));
     }
 
@@ -232,7 +232,7 @@ final class PrometheusPlanBuilderUtils {
      * Converts an InstantSelector's non-exact {@code __name__} matchers into a single AND expression
      * evaluated against {@link #METRIC_NAME_FIELD}. Returns {@code null} if no such matchers exist.
      *
-     * <p>No {@code IsNotNull} wrapper is added: {@link TranslatePromqlToEsqlPlan#translateLabelMatcher}
+     * <p>No {@code IsNotNull} wrapper is added: {@link TranslatePromqlToEsqlPlan#emitMatcherConditionExpression}
      * already handles the null/empty-string case by emitting {@code IsNull(field) OR NOT(matcher)}
      * when the matcher automaton accepts the empty string (e.g. for NEQ). Adding an outer
      * {@code IsNotNull} would cancel that {@code IsNull} branch and incorrectly exclude series whose
@@ -251,8 +251,12 @@ final class PrometheusPlanBuilderUtils {
     }
 
     private static Expression translateMetricNameMatcher(Expression metricNameField, LabelMatcher matcher) {
-        Expression rawMetricNameCondition = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, metricNameField, matcher);
-        Expression prefixedMetricNameCondition = TranslatePromqlToEsqlPlan.translateLabelMatcher(
+        Expression rawMetricNameCondition = TranslatePromqlToEsqlPlan.emitMatcherConditionExpression(
+            Source.EMPTY,
+            metricNameField,
+            matcher
+        );
+        Expression prefixedMetricNameCondition = TranslatePromqlToEsqlPlan.emitMatcherConditionExpression(
             Source.EMPTY,
             metricNameField,
             prefixedMetricNameMatcher(matcher)

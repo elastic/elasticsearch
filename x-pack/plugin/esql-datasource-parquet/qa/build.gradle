@@ -249,6 +249,25 @@ tasks.register('generateHivePartitionedParquet_employees', JavaExec) {
 }
 generateParquetTasks.add(tasks.named('generateHivePartitionedParquet_employees'))
 
+// Generate a Hive-partitioned fixture whose partition key COLLIDES with a real payload column: rows are
+// bucketed by `languages` into directories languages=1/, ..., languages=__HIVE_DEFAULT_PARTITION__/, and the
+// generator preserves `languages` in the parquet payload. Reading this dataset therefore hides the physical
+// column behind the path-derived one (Spark/DuckDB shadowing semantics) and emits the shadow warning. Used to
+// reproduce that `partition_detection: none` cannot opt out of that substitution.
+def hiveShadowDir = file("${parquetFixtureOutputDir}/hive-partitioned-shadow")
+tasks.register('generateHiveShadowParquet_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+  args = [hivePartitionedEmployeesCsv.path, hiveShadowDir.path, '--hive-by', 'languages', 'languages']
+  inputs.file(hivePartitionedEmployeesCsv)
+  outputs.dir(hiveShadowDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+generateParquetTasks.add(tasks.named('generateHiveShadowParquet_employees'))
+
 // Generate compressed Parquet fixtures for each supported internal codec.
 // Each codec gets its own directory: standalone-snappy/, standalone-gzip/, etc.
 apply from: serverProject.file('compressed-parquet-fixtures.gradle')
@@ -279,9 +298,11 @@ tasks.named('javaRestTest') {
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
 
-  // Increase timeouts for S3/Parquet operations which may take longer than standard queries
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
+  // The http datasource fetch triggered by runEsqlSync() retries transient failures against
+  // raw.githubusercontent.com with its own bounded backoff (~30s) before giving up; give the
+  // REST client enough headroom to outlast that plus real transfer time.
+  systemProperty 'tests.rest.client_timeout', '120'
+  systemProperty 'tests.rest.socket_timeout', '120'
 
   // Enable more verbose logging for debugging
   testLogging {

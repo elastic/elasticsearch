@@ -96,7 +96,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
                     Arrays.fill(seqNumbers, SequenceNumbers.UNASSIGNED_SEQ_NO);
                     return seqNumbers;
                 });
-                checkpointsByIndexOfThisNode.get(shardId.getIndexName())[shardId.getId()] = indexShard.seqNoStats().getGlobalCheckpoint();
+                checkpointsByIndexOfThisNode.get(shardId.getIndexName())[shardId.getId()] = indexShard.getLastKnownGlobalCheckpoint();
                 ++numProcessedShards;
             } catch (Exception e) {
                 logger.atDebug()

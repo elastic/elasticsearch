@@ -191,7 +191,7 @@ book_no:keyword
 ;
 
 matchWithFunctionPushedToLucene
-skip_flattened_rewrite: match_family_rejects_field_extract
+skip_flattened_rewrite: runtime_search_reorders_conjunct_warnings
 required_capability: match_function
 
 from hosts 
@@ -465,11 +465,25 @@ name:keyword | version:version
 bbbbb        | 2.1
 ;
 
+testMatchVersionFieldWithFuzziness
+required_capability: match_function
+required_capability: match_additional_types
+required_capability: fix_match_fuzziness_on_version_field
+
+from apps
+| where match(version, "2.1", {"fuzziness": 1})
+| keep name, version
+| sort name;
+
+name:keyword | version:version
+bbbbb        | 2.1
+;
+
 testMatchIntegerAsDouble
 required_capability: match_function
 required_capability: match_additional_types
 
-from employees 
+from employees
 | where match(emp_no, 10004.0)
 | keep emp_no, first_name;
 ignoreOrder:true
@@ -2032,4 +2046,386 @@ content:text
 This dog is really brown
 This is a brown dog
 This is a brown fox
+;
+
+matchOnRuntimeTextWithFuzziness
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithOperatorAnd
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "quick fox", {"operator": "AND"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithMinimumShouldMatch
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog", "the quick lazy cat"])
+| MV_EXPAND content
+| WHERE match(content, "quick lazy fox", {"minimum_should_match": "2"})
+| SORT content
+;
+
+content:text
+the quick brown fox
+the quick lazy cat
+;
+
+matchOnRuntimeTextWithZeroTermsQueryNone
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "none"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithZeroTermsQueryAll
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox", "the lazy dog"])
+| MV_EXPAND content
+| WHERE match(content, "", {"zero_terms_query": "all"})
+| SORT content
+;
+
+content:text
+the lazy dog
+the quick brown fox
+;
+
+matchOnRuntimeTextWithPrefixLength
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "prefix_length": "1"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsEnabled
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "true"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyTranspositionsDisabled
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brwon", {"fuzziness": "1", "fuzzy_transpositions": "false"})
+;
+
+content:text
+;
+
+matchOnRuntimeTextWithMaxExpansions
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "max_expansions": "10"})
+;
+
+content:text
+the quick brown fox
+;
+
+matchOnRuntimeTextWithFuzzyRewrite
+
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+ROW content = to_text(["the quick brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "bron", {"fuzziness": "1", "fuzzy_rewrite": "constant_score"})
+;
+
+content:text
+the quick brown fox
+;
+
+testRuntimeMatchWithIndexAndOptionsPrefixLength
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| where match(title, "Rigns", {"fuzziness": 1, "prefix_length": 1})
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+2675            | The Lord of the Rings - Boxed Set
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyTranspositionsEnabled
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "true"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndFuzzyTranspositionsDisabled
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Rigns", {"fuzziness": 1, "fuzzy_transpositions": "false"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+;
+
+testRuntimeMatchWithIndexAndOptionsMaxExpansions
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "max_expansions": 10})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+testRuntimeMatchWithIndexAndOptionsFuzzyRewrite
+required_capability: match_function
+required_capability: fn_match_runtime_options
+
+from books
+| eval new_title = to_text(concat("TITLE: ", title))
+| where match(new_title, "Pings", {"fuzziness": 1, "fuzzy_rewrite": "constant_score"})
+| keep book_no, new_title;
+ignoreOrder:true
+
+book_no:keyword | new_title:text
+2714            | TITLE: Return of the King Being the Third Part of The Lord of the Rings
+2675            | TITLE: The Lord of the Rings - Boxed Set
+4023            | TITLE: A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | TITLE: The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+matchOnRuntimeTextWithWhitespaceAnalyzer
+required_capability: match_function
+required_capability: fn_match_runtime_analyzer
+
+// the whitespace analyzer does not lowercase, unlike the standard analyzer
+ROW content = to_text(["the Fox jumped", "the fox jumped"])
+| MV_EXPAND content
+| WHERE match(content, "Fox", {"analyzer": "whitespace"})
+;
+
+content:text
+the Fox jumped
+;
+
+matchOnRuntimeTextWithKeywordAnalyzer
+required_capability: match_function
+required_capability: fn_match_runtime_analyzer
+
+// the keyword analyzer emits the whole value as a single token
+ROW content = to_text(["brown fox", "a brown fox"])
+| MV_EXPAND content
+| WHERE match(content, "brown fox", {"analyzer": "keyword"})
+;
+
+content:text
+brown fox
+;
+
+matchOnRuntimeTextWithEnglishAnalyzer
+required_capability: match_function
+required_capability: fn_match_runtime_analyzer
+
+// the english analyzer stems both the query and the values: "running" matches "runs"
+ROW content = to_text(["he runs daily", "she walks daily"])
+| MV_EXPAND content
+| WHERE match(content, "running", {"analyzer": "english"})
+;
+
+content:text
+he runs daily
+;
+
+matchOnRuntimeTextWithAnalyzerAndOperator
+required_capability: match_function
+required_capability: fn_match_runtime_analyzer
+
+ROW content = to_text(["Quick brown Fox", "quick brown fox", "Quick brown dog"])
+| MV_EXPAND content
+| WHERE match(content, "Quick Fox", {"analyzer": "whitespace", "operator": "AND"})
+;
+
+content:text
+Quick brown Fox
+;
+
+matchOnRuntimeTextWithIndexAndKeywordAnalyzer
+required_capability: match_function
+required_capability: fn_match_runtime_analyzer
+
+FROM books
+| EVAL new_title = to_text(concat("TITLE: ", title))
+| WHERE match(new_title, "TITLE: The Lord of the Rings - Boxed Set", {"analyzer": "keyword"})
+| KEEP book_no, new_title
+;
+
+book_no:keyword | new_title:text
+2675            | TITLE: The Lord of the Rings - Boxed Set
+;
+
+matchOnRuntimeTextWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// a runtime match scores one point per matched query term, not BM25: expressions have no index statistics
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien")
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 1.0
+2130            | 1.0
+2301            | 1.0
+;
+
+matchOnRuntimeTextMultipleTermsWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// books matching both terms score 2.0, books matching one score 1.0
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| STATS max_score = max(_score), min_score = min(_score)
+;
+
+max_score:double | min_score:double
+2.0              | 1.0
+;
+
+matchOnRuntimeTextWithOptionsAndScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// with operator AND both terms must match, and each matched term scores the boost
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings", {"operator": "AND", "boost": 1.5})
+| STATS max_score = max(_score), min_score = min(_score)
+;
+
+max_score:double | min_score:double
+3.0              | 3.0
+;
+
+matchOnRuntimeKeywordWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// keyword expressions match by exact value equality and score 1.0
+FROM employees METADATA _score
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| WHERE match(full_name, "Anneke Preusig") OR match(full_name, "Berni Genin")
+| SORT emp_no
+| KEEP emp_no, _score
+;
+
+emp_no:integer | _score:double
+10006          | 1.0
+10014          | 1.0
+;
+
+matchOnRuntimeTextAndIndexedFieldWithScore
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+
+// the pushed-down side scores BM25 and the runtime side adds its term count: every matched row has a positive score
+FROM books METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien") OR match(title, "Brothers Karamazov")
+| EVAL scored = _score > 0.0
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, scored
+;
+
+book_no:keyword | scored:boolean
+1211            | true
+1463            | true
+1985            | true
 ;

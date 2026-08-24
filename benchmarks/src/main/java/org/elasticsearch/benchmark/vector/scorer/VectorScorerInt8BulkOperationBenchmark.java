@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -38,7 +38,7 @@ import java.util.stream.IntStream;
 /**
  * Bare-bones bulk operation benchmark for int8 vector similarity functions.
  * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
- * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer infrastructure
+ * via {@link SimdVecLibrary}, bypassing the Lucene scorer infrastructure
  * so the inner SIMD kernel cost is the dominant signal:
  * <ul>
  *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
@@ -102,7 +102,7 @@ public class VectorScorerInt8BulkOperationBenchmark {
         private final byte[][] vectors;
 
         VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+            super(numVectors, numVectorsToScore, random, DataAccessPattern.RANDOM);
 
             vectors = new byte[numVectors][];
             for (int v = 0; v < numVectors; v++) {
@@ -157,18 +157,18 @@ public class VectorScorerInt8BulkOperationBenchmark {
 
     private float callSingleScore(MemorySegment vec, MemorySegment query, int dims) {
         return switch (function) {
-            case COSINE -> vectorSimilarityFunctions.cosineI8(vec, query, dims);
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8(vec, query, dims);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8(vec, query, dims);
+            case COSINE -> VEC_LIBRARY.cosineI8(vec, query, dims);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8(vec, query, dims);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8(vec, query, dims);
             default -> throw new UnsupportedOperationException(function.toString());
         };
     }
 
     private void callBulkScore(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment results) {
         switch (function) {
-            case COSINE -> vectorSimilarityFunctions.cosineI8Bulk(a, b, dims, count, results);
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8Bulk(a, b, dims, count, results);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8Bulk(a, b, dims, count, results);
+            case COSINE -> VEC_LIBRARY.cosineI8Bulk(a, b, dims, count, results);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8Bulk(a, b, dims, count, results);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8Bulk(a, b, dims, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
@@ -183,18 +183,18 @@ public class VectorScorerInt8BulkOperationBenchmark {
         MemorySegment results
     ) {
         switch (function) {
-            case COSINE -> vectorSimilarityFunctions.cosineI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case COSINE -> VEC_LIBRARY.cosineI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8BulkWithOffsets(a, b, dims, pitch, offsets, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
 
     private void callBulkSparseScore(MemorySegment addresses, MemorySegment b, int dims, int count, MemorySegment results) {
         switch (function) {
-            case COSINE -> vectorSimilarityFunctions.cosineI8BulkSparse(addresses, b, dims, count, results);
-            case DOT_PRODUCT -> vectorSimilarityFunctions.dotProductI8BulkSparse(addresses, b, dims, count, results);
-            case EUCLIDEAN -> vectorSimilarityFunctions.squareDistanceI8BulkSparse(addresses, b, dims, count, results);
+            case COSINE -> VEC_LIBRARY.cosineI8BulkSparse(addresses, b, dims, count, results);
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI8BulkSparse(addresses, b, dims, count, results);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI8BulkSparse(addresses, b, dims, count, results);
             default -> throw new UnsupportedOperationException(function.toString());
         }
     }
@@ -264,7 +264,5 @@ public class VectorScorerInt8BulkOperationBenchmark {
         return scores;
     }
 
-    private static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow();
+    private static final SimdVecLibrary VEC_LIBRARY = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
 }

@@ -19,7 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_PAGINATED_SEARCH_BATCH_SIZE;
 import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 
 public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
@@ -56,7 +56,7 @@ public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
     private void initSourceSearchRequest() {
         source.request().scroll(DEFAULT_SCROLL_TIMEOUT);
         source.request().source(new SearchSourceBuilder());
-        source.request().source().size(DEFAULT_SCROLL_SIZE);
+        source.request().source().size(DEFAULT_PAGINATED_SEARCH_BATCH_SIZE);
     }
 
     protected abstract Self self();

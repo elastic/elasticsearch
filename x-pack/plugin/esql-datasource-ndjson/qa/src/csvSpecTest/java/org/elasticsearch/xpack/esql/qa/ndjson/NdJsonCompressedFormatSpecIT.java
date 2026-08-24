@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.qa.ndjson;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +25,10 @@ import java.util.Set;
 /**
  * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
+ * Each csv-spec test is run against every configured storage backend and compression format.
+ * This class runs four csv-spec files and exceeds {@link EsqlSpecTestCase}'s 10-minute suite budget.
  */
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 

@@ -36,7 +36,6 @@ import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +85,7 @@ public class DfsPhase {
             @Override
             public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                 if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
+                    throw context.getTask().getTaskCancelledException();
                 }
                 Timer timer = maybeStartTimer(profiler, DfsTimingType.TERM_STATISTICS);
                 try {
@@ -105,7 +104,7 @@ public class DfsPhase {
             @Override
             public CollectionStatistics collectionStatistics(String field) throws IOException {
                 if (context.isCancelled()) {
-                    throw new TaskCancelledException("cancelled");
+                    throw context.getTask().getTaskCancelledException();
                 }
                 Timer timer = maybeStartTimer(profiler, DfsTimingType.COLLECTION_STATISTICS);
                 try {

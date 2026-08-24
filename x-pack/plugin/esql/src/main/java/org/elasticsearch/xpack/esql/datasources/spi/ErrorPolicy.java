@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Configures how format readers handle malformed or unparseable rows.
@@ -23,7 +25,8 @@ import java.util.Set;
  *   <tr><td>{@link Mode#SKIP_ROW SKIP_ROW}</td><td>DROPMALFORMED</td><td>ignore_errors</td>
  *       <td>errors_num&gt;0</td><td>Drop the entire bad row</td></tr>
  *   <tr><td>{@link Mode#NULL_FIELD NULL_FIELD}</td><td>PERMISSIVE</td><td>—</td>
- *       <td>—</td><td>Null-fill unparseable fields, keep the row</td></tr>
+ *       <td>—</td><td>Null-fill unparseable fields, keep the row (per-value failures only; a row whose
+ *       structure cannot be parsed is dropped)</td></tr>
  * </table>
  *
  * <h2>Error budget</h2>
@@ -40,11 +43,9 @@ import java.util.Set;
  * </table>
  *
  * <h2>Usage</h2>
- * {@snippet lang="esql" :
- *   FROM s3://bucket/data.csv WITH {"max_errors": 100}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "skip_row", "max_error_ratio": 0.1}
- *   FROM s3://bucket/data.csv WITH {"error_mode": "null_field"}
- * }
+ * A dataset configures its error policy via the {@code error_mode}, {@code max_errors}, and
+ * {@code max_error_ratio} settings, resolved from the settings described above and applied to
+ * every query that reads the dataset through {@code FROM <dataset>}.
  *
  * <h2>Client-visible warnings</h2>
  * Whenever the non-strict modes ({@link Mode#SKIP_ROW} and {@link Mode#NULL_FIELD}) cause a row to be
@@ -72,7 +73,12 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         FAIL_FAST,
         /** Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}. */
         SKIP_ROW,
-        /** Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. */
+        /**
+         * Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. The contract is
+         * per value: a failure the reader cannot attribute to one value (a whole-line JSON failure, a structural
+         * CSV row error) has no cell to null, so row-oriented readers drop the row as in {@link #SKIP_ROW}. See
+         * {@link ErrorPolicy#PERMISSIVE} for both degradation directions.
+         */
         NULL_FIELD;
 
         /**
@@ -86,6 +92,11 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
             String normalized = value.toUpperCase(Locale.ROOT).replace(" ", "_");
             return Mode.valueOf(normalized);
         }
+
+        /** The accepted spellings, lower case, for inclusion in a rejection message. */
+        public static String supportedValues() {
+            return Arrays.stream(values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.joining(", "));
+        }
     }
 
     /** Fail immediately on any malformed row. */
@@ -95,12 +106,15 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public static final ErrorPolicy LENIENT = new ErrorPolicy(Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, true);
 
     /**
-     * Null-fill unparseable fields without limit, keeping every row — the opt-in leniency for a
-     * declared-type coercion failure (a bad per-value token nulls the cell and emits a response
+     * Null-fill unparseable fields without limit, keeping the row for every per-value failure — the opt-in
+     * leniency for a declared-type coercion failure (a bad per-value token nulls the cell and emits a response
      * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
-     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}. A
-     * columnar batch cannot drop a single row, so {@link Mode#SKIP_ROW} degrades to this same
-     * null-field behavior there.
+     * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
+     * <p>
+     * Each mode degrades to the other where a reader physically cannot honour it: a columnar batch cannot drop
+     * a single row, so {@link Mode#SKIP_ROW} degrades to this null-field behavior there; a row-oriented reader
+     * cannot null-fill a failure it cannot attribute to one value (a whole-line JSON failure, a structural CSV
+     * row error), so {@link Mode#NULL_FIELD} degrades to a row drop there.
      */
     public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
 
@@ -199,13 +213,37 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         Mode mode = Mode.SKIP_ROW;
         if (errorModeValue != null) {
             String modeStr = errorModeValue.toString();
+            String rejection = "Invalid value for ["
+                + CONFIG_ERROR_MODE
+                + "]: ["
+                + errorModeValue
+                + "]; supported values are ["
+                + Mode.supportedValues()
+                + "]";
             try {
                 mode = Mode.parse(modeStr);
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]", e);
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]",
+                    e
+                );
             }
             if (mode == null) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]");
+                throw new IllegalArgumentException(
+                    "Invalid value for ["
+                        + CONFIG_ERROR_MODE
+                        + "]: ["
+                        + errorModeValue
+                        + "]; supported values are ["
+                        + Mode.supportedValues()
+                        + "]"
+                );
             }
         }
 

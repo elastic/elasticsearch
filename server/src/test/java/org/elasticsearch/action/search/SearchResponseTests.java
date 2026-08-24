@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
@@ -48,14 +50,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class SearchResponseTests extends ESTestCase {
 
+    public static final int SHARDS_PER_CLUSTER = 5;
     private static final NamedXContentRegistry xContentRegistry;
     static {
         List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(SuggestTests.getDefaultNamedXContents());
@@ -201,7 +206,6 @@ public class SearchResponseTests extends ESTestCase {
         int i = totalClusters > remoteClusters ? -1 : 0;
         for (; i < remoteClusters; i++) {
             SearchResponse.Cluster.Status status;
-            int totalShards = 5;
             int successfulShards;
             int skippedShards;
             int failedShards;
@@ -210,13 +214,12 @@ public class SearchResponseTests extends ESTestCase {
             if (successful > 0) {
                 failedShards = 0;
                 status = SearchResponse.Cluster.Status.SUCCESSFUL;
-                successfulShards = 5;
+                successfulShards = SHARDS_PER_CLUSTER;
                 skippedShards = 1;
-                failureList = Collections.emptyList();
                 successful--;
             } else if (partial > 0) {
                 status = SearchResponse.Cluster.Status.PARTIAL;
-                successfulShards = 4;
+                successfulShards = SHARDS_PER_CLUSTER - 1;
                 skippedShards = 1;
                 failedShards = 1;
                 partial--;
@@ -224,13 +227,13 @@ public class SearchResponseTests extends ESTestCase {
                 status = SearchResponse.Cluster.Status.SKIPPED;
                 successfulShards = 0;
                 skippedShards = 0;
-                failedShards = 5;
+                failedShards = SHARDS_PER_CLUSTER;
                 skipped--;
             } else if (failed > 0) {
                 status = SearchResponse.Cluster.Status.FAILED;
                 successfulShards = 0;
                 skippedShards = 0;
-                failedShards = 5;
+                failedShards = SHARDS_PER_CLUSTER;
                 failed--;
             } else {
                 throw new IllegalStateException("Test setup coding error - should not get here");
@@ -240,11 +243,16 @@ public class SearchResponseTests extends ESTestCase {
                 clusterAlias = "cluster_" + i;
             }
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-            List<ShardSearchFailure> finalFailureList = failureList;
+            List<ShardSearchFailure> finalFailureList;
+            if (status.equals(SearchResponse.Cluster.Status.SUCCESSFUL)) {
+                finalFailureList = Collections.emptyList();
+            } else {
+                finalFailureList = failureList.subList(0, Math.min(failedShards, failureList.size()));
+            }
             clusters.swapCluster(
                 cluster.getClusterAlias(),
                 (k, v) -> new SearchResponse.Cluster.Builder(v).setStatus(status)
-                    .setTotalShards(totalShards)
+                    .setTotalShards(SHARDS_PER_CLUSTER)
                     .setSuccessfulShards(successfulShards)
                     .setSkippedShards(skippedShards)
                     .setFailedShards(failedShards)
@@ -611,6 +619,200 @@ public class SearchResponseTests extends ESTestCase {
                 response.decRef();
             }
         }
+        // Test that shard failures are de-duplicated in ToXContent when the index name and exception message match
+        {
+            ShardSearchFailure[] shardFailures = new ShardSearchFailure[SHARDS_PER_CLUSTER];
+            // This is somewhat unrealistic, since createCCSClusterObject() has all clusters use the same array of shard failures, so the
+            // cluster alias in the failures will not match the cluster alias of the cluster the failure appears in. For the purposes of
+            // this test, this is acceptable, since we only care about checking that the similar failures are not duplicated
+            int finalShardId = SHARDS_PER_CLUSTER - 1;
+            for (int i = 0; i < finalShardId; i++) {
+                shardFailures[i] = new ShardSearchFailure(
+                    new IllegalStateException("corrupt index"),
+                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                );
+            }
+            // Set the final failure to be different to make sure that it is still included
+            shardFailures[finalShardId] = new ShardSearchFailure(
+                new NullPointerException("NPE"),
+                new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+            );
+            ;
+            SearchResponse response = new SearchResponse(
+                sHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                20,
+                9,
+                2,
+                0,
+                shardFailures,
+                createCCSClusterObject(4, 3, true, 1, 1, 1, 1, shardFailures)
+            );
+            try {
+                String expectedString = XContentHelper.stripWhitespace("""
+                    {
+                      "took" : 0,
+                      "timed_out" : false,
+                      "_shards" : {
+                        "total" : 20,
+                        "successful" : 9,
+                        "skipped" : 2,
+                        "failed" : 5,
+                        "failures" : [
+                          {
+                            "shard" : 0,
+                            "index" : "cluster_1:foo",
+                            "node" : "nodeId0",
+                            "reason" : {
+                              "type" : "illegal_state_exception",
+                              "reason" : "corrupt index"
+                            }
+                          },
+                          {
+                            "shard" : 4,
+                            "index" : "cluster_1:foo",
+                            "node" : "nodeId0",
+                            "reason" : {
+                              "type" : "null_pointer_exception",
+                              "reason" : "NPE"
+                            }
+                          }
+                        ]
+                      },
+                      "_clusters" : {
+                        "total" : 4,
+                        "successful" : 1,
+                        "skipped" : 1,
+                        "running" : 0,
+                        "partial" : 1,
+                        "failed" : 1,
+                        "details" : {
+                          "(local)" : {
+                            "status" : "successful",
+                            "indices" : "foo,bar*",
+                            "took" : 1000,
+                            "timed_out" : false,
+                            "_shards" : {
+                              "total" : 5,
+                              "successful" : 5,
+                              "skipped" : 1,
+                              "failed" : 0
+                            }
+                          },
+                          "cluster_1" : {
+                            "status" : "skipped",
+                            "indices" : "foo,bar*",
+                            "took" : 1000,
+                            "timed_out" : false,
+                            "_shards" : {
+                              "total" : 5,
+                              "successful" : 0,
+                              "skipped" : 0,
+                              "failed" : 5
+                            },
+                            "failures" : [
+                              {
+                                "shard" : 0,
+                                "index" : "cluster_1:foo",
+                                "node" : "nodeId0",
+                                "reason" : {
+                                  "type" : "illegal_state_exception",
+                                  "reason" : "corrupt index"
+                                }
+                              },
+                              {
+                                "shard" : 4,
+                                "index" : "cluster_1:foo",
+                                "node" : "nodeId0",
+                                "reason" : {
+                                  "type" : "null_pointer_exception",
+                                  "reason" : "NPE"
+                                }
+                              }
+                            ]
+                          },
+                          "cluster_2" : {
+                            "status" : "failed",
+                            "indices" : "foo,bar*",
+                            "took" : 1000,
+                            "timed_out" : false,
+                            "_shards" : {
+                              "total" : 5,
+                              "successful" : 0,
+                              "skipped" : 0,
+                              "failed" : 5
+                            },
+                            "failures" : [
+                              {
+                                "shard" : 0,
+                                "index" : "cluster_1:foo",
+                                "node" : "nodeId0",
+                                "reason" : {
+                                  "type" : "illegal_state_exception",
+                                  "reason" : "corrupt index"
+                                }
+                              },
+                              {
+                                "shard" : 4,
+                                "index" : "cluster_1:foo",
+                                "node" : "nodeId0",
+                                "reason" : {
+                                  "type" : "null_pointer_exception",
+                                  "reason" : "NPE"
+                                }
+                              }
+                            ]
+                          },
+                          "cluster_0" : {
+                            "status" : "partial",
+                            "indices" : "foo,bar*",
+                            "took" : 1000,
+                            "timed_out" : false,
+                            "_shards" : {
+                              "total" : 5,
+                              "successful" : 4,
+                              "skipped" : 1,
+                              "failed" : 1
+                            },
+                            "failures" : [
+                              {
+                                "shard" : 0,
+                                "index" : "cluster_1:foo",
+                                "node" : "nodeId0",
+                                "reason" : {
+                                  "type" : "illegal_state_exception",
+                                  "reason" : "corrupt index"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "hits" : {
+                        "total" : {
+                          "value" : 100,
+                          "relation" : "eq"
+                        },
+                        "max_score" : 1.5,
+                        "hits" : [
+                          {
+                            "_id" : "id1",
+                            "_score" : 2.0
+                          }
+                        ]
+                      }
+                    }""");
+                assertEquals(expectedString, Strings.toTruncatedString(response));
+            } finally {
+                response.decRef();
+            }
+        }
         sHits.decRef();
     }
 
@@ -717,7 +919,7 @@ public class SearchResponseTests extends ESTestCase {
             );
             try {
                 XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
-                deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                deserialized.getClusters().toXContent(builder, EMPTY_PARAMS);
                 assertEquals(0, Strings.toString(builder).length());
             } finally {
                 deserialized.decRef();

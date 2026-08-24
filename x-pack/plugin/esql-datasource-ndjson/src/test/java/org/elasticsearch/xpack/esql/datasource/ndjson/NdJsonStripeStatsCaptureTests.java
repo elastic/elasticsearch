@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -68,9 +69,8 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -147,7 +147,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
     /**
      * Byte-array cap-drop safe-miss (mirrors CSV's {@code testMaxRecordSizeDropSafeMissesStripeCapture}).
      * On the recordAligned (byte-array) path an oversized record is dropped and decoding CONTINUES, so the
-     * harvested row count is {@code max_record_size}-dependent. Because the cap is a query pragma and not in
+     * harvested row count is {@code external_max_record_size}-dependent. Because the cap is a query pragma and not in
      * the cache fingerprint, the whole publish must safe-miss — otherwise a warm aggregate under a different
      * cap would serve this scan's under-count. Proven to publish an under-count without the capDropped gate.
      */
@@ -178,7 +178,10 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        assertNull("byte-array cap-drop must publish no stats (max_record_size is not fingerprinted)", sink.get(o.path().toString()));
+        assertNull(
+            "byte-array cap-drop must publish no stats (external_max_record_size is not fingerprinted)",
+            sink.get(o.path().toString())
+        );
     }
 
     /**
@@ -329,7 +332,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         assertFoldsTo(frags, total);
     }
 
-    // ---- Harvest-scope tests (esql.source.cache.stripe.columns) -------------------------------------
+    // ---- Harvest-scope tests (esql.external.cache.stripe.columns) -------------------------------------
 
     /**
      * COUNT(*) — zero projected columns — must still harvest each stripe's row count under count/projected/all
@@ -453,10 +456,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
         String path = "memory://stripe-fold-" + UUID.randomUUID() + ".ndjson";
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());
@@ -543,10 +545,9 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         long mtime = ((Number) fragments.get(0).get(ExternalStats.MTIME_MILLIS_KEY)).longValue();
         String path = "memory://stripe-fold-" + UUID.randomUUID() + ".ndjson";
         Settings settings = Settings.builder()
-            .put("esql.source.cache.size", "10mb")
-            .put("esql.source.cache.enabled", true)
-            .put("esql.source.cache.schema.ttl", "5m")
-            .put("esql.source.cache.listing.ttl", "30s")
+            .put("esql.external.cache.size", "10mb")
+            .put("esql.external.cache.enabled", true)
+            .put("esql.external.cache.listing.ttl", "30s")
             .build();
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(settings)) {
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".ndjson", Map.of());

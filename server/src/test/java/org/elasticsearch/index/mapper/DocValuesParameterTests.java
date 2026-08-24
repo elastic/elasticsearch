@@ -9,17 +9,38 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DocValuesParameterTests extends MapperServiceTestCase {
+
+    @Override
+    protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return IndexAnalyzers.of(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+            Map.of()
+        );
+    }
 
     // -----------------------------------------------------------------------
     // Columnar invariant: every field's _source must be reconstructable from doc-value columns, since columnar rebuilds
@@ -181,6 +202,25 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * The core mappers (keyword, number, date, boolean, ip, text) have always honored the index-level {@code doc_values} settings, so
+     * the {@link IndexVersions#DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS} gate (which only applies to the mappers that historically ignored
+     * them) must not affect them: an index created before that version still resolves the setting.
+     */
+    public void testCoreMapperHonorsIndexSettingForOlderCreatedVersions() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+            settings,
+            fieldMapping(b -> b.field("type", "keyword"))
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(false));
     }
 
     /**
@@ -529,9 +569,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
 
     // -----------------------------------------------------------------------
     // on_failure
-    //
-    // NOTE: on_failure is parsed and stored but not yet enforced anywhere, so these tests only cover parsing, defaulting
-    // and serialization - not runtime behavior.
     // -----------------------------------------------------------------------
 
     public void testOnFailureRejectedInNonColumnarMode() throws Exception {
@@ -568,6 +605,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     }
 
     public void testOnFailureIgnoreParsedFromMapForm() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -582,6 +620,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * {@code ignore}.
      */
     public void testIndexSettingIgnoreDefaultsFieldToIgnore() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore")
@@ -612,6 +651,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
      * collapsing to the {@code true} boolean shorthand, and the value survives a serialize/re-parse round trip.
      */
     public void testOnFailureRoundTripsThroughToXContent() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(
             settings,
@@ -624,5 +664,299 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         MapperService roundTripped = createMapperService(settings, mapping);
         KeywordFieldMapper mapper = (KeywordFieldMapper) roundTripped.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().onFailure(), equalTo(FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE));
+    }
+
+    /**
+     * With {@code on_failure: ignore}, a document that violates {@code multi_value=false} is accepted instead of rejected: the second
+     * value is redirected to the field's failure column and the field is recorded in {@code _ignored}, rather than the whole document
+     * being thrown out.
+     */
+    public void testOnFailureIgnoreAcceptsDocumentInsteadOfThrowing() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        // must not throw, unlike the on_failure=fail (default) case covered by testIndexSettingFalseEnforcesRejectionOfMultipleValues
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+
+        // the first value ("a") is indexed normally; the second ("b") must not also land in the main field
+        List<IndexableField> mainField = doc.rootDoc().getFields("field");
+        assertThat(mainField, hasSize(1));
+        assertThat(mainField.get(0).binaryValue().utf8ToString(), equalTo("a"));
+
+        // the second (offending) value is redirected to the failure column instead
+        List<IndexableField> failureColumn = doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX);
+        assertThat(failureColumn.isEmpty(), equalTo(false));
+
+        // the field is recorded as ignored on this document
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
+    }
+
+    /**
+     * <p>NOTE: the test uses {@code keyword} as a representative field type. The storage-routing logic under test lives in
+     * {@link FieldMapper#parse} and {@code DocumentParserContext.enforceSingleValue}, not in {@link KeywordFieldMapper}. Any other
+     * {@code FieldMapper} subclass would exercise the same code path.
+     */
+    public void testOnFailureIgnoreViolatedValueStoredOnlyInFailureColumn() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+
+        // "a" is indexed normally (doc values); "b" is redirected to ._on_failure — nowhere else
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
+        assertThat(
+            "field must be marked ignored",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
+            equalTo(true)
+        );
+    }
+
+    public void testFallbackMultiValueViolationDoesNotWriteIgnoredSourceInColumnarMode() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .field("normalizer", "lowercase")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        // "HELLO" is the valid value (normalised to "hello" in doc values); "WORLD" violates multi_value=false.
+        // In columnar non-synthetic mode the whole-document blob handles source reconstruction, so FALLBACK
+        // pre-capture to _ignored_source is skipped. "WORLD" lands exclusively in ._on_failure.
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "HELLO", "WORLD")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
+        assertThat(
+            "field must be marked ignored",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
+            equalTo(true)
+        );
+    }
+
+    public void testFallbackFieldIndexedNormallyCommitsPrecaptureToIgnoredSource() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword").field("normalizer", "lowercase").field("normalizer_skip_store_original_value", false)
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "Hello")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectDocValues().expectIgnoredSource().verify();
+    }
+
+    /**
+     * A {@code source_keep: all} field with {@code ignore_malformed: true} that receives a malformed
+     * value must commit the pre-capture to {@code _ignored_source} (so the all-or-nothing invariant
+     * is satisfied across a document's values) and also write to {@code ._ignore_malformed}.
+     * The synthetic source must reconstruct the original malformed value via {@code _ignored_source}.
+     */
+    public void testSourceKeepAllMalformedValueCommittedToIgnoredSource() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "integer").field("synthetic_source_keep", "all").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoredSource().expectIgnoreMalformed().verify();
+        assertEquals("{\"field\":\"not-a-number\"}", syntheticSource(mapper, b -> b.field("field", "not-a-number")));
+    }
+
+    /**
+     * With {@code ignore_malformed=true}, a malformed integer value must land in {@code ._ignore_malformed} and not in
+     * {@code _ignored_source}. Exercises the parser-position write variant used by {@link NumberFieldMapper},
+     * {@link BooleanFieldMapper}, {@link DateFieldMapper}, and {@link IpFieldMapper}.
+     */
+    public void testIgnoreMalformedWritesToIgnoreMalformedColumn() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
+    /**
+     * {@link GeoPointFieldMapper} uses a pre-built {@code XContentBuilder} when writing malformed values, exercising the
+     * builder-argument overload of {@link FallbackPostMapper#capture}. Verify malformed geo values also land in
+     * {@code ._ignore_malformed}, not {@code _ignored_source}.
+     */
+    public void testIgnoreMalformedGeoPointWritesToIgnoreMalformedColumn() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "geo_point").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-geopoint")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
+    public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("nullability", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+
+        assertThat(
+            "field must be marked ignored",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
+            equalTo(true)
+        );
+        assertThat(
+            "failure column must be empty: nullability violation has no value to redirect",
+            doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(),
+            equalTo(true)
+        );
+        assertThat(
+            "violated field must not be pre-captured in _ignored_source",
+            doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME).isEmpty(),
+            equalTo(true)
+        );
+    }
+
+    /**
+     * A document with only a single value never trips the constraint, so nothing is written to the failure column and the field is not
+     * marked ignored, regardless of {@code on_failure}.
+     */
+    public void testOnFailureIgnoreDoesNotAffectSingleValuedDocuments() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "a")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
+        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
+    }
+
+    /**
+     * {@code on_failure} only kicks in once {@code multi_value=false} is actually violated; with the default {@code multi_value=true} a
+     * multi-valued document is accepted normally and nothing is redirected, regardless of {@code on_failure}.
+     */
+    public void testOnFailureIgnoreIsNoOpWhenMultiValueIsAllowed() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("on_failure", "ignore").endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
+        assertThat(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())), equalTo(false));
+    }
+
+    /**
+     * With {@code on_failure: ignore}, a document missing a {@code nullability=false} field is accepted instead of rejected: the field is
+     * just marked ignored.
+     */
+    public void testOnFailureIgnoreAcceptsMissingRequiredFieldInsteadOfThrowing() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("nullability", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())));
+    }
+
+    /**
+     * on_failure is resolved per required field: with two missing {@code nullability=false} fields, only the one configured with
+     * {@code fail} aborts the document; the other, configured with {@code ignore}, is merely marked ignored.
+     */
+    public void testOnFailureMixedPerFieldOnlyFailsForFailField() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("ignored")
+                .field("type", "keyword")
+                .startObject("doc_values")
+                .field("nullability", false)
+                .field("on_failure", "ignore")
+                .endObject()
+                .endObject();
+            b.startObject("failed").field("type", "keyword").startObject("doc_values").field("nullability", false).endObject().endObject();
+        })).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
+        assertThat(e.getCause().getMessage(), containsString("[failed]"));
+        assertThat(e.getCause().getMessage(), not(containsString("[ignored]")));
+    }
+
+    /**
+     * In {@code columnar_stored} mode the failure column only exists to let the whole-document source blob (materialized in
+     * {@link SourceFieldMapper#postParse}) reconstruct the offending value; once that blob is written, the column itself is
+     * redundant and must be pruned from the Lucene document, just like the other per-field synthetic-source-only sidecar fields.
+     */
+    public void testOnFailureIgnoreFailureColumnPrunedInColumnarStoredSource() throws Exception {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", false)
+                    .field("on_failure", "ignore")
+                    .endObject()
+            )
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", "a", "b")));
+        assertThat(doc.rootDoc().getFields("field" + OnFailureStoredValues.ON_FAILURE_FIELD_NAME_SUFFIX).isEmpty(), equalTo(true));
     }
 }

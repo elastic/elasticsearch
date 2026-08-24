@@ -263,24 +263,6 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
-        if (indexSettings.getMode().isStrictColumnar() == false) {
-            return new DocValuesParameter.Values(
-                false,
-                DocValuesParameter.Values.Cardinality.HIGH,
-                true,
-                true,
-                DocValuesParameter.Values.OnFailure.FAIL
-            );
-        }
-
-        // Strictly columnar indices read field values from doc values, so enable doc values by default for text fields in that mode.
-        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        boolean nullability = FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings.getSettings());
-        var onFailure = FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings.getSettings());
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue, nullability, onFailure);
-    }
-
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Boolean> store;
@@ -336,8 +318,11 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
             this.indexSettings = indexSettings;
             this.docValuesParameters = DocValuesParameter.of(
-                () -> defaultDocValuesParameters(indexSettings),
-                defaultDocValuesParameters(indexSettings),
+                DocValuesParameter.defaultValues(
+                    indexSettings,
+                    DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
+                    DocValuesParameter.Values.Cardinality.HIGH
+                ),
                 m -> ((TextFieldMapper) m).docValuesParameters,
                 indexSettings.getMode().isStrictColumnar()
             );
@@ -1095,7 +1080,8 @@ public final class TextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues,
+                    context.getCircuitBreaker()
                 );
             }
             if (context.getCircuitBreaker() != null) {
@@ -1854,23 +1840,14 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean isNullable() {
-        // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
-        return docValuesParameters.nullability();
+    protected DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
     }
 
     @Override
-    public boolean supportsBatchIndexing() {
-        // Plain text mappers can be driven through parseCreateField by the bulk batch path.
-        // index_prefixes and index_phrases add sub-field documents that the batch path does
-        // not write, and synthetic-source fallback storage requires extra coordination across
-        // doc fields that we do not handle yet. fielddata is search-time only and is allowed.
-        return hasScript() == false
-            && copyTo().copyToFields().isEmpty()
-            && multiFields().iterator().hasNext() == false
-            && prefixFieldInfo == null
-            && phraseFieldInfo == null
-            && fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated()) == false;
+    public boolean isNullable() {
+        // Text fields have no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
+        return docValuesParameters.nullability();
     }
 
     @Override

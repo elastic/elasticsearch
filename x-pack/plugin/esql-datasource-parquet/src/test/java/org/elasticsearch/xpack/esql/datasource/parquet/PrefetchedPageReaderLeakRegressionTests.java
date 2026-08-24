@@ -19,6 +19,8 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.management.BufferPoolMXBean;
@@ -47,54 +49,37 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
     private static final int PAGES_PER_ITERATION = 50;
     private static final int PAGE_PAYLOAD_BYTES = 64 * 1024;          // 64 KB decompressed
     private static final long MAX_DIRECT_GROWTH_BYTES = 64L * 1024 * 1024; // 64 MB ceiling
+    private static final int CONCURRENT_READERS = 4;
+    private static final int CONCURRENT_ITERS_PER_READER = 50;
 
     private PlainCompressionCodecFactory codecFactory;
     private BlockFactory blockFactory;
     private BufferAllocator allocator;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodecAndAllocator() {
         codecFactory = new PlainCompressionCodecFactory();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         allocator = blockFactory.arrowAllocator();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() {
         codecFactory.release();
-        super.tearDown();
     }
 
     public void testRepeatedZstdDecompressionStaysWithinDirectMemoryBudget() throws IOException {
-        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.ZSTD);
-        List<PrefetchedPageReader.CompressedPage> template = new ArrayList<>(PAGES_PER_ITERATION);
-        for (int p = 0; p < PAGES_PER_ITERATION; p++) {
-            byte[] payload = randomBytesOfLength(PAGE_PAYLOAD_BYTES);
-            // Materialize the compressed bytes to a stable heap byte[] so the same template
-            // is replayable across all iterations (the compressor's BytesInput may otherwise
-            // hold a reference into compressor-internal scratch state).
-            byte[] compressedBytes = compressor.compress(BytesInput.from(payload)).toByteArray();
-            DataPageV1 v1 = new DataPageV1(
-                BytesInput.from(compressedBytes),
-                PAGE_PAYLOAD_BYTES / 4,
-                payload.length,
-                new IntStatistics(),
-                Encoding.RLE,
-                Encoding.RLE,
-                Encoding.PLAIN
-            );
-            template.add(new PrefetchedPageReader.CompressedPage(v1, -1L));
-        }
+        ZstdPageFixture fixture = compressedZstdPages();
 
-        long baseline = directMemoryUsedBytes();
+        long directBaseline = directMemoryUsedBytes();
+        long allocBaseline = allocator.getAllocatedMemory();
 
         for (int i = 0; i < ITERATIONS; i++) {
             try (
                 PrefetchedPageReader reader = new PrefetchedPageReader(
                     codecFactory.getDecompressor(CompressionCodecName.ZSTD),
                     allocator,
-                    template,
+                    fixture.copyPages(),
                     null,
                     (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
                 )
@@ -104,10 +89,11 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
                     consume(page);
                 }
             }
+            assertEquals("allocator must return to baseline after cycle " + i, allocBaseline, allocator.getAllocatedMemory());
         }
 
         long after = directMemoryUsedBytes();
-        long grew = after - baseline;
+        long grew = after - directBaseline;
         assertThat(
             "direct-memory grew "
                 + (grew >>> 20)
@@ -122,6 +108,84 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
             grew,
             lessThanOrEqualTo(MAX_DIRECT_GROWTH_BYTES)
         );
+    }
+
+    /**
+     * Concurrent zstd decompress loops must not accumulate native memory. Arrow accounting is
+     * exact (zero after join); MXBean remains a coarse JVM-wide ceiling matching the
+     * single-threaded regression.
+     */
+    public void testDirectMemoryStableUnderConcurrentReads() throws Exception {
+        ZstdPageFixture fixture = compressedZstdPages();
+        long allocBaseline = allocator.getAllocatedMemory();
+        long directBaseline = directMemoryUsedBytes();
+
+        startInParallel(CONCURRENT_READERS, i -> {
+            try {
+                for (int iter = 0; iter < CONCURRENT_ITERS_PER_READER; iter++) {
+                    try (
+                        PrefetchedPageReader reader = new PrefetchedPageReader(
+                            codecFactory.getDecompressor(CompressionCodecName.ZSTD),
+                            allocator,
+                            fixture.copyPages(),
+                            null,
+                            (long) PAGE_PAYLOAD_BYTES * PAGES_PER_ITERATION
+                        )
+                    ) {
+                        DataPage page;
+                        while ((page = reader.readPage()) != null) {
+                            consume(page);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        assertEquals("allocator must return to baseline after concurrent reads", allocBaseline, allocator.getAllocatedMemory());
+        long grew = directMemoryUsedBytes() - directBaseline;
+        assertThat(
+            "direct-memory grew "
+                + (grew >>> 20)
+                + " MB under concurrent zstd reads; expected <= "
+                + (MAX_DIRECT_GROWTH_BYTES >>> 20)
+                + " MB",
+            grew,
+            lessThanOrEqualTo(MAX_DIRECT_GROWTH_BYTES)
+        );
+    }
+
+    private ZstdPageFixture compressedZstdPages() throws IOException {
+        BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.ZSTD);
+        byte[][] compressed = new byte[PAGES_PER_ITERATION][];
+        for (int p = 0; p < PAGES_PER_ITERATION; p++) {
+            byte[] payload = randomByteArrayOfLength(PAGE_PAYLOAD_BYTES);
+            compressed[p] = compressor.compress(BytesInput.from(payload)).toByteArray();
+        }
+        return new ZstdPageFixture(compressed);
+    }
+
+    /**
+     * Immutable compressed payloads. {@link #copyPages()} builds a fresh {@link BytesInput} per
+     * page so concurrent readers never share mutable parquet-mr page state.
+     */
+    private record ZstdPageFixture(byte[][] compressed) {
+        List<PrefetchedPageReader.CompressedPage> copyPages() {
+            List<PrefetchedPageReader.CompressedPage> pages = new ArrayList<>(compressed.length);
+            for (byte[] compressedBytes : compressed) {
+                DataPageV1 v1 = new DataPageV1(
+                    BytesInput.from(compressedBytes),
+                    PAGE_PAYLOAD_BYTES / 4,
+                    PAGE_PAYLOAD_BYTES,
+                    new IntStatistics(),
+                    Encoding.RLE,
+                    Encoding.RLE,
+                    Encoding.PLAIN
+                );
+                pages.add(new PrefetchedPageReader.CompressedPage(v1, -1L));
+            }
+            return pages;
+        }
     }
 
     private static void consume(DataPage page) throws IOException {
@@ -142,11 +206,5 @@ public class PrefetchedPageReaderLeakRegressionTests extends ESTestCase {
             }
         }
         return 0;
-    }
-
-    private byte[] randomBytesOfLength(int len) {
-        byte[] bytes = new byte[len];
-        random().nextBytes(bytes);
-        return bytes;
     }
 }

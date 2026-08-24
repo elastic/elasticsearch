@@ -32,6 +32,7 @@ import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -173,6 +174,17 @@ public class BwcSetupExtension {
             for (File initScript : project.getGradle().getStartParameter().getInitScripts()) {
                 loggedExec.args("-I", initScript.getAbsolutePath());
             }
+            // Dynamically resolve all provisioned JDK installations from the Gradle user home jdks directory.
+            // Each provisioned JDK is stored two levels deep: jdks/<vendor-version-arch-os>/<jdk-bundle>/
+            // We collect every second-level directory and pass them as a comma-separated list so that the
+            // nested BWC Gradle build can discover all available toolchains without a hardcoded list.
+            String jdksDir = project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "/jdks";
+            Provider<List<Object>> jdkInstallationsArg = providerFactory.of(
+                JdkToolchainInstallationsValueSource.class,
+                spec -> spec.getParameters().getJdksDir().set(jdksDir)
+            ).map(paths -> paths.isEmpty() ? List.of() : List.of("-Dorg.gradle.java.installations.paths=" + paths));
+            loggedExec.getArgs().addAll(jdkInstallationsArg);
+
             loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
 
             // We wanna have the option to throttle the parallel execution of the bwc tasks themselves
@@ -206,6 +218,49 @@ public class BwcSetupExtension {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
             .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
+    }
+
+    /**
+     * A {@link ValueSource} that lists all JDK installations provisioned by the Gradle toolchain resolver
+     * under the {@code jdks/} subdirectory of the Gradle user home directory.
+     *
+     * <p>The resolver stores each JDK two levels deep:
+     * {@code jdks/<vendor-version-arch-os>/<jdk-bundle>/}.  This source collects every
+     * second-level directory (the actual JDK bundles) and returns them as a comma-separated
+     * string suitable for {@code -Dorg.gradle.java.installations.paths}.
+     *
+     * <p>Using a {@link ValueSource} keeps the file-system read outside the configuration-cache
+     * snapshot so the list is re-evaluated on every build.
+     */
+    public abstract static class JdkToolchainInstallationsValueSource
+        implements
+            ValueSource<String, JdkToolchainInstallationsValueSource.Params> {
+
+        @Override
+        public String obtain() {
+            File jdksDir = new File(getParameters().getJdksDir().get());
+            if (jdksDir.exists() == false || jdksDir.isDirectory() == false) {
+                return "";
+            }
+            File[] topLevelDirs = jdksDir.listFiles(File::isDirectory);
+            if (topLevelDirs == null || topLevelDirs.length == 0) {
+                return "";
+            }
+            List<String> installationPaths = new ArrayList<>();
+            for (File topLevelDir : topLevelDirs) {
+                File[] jdkBundles = topLevelDir.listFiles(File::isDirectory);
+                if (jdkBundles != null) {
+                    for (File jdkBundle : jdkBundles) {
+                        installationPaths.add(jdkBundle.getAbsolutePath());
+                    }
+                }
+            }
+            return String.join(",", installationPaths);
+        }
+
+        public interface Params extends ValueSourceParameters {
+            Property<String> getJdksDir();
+        }
     }
 
     public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {

@@ -61,20 +61,20 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float dotProduct(float[] a, float[] b, int offset, int length) {
-        if (offset == 0 && length == a.length) {
-            return dotProduct(a, b);
+    public float dotProduct(float[] a, int aOffset, float[] b, int bOffset, int length) {
+        if (aOffset == 0 && bOffset == 0 && length == a.length && a.length == b.length) {
+            return VectorUtil.dotProduct(a, b);
         }
         float sum = 0f;
-        int end = offset + length;
-        for (int i = offset; i < end; i++) {
-            sum = fma(a[i], b[i], sum);
+        int aEnd = aOffset + length;
+        for (int ai = aOffset, bi = bOffset; ai < aEnd; ai++, bi++) {
+            sum = fma(a[ai], b[bi], sum);
         }
         return sum;
     }
 
     @Override
-    public void l2Normalize(float[] v, int offset, int length) {
+    public float l2Normalize(float[] v, int offset, int length) {
         double normSq = 0;
         int end = offset + length;
         for (int j = offset; j < end; j++) {
@@ -82,12 +82,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             normSq += t * t;
         }
         if (normSq == 0) {
-            return;
+            return 0;
         }
         double invNorm = 1.0 / Math.sqrt(normSq);
         for (int j = offset; j < end; j++) {
             v[j] = (float) (v[j] * invNorm);
         }
+        return (float) normSq;
     }
 
     @Override
@@ -119,7 +120,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b, int offset, int length) {
         if (offset == 0 && length == a.length) {
-            return dotProduct(a, b);
+            return VectorUtil.dotProduct(a, b);
         }
         int sum = 0;
         int end = offset + length;
@@ -159,6 +160,16 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             sum += diff * diff;
         }
         return sum;
+    }
+
+    @Override
+    public float squareDistance(byte[] a, float[] b) {
+        float dist = 0;
+        for (int i = 0; i < a.length; i++) {
+            float diff = a[i] - b[i];
+            dist = fma(diff, diff, dist);
+        }
+        return dist;
     }
 
     static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
@@ -226,171 +237,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float ipFloatBit(float[] q, byte[] d) {
-        return ipFloatBitImpl(q, d);
+    public float ipFloatBit(float[] q, int qOffset, byte[] d, int dOffset, int qLength) {
+        return ipFloatBitImpl(q, qOffset, d, dOffset, qLength);
     }
 
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
         return ipFloatByteImpl(q, d);
-    }
-
-    @Override
-    public float calculateOSQLoss(
-        float[] target,
-        float low,
-        float high,
-        float step,
-        float invStep,
-        float norm2,
-        float lambda,
-        int[] quantize
-    ) {
-        float a = low;
-        float b = high;
-        float xe = 0f;
-        float e = 0f;
-        for (int i = 0; i < target.length; ++i) {
-            float xi = target[i];
-            // this is quantizing and then dequantizing the vector
-            quantize[i] = Math.round((Math.min(Math.max(xi, a), b) - a) * invStep);
-            float xiq = fma(step, quantize[i], a);
-            // how much does the de-quantized value differ from the original value
-            float xiiq = xi - xiq;
-            e = fma(xiiq, xiiq, e);
-            xe = fma(xi, xiiq, xe);
-        }
-        return (1f - lambda) * xe * xe / norm2 + lambda * e;
-    }
-
-    @Override
-    public void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
-        float daa = 0;
-        float dab = 0;
-        float dbb = 0;
-        float dax = 0;
-        float dbx = 0;
-        float invPmOnes = 1f / (points - 1f);
-        for (int i = 0; i < target.length; ++i) {
-            float v = target[i];
-            float k = quantize[i];
-            float s = k * invPmOnes;
-            float ms = 1f - s;
-            daa = fma(ms, ms, daa);
-            dab = fma(ms, s, dab);
-            dbb = fma(s, s, dbb);
-            dax = fma(ms, v, dax);
-            dbx = fma(s, v, dbx);
-        }
-        pts[0] = daa;
-        pts[1] = dab;
-        pts[2] = dbb;
-        pts[3] = dax;
-        pts[4] = dbx;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            centered[i] = target[i] - centroid[i];
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            centered[i] = (float) (target[i] - centroid[i]);
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float centroidDot = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            centroidDot = fma(target[i], centroid[i], centroidDot);
-            centered[i] = target[i] - centroid[i];
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-        stats[5] = centroidDot;
-    }
-
-    @Override
-    public void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
-        float vecMean = 0;
-        float vecVar = 0;
-        float norm2 = 0;
-        float centroidDot = 0;
-        float min = Float.MAX_VALUE;
-        float max = -Float.MAX_VALUE;
-        for (int i = 0; i < target.length; i++) {
-            float t = (float) target[i];
-            float c = (float) centroid[i];
-            centroidDot = fma(t, c, centroidDot);
-            centered[i] = (float) (target[i] - centroid[i]);
-            min = Math.min(min, centered[i]);
-            max = Math.max(max, centered[i]);
-            norm2 = fma(centered[i], centered[i], norm2);
-            float delta = centered[i] - vecMean;
-            vecMean += delta / (i + 1);
-            float delta2 = centered[i] - vecMean;
-            vecVar = fma(delta, delta2, vecVar);
-        }
-        stats[0] = vecMean;
-        stats[1] = vecVar / target.length;
-        stats[2] = norm2;
-        stats[3] = min;
-        stats[4] = max;
-        stats[5] = centroidDot;
     }
 
     @Override
@@ -434,28 +287,32 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return acc0 + acc1 + acc2 + acc3;
     }
 
-    public static float ipFloatBitImpl(float[] q, byte[] d) {
-        return ipFloatBitImpl(q, d, 0);
-    }
-
-    static float ipFloatBitImpl(float[] q, byte[] d, int start) {
-        assert q.length == d.length * Byte.SIZE;
+    static float ipFloatBitImpl(float[] q, int qOffset, byte[] d, int dOffset, int length) {
         float acc0 = 0;
         float acc1 = 0;
         float acc2 = 0;
         float acc3 = 0;
-        // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = start; i < d.length; i++) {
-            byte mask = d[i];
-            acc0 = fma(q[i * Byte.SIZE + 0], (mask >> 7) & 1, acc0);
-            acc1 = fma(q[i * Byte.SIZE + 1], (mask >> 6) & 1, acc1);
-            acc2 = fma(q[i * Byte.SIZE + 2], (mask >> 5) & 1, acc2);
-            acc3 = fma(q[i * Byte.SIZE + 3], (mask >> 4) & 1, acc3);
+        int limit = length >>> 3;
+        for (int i = 0; i < limit; i++) {
+            byte mask = d[dOffset + i];
+            int base = qOffset + i * Byte.SIZE;
+            acc0 = fma(q[base + 0], (mask >> 7) & 1, acc0);
+            acc1 = fma(q[base + 1], (mask >> 6) & 1, acc1);
+            acc2 = fma(q[base + 2], (mask >> 5) & 1, acc2);
+            acc3 = fma(q[base + 3], (mask >> 4) & 1, acc3);
 
-            acc0 = fma(q[i * Byte.SIZE + 4], (mask >> 3) & 1, acc0);
-            acc1 = fma(q[i * Byte.SIZE + 5], (mask >> 2) & 1, acc1);
-            acc2 = fma(q[i * Byte.SIZE + 6], (mask >> 1) & 1, acc2);
-            acc3 = fma(q[i * Byte.SIZE + 7], (mask >> 0) & 1, acc3);
+            acc0 = fma(q[base + 4], (mask >> 3) & 1, acc0);
+            acc1 = fma(q[base + 5], (mask >> 2) & 1, acc1);
+            acc2 = fma(q[base + 6], (mask >> 1) & 1, acc2);
+            acc3 = fma(q[base + 7], (mask >> 0) & 1, acc3);
+        }
+        int tail = length & 7;
+        if (tail > 0) {
+            byte mask = d[dOffset + limit];
+            int base = qOffset + limit * Byte.SIZE;
+            for (int j = 0; j < tail; j++) {
+                acc0 = fma(q[base + j], (mask >> (7 - j)) & 1, acc0);
+            }
         }
         return acc0 + acc1 + acc2 + acc3;
     }
@@ -467,7 +324,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
      * bits are the second bits of each of the {@code n} vector dimensions, and so on
      * (this algorithm is only valid for vectors with dimensions a multiple of 8).
-     * The striping is usually done by {@code ESVectorUtil.transposeHalfByte}.
+     * The striping is usually done by {@code ESVectorUtil.stride4BitValues}.
      * <p>
      * The data vector should be single-bit quantized.
      *
@@ -480,7 +337,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * <h4>The algorithm</h4>
      *
      * The transposition already applied to the query vector ensures there's a 1-to-1 correspondence
-     * between the data vector bits and query vector bits (see {@code ESVectorUtil.transposeHalfByte)};
+     * between the data vector bits and query vector bits (see {@code ESVectorUtil.stride4BitValues)};
      * this means we can use a bitwise {@code &} to keep only the bits of the vector elements we want to sum.
      * Essentially, the data vector is used as a selector for each of the striped bits of each vector dimension
      * as stored, concatenated together, in {@code q}.
@@ -491,7 +348,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
      * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
      *
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.stride4BitValues})
      * @param d data vector, 1-bit quantized
      * @return  inner product result
      */
@@ -519,23 +376,9 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     public static float ipFloatByteImpl(float[] q, byte[] d) {
         float ret = 0;
         for (int i = 0; i < q.length; i++) {
-            ret += q[i] * d[i];
+            ret = fma(q[i], d[i], ret);
         }
         return ret;
-    }
-
-    @Override
-    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
-        float nSteps = ((1 << bits) - 1);
-        float invStep = nSteps / (upperInterval - lowInterval);
-        int sumQuery = 0;
-        for (int h = 0; h < vector.length; h++) {
-            float xi = Math.min(Math.max(vector[h], lowInterval), upperInterval);
-            int assignment = Math.round((xi - lowInterval) * invStep);
-            sumQuery += assignment;
-            destination[h] = assignment;
-        }
-        return sumQuery;
     }
 
     @Override
@@ -667,28 +510,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void packDibit(int[] vector, byte[] packed) {
-        packDibitImpl(vector, packed);
+    public void stride2BitValues(int[] vector, byte[] packed) {
+        stride2BitValuesImpl(vector, packed);
     }
 
-    @Override
-    public void packDibitQuad(int[] vector, byte[] packed) {
-        packDibitQuadImpl(vector, packed);
-    }
-
-    @Override
-    public void packAsBinary(int[] vector, byte[] packed) {
-        packAsBinaryImpl(vector, packed);
-    }
-
-    /**
-     * Packs two bit vector (values 0-3) into a byte array with lower bits first.
-     * The striding is similar to transposeHalfByte
-     *
-     * @param vector the input vector with values 0-3
-     * @param packed the output packed byte array
-     */
-    public static void packDibitImpl(int[] vector, byte[] packed) {
+    public static void stride2BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;
@@ -723,7 +549,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index + packed.length / 2] = (byte) upperByte;
     }
 
-    public static void packDibitQuadImpl(int[] vector, byte[] packed) {
+    @Override
+    public void pack2BitValues(int[] vector, byte[] packed) {
+        pack2BitValuesImpl(vector, packed);
+    }
+
+    public static void pack2BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 3;
         int i = 0;
         int index = 0;
@@ -746,7 +577,12 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index] = (byte) packedByte;
     }
 
-    public static void packAsBinaryImpl(int[] vector, byte[] packed) {
+    @Override
+    public void pack1BitValues(int[] vector, byte[] packed) {
+        pack1BitValuesImpl(vector, packed);
+    }
+
+    public static void pack1BitValuesImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 7;
         int i = 0;
         int index = 0;
@@ -775,11 +611,11 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
-        transposeHalfByteImpl(q, quantQueryByte);
+    public void stride4BitValues(int[] vector, byte[] packed) {
+        stride4BitValuesImpl(vector, packed);
     }
 
-    public static void transposeHalfByteImpl(int[] q, byte[] quantQueryByte) {
+    public static void stride4BitValuesImpl(int[] q, byte[] quantQueryByte) {
         int limit = q.length - 7;
         int i = 0;
         int index = 0;
@@ -851,16 +687,24 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
-        for (int d = 0; d < dest.length; d++) {
-            dest[d] = scaleOther * other[d] + scaleDest * dest[d];
+    public void linearCombination(
+        float scaleOther,
+        float[] other,
+        int otherOffset,
+        float scaleDest,
+        float[] dest,
+        int destOffset,
+        int length
+    ) {
+        for (int d = 0; d < length; d++) {
+            dest[destOffset + d] = fma(scaleOther, other[otherOffset + d], scaleDest * dest[destOffset + d]);
         }
     }
 
     @Override
-    public void linearCombination(float scaleOther, float[] other, float[] dest) {
-        for (int d = 0; d < dest.length; d++) {
-            dest[d] += scaleOther * other[d];
+    public void linearCombination(float scaleOther, float[] other, int otherOffset, float[] dest, int destOffset, int length) {
+        for (int d = 0; d < length; d++) {
+            dest[destOffset + d] = fma(scaleOther, other[otherOffset + d], dest[destOffset + d]);
         }
     }
 

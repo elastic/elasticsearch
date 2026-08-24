@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
@@ -78,7 +77,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             evaluationTime,
             PrometheusQueryResponseListener.QueryMode.INSTANT
         );
-        var esqlRequest = PreparedEsqlQueryRequest.sync(result.esqlStatement(), query);
+        var esqlRequest = new PromqlQueryRequest(index, result.esqlStatement(), query, LIMIT_PARAM, limit == DEFAULT_LIMIT ? null : limit);
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,

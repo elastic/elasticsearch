@@ -56,10 +56,12 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testRejectedExecutionIsBackpressureNotServerError() {
-        // A saturated thread pool or the storage concurrency guardrail can reject work as an
-        // EsRejectedExecutionException. That is load-shed backpressure (429), not a broken invariant in our
-        // reading code (500): classify must return it unchanged so its self-carried 429 survives, rather than
-        // wrapping it as an ExternalServerException.
+        // A saturated thread pool (or the node shutting down) can reject work as an EsRejectedExecutionException.
+        // That is load-shed backpressure (429), not a broken invariant in our reading code (500): classify must
+        // return it unchanged so its self-carried 429 survives, rather than wrapping it as an ExternalServerException.
+        // Storage concurrency permit exhaustion is a separate case: it is raised as a 503-class
+        // ExternalUnavailableException at the concurrency-limiter boundary so the storage retry layer engages, so it
+        // does not reach classify() as an EsRejectedExecutionException.
         var rejected = new EsRejectedExecutionException("rejected execution while reading external source");
         RuntimeException classified = ExternalFailures.classify(rejected);
         assertSame(rejected, classified);
@@ -154,13 +156,13 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testSurfaceWrapsIoExceptionAsExternalClient() {
-        IOException ioe = new IOException("record exceeded max_record_size");
+        IOException ioe = new IOException("record exceeded external_max_record_size");
         RuntimeException surfaced = ExternalFailures.surface(ioe, "Streaming parallel parsing failed");
         assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
         assertSame(ioe, surfaced.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
-        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded max_record_size"));
+        assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded external_max_record_size"));
     }
 
     public void testSurfaceWrapsUncheckedIoExceptionAsExternalClient() {

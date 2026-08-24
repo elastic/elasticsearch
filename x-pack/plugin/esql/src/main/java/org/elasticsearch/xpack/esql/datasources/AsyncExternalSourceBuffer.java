@@ -91,7 +91,7 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Client-visible warnings recorded by the background reader path — both genuine partial-results
-     * signals (currently a streaming {@code max_record_size} truncation under a non-strict
+     * signals (currently a streaming {@code external_max_record_size} truncation under a non-strict
      * {@code error_mode}, see {@code StreamingParallelParsingCoordinator}) and per-record
      * skip/null-fill warnings relayed from format-reader {@code SkipWarnings} sinks (see
      * {@code FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()}),
@@ -122,7 +122,7 @@ public final class AsyncExternalSourceBuffer {
 
     /**
      * Set when the background reader path drops data under a lenient policy — currently a streaming
-     * {@code max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
+     * {@code external_max_record_size} truncation under a non-strict {@code error_mode}. Surfaced through the
      * operator's {@code Status} into {@link org.elasticsearch.compute.operator.DriverCompletionInfo} so the
      * coordinator can flip the response's {@code is_partial} flag (the structured counterpart of the
      * client-visible {@link #pendingWarnings} message). {@code volatile}: written on the parse-worker thread,
@@ -157,7 +157,7 @@ public final class AsyncExternalSourceBuffer {
      * operator closes, and flips {@link #partial}. Thread-safe: called from the background reader /
      * parse-worker thread.
      * <p>
-     * This sink is wired exclusively to the lenient {@code max_record_size} truncation path (see
+     * This sink is wired exclusively to the lenient {@code external_max_record_size} truncation path (see
      * {@code StreamingParallelParsingCoordinator#emitTruncationWarning}): a recorded warning here
      * always means the read returned fewer records than the source held. Per-record {@code SkipWarnings}
      * warnings (row skipped or field null-filled under a lenient {@code ErrorPolicy}) must use
@@ -181,11 +181,10 @@ public final class AsyncExternalSourceBuffer {
      * Use this for warnings relayed from format-reader {@code SkipWarnings} sinks (see {@code
      * FormatReadContext#informationalWarningSink()} / {@code RangeReadContext#informationalWarningSink()})
      * — e.g. CSV/NDJSON per-record skip/null-fill handling or Parquet on-disk/planner type mismatches.
-     * This preserves these warnings' pre-existing behavior of never flipping {@link #partial} (previously
-     * they only ever reached {@link org.elasticsearch.common.logging.HeaderWarning} directly, which has
-     * no notion of {@link #partial} either); this method only fixes their delivery when the read runs
-     * off the driver thread, without changing what they signal. See {@link #recordWarning} for the one
-     * warning that has always mapped to {@link #partial}.
+     * These warnings never flip {@link #partial} ({@link #partial} tracks only the {@code external_max_record_size}
+     * truncation, not per-record null-fills); this method relays them so they are re-emitted on the driver
+     * thread rather than lost on a background reader thread, without changing what they signal. See
+     * {@link #recordWarning} for the one warning that maps to {@link #partial}.
      * <p>
      * Each {@code SkipWarnings} instance caps its own per-event details at
      * {@code SkipWarnings.MAX_ADDED_WARNINGS} (20), but that cap is per reader instance, not per query:
@@ -194,6 +193,12 @@ public final class AsyncExternalSourceBuffer {
      * split into many chunks/segments cannot multiply {@link #pendingWarnings}'s size by chunk/segment
      * count — otherwise a large enough split count can grow response headers past what the client (or
      * an intermediate proxy) is willing to accept.
+     * <p>
+     * That cap bounds a single driver's contribution, because one buffer is created per driver. To bound
+     * the channel per source per node rather than only per driver (a multi-file glob or macro-split read
+     * fans across parallel drivers, each with its own buffer), {@code AsyncExternalSourceOperatorFactory}
+     * additionally gates every informational sink through one shared {@code InformationalWarningBudget}
+     * before it reaches this method; the per-source and per-buffer bounds compose.
      */
     public void recordInformationalWarning(String warning) {
         int count = informationalWarningsAdded.incrementAndGet();

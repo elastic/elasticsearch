@@ -30,12 +30,9 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public final class KnnQueryUtils {
 
@@ -54,23 +51,6 @@ public final class KnnQueryUtils {
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
     }
 
-    /**
-     * Combines a pre-filter with an {@link ExcludeDocsQuery} over already-collected docs into a
-     * single filter for the augmented post-filter fallback. Returns {@code baseFilter} unchanged
-     * when {@code excludedDocs} is empty, and the bare {@link ExcludeDocsQuery} when
-     * {@code baseFilter} is null.
-     */
-    public static Query augmentFilter(Query baseFilter, int[] excludedDocs, IndexReader reader) {
-        if (excludedDocs == null || excludedDocs.length == 0) {
-            return baseFilter;
-        }
-        Query exclude = new ExcludeDocsQuery(excludedDocs, reader);
-        if (baseFilter == null) {
-            return exclude;
-        }
-        return new BooleanQuery.Builder().add(baseFilter, BooleanClause.Occur.FILTER).add(exclude, BooleanClause.Occur.FILTER).build();
-    }
-
     public static FilterWeight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
         if (filter == null) {
             return null;
@@ -83,54 +63,6 @@ public final class KnnQueryUtils {
             return FilterWeight.MATCH_NO_DOCS;
         }
         return new FilterWeight(searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f));
-    }
-
-    /**
-     * Applies the filter to ScoreDocs with global doc IDs. Groups docs by leaf for efficient
-     * filter iterator advancement and returns passing docs in an unspecified order. Order is
-     * imposed downstream by {@link #dedupAndSelectTopK} via partial selection, so we deliberately
-     * avoid a full sort here.
-     */
-    public static ScoreDoc[] applyFilter(ScoreDoc[] scoreDocs, Weight filterWeight, IndexSearcher searcher) throws IOException {
-        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-
-        // group docs by leaf ordinal
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        List<ScoreDoc>[] byLeaf = new List[leaves.size()];
-        for (ScoreDoc sd : scoreDocs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
-            if (byLeaf[leafOrd] == null) {
-                byLeaf[leafOrd] = new ArrayList<>();
-            }
-            byLeaf[leafOrd].add(sd);
-        }
-
-        // filter each leaf separately
-        List<ScoreDoc> passingDocs = new ArrayList<>();
-        for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
-            if (byLeaf[leafOrd] == null) continue;
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
-            if (ss == null) continue;
-
-            DocIdSetIterator filterIter = ss.get(byLeaf[leafOrd].size()).iterator();
-            List<ScoreDoc> leafDocs = byLeaf[leafOrd];
-            leafDocs.sort(Comparator.comparingInt(sd -> sd.doc));
-
-            int filterDoc = -1;
-            for (ScoreDoc sd : leafDocs) {
-                int localDoc = sd.doc - ctx.docBase;
-                if (filterDoc < localDoc) {
-                    filterDoc = filterIter.advance(localDoc);
-                }
-                if (filterDoc == localDoc) {
-                    passingDocs.add(sd);
-                }
-                if (filterDoc == NO_MORE_DOCS) break;
-            }
-        }
-
-        return passingDocs.toArray(new ScoreDoc[0]);
     }
 
     /**
@@ -209,6 +141,25 @@ public final class KnnQueryUtils {
         ArrayUtil.select(docs, 0, docs.length, k - 1, byScoreDesc);
         ArrayUtil.introSort(docs, 0, k, byScoreDesc);
         return Arrays.copyOf(docs, k);
+    }
+
+    /**
+     * Merges two disjoint, individually-sorted int arrays into one sorted array
+     */
+    public static int[] sortedMerge(int[] a, int[] b) {
+        if (a.length == 0) return b.length == 0 ? a : b.clone();
+        if (b.length == 0) return a.clone();
+        int[] merged = new int[a.length + b.length];
+        int i = 0, j = 0, k = 0;
+        while (i < a.length && j < b.length) {
+            merged[k++] = a[i] <= b[j] ? a[i++] : b[j++];
+        }
+        if (i < a.length) {
+            System.arraycopy(a, i, merged, k, a.length - i);
+        } else {
+            System.arraycopy(b, j, merged, k, b.length - j);
+        }
+        return merged;
     }
 
     public static ScoreDoc[] mergeScoreDocArrays(ScoreDoc[] left, ScoreDoc[] right) {

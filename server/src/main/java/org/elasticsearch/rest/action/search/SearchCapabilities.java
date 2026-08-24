@@ -48,6 +48,9 @@ public final class SearchCapabilities {
 
     private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
 
+    /** {@code number_of_fragments} is bounded to reject oversized highlighter allocations. */
+    private static final String HIGHLIGHT_NUMBER_OF_FRAGMENTS_BOUNDED = "highlight_number_of_fragments_bounded";
+
     private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
 
     private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
@@ -88,6 +91,7 @@ public final class SearchCapabilities {
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(KQL_QUERY_BOOLEAN_FIELD_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
+        capabilities.add(HIGHLIGHT_NUMBER_OF_FRAGMENTS_BOUNDED);
         capabilities.add(INDEX_SELECTOR_SYNTAX);
         capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
         capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);

@@ -11,8 +11,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,7 +65,7 @@ public final class TemplatePartitionDetector implements PartitionDetector {
     }
 
     @Override
-    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
+    public PartitionMetadata detect(List<StorageEntry> files) {
         if (files == null || files.isEmpty()) {
             return PartitionMetadata.EMPTY;
         }
@@ -76,6 +74,18 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         ReservedPartitionNames.warnRenamed(renamedColumns);
 
         int segmentCount = columnNames.size();
+
+        // Every file must sit at the same directory depth. The template binds the LAST N segments before the
+        // filename, so files at different depths bind different physical levels to the same column: over
+        // data/2024/f1, data/2024/01/f2 and data/2024/01/15/f3 with template {year}, the three files would report
+        // year=2024, year=01 and year=15, and a STATS BY year would bucket a day value as a year. Bailing to EMPTY
+        // is the same all-or-nothing stance HivePartitionDetector takes when its key sets disagree across files.
+        // The cost is that a comma-separated list mixing prefixes of different depths loses template detection even
+        // where the templated tail lines up; no partition columns is safe, a misbound one is not.
+        if (hasMixedDepth(files)) {
+            return PartitionMetadata.EMPTY;
+        }
+
         List<Map<String, String>> allRawPartitions = new ArrayList<>();
 
         for (StorageEntry entry : files) {
@@ -114,6 +124,39 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         return new PartitionMetadata(partitionColumns, filePartitionValues);
     }
 
+    /** Whether the files sit at differing directory depths, which makes last-N template binding inconsistent. */
+    private static boolean hasMixedDepth(List<StorageEntry> files) {
+        int depth = -1;
+        for (StorageEntry entry : files) {
+            int d = pathDepth(entry.path());
+            if (depth == -1) {
+                depth = d;
+            } else if (d != depth) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Non-empty path segments excluding the file name itself. Reads {@code path()} rather than {@code objectName()},
+     * which is only the last segment — the same full-path walk {@link #extractByTemplate} does.
+     */
+    private static int pathDepth(StoragePath storagePath) {
+        String path = storagePath.path();
+        if (path == null || path.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (String segment : path.split("/")) {
+            if (segment.isEmpty() == false) {
+                count++;
+            }
+        }
+        // the last segment is the file name
+        return Math.max(count - 1, 0);
+    }
+
     private Map<String, String> extractByTemplate(StoragePath storagePath, int expectedSegments) {
         String path = storagePath.path();
         if (path == null || path.isEmpty()) {
@@ -140,18 +183,10 @@ public final class TemplatePartitionDetector implements PartitionDetector {
         LinkedHashMap<String, String> result = Maps.newLinkedHashMapWithExpectedSize(expectedSegments);
         for (int i = 0; i < expectedSegments; i++) {
             String segment = nonEmpty.get(startIdx + i);
-            String decoded = urlDecode(segment);
+            String decoded = HivePartitionDetector.decodePartitionValue(segment);
             result.put(columnNames.get(i), decoded);
         }
         return result;
-    }
-
-    private static String urlDecode(String value) {
-        try {
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException e) {
-            return value;
-        }
     }
 
     public static List<String> parseTemplateColumns(String template) {

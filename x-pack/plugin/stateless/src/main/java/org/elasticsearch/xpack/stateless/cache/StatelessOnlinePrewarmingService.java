@@ -186,7 +186,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
                 // We warm the first (and possibly second) region of the blob; both regions are stamped with the timestamp of the compound
                 // commit for the highestSegmentInfoRanges, which is acceptable since the warmed regions include it.
-                final long timestampMillis = BlobFileRanges.midpointMillisOrUnknownForCache(siRange.timestampRange());
+                final long timestampMillis = searchDirectory.resolveRegionTimestampMillis(siRange.timestampRange());
 
                 for (int i = 0; i <= endRegion; i++) {
                     if (store.isClosing() || store.tryIncRef() == false) {

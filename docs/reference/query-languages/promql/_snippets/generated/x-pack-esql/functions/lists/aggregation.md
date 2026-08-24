@@ -3,7 +3,13 @@
 :::{include} ../avg.md
 :::
 
+:::{include} ../bottomk.md
+:::
+
 :::{include} ../count.md
+:::
+
+:::{include} ../limitk.md
 :::
 
 :::{include} ../max.md
@@ -22,4 +28,7 @@
 :::
 
 :::{include} ../sum.md
+:::
+
+:::{include} ../topk.md
 :::

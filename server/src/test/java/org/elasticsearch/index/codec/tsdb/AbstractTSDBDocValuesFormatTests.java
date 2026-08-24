@@ -2605,6 +2605,102 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
+    public void testRangeIteratorIntoBitSetUpToBeyondMaxDoc() throws IOException {
+        final String field = "dense_value";
+        final int numDocs = randomIntBetween(129, 2047);
+
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                final Document d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                d.add(new SortedNumericDocValuesField(field, i % 3 == 0 ? 1L : 2L));
+                ts += 1000L;
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                final LeafReader leafReader = reader.leaves().getFirst().reader();
+                final Set<Integer> expected = matchingDocs(leafReader, field, 1L, 1L);
+                final DocIdSetIterator iter = getBaseDenseNumericValues(leafReader, field).tryRangeIterator(1L, 1L);
+                assertNotNull(iter);
+                final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
+                assertNotNull(twoPhase);
+                twoPhase.approximation().nextDoc();
+
+                final FixedBitSet window = new FixedBitSet(4096);
+                twoPhase.intoBitSet(4096, window, 0);
+
+                final Set<Integer> actual = new HashSet<>();
+                window.forEach(0, 4096, 0, actual::add);
+                assertEquals(expected, actual);
+            }
+        }
+    }
+
+    public void testRangeQueryOnSmallSegmentViaIndexSearcherCount() throws IOException {
+        final String field = "dense_value";
+        final int numDocs = randomIntBetween(129, 2047);
+
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            int expectedCount = 0;
+            for (int i = 0; i < numDocs; i++) {
+                final Document d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                if (i % 3 == 0) {
+                    d.add(new SortedNumericDocValuesField(field, 1L));
+                    expectedCount++;
+                } else {
+                    d.add(new SortedNumericDocValuesField(field, 2L));
+                }
+                ts += 1000L;
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                assertEquals(expectedCount, searcher.count(new SortedNumericDocValuesRangeQuery(field, 1L, 1L)));
+            }
+        }
+    }
+
+    public void testRangeIteratorIntoBitSetPhantomMatchesBeyondMaxDoc() throws IOException {
+        final String field = "dense_value";
+        final int numDocs = 4000;
+
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                final Document d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                d.add(new SortedNumericDocValuesField(field, i % 3 == 0 ? 1L : 2L));
+                ts += 1000L;
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                final LeafReader leafReader = reader.leaves().getFirst().reader();
+                final Set<Integer> expected = matchingDocs(leafReader, field, Long.MIN_VALUE, Long.MAX_VALUE);
+                final DocIdSetIterator iter = getBaseDenseNumericValues(leafReader, field).tryRangeIterator(Long.MIN_VALUE, Long.MAX_VALUE);
+                assertNotNull(iter);
+                final TwoPhaseIterator twoPhase = TwoPhaseIterator.unwrap(iter);
+                assertNotNull(twoPhase);
+                twoPhase.approximation().nextDoc();
+
+                final FixedBitSet window = new FixedBitSet(4096);
+                twoPhase.intoBitSet(4096, window, 0);
+
+                final Set<Integer> actual = new HashSet<>();
+                window.forEach(0, 4096, 0, actual::add);
+                assertEquals(expected, actual);
+            }
+        }
+    }
+
     public void testRangeQueryViaIndexSearcher() throws IOException {
         final String field = "dense_value";
         int numDocs = randomIntBetween(1, 4096 * 4);

@@ -19,11 +19,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
@@ -163,7 +160,7 @@ public class KnnQueryUtilsTests extends ESTestCase {
         }
     }
 
-    public void testApplyFilterPassesMatchingDocs() throws IOException {
+    public void testCategorizeByFilterPassesMatchingDocs() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             for (int i = 0; i < 5; i++) {
                 Document doc = new Document();
@@ -181,40 +178,51 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     1f
                 );
 
-                ScoreDoc[] candidates = new ScoreDoc[] {
+                ScoreDoc[][] perLeaf = new ScoreDoc[1][];
+                perLeaf[0] = new ScoreDoc[] {
                     new ScoreDoc(0, 0.9f),
                     new ScoreDoc(1, 0.8f),
                     new ScoreDoc(2, 0.7f),
                     new ScoreDoc(3, 0.6f),
                     new ScoreDoc(4, 0.5f) };
 
-                ScoreDoc[] result = KnnQueryUtils.applyFilter(candidates, filterWeight, searcher);
-                // Even docs (0, 2, 4) pass; output order is unspecified, only set membership matters
-                // since dedupAndSelectTopK is the step that imposes ordering downstream.
-                assertEquals(3, result.length);
-                assertPassingDocsMatch(result, new int[] { 0, 2, 4 }, new float[] { 0.9f, 0.7f, 0.5f });
+                PostFilterKnnQuery.FilteredCandidates result = PostFilterKnnQuery.applyFilter(
+                    perLeaf,
+                    filterWeight,
+                    searcher.getIndexReader().leaves()
+                );
+                assertPerLeafMatchingDocs(result.matchingPerLeaf(), new int[] { 0, 2, 4 }, new float[] { 0.9f, 0.7f, 0.5f });
+                assertArrayEquals(new int[] { 1, 3 }, result.filteredOutPerLeaf()[0]);
             }
         }
     }
 
-    private static void assertPassingDocsMatch(ScoreDoc[] actual, int[] expectedDocs, float[] expectedScores) {
-        assertEquals("doc count", expectedDocs.length, actual.length);
+    private static void assertPerLeafMatchingDocs(ScoreDoc[][] perLeafMatching, int[] expectedDocs, float[] expectedScores) {
+        int totalMatching = 0;
+        for (ScoreDoc[] leaf : perLeafMatching) {
+            if (leaf != null) totalMatching += leaf.length;
+        }
+        assertEquals("doc count", expectedDocs.length, totalMatching);
         for (int i = 0; i < expectedDocs.length; i++) {
             int doc = expectedDocs[i];
             float score = expectedScores[i];
             boolean found = false;
-            for (ScoreDoc sd : actual) {
-                if (sd.doc == doc) {
-                    assertEquals("score for doc " + doc, score, sd.score, 0.001f);
-                    found = true;
-                    break;
+            for (ScoreDoc[] leaf : perLeafMatching) {
+                if (leaf == null) continue;
+                for (ScoreDoc sd : leaf) {
+                    if (sd.doc == doc) {
+                        assertEquals("score for doc " + doc, score, sd.score, 0.001f);
+                        found = true;
+                        break;
+                    }
                 }
+                if (found) break;
             }
             assertTrue("missing doc " + doc, found);
         }
     }
 
-    public void testApplyFilterReturnsEmptyWhenNoneMatch() throws IOException {
+    public void testCategorizeByFilterReturnsEmptyWhenNoneMatch() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             Document doc = new Document();
             doc.add(new StringField("tag", "a", Field.Store.NO));
@@ -228,9 +236,15 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
-                ScoreDoc[] candidates = new ScoreDoc[] { new ScoreDoc(0, 0.9f) };
-                ScoreDoc[] result = KnnQueryUtils.applyFilter(candidates, filterWeight, searcher);
-                assertEquals(0, result.length);
+                ScoreDoc[][] perLeaf = new ScoreDoc[1][];
+                perLeaf[0] = new ScoreDoc[] { new ScoreDoc(0, 0.9f) };
+                PostFilterKnnQuery.FilteredCandidates result = PostFilterKnnQuery.applyFilter(
+                    perLeaf,
+                    filterWeight,
+                    searcher.getIndexReader().leaves()
+                );
+                assertPerLeafMatchingDocs(result.matchingPerLeaf(), new int[0], new float[0]);
+                assertArrayEquals(new int[] { 0 }, result.filteredOutPerLeaf()[0]);
             }
         }
     }
@@ -327,7 +341,7 @@ public class KnnQueryUtilsTests extends ESTestCase {
         }
     }
 
-    public void testApplyFilterAcrossLeaves() throws IOException {
+    public void testCategorizeByFilterAcrossLeaves() throws IOException {
         IndexWriterConfig cfg = new IndexWriterConfig();
         cfg.setMergePolicy(NoMergePolicy.INSTANCE);
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, cfg)) {
@@ -353,17 +367,26 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     1f
                 );
 
-                // Scores intentionally non-monotonic with docId — applyFilter only reports the
-                // passing-set, regardless of order.
-                ScoreDoc[] candidates = new ScoreDoc[] {
+                // Per-leaf candidates indexed by leaf ordinal. Scores intentionally non-monotonic
+                // with docId — categorizeByFilter only reports the passing-set, regardless of order.
+                ScoreDoc[][] perLeaf = new ScoreDoc[2][];
+                perLeaf[0] = new ScoreDoc[] {
                     new ScoreDoc(0, 0.5f),   // seg 0, pass
                     new ScoreDoc(1, 0.95f),  // seg 0, fail
                     new ScoreDoc(2, 0.6f),   // seg 0, pass
+                };
+                perLeaf[1] = new ScoreDoc[] {
                     new ScoreDoc(4, 0.9f),   // seg 1, pass
                     new ScoreDoc(5, 0.7f),   // seg 1, fail
                 };
-                ScoreDoc[] result = KnnQueryUtils.applyFilter(candidates, filterWeight, searcher);
-                assertPassingDocsMatch(result, new int[] { 0, 2, 4 }, new float[] { 0.5f, 0.6f, 0.9f });
+                PostFilterKnnQuery.FilteredCandidates result = PostFilterKnnQuery.applyFilter(
+                    perLeaf,
+                    filterWeight,
+                    searcher.getIndexReader().leaves()
+                );
+                assertPerLeafMatchingDocs(result.matchingPerLeaf(), new int[] { 0, 2, 4 }, new float[] { 0.5f, 0.6f, 0.9f });
+                assertArrayEquals(new int[] { 1 }, result.filteredOutPerLeaf()[0]);
+                assertArrayEquals(new int[] { 5 }, result.filteredOutPerLeaf()[1]);
             }
         }
     }
@@ -418,46 +441,6 @@ public class KnnQueryUtilsTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 Weight w = searcher.createWeight(searcher.rewrite(new TermQuery(new Term("tag", "a"))), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 assertEquals(0f, KnnQueryUtils.computeSelectivity(w, searcher.getIndexReader().leaves(), 0), 0f);
-            }
-        }
-    }
-
-    public void testAugmentFilterReturnsBaseWhenExcludedIsEmptyOrNull() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                Query base = new TermQuery(new Term("tag", "a"));
-                assertSame(base, KnnQueryUtils.augmentFilter(base, new int[0], reader));
-                assertSame(base, KnnQueryUtils.augmentFilter(base, null, reader));
-            }
-        }
-    }
-
-    public void testAugmentFilterReturnsBareExcludeWhenBaseIsNull() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                Query result = KnnQueryUtils.augmentFilter(null, new int[] { 0 }, reader);
-                assertTrue("expected ExcludeDocsQuery but got " + result.getClass(), result instanceof ExcludeDocsQuery);
-            }
-        }
-    }
-
-    public void testAugmentFilterCombinesBaseAndExclude() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                Query base = new TermQuery(new Term("tag", "a"));
-                Query result = KnnQueryUtils.augmentFilter(base, new int[] { 0 }, reader);
-                assertTrue("expected BooleanQuery but got " + result.getClass(), result instanceof BooleanQuery);
-                BooleanQuery bq = (BooleanQuery) result;
-                assertEquals(2, bq.clauses().size());
-                for (BooleanClause c : bq.clauses()) {
-                    assertEquals(BooleanClause.Occur.FILTER, c.occur());
-                }
             }
         }
     }

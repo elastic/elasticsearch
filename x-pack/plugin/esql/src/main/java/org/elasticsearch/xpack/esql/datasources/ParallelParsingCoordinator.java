@@ -78,7 +78,7 @@ public final class ParallelParsingCoordinator {
 
     /**
      * Fallback per-file cap on concurrently-open segment streams, used by overloads that don't resolve the
-     * {@code max_concurrent_open_segments} pragma (tests and internal callers). Sourced from the single
+     * {@code external_max_concurrent_open_segments} pragma (tests and internal callers). Sourced from the single
      * source of truth {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
      */
     static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
@@ -202,7 +202,7 @@ public final class ParallelParsingCoordinator {
      * Forwards to the full-control overload with the {@link #DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS
      * default} open-segment cap and {@code captureSink=null} (text-format readers' close hooks
      * then publish into whatever {@link ExternalStatsCapture} sink — if any — happens to be bound
-     * on the calling thread). Callers that resolve the {@code max_concurrent_open_segments} pragma
+     * on the calling thread). Callers that resolve the {@code external_max_concurrent_open_segments} pragma
      * or care about cross-thread stats capture use the 12-arg overload.
      *
      * @param readSchema     planner-bound read schema, or {@code null} for per-file inference
@@ -248,7 +248,7 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Convenience overload that adds the {@code max_concurrent_open_segments} cap without per-chunk
+     * Convenience overload that adds the {@code external_max_concurrent_open_segments} cap without per-chunk
      * source-stats capture (equivalent to passing {@code captureSink == null}).
      */
     public static CloseableIterator<Page> parallelRead(
@@ -281,7 +281,7 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that takes both the {@code max_concurrent_open_segments} cap and an
+     * Full-control overload that takes both the {@code external_max_concurrent_open_segments} cap and an
      * explicit {@code captureSink} for per-chunk source-stats contributions.
      * <p>
      * {@code maxConcurrentOpenSegments} is the per-file limit on byte-range segments whose read
@@ -335,7 +335,7 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters,
+     * Full-control overload that also takes the {@code external_max_record_size} cap used by record splitters,
      * the file-global byte base offset, and the canonical-stripe grid for per-stripe stats attribution
      * ({@code <= 0} disables; pure overlay).
      */
@@ -482,6 +482,13 @@ public final class ParallelParsingCoordinator {
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
             .firstSplit(splitIncludesFileLeader)
+            // lastSplit is deliberately left to the builder default (true) and not set from splitIsFileFinal.
+            // This context is used two ways: as the single-threaded fallback below, which reads the whole
+            // storage object and so genuinely owns its trailing bytes, and as the base for per-segment
+            // contexts, which each set lastSplit themselves from their segment index. Setting it here from
+            // splitIsFileFinal breaks the first use, because the convenience overloads that assume a
+            // whole-file read (splitIncludesFileLeader=true) do not make the matching claim about the
+            // file's end. Reconciling those defaults is worth doing on its own, not as a side effect.
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
             .splitStartByte(baseFileOffset)

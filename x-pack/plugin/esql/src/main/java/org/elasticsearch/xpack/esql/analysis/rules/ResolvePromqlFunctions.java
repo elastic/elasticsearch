@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzer
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -21,7 +20,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -43,7 +42,7 @@ import java.util.Locale;
  * Resolves {@link UnresolvedPromqlFunction} nodes inside a {@link PromqlCommand}'s
  * plan tree into their concrete plan-node equivalents
  * ({@link WithinSeriesAggregate}, {@link AcrossSeriesAggregate},
- * {@link ValueTransformationFunction}, etc.).
+ * {@link AcrossSeriesReduction}, {@link ValueTransformationFunction}, etc.).
  */
 public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
@@ -115,7 +114,8 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
 
         AcrossSeriesAggregate.Grouping grouping = unresolved.grouping();
         if (grouping != null) {
-            if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION) {
+            if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
+                && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
                 throw new VerificationException(
                     List.of(
                         Failure.fail(
@@ -126,6 +126,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                         )
                     )
                 );
+            }
+            if (metadata.functionType() == FunctionType.ACROSS_SERIES_REDUCTION) {
+                return new AcrossSeriesReduction(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
             }
             return new AcrossSeriesAggregate(unresolved.source(), child, metadata, extraParams, grouping, unresolved.groupingKeys());
         }
@@ -139,9 +142,20 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
                 AcrossSeriesAggregate.Grouping.NONE,
                 List.of()
             );
-            case HISTOGRAM -> metadata == PromqlHistogramQuantile.PROMQL_DEFINITION
-                ? new HistogramQuantile(unresolved.source(), child, metadata, extraParams)
-                : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
+            case ACROSS_SERIES_REDUCTION -> new AcrossSeriesReduction(
+                unresolved.source(),
+                child,
+                metadata,
+                extraParams,
+                AcrossSeriesAggregate.Grouping.NONE,
+                List.of()
+            );
+            case HISTOGRAM -> {
+                var classicHistogramHandler = metadata.classicHistogramHandler();
+                yield classicHistogramHandler == null
+                    ? new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams)
+                    : classicHistogramHandler.build(unresolved.source(), child, metadata, extraParams);
+            }
             case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(unresolved.source(), child, metadata, extraParams);
             case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
             case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, metadata, extraParams);

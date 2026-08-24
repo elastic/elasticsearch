@@ -1,5 +1,0 @@
-area: TSDB
-issues: []
-pr: 152733
-summary: Ignore OTLP number data points without a value
-type: bug

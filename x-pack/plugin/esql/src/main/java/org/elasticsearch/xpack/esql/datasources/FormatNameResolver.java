@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Single source of truth for resolving format names from EXTERNAL query configuration.
+ * Single source of truth for resolving format names from dataset configuration.
  * <p>
  * Both the optimizer ({@code PushFiltersToSource}) and execution ({@code FileSourceFactory})
  * need to resolve which format reader to use for a given query. This class centralises that
@@ -29,6 +29,11 @@ import java.util.Set;
  *       and an empty value mean "no override" and fall through to the extension)</li>
  *   <li>File extension extracted from the source path</li>
  * </ol>
+ * <p>
+ * An explicit {@code reader}/{@code format} override selects the format but does not opt the resource out
+ * of compression detection: {@link #resolveReader} still composes the named format with the resource's
+ * outer compression suffix (e.g. {@code format: csv} over {@code hits.csv.gz} still decompresses), routing
+ * through {@link FormatReaderRegistry#byNameForObject} rather than a bare name lookup.
  */
 public final class FormatNameResolver {
 
@@ -38,14 +43,14 @@ public final class FormatNameResolver {
     /**
      * Sentinel {@code format} value meaning "no explicit override, infer from the resource
      * extension". Shared with the dataset CRUD validator so the create path and this read path
-     * treat {@code auto} identically. Without this, a stored or EXTERNAL {@code format=auto} would
-     * reach {@code registry.byName("auto")} and throw.
+     * treat {@code auto} identically. Without this, a stored {@code format=auto} would reach
+     * {@code registry.byName("auto")} and throw.
      */
     public static final String FORMAT_AUTO = "auto";
 
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the parquet-rs native reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the parquet-rs native reader. */
     public static final String READER_PARQUET_RS = "parquet-rs";
-    /** Reader alias accepted in {@code WITH {"reader": "..."}} for the Java parquet reader. */
+    /** Reader alias accepted via the {@code reader} dataset setting for the Java parquet reader. */
     public static final String READER_JAVA = "java";
     /** Format name registered by the Java parquet reader. */
     public static final String FORMAT_PARQUET = "parquet";
@@ -64,12 +69,19 @@ public final class FormatNameResolver {
         ? Map.of(READER_PARQUET_RS, FORMAT_PARQUET_RS, READER_JAVA, FORMAT_PARQUET)
         : Map.of(READER_JAVA, FORMAT_PARQUET);
 
+    /** Reader aliases that are known but disabled in this build (complement of {@link #READER_ALIAS_TO_FORMAT}). */
+    static final Set<String> DISABLED_READER_ALIASES = parquetRsEnabled() ? Set.of() : Set.of(READER_PARQUET_RS);
+
     /** The parquet-rs reader is live iff the parquet-rs sub-flag is on. */
     public static boolean parquetRsEnabled() {
         return ESQL_EXTERNAL_PARQUET_RS_FEATURE_FLAG.isEnabled();
     }
 
     private FormatNameResolver() {}
+
+    private static IllegalArgumentException disabledReaderError(String alias) {
+        return new IllegalArgumentException("Reader [" + alias + "] is disabled; supported values: " + supportedReaderAliases());
+    }
 
     /**
      * Normalizes a raw {@code format} value to its canonical stored form — {@code trim()} then
@@ -124,6 +136,9 @@ public final class FormatNameResolver {
                 if (formatName != null) {
                     return formatName;
                 }
+                if (DISABLED_READER_ALIASES.contains(alias)) {
+                    throw disabledReaderError(alias);
+                }
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
@@ -163,9 +178,12 @@ public final class FormatNameResolver {
     /**
      * Resolves the format reader using config and source path, looking up the result in the registry.
      * <p>
-     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and
-     * looked up by name. Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension}
-     * which handles compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
+     * Config-based overrides ({@code reader}, {@code format}) are resolved via {@link #resolve} and looked
+     * up by name through {@link FormatReaderRegistry#byNameForObject}, which composes the named format with
+     * {@code objectName}'s outer compression suffix (if any) exactly like the extension-based path — an
+     * explicit override selects the format but does not opt the resource out of compression detection.
+     * Extension-based resolution delegates to {@link FormatReaderRegistry#byExtension} which handles
+     * compound extensions (e.g. {@code .ndjson.bz}) and compression codecs.
      */
     public static FormatReader resolveReader(Map<String, Object> config, String objectName, FormatReaderRegistry registry) {
         if (config != null) {
@@ -174,13 +192,16 @@ public final class FormatNameResolver {
                 String alias = readerOverride.toString().trim().toLowerCase(Locale.ROOT);
                 String formatName = READER_ALIAS_TO_FORMAT.get(alias);
                 if (formatName == null) {
+                    if (DISABLED_READER_ALIASES.contains(alias)) {
+                        throw disabledReaderError(alias);
+                    }
                     throw new IllegalArgumentException("Unknown reader [" + alias + "]; supported values: " + supportedReaderAliases());
                 }
-                return registry.byName(formatName);
+                return registry.byNameForObject(formatName, objectName);
             }
             String name = parseExplicitFormat(config.get(CONFIG_FORMAT));
             if (name != null) {
-                return registry.byName(name);
+                return registry.byNameForObject(name, objectName);
             }
         }
         return registry.byExtension(objectName);

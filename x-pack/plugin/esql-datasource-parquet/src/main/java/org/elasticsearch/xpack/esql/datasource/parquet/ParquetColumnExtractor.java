@@ -38,6 +38,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 /**
  * Parquet implementation of {@link ColumnExtractor}.
@@ -122,6 +123,23 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * in the file's address space; the extractor does not need or want a subset view).
      */
     private final long[] rowGroupOffsets;
+    /**
+     * Relay for per-value declared-coercion warnings, or {@code null} to fall back to emitting
+     * directly via {@code HeaderWarning}. The extractor runs on the
+     * driver thread, so direct emission is correct; a non-null sink is the budget-gated wrapper that
+     * caps the whole source. See {@link #coercionWarnings()}.
+     */
+    @Nullable
+    private final Consumer<String> warningSink;
+
+    /**
+     * Delegates to {@link #ParquetColumnExtractor(StorageObject, ParquetFormatReader, ParquetMetadata, ErrorPolicy, Consumer)}
+     * with no warning sink, so coercion warnings emit directly via {@code HeaderWarning} (per-instance
+     * cap only). Used by tests and any on-driver-thread caller that does not centrally cap the channel.
+     */
+    ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter, ErrorPolicy errorPolicy) {
+        this(storageObject, reader, ownedFooter, errorPolicy, null);
+    }
 
     /**
      * @param storageObject the storage handle for the file (extractor borrows it; caller closes)
@@ -134,12 +152,22 @@ final class ParquetColumnExtractor implements ColumnExtractor {
      * @param errorPolicy   the read's error policy, inherited from the iterator that produced the
      *                      row identities so the deferred columns fail (or warn+null) exactly like
      *                      the eagerly scanned ones
+     * @param warningSink   where per-value coercion warnings are relayed (budget-gated direct
+     *                      emission on the driver thread), or {@code null} for direct
+     *                      {@code HeaderWarning} emission
      */
-    ParquetColumnExtractor(StorageObject storageObject, ParquetFormatReader reader, ParquetMetadata ownedFooter, ErrorPolicy errorPolicy) {
+    ParquetColumnExtractor(
+        StorageObject storageObject,
+        ParquetFormatReader reader,
+        ParquetMetadata ownedFooter,
+        ErrorPolicy errorPolicy,
+        @Nullable Consumer<String> warningSink
+    ) {
         this.storageObject = Objects.requireNonNull(storageObject, "storageObject");
         this.reader = Objects.requireNonNull(reader, "reader");
         this.ownedFooter = Objects.requireNonNull(ownedFooter, "ownedFooter");
         this.errorPolicy = Objects.requireNonNull(errorPolicy, "errorPolicy");
+        this.warningSink = warningSink;
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         this.rowGroupOffsets = new long[blocks.size() + 1];
         long acc = 0;
@@ -571,9 +599,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
     /**
      * Lazily-created sink for per-value declared-coercion failures (capped response Warning
      * headers + nulled cells); shared by every column and {@link #extract} call of this extractor
-     * so the cap is per deferred-extraction pass, mirroring the per-iterator sink the eager scan
-     * paths keep ({@code ParquetColumnIterator#coercionWarnings()}). Single driver thread owns
-     * the instance (see the class Javadoc threading note).
+     * so the per-instance cap is per deferred-extraction pass, mirroring the per-iterator sink the
+     * eager scan paths keep ({@code ParquetColumnIterator#coercionWarnings()}). Emitted messages go
+     * to {@link #warningSink} when supplied (the budget-gated driver-thread relay that caps the whole
+     * source) or directly via {@code HeaderWarning} otherwise. Single driver thread owns the instance
+     * (see the class Javadoc threading note).
      */
     private SkipWarnings coercionWarnings;
 
@@ -582,7 +612,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             coercionWarnings = new SkipWarnings(
                 "Parquet file ["
                     + storageObject.path()
-                    + "] has values that could not be coerced to the declared column type; they are returned as null"
+                    + "] has values that could not be coerced to the declared column type; they are returned as null",
+                warningSink
             );
         }
         return coercionWarnings;

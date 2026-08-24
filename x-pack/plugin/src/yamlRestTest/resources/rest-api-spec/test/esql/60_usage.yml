@@ -67,7 +67,8 @@ setup:
             - fn_json_extract
             - esql_limit_by
             - dedup_command
-            - highlight_v3
+            - highlight_v6
+            - dense_vector_command
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -97,7 +98,6 @@ setup:
   - set: { esql.features.change_point: change_point_counter }
   - set: { esql.features.inline_stats: inline_stats_counter }
   - set: { esql.features.rerank: rerank_counter }
-  - set: { esql.features.insist: insist_counter }
   - set: { esql.features.fork: fork_counter }
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
@@ -111,6 +111,7 @@ setup:
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
   - set: { esql.features.highlight: highlight_counter }
+  - set: { esql.features.dense_vector: dense_vector_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -157,7 +158,6 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
@@ -165,6 +165,7 @@ setup:
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
   - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -216,7 +217,6 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
@@ -224,6 +224,7 @@ setup:
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
   - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -303,7 +304,6 @@ setup:
   - set: { esql.features.change_point: change_point_counter }
   - set: { esql.features.inline_stats: inline_stats_counter }
   - set: { esql.features.rerank: rerank_counter }
-  - set: { esql.features.insist: insist_counter }
   - set: { esql.features.fork: fork_counter }
   - set: { esql.features.fuse: fuse_counter }
   - set: { esql.features.completion: completion_counter }
@@ -316,6 +316,7 @@ setup:
   - set: { esql.features.mmr: mmr_counter }
   - set: { esql.features.dedup: dedup_counter }
   - set: { esql.features.highlight: highlight_counter }
+  - set: { esql.features.dense_vector: dense_vector_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -362,7 +363,6 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
@@ -370,6 +370,7 @@ setup:
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
   - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -419,7 +420,6 @@ setup:
   - match: { esql.features.change_point: $change_point_counter }
   - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
-  - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
@@ -427,6 +427,7 @@ setup:
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
   - match: { esql.features.highlight: $highlight_counter }
+  - match: { esql.features.dense_vector: $dense_vector_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }

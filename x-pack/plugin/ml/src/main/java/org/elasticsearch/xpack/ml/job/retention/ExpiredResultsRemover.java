@@ -162,7 +162,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery.toArray(new String[0])).setSlices(
             AbstractBulkByPaginatedSearchRequest.AUTO_SLICES
         )
-            .setBatchSize(AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE)
+            .setBatchSize(AbstractBulkByPaginatedSearchRequest.DEFAULT_PAGINATED_SEARCH_BATCH_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
             .setTimeout(DEFAULT_MAX_DURATION)

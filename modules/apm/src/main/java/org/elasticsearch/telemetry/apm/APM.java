@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
@@ -60,9 +61,14 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Environment environment) {
+    public TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders) {
         Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
-        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(environment.settings(), diskBufferPath);
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(
+            environment.settings(),
+            diskBufferPath,
+            environment.configDir(),
+            filterProviders
+        );
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
     }
@@ -82,7 +88,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
         final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
-        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
+        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED.get(settings) ? "enabled" : "disabled");
+        telemetryProvider.get().initCertReload(services.resourceWatcherService());
 
         return List.of(apmTracer, apmMeter, loggingService);
     }
@@ -98,13 +105,17 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_RESOURCE_ATTRIBUTES,
             // Shared OTLP export transport (metrics + traces)
             OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_EXPORT_VERIFY_SERVER_CERT,
             OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL,
             OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT,
             OtelSdkSettings.TELEMETRY_EXPORT_CONNECT_TIMEOUT,
             // Metrics
             APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
+            OtelSdkSettings.NODE_METRICS_OTEL_SEMCONV_ENABLED_SETTING,
             OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE,
             OtelSdkSettings.TELEMETRY_METRICS_BUFFER_TTL,
+            OtelSdkSettings.TELEMETRY_METRICS_DISABLED,
+            OtelSdkSettings.TELEMETRY_METRICS_INSTRUMENT_TIMING_ENABLED,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
@@ -117,7 +128,12 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS,
             // Logs
             OtelSdkSettings.TELEMETRY_LOGS_ENDPOINT,
-            OtelSdkSettings.TELEMETRY_LOGS_ENABLED
+            OtelSdkSettings.TELEMETRY_LOGS_AUDIT_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_QUERYLOG_ENABLED,
+            OtelSdkSettings.TELEMETRY_LOGS_MAX_QUEUE_SIZE,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE_AUTHORITIES,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_CERTIFICATE,
+            OtelSdkSettings.TELEMETRY_LOGS_SSL_KEY
         );
     }
 }

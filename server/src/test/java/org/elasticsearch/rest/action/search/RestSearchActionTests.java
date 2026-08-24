@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -29,6 +30,7 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
 
@@ -183,7 +185,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
         );
-        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
+        assertEquals("[routing] is not allowed together with [slice]", e.getMessage());
     }
 
     public void testParseSearchRequestRejectsSliceWhenFeatureDisabled() {
@@ -197,7 +199,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> RestSearchAction.parseSearchRequest(searchRequest, request, null, nf -> false, size -> searchRequest.source().size(size))
         );
-        assertEquals("request does not support [_slice]", e.getMessage());
+        assertEquals("request does not support [slice]", e.getMessage());
     }
 
     public void testParseSearchRequestAllowsSliceWithPointInTime() throws Exception {
@@ -213,5 +215,100 @@ public final class RestSearchActionTests extends RestActionTestCase {
         assertEquals("s1", searchRequest.routing());
         assertTrue(searchRequest.isRoutingFromSlice());
         assertEquals("s1", searchRequest.searchSlice());
+    }
+
+    public void testParseSearchRequestDefaultsMrtToFalseInCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(true)
+        );
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+    }
+
+    public void testParseSearchRequestRejectsMrtTrueWithPitInCps() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "true"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
+        );
+        ActionRequestValidationException ex = expectThrows(
+            ActionRequestValidationException.class,
+            () -> RestSearchAction.parseSearchRequest(
+                searchRequest,
+                request,
+                null,
+                nf -> false,
+                size -> searchRequest.source().size(size),
+                null,
+                Optional.of(true)
+            )
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("[ccs_minimize_roundtrips] cannot be used with point in time"));
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+    }
+
+    public void testParseSearchRequestIgnoresMrtParamInCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "true"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(true)
+        );
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
+        assertWarnings(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+    }
+
+    public void testParseSearchRequestDefaultsMrtToTrueOutsideCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(false)
+        );
+        assertTrue(searchRequest.isCcsMinimizeRoundtrips());
+    }
+
+    public void testParseSearchRequestUsesProvidedMrtOutsideCps() throws Exception {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/_search")
+            .withParams(Map.of("ccs_minimize_roundtrips", "false"))
+            .build();
+        SearchRequest searchRequest = new SearchRequest();
+        RestSearchAction.parseSearchRequest(
+            searchRequest,
+            request,
+            null,
+            nf -> false,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(false)
+        );
+        assertFalse(searchRequest.isCcsMinimizeRoundtrips());
     }
 }

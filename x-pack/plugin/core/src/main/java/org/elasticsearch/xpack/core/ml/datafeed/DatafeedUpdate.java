@@ -49,6 +49,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     static final String ERROR_MESSAGE_ON_JOB_ID_UPDATE = "Datafeed's job_id cannot be changed.";
 
+    public static final ParseField FORCE_REKEYING = new ParseField("_force_rekeying");
+
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 
     static {
@@ -94,6 +96,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         );
         PARSER.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         PARSER.declareString(Builder::setProjectRouting, DatafeedConfig.PROJECT_ROUTING);
+        PARSER.declareBoolean(Builder::setForceRekeying, FORCE_REKEYING);
     }
 
     private final String id;
@@ -111,6 +114,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
     private final String projectRouting;
+    private final Boolean forceRekeying;
 
     private DatafeedUpdate(
         String id,
@@ -127,7 +131,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         Integer maxEmptySearches,
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
-        String projectRouting
+        String projectRouting,
+        Boolean forceRekeying
     ) {
         this.id = id;
         this.jobId = jobId;
@@ -144,6 +149,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.indicesOptions = indicesOptions;
         this.runtimeMappings = runtimeMappings;
         this.projectRouting = projectRouting;
+        this.forceRekeying = forceRekeying;
     }
 
     public DatafeedUpdate(StreamInput in) throws IOException {
@@ -172,6 +178,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
         this.runtimeMappings = in.readBoolean() ? in.readGenericMap() : null;
         projectRouting = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING) ? in.readOptionalString() : null;
+        forceRekeying = in.getTransportVersion().supports(DatafeedConfig.DATAFEED_FORCE_REKEYING) ? in.readOptionalBoolean() : null;
     }
 
     /**
@@ -222,6 +229,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
             out.writeOptionalString(projectRouting);
         }
+        if (out.getTransportVersion().supports(DatafeedConfig.DATAFEED_FORCE_REKEYING)) {
+            out.writeOptionalBoolean(forceRekeying);
+        }
     }
 
     @Override
@@ -260,6 +270,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         addOptionalField(builder, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD, runtimeMappings);
         addOptionalField(builder, DatafeedConfig.PROJECT_ROUTING, projectRouting);
+        if (forceRekeying != null) {
+            builder.field(FORCE_REKEYING.getPreferredName(), forceRekeying);
+        }
         builder.endObject();
         return builder;
     }
@@ -296,6 +309,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     public String getProjectRouting() {
         return projectRouting;
+    }
+
+    public Boolean getForceRekeying() {
+        return forceRekeying;
     }
 
     Map<String, Object> getQuery() {
@@ -436,7 +453,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
             && Objects.equals(this.indicesOptions, that.indicesOptions)
             && Objects.equals(this.runtimeMappings, that.runtimeMappings)
-            && Objects.equals(this.projectRouting, that.projectRouting);
+            && Objects.equals(this.projectRouting, that.projectRouting)
+            && Objects.equals(this.forceRekeying, that.forceRekeying);
     }
 
     @Override
@@ -456,13 +474,33 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             maxEmptySearches,
             indicesOptions,
             runtimeMappings,
-            projectRouting
+            projectRouting,
+            forceRekeying
         );
     }
 
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * Returns {@code true} when the caller explicitly changes {@code project_routing} on this update request.
+     * Evaluated against the raw update body (not migration-defaulted routing). System-applied first-re-key
+     * defaults are excluded by checking {@code defaultedProjectRoutingForMigration} at the call site.
+     *
+     * <p>Read as two clauses: (a) the update actually specifies a routing value ({@code != null}), AND (b) that
+     * value differs from what is stored. Truth table (current = stored config, rawUpdate = request body):
+     * <pre>
+     *   current      rawUpdate           result  interpretation
+     *   anything     null (omitted)      false   user didn't touch routing -&gt; not a change
+     *   null         "_alias:prod-*"     true    first-time assignment on a legacy datafeed
+     *   "_origin"    "_origin" (same)    false   user re-sent identical value -&gt; no-op
+     *   "_origin"    "_alias:prod-*"     true    genuine re-target (widen/narrow)
+     * </pre>
+     */
+    public static boolean isUserInitiatedProjectRoutingChange(DatafeedConfig current, DatafeedUpdate rawUpdate) {
+        return rawUpdate.getProjectRouting() != null && Objects.equals(rawUpdate.getProjectRouting(), current.getProjectRouting()) == false;
     }
 
     /**
@@ -517,6 +555,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings;
         private String projectRouting;
+        private Boolean forceRekeying;
 
         public Builder() {}
 
@@ -540,6 +579,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.indicesOptions = config.indicesOptions;
             this.runtimeMappings = config.runtimeMappings != null ? new HashMap<>(config.runtimeMappings) : null;
             this.projectRouting = config.projectRouting;
+            this.forceRekeying = config.forceRekeying;
         }
 
         public Builder setId(String datafeedId) {
@@ -645,6 +685,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setForceRekeying(Boolean forceRekeying) {
+            this.forceRekeying = forceRekeying;
+            return this;
+        }
+
         public DatafeedUpdate build() {
             return new DatafeedUpdate(
                 id,
@@ -661,7 +706,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 maxEmptySearches,
                 indicesOptions,
                 runtimeMappings,
-                projectRouting
+                projectRouting,
+                forceRekeying
             );
         }
     }

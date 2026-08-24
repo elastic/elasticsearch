@@ -40,20 +40,35 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 /**
- * Coordinator-only, in-memory cache service for external source metadata.
- * Maintains two independent caches:
+ * Coordinator-only, in-memory cache service for external source metadata. Maintains four independent caches:
  * <ul>
- *   <li>Schema cache (20% of budget, 5m TTL) — shared across users</li>
- *   <li>Listing cache (80% of budget, 30s TTL) — isolated by credential hash</li>
+ *   <li>Per-file schema cache (~20% of budget) — schema + the per-file {@code _stats.*} overlay, keyed by
+ *       {@code (path, mtime, config)}. No time expiry: a changed file has a new mtime, hence a new key.</li>
+ *   <li>Dataset-aggregate cache (~2% of budget) — the memoized whole-dataset row count, keyed by the
+ *       file-set fingerprint. No time expiry; kept separate so per-file churn cannot evict it.</li>
+ *   <li>File-metadata cache (count-bounded, 30s TTL) — {@code {length, mtime}} per path, so a repeated
+ *       resolve skips the stat. Like listing it is freshness-discovery (it holds the CURRENT mtime, which
+ *       gates the identity-keyed caches above), so it keeps a short TTL.</li>
+ *   <li>Listing cache (~78% of budget, 30s TTL) — the file set under a prefix, isolated by credential
+ *       hash. Discovers file identity and has no per-file key to invalidate on, hence the TTL.</li>
  * </ul>
- * Uses hard TTL via {@code setExpireAfterWrite} for the initial implementation.
- * Lazy TTL with ETag revalidation is deferred to a follow-up PR.
+ * The identity-keyed caches (schema, dataset-aggregate) are bounded by weight + LRU, never by a clock — a
+ * timer would only discard still-valid, expensively harvested entries. The discovery caches (file-metadata,
+ * listing) keep a short TTL because they hold current-mtime freshness with no identity key to key on.
  */
 public class ExternalSourceCacheService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ExternalSourceCacheService.class);
 
     private final Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache;
+    /**
+     * The memoized whole-dataset row-count aggregate, keyed by file-set fingerprint. Tiny per entry but
+     * expensive to rebuild (a full cold scan), so it gets its OWN cache: sharing the per-file budget let
+     * per-file churn evict it and the warm dataset {@code COUNT} decayed mid-use. No time expiry — the
+     * fingerprint is a correct-or-miss identity key; only weight/LRU reclaims it.
+     */
+    private final Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache;
+    private final Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache;
     private final Cache<ListingCacheKey, FileList> listingCache;
     private final long maxTotalBytes;
     private volatile boolean enabled;
@@ -95,22 +110,30 @@ public class ExternalSourceCacheService implements Closeable {
      * per-resolve and fulfillment is per-reconcile, both rare, so a plain lock never contends.
      * Deliberately NOT a {@link CacheBuilder} cache: that offers a count bound or a weight bound but not
      * both at once, has no fulfill-then-remove semantics (a promise is consumed exactly once, not
-     * evicted), and its {@code expireAfterWrite} TTL is the wrong clock — the promise horizon must be
-     * decoupled from the schema TTL (see {@link #PENDING_DATASET_AGGREGATE_TTL_NANOS}).
+     * evicted), and its {@code expireAfterWrite} would be the wrong clock for a register-before /
+     * fulfill-after horizon (see {@link #PENDING_DATASET_AGGREGATE_TTL_NANOS}).
      */
     private static final int MAX_PENDING_DATASET_AGGREGATES = 64;
     private static final int MAX_PENDING_TOTAL_PATHS = 65_536;
+
+    /**
+     * Entry-count cap for the file-metadata cache. Unlike the schema and listing caches (byte-weighted,
+     * variable-size values), a {@link FileMetadata} is two {@code long}s behind a small path key, so the
+     * cache is bounded by count rather than bytes — no per-entry byte weigher. 100k tiny entries is a few
+     * tens of MB worst case, and, being TTL-bounded by the listing TTL, the live set is normally far
+     * smaller. Kept a constant rather than a cluster setting: no workload has needed to tune it, and a
+     * public setting is a permanent support surface — it can be promoted to a setting later if a real need
+     * appears.
+     */
+    private static final int FILE_METADATA_CACHE_MAX_ENTRIES = 100_000;
     private final LinkedHashMap<SchemaCacheKey, PendingDatasetAggregate> pendingDatasetAggregates = new LinkedHashMap<>();
 
     /**
-     * Pending-descriptor expiry horizon. Deliberately a FIXED constant DECOUPLED from the schema TTL:
-     * the promise is registered at resolve time (before the scan) and fulfilled at reconcile time
-     * (after the scan), so it must comfortably outlive the longest realistic cold scan — a schema-TTL
-     * horizon (5m default) would expire the promise of exactly the multi-minute scans this mechanism
-     * exists for, before their own reconcile could fulfill it. A stale promise costs nothing: the
-     * registry is tiny and doubly bounded, and fulfillment re-validates every path's mtime and config
-     * fingerprint, so correctness never depends on this horizon. (Fulfillment writes a FRESH cache
-     * entry whose own TTL starts at write time — the promise's age does not leak into the entry's.)
+     * Pending-descriptor expiry horizon: a FIXED constant, long enough to comfortably outlive the longest
+     * realistic cold scan (the promise is registered at resolve time, before the scan, and fulfilled at
+     * reconcile time, after it). A stale promise costs nothing: the registry is tiny and doubly bounded,
+     * and fulfillment re-validates every path's mtime and config fingerprint, so correctness never depends
+     * on this horizon. It is only a heap-safety bound on abandoned promises (a query that failed mid-scan).
      */
     private static final long PENDING_DATASET_AGGREGATE_TTL_NANOS = TimeUnit.HOURS.toNanos(1);
 
@@ -123,16 +146,37 @@ public class ExternalSourceCacheService implements Closeable {
         this.maxTotalBytes = totalBudget.getBytes();
         this.enabled = ExternalSourceCacheSettings.CACHE_ENABLED.get(settings);
 
-        TimeValue schemaTtl = ExternalSourceCacheSettings.SCHEMA_TTL.get(settings);
         TimeValue listingTtl = ExternalSourceCacheSettings.LISTING_TTL.get(settings);
 
-        long schemaBudget = maxTotalBytes / 5; // 20%
-        long listingBudget = maxTotalBytes - schemaBudget; // 80%
+        // Per-file schema stays at its established 20%; the dataset-aggregate cache gets a small dedicated
+        // slice carved from listing (each dataset entry is a single row count — kilobytes suffice — so its
+        // exact size barely matters; what matters is that it is ITS OWN slice, immune to per-file churn).
+        long schemaBudget = maxTotalBytes / 5;               // 20%
+        long datasetAggregateBudget = maxTotalBytes / 50;    // 2%
+        long listingBudget = maxTotalBytes - schemaBudget - datasetAggregateBudget; // ~78%
 
+        // No setExpireAfterWrite on schemaCache or datasetAggregateCache: both are identity-keyed (per-file by
+        // mtime, dataset by file-set fingerprint), so a changed input already misses. A timer would only
+        // discard still-valid, expensively harvested entries on a clock. The two discovery caches below
+        // (listing and file-metadata) DO keep the listing TTL — they hold current file identity with no
+        // per-file key to invalidate on, so they must refresh on a clock.
         this.schemaCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
             .setMaximumWeight(schemaBudget)
-            .setExpireAfterWrite(schemaTtl)
             .weigher((key, value) -> value.estimatedBytes())
+            .build();
+
+        this.datasetAggregateCache = CacheBuilder.<SchemaCacheKey, SchemaCacheEntry>builder()
+            .setMaximumWeight(datasetAggregateBudget)
+            .weigher((key, value) -> value.estimatedBytes())
+            .build();
+
+        // Freshness-discovery, like listing: this holds a file's CURRENT {length, mtime} (the version token
+        // that rebuilds the identity keys), so it must refresh on a clock — it shares the listing TTL. No
+        // byte weigher: entries are tiny and fixed-size, so it is bounded by a generous entry count instead
+        // of the byte budget.
+        this.fileMetadataCache = CacheBuilder.<FileMetadataCacheKey, FileMetadata>builder()
+            .setMaximumWeight(FILE_METADATA_CACHE_MAX_ENTRIES)
+            .setExpireAfterWrite(listingTtl)
             .build();
 
         this.listingCache = CacheBuilder.<ListingCacheKey, FileList>builder()
@@ -142,11 +186,13 @@ public class ExternalSourceCacheService implements Closeable {
             .build();
 
         logger.info(
-            "External source cache initialized: total=[{}], schema=[{}], listing=[{}], schemaTTL=[{}], listingTTL=[{}]",
+            "External source cache initialized: total=[{}], schema=[{}], datasetAggregate=[{}], listing=[{}], "
+                + "fileMetadataMaxEntries=[{}], listingTTL=[{}]",
             totalBudget,
             ByteSizeValue.ofBytes(schemaBudget),
+            ByteSizeValue.ofBytes(datasetAggregateBudget),
             ByteSizeValue.ofBytes(listingBudget),
-            schemaTtl,
+            FILE_METADATA_CACHE_MAX_ENTRIES,
             listingTtl
         );
     }
@@ -160,6 +206,21 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return schemaCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Returns cached {@link FileMetadata} or computes it via the loader. The loader — a single object
+     * probe (mtime + length), on S3 one {@code bytes=-1} GET — is only invoked on a miss. When the cache
+     * is disabled, the loader is called directly (bypassing the cache), so the probe still happens every
+     * query. Mirrors {@link #getOrComputeSchema}: this is the amortization lever that removes the
+     * per-query warm-path metadata probe for single-file sources.
+     */
+    public FileMetadata getOrComputeFileMetadata(FileMetadataCacheKey key, CacheLoader<FileMetadataCacheKey, FileMetadata> loader)
+        throws Exception {
+        if (enabled == false) {
+            return loader.load(key);
+        }
+        return fileMetadataCache.computeIfAbsent(key, loader);
     }
 
     /**
@@ -189,10 +250,8 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link SchemaCacheKey#forDatasetAggregate}), or {@code null} on a miss. The map carries only
      * dataset-INDEPENDENT-of-declaration keys — today just {@code _stats.row_count} — never per-column
      * stats, so serving it can never leak a wrongly-normalized MIN/MAX (those keep re-scanning until the
-     * per-file rail serves them). A found entry is re-put to refresh the {@code expireAfterWrite} clock
-     * and LRU position: the entry is the warm path's single survival dependency, so a hot dataset must not
-     * decay mid-use while its per-file siblings churn (same revive the per-file reconcile applies to
-     * recovered entries). Does NOT touch the hit/miss counters — those are resolver-driven at the serve
+     * per-file rail serves them). It lives in the dedicated {@link #datasetAggregateCache}, so per-file churn
+     * can no longer evict it. Does NOT touch the hit/miss counters — those are resolver-driven at the serve
      * decision (see {@link #recordDatasetAggregateHit} / {@link #recordDatasetAggregateMiss}).
      */
     @Nullable
@@ -200,22 +259,20 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || key == null) {
             return null;
         }
-        SchemaCacheEntry entry = schemaCache.get(key);
+        // Cache.get() already promotes the entry to the LRU head, so a hot dataset stays resident; no re-put
+        // is needed (there is no expireAfterWrite clock to refresh — the dataset cache has no TTL).
+        SchemaCacheEntry entry = datasetAggregateCache.get(key);
         if (entry == null || entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number == false) {
             return null;
         }
-        // No hit/miss counting here: every resolve prefetches (including healthy warm resolves whose
-        // per-file merge will succeed and never need the aggregate), so a get-side counter would count
-        // non-events. The resolver counts a hit/miss only when the fallback was actually needed — see
-        // recordDatasetAggregateHit / recordDatasetAggregateMiss.
-        schemaCache.put(key, entry); // refresh write-time TTL + LRU recency
         return entry.safeMetadata();
     }
 
     /**
-     * Stores the dataset-level row-count aggregate for one resolved file set. The entry is a synthetic
-     * {@link SchemaCacheEntry} (no columns; {@code safeMetadata} = the row count) so all existing schema
-     * cache plumbing — weigher, TTL, enable/disable, clearAll, usage stats — applies unchanged.
+     * Stores the dataset-level row-count aggregate for one resolved file set into the dedicated
+     * {@link #datasetAggregateCache}. The entry is a synthetic {@link SchemaCacheEntry} (no columns;
+     * {@code safeMetadata} = the row count) so the common cache plumbing — weigher, enable/disable,
+     * clearAll, usage stats — applies unchanged; only the store (and its budget, no-TTL policy) differs.
      */
     public void putDatasetAggregate(SchemaCacheKey key, long rowCount, String sourceType, String location) {
         if (enabled == false || key == null || rowCount < 0) {
@@ -232,7 +289,7 @@ public class ExternalSourceCacheService implements Closeable {
             Map.of(),
             System.currentTimeMillis()
         );
-        schemaCache.put(key, entry);
+        datasetAggregateCache.put(key, entry);
     }
 
     /**
@@ -356,13 +413,13 @@ public class ExternalSourceCacheService implements Closeable {
         if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
             return;
         }
-        // Snapshot the glob's entries BEFORE any commit writes: the first put() sweeps TTL-expired
-        // entries, evicting files #2..N's entries before their deltas apply. See snapshotEntriesByPath.
+        // Snapshot the glob's entries BEFORE any commit writes: under weight pressure the first put() can
+        // LRU-evict files #2..N's entries before their deltas apply. See snapshotEntriesByPath.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> preCommitSnapshot = snapshotEntriesByPath(
             contributionsPerFile.keySet()
         );
         // LinkedHashMap, not HashMap: commit whole-file entries in the caller's contribution order so the
-        // reconcile (and which sibling a capacity/TTL sweep hits during a commit) is deterministic rather
+        // reconcile (and which sibling a capacity sweep hits during a commit) is deterministic rather
         // than dependent on path hashCode. Final per-entry state is order-independent (each path keys a
         // distinct entry; a swept sibling is recovered per key), so this only pins reproducibility.
         Map<String, Map<String, Object>> merged = new LinkedHashMap<>(contributionsPerFile.size());
@@ -588,12 +645,10 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Snapshots, per contribution path, every schema-cache entry whose canonical path matches — taken
-     * BEFORE a reconcile's first commit write. A cold scan longer than the schema TTL reconciles into a
-     * cache whose entries for the scanned glob have ALL expired: expired entries are still forEach-visible
-     * (expiry evicts lazily), but the first {@code schemaCache.put()} prunes them from the LRU tail, so
-     * file #1's commit would evict files #2..N's entries before their deltas apply — the deltas match
-     * nothing, the all-or-nothing multi-file fold goes incomplete, and the warm aggregate re-scans the
-     * whole source.
+     * BEFORE a reconcile's first commit write. Under weight pressure (a many-file glob whose entries do not
+     * all fit the schema budget), the first {@code schemaCache.put()} prunes the LRU tail, so file #1's
+     * commit can evict files #2..N's entries before their deltas apply — the deltas then match nothing, the
+     * all-or-nothing multi-file fold goes incomplete, and the warm aggregate re-scans the whole source.
      * <p>
      * Only ever consulted (via {@link #collectMatchingEntries}'s {@code fallback}) to recover a SIBLING's
      * swept entry, so it is worth building only for a multi-path reconcile. A single-path reconcile has no
@@ -613,7 +668,7 @@ public class ExternalSourceCacheService implements Closeable {
         // is the only path-agnostic enumeration the Cache exposes that is safe against concurrent LRU
         // mutation (keys()/values() walk the lock-free LRU list). The sweep is O(cache) for a multi-path
         // reconcile, but that is the price of capturing each sibling's pre-eviction entry before the first
-        // commit's put() prunes the expired ones.
+        // commit's put() prunes the LRU tail under weight pressure.
         Map<String, List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>>> byPath = new HashMap<>();
         schemaCache.forEach((key, entry) -> {
             if (paths.contains(key.canonicalPath())) {
@@ -627,14 +682,14 @@ public class ExternalSourceCacheService implements Closeable {
      * Collects every schema-cache entry a contribution for {@code (path, mtimeMillis, fingerprint)}
      * applies to: every live match, plus — per KEY, for keys the live sweep no longer has — the
      * pre-reconcile {@code fallback} snapshot (see {@link #snapshotEntriesByPath}), the case where a
-     * sibling path's earlier commit swept this path's expired entry out of the cache before its stats
+     * sibling path's earlier commit weight-evicted this path's entry out of the cache before its stats
      * could be applied. The recovery is per key, not all-or-nothing on the live sweep: the same
      * {@code (path, mtime, fingerprint)} can live under several keys (endpoint/region are key
      * components but not fingerprint inputs), and a partial sweep evicting one twin must not forfeit
      * its delta just because another twin survived. A live entry always wins over its snapshot
      * version (it may carry a concurrent commit's enrichment). A fallback entry passes the same
-     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry with a
-     * fresh write time — the same revive a live expired match already gets. Must run holding the
+     * mtime + fingerprint predicate as a live one, and re-putting it re-inserts the entry — the same
+     * revive a live match already gets. Must run holding the
      * per-path {@link #stripeCommitLocks} lock; callers mutate and re-put the returned entries after
      * this method returns.
      */
@@ -1241,7 +1296,7 @@ public class ExternalSourceCacheService implements Closeable {
     /**
      * Snapshot-aware body of {@link #reconcileSourceStats}. {@code preCommitSnapshot} is the pre-reconcile
      * per-path entry snapshot (see {@link #snapshotEntriesByPath}), consulted only when the live cache
-     * has no match — the sibling-commit expiry-sweep case described there. Same discipline as
+     * has no match — the sibling-commit weight-sweep case described there. Same discipline as
      * {@link #applyStripeDelta}.
      */
     private void reconcileSourceStats(
@@ -1315,6 +1370,8 @@ public class ExternalSourceCacheService implements Closeable {
 
     public void clearAll() {
         schemaCache.invalidateAll();
+        datasetAggregateCache.invalidateAll();
+        fileMetadataCache.invalidateAll();
         listingCache.invalidateAll();
         synchronized (pendingDatasetAggregates) {
             pendingDatasetAggregates.clear();
@@ -1331,11 +1388,18 @@ public class ExternalSourceCacheService implements Closeable {
         stats.put("schema_cache.misses", schemaCache.stats().getMisses());
         stats.put("schema_cache.evictions", schemaCache.stats().getEvictions());
 
+        stats.put("file_metadata_cache.count", fileMetadataCache.count());
+        stats.put("file_metadata_cache.hits", fileMetadataCache.stats().getHits());
+        stats.put("file_metadata_cache.misses", fileMetadataCache.stats().getMisses());
+        stats.put("file_metadata_cache.evictions", fileMetadataCache.stats().getEvictions());
+
         stats.put("listing_cache.count", listingCache.count());
         stats.put("listing_cache.hits", listingCache.stats().getHits());
         stats.put("listing_cache.misses", listingCache.stats().getMisses());
         stats.put("listing_cache.evictions", listingCache.stats().getEvictions());
 
+        stats.put("dataset_aggregate_cache.count", datasetAggregateCache.count());
+        stats.put("dataset_aggregate_cache.evictions", datasetAggregateCache.stats().getEvictions());
         stats.put("dataset_aggregate.hits", datasetAggregateHits.sum());
         stats.put("dataset_aggregate.misses", datasetAggregateMisses.sum());
         synchronized (pendingDatasetAggregates) {
@@ -1354,6 +1418,16 @@ public class ExternalSourceCacheService implements Closeable {
     // Visible for testing
     Cache<SchemaCacheKey, SchemaCacheEntry> schemaCache() {
         return schemaCache;
+    }
+
+    // Visible for testing
+    Cache<SchemaCacheKey, SchemaCacheEntry> datasetAggregateCache() {
+        return datasetAggregateCache;
+    }
+
+    // Visible for testing
+    Cache<FileMetadataCacheKey, FileMetadata> fileMetadataCache() {
+        return fileMetadataCache;
     }
 
     // Visible for testing

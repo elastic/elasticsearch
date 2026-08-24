@@ -68,8 +68,10 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
@@ -120,9 +122,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      * Intended for use by generated per-spec-file test classes.
      */
     protected static List<Object[]> readScriptSpec(String specFile) throws Exception {
-        List<URL> urls = classpathResources(specFile);
-        assertEquals("Expected exactly one resource for " + specFile + " but found " + urls, 1, urls.size());
-        return SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        URL url = classpathResource(specFile);
+        assertNotNull("No resource found for " + specFile, url);
+        return SpecReader.readScriptSpec(List.of(url), CsvSpecReader::specParser);
     }
 
     protected EsqlSpecTestCase(
@@ -353,7 +355,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             COMPLETION.capabilityName(),
             KNN_FUNCTION_V5.capabilityName(),
             TEXT_EMBEDDING_FUNCTION.capabilityName(),
-            EMBEDDING_FUNCTION.capabilityName()
+            EMBEDDING_FUNCTION.capabilityName(),
+            DENSE_VECTOR_COMMAND.capabilityName()
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 

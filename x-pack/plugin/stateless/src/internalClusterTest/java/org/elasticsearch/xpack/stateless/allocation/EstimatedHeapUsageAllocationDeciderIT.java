@@ -87,9 +87,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Applied on every node: the master uses it for the allocation estimates, and each index node's recovery gate uses it for
+        // its node-local estimate (with the 500MB default, the gate would exceed the high watermark and defer all recoveries).
         // Refreshes so this value is set before creating indices below
-        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
-            .setWorkloadMemoryOverheadOverrideForTesting(100);
+        for (StatelessMemoryMetricsService service : internalCluster().getInstances(StatelessMemoryMetricsService.class)) {
+            service.setWorkloadMemoryOverheadOverrideForTesting(100);
+        }
         refreshClusterInfo();
 
         // Place index shards on both index nodes.
@@ -110,8 +113,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         final ClusterInfo clusterInfo = refreshClusterInfo();
         assertTrue(
-            "expect all estimated heap usages to be greater than 100%, but got " + clusterInfo.getEstimatedHeapUsages(),
-            clusterInfo.getEstimatedHeapUsages()
+            "expect all estimated heap usages to be greater than 100%, but got " + clusterInfo.getNodeHeapMetrics(),
+            clusterInfo.getNodeHeapMetrics()
                 .values()
                 .stream()
                 .allMatch(estimatedHeapUsage -> estimatedHeapUsage.estimatedUsageAsPercentage() > 100.0)
@@ -186,8 +189,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
             final ClusterInfo clusterInfo2 = refreshClusterInfo();
             assertTrue(
-                "unexpected estimated heap usages " + clusterInfo2.getEstimatedHeapUsages(),
-                clusterInfo2.getEstimatedHeapUsages().entrySet().stream().allMatch(entry -> {
+                "unexpected estimated heap usages " + clusterInfo2.getNodeHeapMetrics(),
+                clusterInfo2.getNodeHeapMetrics().entrySet().stream().allMatch(entry -> {
                     if (entry.getKey().equals(nodeIdToUnblock)) {
                         return entry.getValue().estimatedUsageAsPercentage() < 100.0;
                     } else {
@@ -213,9 +216,12 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
 
         // Override the WORKLOAD_MEMORY_OVERHEAD of 500MB because testing often runs 512MB nodes.
         // Shards need more space to be assigned than what's leftover with the default node overheads. A value of 100 is arbitrary.
+        // Applied on every node: the master uses it for the allocation estimates, and each index node's recovery gate uses it for
+        // its node-local estimate (with the 500MB default, the gate would exceed the high watermark and defer all recoveries).
         // Refreshes so this value is set before creating indices below
-        internalCluster().getInstance(StatelessMemoryMetricsService.class, internalCluster().getMasterName())
-            .setWorkloadMemoryOverheadOverrideForTesting(100);
+        for (StatelessMemoryMetricsService service : internalCluster().getInstances(StatelessMemoryMetricsService.class)) {
+            service.setWorkloadMemoryOverheadOverrideForTesting(100);
+        }
         refreshClusterInfo();
 
         // Place index shards on both index nodes so that both publish memory metrics.
@@ -242,8 +248,8 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessPlug
         final ClusterInfo initialClusterInfo = refreshClusterInfo();
         assertTrue(
             "expected all estimated heap usages to be below the 80% high watermark initially, but got "
-                + initialClusterInfo.getEstimatedHeapUsages(),
-            initialClusterInfo.getEstimatedHeapUsages()
+                + initialClusterInfo.getNodeHeapMetrics(),
+            initialClusterInfo.getNodeHeapMetrics()
                 .values()
                 .stream()
                 .allMatch(estimatedHeapUsage -> estimatedHeapUsage.estimatedUsageAsPercentage() < 80.0)

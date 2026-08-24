@@ -15,12 +15,15 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -44,7 +47,7 @@ import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
  * A fun Easter egg function that wraps text in ASCII art of a chicken saying something,
  * similar to the classic "cowsay" command.
  */
-public class Chicken extends EsqlScalarFunction implements OptionalArgument {
+public class Chicken extends EsqlScalarFunction implements OptionalArgument, AnyNullIsNull {
     public static final String CHICKEN_EMOJI = "\uD83D\uDC14";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chicken", Chicken::new);
@@ -65,9 +68,14 @@ public class Chicken extends EsqlScalarFunction implements OptionalArgument {
     private final Expression message;
     private final Expression options;
 
-    @FunctionInfo(returnType = "keyword", briefSummary = "Returns ASCII art of a chicken saying the input message.", description = """
-        Returns a string with the input text wrapped in ASCII art of a chicken saying the message.
-        This is an Easter egg function inspired by the classic "cowsay" command.""")
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
+        returnType = "keyword",
+        briefSummary = "Returns ASCII art of a chicken saying the input message.",
+        description = """
+            Returns a string with the input text wrapped in ASCII art of a chicken saying the message.
+            This is an Easter egg function inspired by the classic "cowsay" command."""
+    )
     public Chicken(
         Source source,
         @Param(name = "message", type = { "keyword", "text" }, description = "The message for the chicken to say.") Expression message,

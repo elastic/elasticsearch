@@ -108,6 +108,13 @@ str1:keyword |str2:keyword |str3:keyword |long1:unsigned_long  |long2:unsigned_l
 // end::to_unsigned_long-str-result[]
 ;
 
+convertFromKeywordField
+FROM conv_from_keyword | EVAL ul = TO_UNSIGNED_LONG(unsigned_long_str) | KEEP unsigned_long_str, ul;
+
+unsigned_long_str:keyword | ul:unsigned_long
+9223372036854775808       | 9223372036854775808
+;
+
 // conversions to LONG
 
 convertLongToLong
@@ -289,7 +296,6 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup3
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -347,7 +353,6 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup5
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -414,7 +419,6 @@ string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:
 ;
 
 convertStringToBaseIndexGroup7
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion

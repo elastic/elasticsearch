@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -180,8 +181,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     ) throws IOException {
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
-            // TODO: Do we need to pass in shardCountSummary here ?
-            var refreshRequest = new BasicReplicationRequest(shardId);
+            final var indexMetadata = projectResolver.getProjectMetadata(clusterService.state()).index(shardId.getIndex());
+            var refreshRequest = new BasicReplicationRequest(shardId, SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId()));
             refreshRequest.setParentTask(request.getParentTask());
             client.executeLocally(
                 TransportShardRefreshAction.TYPE,

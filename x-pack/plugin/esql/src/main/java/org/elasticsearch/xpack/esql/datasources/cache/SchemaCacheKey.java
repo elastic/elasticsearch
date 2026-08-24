@@ -97,10 +97,17 @@ public record SchemaCacheKey(
     );
 
     public static SchemaCacheKey build(String canonicalPath, long mtime, String formatType, Map<String, Object> config) {
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         String formatConfig = buildFormatConfig(config);
-        return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region, null);
+        return new SchemaCacheKey(
+            canonicalPath,
+            mtime,
+            formatType != null ? formatType : "",
+            formatConfig,
+            location.endpoint(),
+            location.region(),
+            null
+        );
     }
 
     /**
@@ -146,10 +153,17 @@ public record SchemaCacheKey(
         // fileSetFingerprint (isDatasetAggregate() vs the collision defense). Require the fingerprint here
         // so a marker-suffixed key with a null fingerprint is never representable and the two agree.
         Objects.requireNonNull(fingerprint, "dataset aggregate key requires a non-null file-set fingerprint");
-        String endpoint = config != null ? String.valueOf(config.getOrDefault("endpoint", "")) : "";
-        String region = config != null ? String.valueOf(config.getOrDefault("region", "")) : "";
+        EndpointRegion location = EndpointRegion.of(config);
         String formatType = (sourceType == null ? "" : sourceType) + DATASET_AGGREGATE_MARKER;
-        return new SchemaCacheKey(pattern == null ? "" : pattern, 0L, formatType, buildFormatConfig(config), endpoint, region, fingerprint);
+        return new SchemaCacheKey(
+            pattern == null ? "" : pattern,
+            0L,
+            formatType,
+            buildFormatConfig(config),
+            location.endpoint(),
+            location.region(),
+            fingerprint
+        );
     }
 
     /**

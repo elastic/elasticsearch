@@ -160,7 +160,16 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             searchRequest.request().setProjectRouting(context.queryContext.projectRouting);
         }
 
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e;
+        }
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -246,6 +255,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         afterKey = compositeAgg.afterKey();
 
         return new ByteArrayInputStream(outputStream.toByteArray());
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     @Override

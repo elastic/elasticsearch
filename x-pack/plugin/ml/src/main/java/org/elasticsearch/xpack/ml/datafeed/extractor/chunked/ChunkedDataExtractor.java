@@ -208,6 +208,17 @@ public class ChunkedDataExtractor implements DataExtractor {
         return context.end();
     }
 
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        if (currentExtractor != null) {
+            List<LinkedClusterState> innerStates = currentExtractor.getLinkedClusterStates();
+            if (innerStates.isEmpty() == false) {
+                return DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+            }
+        }
+        return lastLinkedClusterStates;
+    }
+
     ChunkedDataExtractorContext getContext() {
         return context;
     }

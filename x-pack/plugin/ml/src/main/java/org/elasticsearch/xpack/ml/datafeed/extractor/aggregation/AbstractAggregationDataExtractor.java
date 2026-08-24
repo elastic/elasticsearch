@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -125,7 +126,16 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = buildSearchRequest(buildBaseSearchSource());
         assert searchRequest.request().allowPartialSearchResults() == false;
-        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e;
+        }
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
@@ -137,6 +147,11 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         } finally {
             searchResponse.decRef();
         }
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     private void initAggregationProcessor(InternalAggregations aggs) throws IOException {
@@ -165,6 +180,11 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         try {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
+        } catch (ResourceNotFoundException e) {
+            // Extract cluster states before the response is released so the caller can propagate
+            // them to CrossClusterSearchStats even though extraction is about to fail.
+            List<LinkedClusterState> states = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
+            throw new SkippedClustersException(e, states);
         } finally {
             if (success == false) {
                 searchResponse.decRef();

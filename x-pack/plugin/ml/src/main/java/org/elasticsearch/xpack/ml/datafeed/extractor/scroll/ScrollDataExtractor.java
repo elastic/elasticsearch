@@ -187,6 +187,12 @@ class ScrollDataExtractor implements DataExtractor {
             success = true;
         } catch (ResourceNotFoundException e) {
             clearScrollLoggingExceptions(searchResponse.getScrollId());
+            // Capture cluster states before the response is released so that CrossClusterSearchStats
+            // can be updated even though extraction is about to fail.
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             throw e;
         } finally {
             if (success == false) {
@@ -194,6 +200,11 @@ class ScrollDataExtractor implements DataExtractor {
             }
         }
         return searchResponse;
+    }
+
+    @Override
+    public List<LinkedClusterState> getLinkedClusterStates() {
+        return lastLinkedClusterStates;
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {

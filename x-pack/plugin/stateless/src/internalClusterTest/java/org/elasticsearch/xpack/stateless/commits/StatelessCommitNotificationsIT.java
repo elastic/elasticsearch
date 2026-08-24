@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -434,7 +435,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
         final var request = new GetVirtualBatchedCompoundCommitChunkRequest(shardId, primaryTerm, vbccGeneration, 0, 1, indexNode);
 
         // Must NOT throw: the VBCC is in recentlyUploadedVbccs and serves via openInputPreferLocal (local disk when available).
-        final var output = new org.elasticsearch.common.io.stream.BytesStreamOutput();
+        final var output = new BytesStreamOutput();
         commitService.readVirtualBatchedCompoundCommitChunk(request, output);
         assertThat("chunk read must return at least one byte", output.size(), not(equalTo(0)));
 

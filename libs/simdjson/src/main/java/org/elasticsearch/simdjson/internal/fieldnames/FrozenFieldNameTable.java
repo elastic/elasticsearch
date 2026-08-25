@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdjson.fieldnames;
+package org.elasticsearch.simdjson.internal.fieldnames;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;

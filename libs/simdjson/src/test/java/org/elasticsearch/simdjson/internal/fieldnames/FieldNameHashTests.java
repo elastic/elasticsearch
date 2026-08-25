@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.simdjson.fieldnames;
+package org.elasticsearch.simdjson.internal.fieldnames;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,18 +16,18 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.simdjson.SimdJsonTestSupport.toBytes;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * Tests for {@link FieldNameTable}: hashing, scanAndHash, parent/child merging,
- * cache hit/miss behavior, and edge cases for various key lengths.
+ * Tests for {@link FieldNameHash}: wyhash consistency, hashWord/maskWord helpers,
+ * and fused scanAndHash over JSON field name bytes.
  */
-public class FieldNameTableTests extends ESTestCase {
+public class FieldNameHashTests extends ESTestCase {
 
     // -- hashName consistency -----------------------------------------------
 
     public void testHashDeterministic() {
-        byte[] buf = toBytes("fieldName");
+        byte[] buf = "fieldName".getBytes(UTF_8);
         int len = "fieldName".length();
         int h1 = FieldNameHash.hashName(buf, 0, len);
         int h2 = FieldNameHash.hashName(buf, 0, len);
@@ -36,8 +36,8 @@ public class FieldNameTableTests extends ESTestCase {
 
     public void testHashNeverZero() {
         for (String name : new String[] { "", "a", "ab", "abcd", "abcdefgh", "abcdefghijklmnop", "x".repeat(50) }) {
-            byte[] buf = toBytes(name);
-            int len = name.getBytes(StandardCharsets.UTF_8).length;
+            byte[] buf = name.getBytes(UTF_8);
+            int len = name.getBytes(UTF_8).length;
             assertNotEquals("hash must never be 0 (reserved for empty slot)", 0, FieldNameHash.hashName(buf, 0, len));
         }
     }
@@ -46,16 +46,16 @@ public class FieldNameTableTests extends ESTestCase {
         Set<Integer> hashes = new HashSet<>();
         for (int i = 0; i < 200; i++) {
             String name = "field_" + i;
-            byte[] buf = toBytes(name);
-            int len = name.getBytes(StandardCharsets.UTF_8).length;
+            byte[] buf = name.getBytes(UTF_8);
+            int len = name.getBytes(UTF_8).length;
             hashes.add(FieldNameHash.hashName(buf, 0, len));
         }
         assertTrue("expected at least 195 distinct hashes out of 200 names, got " + hashes.size(), hashes.size() >= 195);
     }
 
     public void testHashWithOffset() {
-        byte[] padded = toBytes("XXXXname");
-        byte[] plain = toBytes("name");
+        byte[] padded = "XXXXname".getBytes(UTF_8);
+        byte[] plain = "name".getBytes(UTF_8);
         assertEquals(FieldNameHash.hashName(plain, 0, 4), FieldNameHash.hashName(padded, 4, 4));
     }
 
@@ -123,8 +123,8 @@ public class FieldNameTableTests extends ESTestCase {
 
     public void testHashDistinguishesTailBytes() {
         // Two names that differ only in the tail region (rem <= 8) must hash differently.
-        byte[] a = "0123456789abcdefX".getBytes(StandardCharsets.UTF_8);
-        byte[] b = "0123456789abcdefY".getBytes(StandardCharsets.UTF_8);
+        byte[] a = "0123456789abcdefX".getBytes(UTF_8);
+        byte[] b = "0123456789abcdefY".getBytes(UTF_8);
         assertEquals(17, a.length);
         assertNotEquals(
             "last-byte difference in rem=1 tail must produce different hashes",
@@ -179,7 +179,7 @@ public class FieldNameTableTests extends ESTestCase {
     // -- hashWord (fused scan+hash from pre-loaded word) --------------------
 
     public void testHashWordMatchesHashNameForAllLengths0To8() {
-        byte[] name = "abcdefgh".getBytes(StandardCharsets.UTF_8);
+        byte[] name = "abcdefgh".getBytes(UTF_8);
         // Build an 8-byte word as LONG_LE would read it: name bytes in little-endian order
         long word = 0;
         for (int i = 0; i < 8; i++) {
@@ -210,7 +210,7 @@ public class FieldNameTableTests extends ESTestCase {
     }
 
     public void testMaskWordProducesCorrectPrefix8() {
-        byte[] name = "abcdefgh".getBytes(StandardCharsets.UTF_8);
+        byte[] name = "abcdefgh".getBytes(UTF_8);
         long word = 0;
         for (int i = 0; i < 8; i++) {
             word |= (long) (name[i] & 0xFF) << (i * 8);
@@ -344,261 +344,6 @@ public class FieldNameTableTests extends ESTestCase {
         }
     }
 
-    // -- Child: lookup, cache hit/miss --------------------------------------
-
-    public void testChildLookupCacheHit() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        byte[] buf = "myfield".getBytes(StandardCharsets.UTF_8);
-        String first = child.lookupName(buf, 0, buf.length);
-        assertEquals("myfield", first);
-
-        String second = child.lookupName(buf, 0, buf.length);
-        assertSame("cache hit should return same String instance", first, second);
-    }
-
-    public void testChildLookupWithOffset() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        byte[] buf = "____myfield".getBytes(StandardCharsets.UTF_8);
-        String name = child.lookupName(buf, 4, 7);
-        assertEquals("myfield", name);
-
-        String again = child.lookupName(buf, 4, 7);
-        assertSame(name, again);
-    }
-
-    public void testChildLookupManyFields() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        String[] expected = new String[200];
-        for (int i = 0; i < 200; i++) {
-            byte[] buf = ("field_" + i).getBytes(StandardCharsets.UTF_8);
-            expected[i] = child.lookupName(buf, 0, buf.length);
-        }
-
-        for (int i = 0; i < 200; i++) {
-            byte[] buf = ("field_" + i).getBytes(StandardCharsets.UTF_8);
-            String result = child.lookupName(buf, 0, buf.length);
-            assertSame("cache hit expected for field_" + i, expected[i], result);
-        }
-    }
-
-    public void testChildLookupLongKeyBeyondInlineThreshold() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        String longName = "a_long_field_name_exceeding_sixteen_bytes_for_sure";
-        byte[] raw = longName.getBytes(StandardCharsets.UTF_8);
-        assertTrue(raw.length > FieldNameTable.MAX_INLINE_BYTES);
-        byte[] buf = toBytes(longName);
-
-        String first = child.lookupName(buf, 0, raw.length);
-        assertEquals(longName, first);
-
-        String second = child.lookupName(buf, 0, raw.length);
-        assertSame(first, second);
-    }
-
-    // -- Parent/child merge -------------------------------------------------
-
-    public void testParentChildMerge() {
-        FieldNameTable root = new FieldNameTable();
-
-        FieldNameTable.Child child1 = root.makeChild();
-        byte[] buf = "shared_field".getBytes(StandardCharsets.UTF_8);
-        String fromChild1 = child1.lookupName(buf, 0, buf.length);
-        child1.release();
-
-        FieldNameTable.Child child2 = root.makeChild();
-        String fromChild2 = child2.lookupName(buf, 0, buf.length);
-        assertEquals(fromChild1, fromChild2);
-        child2.release();
-    }
-
-    public void testMergeFromMultipleChildren() {
-        FieldNameTable root = new FieldNameTable();
-
-        FieldNameTable.Child child1 = root.makeChild();
-        byte[] buf1 = "alpha".getBytes(StandardCharsets.UTF_8);
-        child1.lookupName(buf1, 0, buf1.length);
-        child1.release();
-
-        FieldNameTable.Child child2 = root.makeChild();
-        byte[] buf2 = "beta".getBytes(StandardCharsets.UTF_8);
-        child2.lookupName(buf2, 0, buf2.length);
-        // child2 should have inherited "alpha" from parent
-        String alphaFromChild2 = child2.lookupName(buf1, 0, buf1.length);
-        assertEquals("alpha", alphaFromChild2);
-        child2.release();
-
-        FieldNameTable.Child child3 = root.makeChild();
-        assertEquals("alpha", child3.lookupName(buf1, 0, buf1.length));
-        assertEquals("beta", child3.lookupName(buf2, 0, buf2.length));
-        child3.release();
-    }
-
-    public void testChildReuseAfterRelease() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        byte[] buf = "reusable".getBytes(StandardCharsets.UTF_8);
-        String first = child.lookupName(buf, 0, buf.length);
-        child.release();
-
-        String afterRelease = child.lookupName(buf, 0, buf.length);
-        assertEquals(first, afterRelease);
-    }
-
-    public void testNoDirtyNoMerge() {
-        FieldNameTable root = new FieldNameTable();
-
-        FieldNameTable.Child child1 = root.makeChild();
-        byte[] buf = "field".getBytes(StandardCharsets.UTF_8);
-        child1.lookupName(buf, 0, buf.length);
-        child1.release();
-
-        FieldNameTable.Child child2 = root.makeChild();
-        child2.lookupName(buf, 0, buf.length);
-        assertFalse("no new names added, child should not be dirty", child2.dirty);
-        child2.release();
-    }
-
-    // -- Inline vs external key storage boundary ----------------------------
-
-    public void testInlineBoundaryExactly16Bytes() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        byte[] exact16 = "0123456789abcdef".getBytes(StandardCharsets.UTF_8);
-        assertEquals(16, exact16.length);
-
-        String first = child.lookupName(exact16, 0, exact16.length);
-        String second = child.lookupName(exact16, 0, exact16.length);
-        assertSame(first, second);
-    }
-
-    public void testExternalKeyJustOver16Bytes() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        String name = "0123456789abcdefg";
-        byte[] buf = toBytes(name);
-        int len = name.length();
-        assertEquals(17, len);
-
-        String first = child.lookupName(buf, 0, len);
-        String second = child.lookupName(buf, 0, len);
-        assertSame(first, second);
-    }
-
-    // -- Tail byte matching (1, 2, 3 byte tails) ---------------------------
-
-    public void testInlineKeyTailLengths() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        for (int len = 1; len <= FieldNameTable.MAX_INLINE_BYTES; len++) {
-            byte[] buf = new byte[len];
-            for (int j = 0; j < len; j++) {
-                buf[j] = (byte) ('a' + (j % 26));
-            }
-            String name = new String(buf, StandardCharsets.UTF_8);
-            String first = child.lookupName(buf, 0, len);
-            assertEquals("len=" + len, name, first);
-            String second = child.lookupName(buf, 0, len);
-            assertSame("cache hit expected for len=" + len, first, second);
-        }
-    }
-
-    // -- Non-dirty child picks up concurrent parent updates ------------------
-
-    public void testNonDirtyChildRefreshesFromParent() {
-        FieldNameTable root = new FieldNameTable();
-
-        FieldNameTable.Child child1 = root.makeChild();
-        byte[] buf = "newfield".getBytes(StandardCharsets.UTF_8);
-        child1.lookupName(buf, 0, buf.length);
-        child1.release(); // merges "newfield" into parent
-
-        FieldNameTable.Child child2 = root.makeChild();
-        // child2 starts with "newfield" from parent
-        String found = child2.lookupName(buf, 0, buf.length);
-        assertEquals("newfield", found);
-        assertFalse("no new names added, should not be dirty", child2.dirty);
-
-        // Now simulate another thread merging a new name while child2 is alive
-        FieldNameTable.Child child3 = root.makeChild();
-        byte[] buf2 = "othername".getBytes(StandardCharsets.UTF_8);
-        child3.lookupName(buf2, 0, buf2.length);
-        child3.release(); // merges "othername" into parent
-
-        // child2 releases without being dirty — should refresh from parent
-        child2.release();
-
-        // After refresh, child2 should now have "othername"
-        String other = child2.lookupName(buf2, 0, buf2.length);
-        assertEquals("othername", other);
-        // Since the name was already in the refreshed snapshot, the child should not be dirty
-        assertFalse("name was inherited from parent, should not be dirty", child2.dirty);
-    }
-
-    // -- Linear probing collision testing ------------------------------------
-
-    public void testHashCollisionResolution() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        // Insert many names into the same child to increase collision probability.
-        String[] names = new String[500];
-        for (int i = 0; i < names.length; i++) {
-            names[i] = "collision_test_field_" + i;
-        }
-        for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.getBytes(StandardCharsets.UTF_8).length;
-            child.lookupName(buf, 0, len);
-        }
-
-        // Verify all can be retrieved
-        for (String name : names) {
-            byte[] buf = toBytes(name);
-            int len = name.getBytes(StandardCharsets.UTF_8).length;
-            String result = child.lookupName(buf, 0, len);
-            assertEquals(name, result);
-        }
-    }
-
-    // -- Capacity limit: beyond MAX_COUNT no new names are cached -----------
-
-    public void testBeyondMaxCountNewNamesNotCached() {
-        FieldNameTable root = new FieldNameTable();
-        FieldNameTable.Child child = root.makeChild();
-
-        // Fill to MAX_COUNT.
-        for (int i = 0; i < FieldNameTable.MAX_COUNT; i++) {
-            String name = "fill_" + i;
-            byte[] buf = toBytes(name);
-            int len = name.getBytes(StandardCharsets.UTF_8).length;
-            child.lookupName(buf, 0, len);
-        }
-        assertEquals(FieldNameTable.MAX_COUNT, child.count);
-
-        // One more should still return the correct name but not increase count
-        byte[] extra = toBytes("overflow_name");
-        int extraLen = "overflow_name".length();
-        String result = child.lookupName(extra, 0, extraLen);
-        assertEquals("overflow_name", result);
-        assertEquals("count should not increase past MAX_COUNT", FieldNameTable.MAX_COUNT, child.count);
-
-        // Looking it up again should still work (creates a new String each time since not cached)
-        String result2 = child.lookupName(extra, 0, extraLen);
-        assertEquals("overflow_name", result2);
-    }
-
     // -- Helpers ----
 
     /**
@@ -614,6 +359,6 @@ public class FieldNameTableTests extends ESTestCase {
      * and any escape sequences). Uses exact length to verify no over-reads.
      */
     private static byte[] makeScanBufferRaw(String content) {
-        return content.getBytes(StandardCharsets.UTF_8);
+        return content.getBytes(UTF_8);
     }
 }

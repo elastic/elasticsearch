@@ -12,25 +12,23 @@
  * <a href="https://github.com/simdjson/simdjson-java">simdjson-java</a>.
  *
  * <p>Provides native-accelerated structural indexing (backed by the {@code libes_simdjson}
- * C++ library), a fused stage 2 + token walk via
- * {@link org.elasticsearch.simdjson.SimdJsonDirectWalker}, and field name canonicalization
- * via {@link org.elasticsearch.simdjson.fieldnames.FrozenFieldNameTable}.
+ * C++ library) and a fused stage 2 + token walk via
+ * {@link org.elasticsearch.simdjson.SimdJsonDirectWalker}.
  *
  * <h2>Usage</h2>
  *
  * <ol>
  *   <li>Check {@link org.elasticsearch.simdjson.SimdJsonSupport#isSupported()} to
  *       confirm the native library is loaded and the vector API is available.</li>
- *   <li>Create a {@link org.elasticsearch.simdjson.SimdJsonBatchParser} (one per thread,
- *       owns a native structural indexer, implements {@link java.lang.AutoCloseable}).</li>
- *   <li>Create a {@link org.elasticsearch.simdjson.SimdJsonDirectWalker} with a
- *       {@link org.elasticsearch.simdjson.fieldnames.FieldNameLookup} (typically a
- *       {@link org.elasticsearch.simdjson.fieldnames.FrozenFieldNameTable.Child}).</li>
- *   <li>For each batch: call {@code beginBatch}, then for each document call
+ *   <li>Obtain a {@link org.elasticsearch.simdjson.SimdJsonParserPool} via
+ *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#getDefault()} or
+ *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#create(int)}.</li>
+ *   <li>For each batch: call {@code beginBatch} on the thread-local
+ *       {@link org.elasticsearch.simdjson.SimdJsonBatchParser}, then for each document call
  *       {@code prepareDocumentWindowChunked} followed by
- *       {@code walker.walkDocument(buffer, docLen, batchParser, handler)}.</li>
- *   <li>After each batch, call {@code walker.releaseNames()} to merge new field names
- *       back to the shared parent table.</li>
+ *       {@code directWalker().walkDocument(buffer, docLen, batchParser, handler)}.</li>
+ *   <li>After each batch, call {@link org.elasticsearch.simdjson.SimdJsonParserPool#releaseNames()}
+ *       to merge newly discovered field names back to the shared cache.</li>
  * </ol>
  *
  * @see org.elasticsearch.simdjson.SimdJsonBatchParser
@@ -43,5 +41,4 @@ module org.elasticsearch.simdjson {
     requires org.elasticsearch.base;
 
     exports org.elasticsearch.simdjson;
-    exports org.elasticsearch.simdjson.fieldnames;
 }

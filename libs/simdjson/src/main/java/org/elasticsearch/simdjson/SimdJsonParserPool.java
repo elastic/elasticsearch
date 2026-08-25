@@ -12,7 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdjson.fieldnames.FrozenFieldNameTable;
+import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 
 /**
  * Thread-local pool of {@link SimdJsonBatchParser} and {@link SimdJsonDirectWalker} instances,
@@ -51,7 +51,6 @@ public final class SimdJsonParserPool {
     private static final SimdJsonParserPool DEFAULT = create(DEFAULT_BATCH_CAPACITY);
 
     private final FrozenFieldNameTable nameTable = new FrozenFieldNameTable();
-    private final int batchCapacity;
 
     private final ThreadLocal<SimdJsonBatchParser> parsers;
     private final ThreadLocal<SimdJsonDirectWalker> walkers;
@@ -108,12 +107,5 @@ public final class SimdJsonParserPool {
      */
     public void releaseNames() {
         walkers.get().releaseNames();
-    }
-
-    /**
-     * Returns the shared field name table. Primarily for diagnostics and testing.
-     */
-    public FrozenFieldNameTable nameTable() {
-        return nameTable;
     }
 }

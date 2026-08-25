@@ -9,11 +9,11 @@
 
 package org.elasticsearch.simdjson;
 
-import org.elasticsearch.simdjson.fieldnames.FieldNameHash;
-import org.elasticsearch.simdjson.fieldnames.FieldNameLookup;
 import org.elasticsearch.simdjson.internal.BitIndexes;
 import org.elasticsearch.simdjson.internal.DoubleParser;
 import org.elasticsearch.simdjson.internal.StringParser;
+import org.elasticsearch.simdjson.internal.fieldnames.FieldNameHash;
+import org.elasticsearch.simdjson.internal.fieldnames.FieldNameLookup;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -40,9 +40,8 @@ import static org.elasticsearch.simdjson.internal.CharacterUtils.isStructuralOrW
  * <h2>Lifecycle</h2>
  *
  * <ol>
- *   <li>Create one walker per thread, passing a thread-confined {@link FieldNameLookup}
- *       (e.g. {@link org.elasticsearch.simdjson.fieldnames.FrozenFieldNameTable.Child
- *       FrozenFieldNameTable.Child}).</li>
+ *   <li>Create one walker per thread via {@link SimdJsonParserPool#directWalker()}, which
+ *       wires a thread-confined field name cache automatically.</li>
  *   <li>For each document, call {@link #walkDocument(byte[], int, SimdJsonBatchParser,
  *       JsonDocumentHandler)}. The batch parser must have its document window prepared first.</li>
  *   <li>After processing a batch, call {@link #releaseNames()} to merge newly discovered

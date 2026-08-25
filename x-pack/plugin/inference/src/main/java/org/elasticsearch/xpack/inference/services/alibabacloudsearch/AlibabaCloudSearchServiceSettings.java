@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,6 +30,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
@@ -57,17 +57,22 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     /**
-     * Registers the common AlibabaCloud AI Search service-settings fields (service_id, host, workspace, http_schema) onto the given
-     * parser. Note: {@code rate_limit} and {@code api_key} are handled separately via {@link ServiceSettingsOPBuilder} at the leaf
-     * parser level so they are not duplicated here.
+     * Builds an {@link ObjectParser} for AlibabaCloud AI Search service settings, wiring the common fields (service_id, host,
+     * workspace, http_schema), {@link #DEFAULT_RATE_LIMIT_SETTINGS}, and the {@code api_key} no-op.
      */
-    public static <B extends Builder<? extends ServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser
+    public static <B extends Builder<? extends ServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        Supplier<B> builderSupplier
     ) {
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, builderSupplier).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowApiKey().build();
         parser.declareString(Builder::setServiceId, new ParseField(SERVICE_ID));
         parser.declareString(Builder::setHost, new ParseField(HOST));
         parser.declareString(Builder::setWorkspaceName, new ParseField(WORKSPACE_NAME));
         parser.declareString(Builder::setHttpSchema, new ParseField(HTTP_SCHEMA_NAME));
+        return parser;
     }
 
     /**
@@ -147,17 +152,18 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     }
 
     /**
-     * Registers the common AlibabaCloud AI Search fields that may be changed by an update request: {@code http_schema}. The immutable
-     * fields ({@code service_id}, {@code host} and {@code workspace}) are intentionally not declared so that a strict update parser
-     * rejects attempts to change them. {@code rate_limit} and {@code api_key} are handled separately via
-     * {@link UpdateServiceSettingsOPBuilder} at the leaf parser level.
+     * Builds an {@link ObjectParser} for AlibabaCloud AI Search update requests, wiring {@link #DEFAULT_RATE_LIMIT_SETTINGS}, the
+     * {@code api_key} no-op, and the mutable {@code http_schema} field. The immutable fields ({@code service_id}, {@code host} and
+     * {@code workspace}) are intentionally not declared so that a strict update parser rejects attempts to change them.
      */
-    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        var parser = UpdateServiceSettingsOPBuilder.of(updateSupplier, CommonUpdate::setRateLimitSettings).build();
         StatefulValue.declareNullable(parser, (update, value) -> update.httpSchema = value, p -> {
             String value = p.text();
             validateHttpSchema(value);
             return value;
         }, new ParseField(HTTP_SCHEMA_NAME), ObjectParser.ValueType.STRING_OR_NULL);
+        return parser;
     }
 
     /**

@@ -89,7 +89,7 @@ public class ServiceSettingsOPBuilderTests extends ESTestCase {
         assertThat(holder.rateLimitSettings, is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
     }
 
-    public void testOf_RateLimitAbsent_UsesDefault() throws IOException {
+    public void testOf_RateLimitAbsent_SetterNotInvoked() throws IOException {
         var parser = ServiceSettingsOPBuilder.of(
             false,
             RateLimitHolder::new,
@@ -304,6 +304,30 @@ public class ServiceSettingsOPBuilderTests extends ESTestCase {
             ex.getMessage(),
             endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, RateLimitSettings.FIELD_NAME))
         );
+    }
+
+    public void testEnableRateLimitSettings_NullSetter_Throws() {
+        var builder = new ServiceSettingsOPBuilder<>(false, RateLimitHolder::new);
+        expectThrows(NullPointerException.class, () -> builder.enableRateLimitSettings(null, TEST_DEFAULT_RATE_LIMIT));
+    }
+
+    public void testEnableRateLimitSettings_NullDefault_FieldStillDeclared() throws IOException {
+        // A null default is legal — the field is still declared and the setter is invoked when present.
+        var parser = new ServiceSettingsOPBuilder<>(false, RateLimitHolder::new).enableRateLimitSettings(
+            RateLimitHolder::setRateLimitSettings,
+            null
+        ).build();
+
+        var json = Strings.format(
+            "{\"%s\": {\"%s\": %d}}",
+            RateLimitSettings.FIELD_NAME,
+            RateLimitSettings.REQUESTS_PER_MINUTE_FIELD,
+            TEST_REQUESTS_PER_MINUTE
+        );
+
+        var holder = parse(parser, json, ConfigurationParseContext.REQUEST);
+
+        assertThat(holder.rateLimitSettings, is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
     }
 
     public void testConstructor_NullValueSupplier_ThrowsNullPointerException() {

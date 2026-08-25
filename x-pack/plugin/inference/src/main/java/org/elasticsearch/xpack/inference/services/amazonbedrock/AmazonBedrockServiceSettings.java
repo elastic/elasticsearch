@@ -17,12 +17,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -30,28 +31,47 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateStringIsNotNullOrEmpty;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
 public abstract class AmazonBedrockServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     protected static final String AMAZON_BEDROCK_BASE_NAME = "amazon_bedrock";
 
     /**
-     * Registers the common Bedrock service-settings fields (model, region, provider) onto the given parser.
-     * Note: {@code access_key} and {@code secret_key} are intentionally not declared here; they are handled separately via
-     * {@code allowSecretFields} on the parser builder so the strict parser tolerates them without passing them through to the builder.
+     * Builds an {@link ObjectParser} for Bedrock service settings, wiring the common fields (model, region, provider),
+     * {@link #DEFAULT_RATE_LIMIT_SETTINGS}, and the AWS secret-field ({@code access_key}, {@code secret_key}) no-ops.
      */
-    public static <B extends AmazonBedrockServiceSettings.Builder<? extends AmazonBedrockServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser
-    ) {
+    public static <
+        B extends AmazonBedrockServiceSettings.Builder<? extends AmazonBedrockServiceSettings>>
+        ObjectParser<B, ConfigurationParseContext>
+        buildCommonParser(boolean ignoreUnknownFields, Supplier<B> builderSupplier) {
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, builderSupplier).enableRateLimitSettings(
+            AmazonBedrockServiceSettings.Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowSecretFields(ACCESS_KEY_FIELD, SECRET_KEY_FIELD).build();
         parser.declareString(AmazonBedrockServiceSettings.Builder::setRegion, new ParseField(REGION_FIELD));
         parser.declareString(AmazonBedrockServiceSettings.Builder::setModel, new ParseField(MODEL_FIELD));
         parser.declareString(AmazonBedrockServiceSettings.Builder::setProvider, new ParseField(PROVIDER_FIELD));
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for Bedrock update requests, wiring {@link #DEFAULT_RATE_LIMIT_SETTINGS} and the AWS secret-field
+     * ({@code access_key}, {@code secret_key}) no-ops. The immutable fields (region, model, provider) are intentionally not declared so
+     * that a strict update parser rejects attempts to change them.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        return new UpdateServiceSettingsOPBuilder<U>(updateSupplier).enableRateLimitSettings(CommonUpdate::setRateLimitSettings)
+            .allowSecretFields(ACCESS_KEY_FIELD, SECRET_KEY_FIELD)
+            .build();
     }
 
     protected final String region;

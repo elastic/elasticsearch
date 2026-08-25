@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -25,7 +22,7 @@ import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_S
 /**
  * A builder for constructing an {@link ObjectParser} for parsing requests and persisted configuration for service settings.
  */
-public class ServiceSettingsOPBuilder<Value> {
+public class ServiceSettingsOPBuilder<Value> extends AbstractSettingsOPBuilder<Value, ServiceSettingsOPBuilder<Value>> {
 
     /**
      * Constructs a {@link ServiceSettingsOPBuilder} that requires the rate limit settings and allows the
@@ -49,56 +46,35 @@ public class ServiceSettingsOPBuilder<Value> {
     }
 
     private final boolean ignoreUnknownFields;
-    private final Supplier<Value> valueSupplier;
     private RateLimitSettings defaultRateLimitSettings;
     private BiConsumer<Value, RateLimitSettings> rateLimitSettingsSetter;
-    private final Set<String> secretFields = new LinkedHashSet<>();
 
     public ServiceSettingsOPBuilder(boolean ignoreUnknownFields, Supplier<Value> valueSupplier) {
+        this(SERVICE_SETTINGS, ignoreUnknownFields, valueSupplier);
+    }
+
+    public ServiceSettingsOPBuilder(SettingsScope scope, boolean ignoreUnknownFields, Supplier<Value> valueSupplier) {
+        super(scope, valueSupplier);
         this.ignoreUnknownFields = ignoreUnknownFields;
-        this.valueSupplier = Objects.requireNonNull(valueSupplier);
-    }
-
-    public ServiceSettingsOPBuilder<Value> allowApiKey() {
-        return allowSecretFields(DefaultSecretSettings.API_KEY);
-    }
-
-    /**
-     * Declares the given field names as no-ops in the parser. Secret fields (e.g. {@code api_key}, {@code access_key}) appear in the
-     * same JSON block as service settings in requests. The service's secret settings extract them separately; these declarations prevent
-     * the strict parser from rejecting them as unknown fields.
-     * <p>
-     * Duplicate field names — whether from multiple calls or within a single varargs list — are ignored. It is therefore safe to call
-     * this method with a field that was already declared by a previous call or by {@link #allowApiKey()}.
-     */
-    public ServiceSettingsOPBuilder<Value> allowSecretFields(String... fieldNames) {
-        secretFields.addAll(List.of(fieldNames));
-        return this;
     }
 
     public ServiceSettingsOPBuilder<Value> enableRateLimitSettings(
         BiConsumer<Value, RateLimitSettings> setter,
         RateLimitSettings defaultRateLimitSettings
     ) {
-        this.rateLimitSettingsSetter = setter;
+        this.rateLimitSettingsSetter = Objects.requireNonNull(setter);
         this.defaultRateLimitSettings = defaultRateLimitSettings;
         return this;
     }
 
     public ObjectParser<Value, ConfigurationParseContext> build() {
-        var objectParser = new ObjectParser<Value, ConfigurationParseContext>(
-            SERVICE_SETTINGS.toString(),
-            ignoreUnknownFields,
-            valueSupplier
-        );
+        var objectParser = new ObjectParser<Value, ConfigurationParseContext>(scope.toString(), ignoreUnknownFields, valueSupplier);
 
-        if (defaultRateLimitSettings != null) {
+        if (rateLimitSettingsSetter != null) {
             RateLimitSettings.declareRateLimitSettings(objectParser, rateLimitSettingsSetter, defaultRateLimitSettings);
         }
 
-        for (var field : secretFields) {
-            objectParser.declareString((b, v) -> {}, new ParseField(field));
-        }
+        declareSecretFields(objectParser);
 
         return objectParser;
     }

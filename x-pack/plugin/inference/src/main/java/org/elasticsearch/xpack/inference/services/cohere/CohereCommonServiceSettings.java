@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -26,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -36,6 +36,8 @@ import java.net.URI;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -79,21 +81,35 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     /**
-     * Registers the common Cohere service-settings fields (model_id, url, api_version) onto the given parser. The deprecated
-     * {@code model} alias is also registered and emits a log warning when encountered in request context. Note: {@code rate_limit} and
-     * {@code api_key} are handled separately via {@link ServiceSettingsOPBuilder} at the leaf parser level so they are not
-     * duplicated here.
+     * Builds an {@link ObjectParser} for Cohere service settings, wiring the common fields (model_id, url, api_version),
+     * {@link #DEFAULT_RATE_LIMIT_SETTINGS}, and the {@code api_key} no-op. The deprecated {@code model} alias is also registered and
+     * emits a log warning when encountered in request context. {@code api_version} is only declared in
+     * {@link ConfigurationParseContext#PERSISTENT} context because incoming requests always use V2.
      */
-    public static <B extends Builder<? extends CohereServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser,
-        ConfigurationParseContext context
+    public static <B extends Builder<? extends CohereServiceSettings>> ObjectParser<B, ConfigurationParseContext> buildCommonParser(
+        boolean ignoreUnknownFields,
+        ConfigurationParseContext context,
+        Function<ConfigurationParseContext, B> builderFactory
     ) {
+        var parser = new ServiceSettingsOPBuilder<>(ignoreUnknownFields, () -> builderFactory.apply(context)).enableRateLimitSettings(
+            Builder::setRateLimitSettings,
+            DEFAULT_RATE_LIMIT_SETTINGS
+        ).allowApiKey().build();
         parser.declareString(Builder::setDeprecatedModelId, new ParseField(OLD_MODEL_ID_FIELD));
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));
         if (context == ConfigurationParseContext.PERSISTENT) {
             parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         }
+        return parser;
+    }
+
+    /**
+     * Builds an {@link ObjectParser} for Cohere update requests, wiring {@link #DEFAULT_RATE_LIMIT_SETTINGS} and the {@code api_key}
+     * no-op.
+     */
+    public static <U extends CommonUpdate> ObjectParser<U, Void> buildCommonUpdateParser(Supplier<U> updateSupplier) {
+        return UpdateServiceSettingsOPBuilder.of(updateSupplier, CommonUpdate::setRateLimitSettings).build();
     }
 
     /**

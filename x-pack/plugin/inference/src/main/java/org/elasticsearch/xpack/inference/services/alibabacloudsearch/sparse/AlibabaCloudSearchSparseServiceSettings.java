@@ -17,8 +17,6 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
-import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 
@@ -45,14 +43,7 @@ public class AlibabaCloudSearchSparseServiceSettings implements ServiceSettings 
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        var parser = ServiceSettingsOPBuilder.of(
-            ignoreUnknownFields,
-            Builder::new,
-            AlibabaCloudSearchServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
-            Builder::setRateLimitSettings
-        ).build();
-        AlibabaCloudSearchServiceSettings.declareCommonFields(parser);
-        return parser;
+        return AlibabaCloudSearchServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
     }
 
     public static AlibabaCloudSearchSparseServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -106,14 +97,7 @@ public class AlibabaCloudSearchSparseServiceSettings implements ServiceSettings 
      */
     private static class Update extends AlibabaCloudSearchServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
-            Update::new,
-            Update::setRateLimitSettings
-        ).build();
-
-        static {
-            AlibabaCloudSearchServiceSettings.declareCommonUpdatableFields(PARSER);
-        }
+        private static final ObjectParser<Update, Void> PARSER = AlibabaCloudSearchServiceSettings.buildCommonUpdateParser(Update::new);
 
         public AlibabaCloudSearchSparseServiceSettings mergeInto(AlibabaCloudSearchSparseServiceSettings existing) {
             return new AlibabaCloudSearchSparseServiceSettings(mergedCommonSettings(existing.getCommonSettings()));

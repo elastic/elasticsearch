@@ -20,8 +20,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
-import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
-import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
@@ -96,13 +94,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        var parser = ServiceSettingsOPBuilder.of(
-            ignoreUnknownFields,
-            () -> new Builder(context),
-            CohereCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
-            Builder::setRateLimitSettings
-        ).build();
-        CohereCommonServiceSettings.declareCommonFields(parser, context);
+        var parser = CohereCommonServiceSettings.buildCommonParser(ignoreUnknownFields, context, Builder::new);
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
@@ -128,13 +120,12 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     private static class Update extends CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
-            Update::new,
-            Update::setRateLimitSettings
-        ).build();
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = CohereCommonServiceSettings.buildCommonUpdateParser(Update::new);
+            parser.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+            return parser;
         }
 
         private Integer maxInputTokens;

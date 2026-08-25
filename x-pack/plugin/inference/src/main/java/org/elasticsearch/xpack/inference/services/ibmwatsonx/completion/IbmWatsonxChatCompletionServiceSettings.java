@@ -15,8 +15,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
-import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -50,14 +48,7 @@ public class IbmWatsonxChatCompletionServiceSettings extends IbmWatsonxServiceSe
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        var parser = ServiceSettingsOPBuilder.of(
-            ignoreUnknownFields,
-            Builder::new,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            Builder::setRateLimitSettings
-        ).build();
-        IbmWatsonxServiceSettings.declareCommonFields(parser);
-        return parser;
+        return IbmWatsonxServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
     }
 
     public static IbmWatsonxChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -131,10 +122,7 @@ public class IbmWatsonxChatCompletionServiceSettings extends IbmWatsonxServiceSe
      */
     private static class Update extends IbmWatsonxServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
-            Update::new,
-            Update::setRateLimitSettings
-        ).build();
+        private static final ObjectParser<Update, Void> PARSER = IbmWatsonxServiceSettings.buildCommonUpdateParser(Update::new);
 
         public IbmWatsonxChatCompletionServiceSettings mergeInto(IbmWatsonxChatCompletionServiceSettings existing) {
             return new IbmWatsonxChatCompletionServiceSettings(

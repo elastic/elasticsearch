@@ -22,9 +22,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
-import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
-import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 
@@ -57,13 +55,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        var parser = ServiceSettingsOPBuilder.of(
-            ignoreUnknownFields,
-            Builder::new,
-            AlibabaCloudSearchServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
-            Builder::setRateLimitSettings
-        ).build();
-        AlibabaCloudSearchServiceSettings.declareCommonFields(parser);
+        var parser = AlibabaCloudSearchServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
@@ -176,18 +168,16 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
      */
     private static class Update extends AlibabaCloudSearchServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
-            Update::new,
-            Update::setRateLimitSettings
-        ).build();
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            AlibabaCloudSearchServiceSettings.declareCommonUpdatableFields(PARSER);
-            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = AlibabaCloudSearchServiceSettings.buildCommonUpdateParser(Update::new);
+            StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
                 Integer value = p.intValue();
                 validatePositiveInteger(value, MAX_INPUT_TOKENS);
                 return value;
             }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+            return parser;
         }
 
         private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();

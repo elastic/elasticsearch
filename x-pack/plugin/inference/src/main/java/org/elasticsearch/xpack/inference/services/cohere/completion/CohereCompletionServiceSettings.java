@@ -16,8 +16,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
-import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CommonUpdate;
@@ -62,14 +60,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        var parser = ServiceSettingsOPBuilder.of(
-            ignoreUnknownFields,
-            () -> new Builder(context),
-            CohereCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS,
-            Builder::setRateLimitSettings
-        ).build();
-        CohereCommonServiceSettings.declareCommonFields(parser, context);
-        return parser;
+        return CohereCommonServiceSettings.buildCommonParser(ignoreUnknownFields, context, Builder::new);
     }
 
     /**
@@ -190,10 +181,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     private static class Update extends CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
-            Update::new,
-            Update::setRateLimitSettings
-        ).build();
+        private static final ObjectParser<Update, Void> PARSER = CohereCommonServiceSettings.buildCommonUpdateParser(Update::new);
 
         public CohereCompletionServiceSettings mergeInto(CohereCompletionServiceSettings existing) {
             return new CohereCompletionServiceSettings(existing.commonSettings().update(this));

@@ -19,9 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.parser.EnumParser;
-import org.elasticsearch.xpack.inference.common.parser.ServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
-import org.elasticsearch.xpack.inference.common.parser.UpdateServiceSettingsOPBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -57,13 +55,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
      * @return the parser
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
-        var parser = ServiceSettingsOPBuilder.of(
-            ignoreUnknownFields,
-            Builder::new,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            Builder::setRateLimitSettings
-        ).build();
-        LlamaServiceSettings.declareCommonFields(parser);
+        var parser = LlamaServiceSettings.buildCommonParser(ignoreUnknownFields, Builder::new);
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareString(Builder::setSimilarity, EnumParser::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
@@ -243,17 +235,16 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
      */
     private static class Update extends LlamaServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = UpdateServiceSettingsOPBuilder.of(
-            Update::new,
-            Update::setRateLimitSettings
-        ).build();
+        private static final ObjectParser<Update, Void> PARSER = createUpdateParser();
 
-        static {
-            StatefulValue.declareNullable(PARSER, (update, value) -> update.maxInputTokens = value, p -> {
+        private static ObjectParser<Update, Void> createUpdateParser() {
+            var parser = LlamaServiceSettings.buildCommonUpdateParser(Update::new);
+            StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
                 Integer value = p.intValue();
                 validatePositiveInteger(value, MAX_INPUT_TOKENS);
                 return value;
             }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);
+            return parser;
         }
 
         private StatefulValue<Integer> maxInputTokens = StatefulValue.undefined();

@@ -33,7 +33,6 @@ import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -121,7 +120,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * all documents and that the relocated task's reported {@code Status#total} equals the source doc count.
      */
     public void testReindexTaskRelocatesOnNodeShutdown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -246,7 +244,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * </ol>
      */
     public void testReindexFailsWhenPitRelocationFails() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
 
@@ -377,7 +374,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * and so an error is returned to the client
      */
     public void testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -474,7 +470,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
      * the task attempts to complete before node shutdown. Here we allow the test to complete and expect no errors
      */
     public void testReindexTaskFinishesBeforeNodeShutsDown() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -708,7 +703,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         reason = "So we can know when the task cancellation was attempted"
     )
     public void testRelocatingTaskIsNotCancelledOnShutdownTimeout() throws Exception {
-        assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();

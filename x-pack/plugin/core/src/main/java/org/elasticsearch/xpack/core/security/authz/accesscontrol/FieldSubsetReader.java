@@ -312,8 +312,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     filtered.put(key, filteredValue);
                 }
             } else if (value instanceof Iterable<?> iterableValue) {
+                // Check emptiness before filtering: an empty original array carries no user data to deny.
+                // Dropping it would silently remove _ignored_source suppression tombstones written for
+                // copy_to destination fields, letting the doc-values loader leak copied values into _source.
+                boolean originallyEmpty = iterableValue.iterator().hasNext() == false;
                 List<Object> filteredValue = filter(iterableValue, includeAutomaton, state);
-                if (filteredValue.isEmpty() == false) {
+                if (filteredValue.isEmpty() == false || originallyEmpty) {
                     filtered.put(key, filteredValue);
                 }
             } else if (includeAutomaton.isAccept(state)) {

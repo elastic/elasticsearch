@@ -136,13 +136,7 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
     }
 
     private String createFieldLevelSecurityApiKey(final String targetField, final boolean grantOnly) throws IOException {
-        // grantOnly grants just @timestamp plus the target field (an include filter that drops everything else); otherwise grant all
-        // fields except the target (an exclude filter). @timestamp is always granted so the routing/sort field survives both polarities.
-        final String fieldSecurity = grantOnly
-            ? Strings.format("{ \"grant\": [ \"@timestamp\", \"%s\" ] }", targetField)
-            : Strings.format("{ \"grant\": [ \"*\" ], \"except\": [ \"%s\" ] }", targetField);
-
-        // Build via XContentBuilder so randomized field/index names with control characters are correctly JSON-escaped.
+        // Build via XContentBuilder so randomized field_security, field and index names with control characters are correctly JSON-escaped.
         final XContentBuilder body = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .field("name", "fls-challenge")
@@ -152,15 +146,15 @@ public class StandardVersusLogsdbFieldLevelSecurityChallengeRestIT extends BulkC
             .startObject()
             .array("names", getBaselineDataStreamName(), getContenderDataStreamName())
             .array("privileges", "read")
-            .startObject("field_security")
-            .array("grant", "*")
-            .array("except", fieldSecurity)
-            .endObject()
-            .endObject()
-            .endArray()
-            .endObject()
-            .endObject()
-            .endObject();
+            .startObject("field_security");
+        // grantOnly grants just @timestamp plus the target field (an include filter that drops everything else); otherwise grant all
+        // fields except the target (an exclude filter). @timestamp is always granted so the routing/sort field survives both polarities.
+        if (grantOnly) {
+            body.array("grant", "@timestamp", targetField);
+        } else {
+            body.array("grant", "*").array("except", targetField);
+        }
+        body.endObject().endObject().endArray().endObject().endObject().endObject();
 
         final Request request = new Request("POST", "/_security/api_key");
         request.setJsonEntity(Strings.toString(body));

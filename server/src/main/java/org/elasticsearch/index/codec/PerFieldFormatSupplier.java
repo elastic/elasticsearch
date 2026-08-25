@@ -251,7 +251,8 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean isKeywordField(String field) {
-        return mapperService.mappingLookup().getMapper(field) instanceof KeywordFieldMapper;
+        return mapperService.mappingLookup().getMapper(field) instanceof KeywordFieldMapper keyword
+            && keyword.fieldType().usesBinaryDocValues();
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {

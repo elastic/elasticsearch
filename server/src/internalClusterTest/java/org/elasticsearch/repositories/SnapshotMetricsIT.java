@@ -197,7 +197,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_DURATION, expectedAttrsWithSnapshotState);
 
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_STARTED, expectedAttrs);
-        assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.LONG_ASYNC_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
@@ -376,12 +376,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
@@ -446,12 +446,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
@@ -526,12 +526,12 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // Ensure all common attributes are present
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOT_SHARDS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
         assertMetricsHaveAttributes(
-            InstrumentType.LONG_GAUGE,
+            InstrumentType.LONG_ASYNC_GAUGE,
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );

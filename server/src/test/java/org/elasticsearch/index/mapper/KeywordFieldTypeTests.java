@@ -59,6 +59,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesPrefixQuery;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRangeQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesWildcardQuery;
@@ -324,6 +325,23 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testRangeQueryUsesBinaryDocValuesQuery() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(
+            new ScanningBinaryDocValuesRangeQuery("field", BytesRefs.toBytesRef("bar"), BytesRefs.toBytesRef("foo"), true, false, false),
+            ft.rangeQuery("bar", "foo", true, false, null, null, null, MOCK_CONTEXT)
+        );
+    }
+
     public void testPrefixQueryHighCardinality() {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
         builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
@@ -510,6 +528,26 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testGetTermsHighCardinalityDocValuesOnly() throws IOException {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        try (Directory dir = newDirectory()) {
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+            IndexReader reader = writer.getReader();
+            writer.close();
+            expectThrows(IllegalArgumentException.class, () -> ft.getTerms(reader, "", randomBoolean(), null));
+            reader.close();
+        }
     }
 
     public void testGetTerms() throws IOException {

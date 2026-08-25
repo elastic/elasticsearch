@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -39,6 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Common service settings shared across all Cohere inference tasks.
@@ -288,7 +288,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.apply(xParser, context).build();
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, SERVICE_SETTINGS);
         }
     }
 
@@ -298,6 +298,9 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
             (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
+        // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
+        // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
+        parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
     }
 
     public static class CommonUpdate {

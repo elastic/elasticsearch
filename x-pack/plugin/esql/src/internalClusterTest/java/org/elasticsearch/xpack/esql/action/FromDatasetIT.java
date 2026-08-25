@@ -13,8 +13,11 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Types;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
@@ -42,6 +45,7 @@ import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,7 +59,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -219,6 +225,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "employees_extensionless",
         "logs_id_partition",
         "logs_partition_collide_nonstrict",
+        "logs_partition_collide_none",
         "logs_partition_collide_path",
         "employees_strict_coerce",
         "employees_strict_uncoercible",
@@ -282,7 +289,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         "epoch_ovf_csv_fail",
         "epoch_ovf_nj_null",
         "epoch_ovf_nj_skip",
-        "epoch_ovf_nj_fail"
+        "epoch_ovf_nj_fail",
+        "employees_parquet_absent_warn",
+        "employees_ndjson_absent_warn"
     );
 
     /**
@@ -2652,6 +2661,48 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    /**
+     * Executes the given ES|QL query and returns the response {@code Warning} headers whose text
+     * contains {@code substring}. Waits up to 30 seconds and rethrows any query-level failure.
+     * <p>
+     * Do NOT close the {@link EsqlQueryResponse} inside the listener: the transport framework's
+     * {@code respondAndRelease} wrapper calls {@code decRef()} after {@code onResponse} returns,
+     * and a manual close causes a double-release error.
+     */
+    private List<String> collectWarningsContaining(String query, String substring) throws Exception {
+        List<String> warnings = new CopyOnWriteArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> queryFailure = new AtomicReference<>();
+        client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), new ActionListener<>() {
+            @Override
+            public void onResponse(EsqlQueryResponse r) {
+                try {
+                    internalCluster().getInstance(TransportService.class)
+                        .getThreadPool()
+                        .getThreadContext()
+                        .getResponseHeaders()
+                        .getOrDefault("Warning", List.of())
+                        .stream()
+                        .filter(w -> w.contains(substring))
+                        .forEach(warnings::add);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                queryFailure.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("query did not complete within timeout", latch.await(30, SECONDS));
+        if (queryFailure.get() != null) {
+            throw queryFailure.get();
+        }
+        return warnings;
+    }
+
     /** End-to-end: the absent-declared-column warning reaches the client as a response Warning header. */
     public void testAbsentDeclaredColumnEmitsResponseWarning() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -2676,29 +2727,82 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
-        // Read the coordinator's accumulated response Warning headers at completion (same probe as the coercion tests).
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        client().execute(
-            EsqlQueryAction.INSTANCE,
-            syncEsqlQueryRequest("FROM employees_absent_warn | SORT emp_no | LIMIT 5"),
-            ActionListener.running(() -> {
-                try {
-                    internalCluster().getInstance(TransportService.class)
-                        .getThreadPool()
-                        .getThreadContext()
-                        .getResponseHeaders()
-                        .getOrDefault("Warning", List.of())
-                        .stream()
-                        .filter(w -> w.contains("declared column [department] is not present"))
-                        .forEach(warnings::add);
-                } finally {
-                    latch.countDown();
-                }
-            })
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
         );
-        assertTrue("query did not complete within timeout", latch.await(30, java.util.concurrent.TimeUnit.SECONDS));
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
+    }
+
+    public void testAbsentDeclaredColumnEmitsResponseWarningParquet() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column Parquet fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        Path parquet = createTempDir().resolve("employees.parquet");
+        Files.write(parquet, twoColumnParquetFixtureBytes());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_absent_warn",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
+        );
+        assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
+    }
+
+    public void testAbsentDeclaredColumnEmitsResponseWarningNdjson() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("emp_no", new DatasetFieldMapping("integer", null));
+        properties.put("first_name", new DatasetFieldMapping("keyword", null));
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-field NDJSON fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+        Path ndjson = createTempFile("dataset-absent-warn-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\"}") + "\n"
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_ndjson_absent_warn",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson")),
+                    mapping
+                )
+            )
+        );
+
+        // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
+        // columns). `department` is absent from every record, so NdJsonPageDecoder emits
+        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // records is effectively absent from the file, so the file-level message is accurate.
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
+            "declared column [department] is not present"
+        );
+        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -3389,6 +3493,121 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
     }
 
+    /**
+     * Wide, multi-row-group {@code UINT_64} differential: ground truth comes from an unpruned
+     * scan; filter pushdown, TopN threshold pruning (ASC and DESC), and stats-answered MIN/MAX must all agree with
+     * it across the 2^63 boundary. The fixture is 4 columns wide (so the TopN deferred-extraction threshold rail
+     * engages, mirroring {@link #writeScalingFixture}) and spans several small row groups, with the true unsigned
+     * maximum sitting in a later row group than the smallest RAW bit pattern — exactly the layout a signed-raw-bits
+     * comparison mis-prunes.
+     */
+    public void testUnsignedLongParquetDifferentialAcrossFilterSortAndAggregate() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+
+        // Raw physical INT64 bits for the unsigned magnitude 2^63 - 1000 + i: plain long wraparound arithmetic is
+        // bit-identical to unsigned-mod-2^64 arithmetic, so this crosses the sign-bit boundary at i == 1000 — the
+        // smallest magnitude's raw bits are POSITIVE, the largest's are NEGATIVE.
+        int rowCount = 2000;
+        long base = Long.MAX_VALUE - 999L;
+        long[] rawBits = new long[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            rawBits[i] = base + i;
+        }
+        Path file = writeUnsignedLongFixture("unsigned_diff", rawBits);
+
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "unsigned_diff_ds",
+                    "local_ds",
+                    file.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+
+        // Ground truth: an unpruned scan (no filter/sort/aggregate) observes decode only.
+        List<BigInteger> truth = new ArrayList<>();
+        try (var response = run(syncEsqlQueryRequest("FROM unsigned_diff_ds | KEEP u | LIMIT 5000"), TIMEOUT)) {
+            for (List<Object> row : getValuesList(response)) {
+                truth.add(new BigInteger(row.get(0).toString()));
+            }
+        }
+        assertThat("ground truth must see every row", truth, hasSize(rowCount));
+        truth.sort(BigInteger::compareTo);
+        BigInteger min = truth.get(0);
+        BigInteger max = truth.get(rowCount - 1);
+
+        record Probe(String what, String query, String expected) {}
+        List<Probe> probes = List.of(
+            new Probe("WHERE == min", "FROM unsigned_diff_ds | WHERE u == \"" + min + "\"::unsigned_long | STATS c = COUNT(*)", "1"),
+            new Probe("WHERE >= max", "FROM unsigned_diff_ds | WHERE u >= \"" + max + "\"::unsigned_long | STATS c = COUNT(*)", "1"),
+            new Probe("SORT ASC LIMIT 1 (wide)", "FROM unsigned_diff_ds | SORT u ASC | LIMIT 1 | KEEP u, id, pri, msg", min.toString()),
+            new Probe("SORT DESC LIMIT 1 (wide)", "FROM unsigned_diff_ds | SORT u DESC | LIMIT 1 | KEEP u, id, pri, msg", max.toString()),
+            new Probe("STATS MIN", "FROM unsigned_diff_ds | STATS m = MIN(u)", min.toString()),
+            new Probe("STATS MAX", "FROM unsigned_diff_ds | STATS m = MAX(u)", max.toString())
+        );
+        List<String> failures = new ArrayList<>();
+        for (Probe probe : probes) {
+            try (var response = run(syncEsqlQueryRequest(probe.query()), TIMEOUT)) {
+                List<List<Object>> rows = getValuesList(response);
+                Object actual = rows.isEmpty() ? null : rows.get(0).get(0);
+                String actualStr = actual == null ? null : actual.toString();
+                if (Objects.equals(probe.expected(), actualStr) == false) {
+                    failures.add(
+                        "[" + probe.what() + "] expected " + probe.expected() + " but got " + actualStr + "  (query: " + probe.query() + ")"
+                    );
+                }
+            }
+        }
+        assertTrue("the engine disagreed with fully-decoded ground truth:\n  " + String.join("\n  ", failures), failures.isEmpty());
+    }
+
+    /** Multi-row-group {@code UINT_64} fixture: 4 columns wide, small row groups, mirroring {@link #writeScalingFixture}. */
+    private Path writeUnsignedLongFixture(String name, long[] rawBits) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false))
+            .named("u")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("pri")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("msg")
+            .named("unsigned_diff");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(conf)
+                .withType(schema)
+                .withRowGroupSize(256L)
+                .withPageSize(64)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rawBits.length; i++) {
+                Group g = factory.newGroup();
+                g.add("u", rawBits[i]);
+                g.add("id", (long) i);
+                g.add("pri", i);
+                g.add("msg", "m" + i);
+                writer.write(g);
+            }
+        }
+        Path tempFile = createTempDir().resolve(name + ".parquet");
+        Files.write(tempFile, baos.toByteArray());
+        return tempFile;
+    }
+
     /** A cell of the scaling differential: one dataset declaration over the shared fixture. */
     private record ScalingCell(String dataset, String name, DatasetFieldMapping mapping, DatasetMapping.Dynamic dynamic) {}
 
@@ -3657,7 +3876,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     private void registerReal(String dataset, String realPath, @Nullable DatasetMapping.Dynamic mode) throws Exception {
-        // Copy into the allowlisted temp dir the harness permits (esql.datasource.local_allowed_paths); the real
+        // Copy into the allowlisted temp dir the harness permits (esql.external.local_allowed_paths); the real
         // download lives outside it. One copy is shared across the three registrations via a per-test cache.
         if (realClickBenchLocal == null) {
             realClickBenchLocal = createTempDir().resolve("hits.parquet");
@@ -4048,6 +4267,30 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
         return run(syncEsqlQueryRequest("FROM " + dataset + " | EVAL v = ts::long | KEEP v | SORT v | LIMIT 1"), TIMEOUT);
+    }
+
+    private byte[] twoColumnParquetFixtureBytes() throws IOException {
+        MessageType schema = MessageTypeParser.parseMessageType(
+            "message employees { required int32 emp_no; required binary first_name (UTF8); }"
+        );
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            String[] names = { "Alice", "Bob", "Carol" };
+            for (int i = 0; i < names.length; i++) {
+                Group g = factory.newGroup();
+                g.add("emp_no", i + 1);
+                g.add("first_name", names[i]);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
     }
 
     private byte[] parquetRenameFixtureBytes() throws IOException {
@@ -5229,6 +5472,57 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(e.getMessage(), containsString("region"));
         // Pin the partition branch specifically, not the sibling "no such column exists" reject (both embed [_id]+path).
         assertThat(e.getMessage(), containsString("not a data column"));
+    }
+
+    /**
+     * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
+     * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
+     * {@code partition_detection: none} could not avoid that rejection because the setting never reached the read
+     * path — so a user whose data sat under {@code something=value/} could not declare a column of that name at
+     * all. With the setting honoured, {@code none} suppresses the detection that creates the collision, and the
+     * declaration resolves.
+     *
+     * <p>The fixture carries a physical {@code region} column holding {@code emea} while the directory says
+     * {@code region=east}, so the assertion distinguishes which one was read.
+     */
+    public void testPartitionKeyCollisionAcceptedWithDetectionNone() throws Exception {
+        Path root = createTempDir();
+        Path east = Files.createDirectories(root.resolve("region=east"));
+        // The file carries a real region column AND sits under region=east/. That is the shape the defect covers:
+        // on main the path-derived region shadowed the physical one and the declaration was rejected, with no
+        // opt-out. The physical values differ from the directory's so the assertion can tell which one was read.
+        Files.writeString(east.resolve("part1.csv"), "emp_no:integer,first_name:keyword,region:keyword\n1,Alice,emea\n2,Bob,emea\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("region", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, props));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "logs_partition_collide_none",
+                    "local_ds",
+                    root.toUri() + "**/*.csv",
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "partition_detection", "none")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_partition_collide_none | KEEP region | LIMIT 5"), TIMEOUT)) {
+            List<String> columnNames = response.columns().stream().map(c -> c.name()).toList();
+            assertThat("the declared column must resolve rather than be rejected", columnNames, hasItem("region"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expect the file's rows", rows.size(), greaterThanOrEqualTo(2));
+            for (List<Object> row : rows) {
+                assertEquals("with detection off the file's own region is read, not the directory's", "emea", row.get(0));
+            }
+        }
     }
 
     public void testNonStrictPartitionKeyCollisionRejected() throws Exception {

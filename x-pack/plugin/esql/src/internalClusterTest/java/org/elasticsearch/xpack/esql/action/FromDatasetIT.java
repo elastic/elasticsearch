@@ -4010,28 +4010,35 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     /**
      * Epoch-scaling overflow on the COLUMNAR (parquet) path: an int64 declared {@code {date, format: epoch_second}}
      * whose value cannot scale to millis ({@code Long.MAX_VALUE} seconds × 1000) must fail PER CELL — never abort the
-     * whole read on a bare {@code ArithmeticException}, never emit a wrong value. A columnar batch cannot drop a single
-     * row, so {@code skip_row} degrades to the same null+warn as {@code null_field} (see {@code ErrorPolicy}); only
-     * {@code fail_fast} aborts. This is the overflow leg of the error-mode matrix the string-token tests do not reach.
+     * whole read on a bare {@code ArithmeticException}, never emit a wrong value. {@code null_field} nulls the bad
+     * cell and retains every row; {@code skip_row} drops the entire bad row (the columnar reader reconstructs rows
+     * from column vectors and can omit a position); only {@code fail_fast} aborts. This is the overflow leg of the
+     * error-mode matrix the string-token tests do not reach.
      */
     public void testParquetDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
         Path parquet = writeScalingFixture("epoch_ovf", new long[] { good0, overflow, good2 });
 
-        // null_field and skip_row: the bad cell nulls, both good rows survive (skip_row cannot drop a columnar row).
-        for (String mode : List.of("null_field", "skip_row")) {
-            String ds = mode.equals("null_field") ? "epoch_ovf_pq_null" : "epoch_ovf_pq_skip";
-            putEpochOverflowDataset(ds, "parquet", parquet.toUri().toString(), mode, false);
-            try (var response = run(syncEsqlQueryRequest("FROM " + ds + " | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
-                List<List<Object>> rows = getValuesList(response);
-                assertThat("columnar " + mode + " keeps every position", rows, hasSize(3));
-                assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
-                assertThat("the overflowing epoch-second cell nulls under " + mode, rows.get(1).get(0), equalTo(null));
-                assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
-            }
+        // null_field: the bad cell nulls, all three rows survive.
+        putEpochOverflowDataset("epoch_ovf_pq_null", "parquet", parquet.toUri().toString(), "null_field", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_pq_null | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("columnar null_field keeps every position", rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat("the overflowing epoch-second cell nulls under null_field", rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
         }
         assertLenientWarning("FROM epoch_ovf_pq_null | SORT pri | EVAL v = ts::long | KEEP v");
+
+        // skip_row: the bad row is dropped — only the two good rows survive.
+        putEpochOverflowDataset("epoch_ovf_pq_skip", "parquet", parquet.toUri().toString(), "skip_row", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_pq_skip | SORT pri | EVAL v = ts::long | KEEP v"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("columnar skip_row drops the bad row", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
 
         // fail_fast: the read aborts with a sensible per-cell error, not a bare ArithmeticException.
         putEpochOverflowDataset("epoch_ovf_pq_fail", "parquet", parquet.toUri().toString(), "fail_fast", false);
@@ -4043,9 +4050,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. Text readers ARE
-     * row-oriented, so {@code skip_row} genuinely drops the bad record (two rows survive), while {@code null_field}
-     * keeps it with a null cell — the distinction columnar readers cannot make. {@code fail_fast} aborts.
+     * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. {@code skip_row} drops
+     * the bad record (two rows survive), while {@code null_field} keeps it with a null cell. {@code fail_fast} aborts.
      */
     public void testCsvDeclaredEpochSecondOverflowHonorsErrorPolicy() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));

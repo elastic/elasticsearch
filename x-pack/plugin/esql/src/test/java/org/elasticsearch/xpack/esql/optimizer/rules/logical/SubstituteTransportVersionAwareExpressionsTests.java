@@ -8,17 +8,33 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -26,6 +42,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase {
     private static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_MATH = TransportVersion.fromName("esql_promql_non_finite_math");
 
     public void testSumNotReplacedWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);
@@ -118,5 +135,100 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_SUM_LONG_OVERFLOW_FIX);
         Expression result = SubstituteTransportVersionAwareExpressions.rule(field, oldVersion);
         assertThat(result, sameInstance(field));
+    }
+
+    public void testNonFiniteUnaryMathDowngradedWithOldVersion() {
+        assertNonFiniteMathDowngradedAndIdempotent(new Sqrt(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true));
+    }
+
+    public void testNonFiniteUnaryMathNotChangedWithCurrentVersion() {
+        Expression lenient = new Sqrt(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(lenient, newVersion), sameInstance(lenient));
+    }
+
+    public void testStrictMathUnchangedWithOldVersion() {
+        Expression strict = new Sqrt(EMPTY, getFieldAttribute("f", DataType.DOUBLE), false);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(strict, oldVersion), sameInstance(strict));
+    }
+
+    /**
+     * {@code log} can be unary ({@code ln}) or binary; the downgrade must preserve whichever arity the original had.
+     */
+    public void testNonFiniteLogPreservesUnaryAndBinaryForms() {
+        Expression value = getFieldAttribute("v", DataType.DOUBLE);
+        Expression base = getFieldAttribute("b", DataType.DOUBLE);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+
+        Expression downgradedUnary = SubstituteTransportVersionAwareExpressions.rule(new Log(EMPTY, value, null, true), oldVersion);
+        assertThat(downgradedUnary, instanceOf(Log.class));
+        assertThat(downgradedUnary.children(), hasSize(1));
+
+        Expression downgradedBinary = SubstituteTransportVersionAwareExpressions.rule(new Log(EMPTY, base, value, true), oldVersion);
+        assertThat(downgradedBinary, instanceOf(Log.class));
+        assertThat(downgradedBinary.children(), hasSize(2));
+    }
+
+    /**
+     * A non-finite-preserving expression and its strict variant evaluate different math, so they must not compare equal.
+     * Expression tree transformations detect changes via {@link Expression#equals}; if the two variants are equal, every
+     * substitution of one for the other is silently discarded.
+     */
+    public void testLenientAndStrictVariantsAreNotEqual() {
+        Expression f = getFieldAttribute("f", DataType.DOUBLE);
+        Expression g = getFieldAttribute("g", DataType.DOUBLE);
+
+        assertVariantsDiffer(new Sqrt(EMPTY, f, true), new Sqrt(EMPTY, f, false));
+        assertVariantsDiffer(new Log10(EMPTY, f, true), new Log10(EMPTY, f, false));
+        assertVariantsDiffer(new Log(EMPTY, f, g, true), new Log(EMPTY, f, g, false));
+    }
+
+    /**
+     * The variants must differ under both {@code equals} and {@code hashCode}. Transformations detect a substitution
+     * via {@code equals}, and expressions are also used as map keys, so an {@code equals} override without a matching
+     * {@code hashCode} would leave the two variants colliding.
+     */
+    private static void assertVariantsDiffer(Expression lenient, Expression strict) {
+        String name = lenient.getClass().getSimpleName();
+        assertNotEquals(name, lenient, strict);
+        assertNotEquals(name, lenient.hashCode(), strict.hashCode());
+    }
+
+    /**
+     * The downgrade must survive being applied through a {@link LogicalPlan}, which is how the rule runs in production.
+     * A nested expression is only rebuilt when the transformation observes that a child changed, so a downgrade that is
+     * not visible to {@link Expression#equals} never reaches the plan.
+     */
+    public void testNonFiniteDowngradeAppliedThroughPlan() {
+        Expression field = getFieldAttribute("f", DataType.DOUBLE);
+        Alias lenient = new Alias(EMPTY, "x", new Sqrt(EMPTY, field, true));
+        LogicalPlan plan = new Eval(EMPTY, relation(), List.of(lenient));
+
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        LogicalPlan optimized = new SubstituteTransportVersionAwareExpressions().apply(
+            plan,
+            new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), oldVersion)
+        );
+
+        Expression evaluated = ((Eval) optimized).fields().getFirst().child();
+        assertThat(evaluated, instanceOf(Sqrt.class));
+        assertFalse("lenient math must be downgraded on a cluster that predates non-finite support", ((Sqrt) evaluated).allowNonFinite());
+    }
+
+    /**
+     * On an old cluster the non-finite-preserving variant is downgraded to a new (strict) instance of the same type.
+     */
+    private static void assertNonFiniteMathDowngradedAndIdempotent(Expression lenient) {
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        Expression downgraded = SubstituteTransportVersionAwareExpressions.rule(lenient, oldVersion);
+        assertThat(downgraded, instanceOf(lenient.getClass()));
+        assertThat(downgraded, not(sameInstance(lenient)));
+        assertFalse(((NonFiniteSupport) downgraded).allowNonFinite());
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(downgraded, oldVersion), sameInstance(downgraded));
+    }
+
+    private static EsRelation relation() {
+        return new EsRelation(EMPTY, randomIdentifier(), IndexMode.STANDARD, Map.of(), Map.of(), Map.of(), List.of());
     }
 }

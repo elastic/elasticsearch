@@ -30,14 +30,17 @@ public final class LogConstantEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
+  private final boolean allowNonFinite;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public LogConstantEvaluator(Source source, ExpressionEvaluator value,
+  public LogConstantEvaluator(Source source, ExpressionEvaluator value, boolean allowNonFinite,
       DriverContext driverContext) {
     this.source = source;
     this.value = value;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
   }
 
@@ -76,7 +79,7 @@ public final class LogConstantEvaluator implements ExpressionEvaluator {
         }
         double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log.process(value));
+          result.appendDouble(Log.process(value, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -91,7 +94,7 @@ public final class LogConstantEvaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         double value = valueVector.getDouble(p);
         try {
-          result.appendDouble(Log.process(value));
+          result.appendDouble(Log.process(value, this.allowNonFinite));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -123,14 +126,17 @@ public final class LogConstantEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    public Factory(Source source, ExpressionEvaluator.Factory value) {
+    private final boolean allowNonFinite;
+
+    public Factory(Source source, ExpressionEvaluator.Factory value, boolean allowNonFinite) {
       this.source = source;
       this.value = value;
+      this.allowNonFinite = allowNonFinite;
     }
 
     @Override
     public LogConstantEvaluator get(DriverContext context) {
-      return new LogConstantEvaluator(source, value.get(context), context);
+      return new LogConstantEvaluator(source, value.get(context), allowNonFinite, context);
     }
 
     @Override

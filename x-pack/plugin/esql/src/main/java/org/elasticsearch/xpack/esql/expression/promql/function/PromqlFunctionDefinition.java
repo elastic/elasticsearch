@@ -348,9 +348,6 @@ public final class PromqlFunctionDefinition {
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String LOG_DOMAIN_NOTE =
-        "For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the "
-            + "`-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.";
     public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
         "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
             + "Prometheus returns.";

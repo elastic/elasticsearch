@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[2[INTEGER],[CATEGORIZE(message{f}#0)],false]
+  \_EsRelation[sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f}#0]

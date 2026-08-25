@@ -972,44 +972,48 @@ count:long
 5
 ;
 
-limitByCategorizeWithExtraGroupKey
+limitByCategorizeWithExtraGroupKeys
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
-// Groups: (cat_connected, each of 3 IPs) + (cat_connection_error, 172.21.3.15) + (cat_disconnected, 172.21.0.5) = 5 groups
 FROM sample_data
   | SORT @timestamp ASC
   | LIMIT 1000
-  | LIMIT 1 BY CATEGORIZE(message), client_ip
-  | KEEP message, client_ip
+  | EVAL long_event = event_duration > 2000000
+  | LIMIT 1 BY client_ip, CATEGORIZE(message), long_event
+  | KEEP message, client_ip, long_event
+  | SORT message ASC, client_ip ASC, long_event ASC
 ;
 
-message:keyword       | client_ip:ip
-Connected to 10.1.0.3 | 172.21.2.162
-Connected to 10.1.0.2 | 172.21.2.113
-Disconnected          | 172.21.0.5
-Connection error      | 172.21.3.15
-Connected to 10.1.0.1 | 172.21.3.15
+message:keyword       | client_ip:ip | long_event:boolean
+Connected to 10.1.0.1 | 172.21.3.15  | false
+Connected to 10.1.0.2 | 172.21.2.113 | true
+Connected to 10.1.0.3 | 172.21.2.162 | true
+Connection error      | 172.21.3.15  | false
+Connection error      | 172.21.3.15  | true
+Disconnected          | 172.21.0.5   | false
 ;
 
-sortLimitByCategorizeWithExtraGroupKey
+sortLimitByCategorizeWithExtraGroupKeys
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
-// Top 2 per (category, client_ip) group; connection_error group for 172.21.3.15 contributes 2 rows
 FROM sample_data
-  | SORT @timestamp ASC
-  | LIMIT 2 BY CATEGORIZE(message), client_ip
-  | KEEP message, client_ip
+  | SORT @timestamp DESC
+  | EVAL long_event = event_duration > 2000000
+  | LIMIT 2 BY client_ip, CATEGORIZE(message), long_event
+  | KEEP message, client_ip, long_event
+  | SORT message ASC, client_ip ASC, long_event ASC
 ;
 
-message:keyword       | client_ip:ip
-Connected to 10.1.0.3 | 172.21.2.162
-Connected to 10.1.0.2 | 172.21.2.113
-Disconnected          | 172.21.0.5
-Connection error      | 172.21.3.15
-Connection error      | 172.21.3.15
-Connected to 10.1.0.1 | 172.21.3.15
+message:keyword       | client_ip:ip | long_event:boolean
+Connected to 10.1.0.1 | 172.21.3.15  | false
+Connected to 10.1.0.2 | 172.21.2.113 | true
+Connected to 10.1.0.3 | 172.21.2.162 | true
+Connection error      | 172.21.3.15  | false
+Connection error      | 172.21.3.15  | true
+Connection error      | 172.21.3.15  | true
+Disconnected          | 172.21.0.5   | false
 ;
 
 limitByCategorizeWithFunctionArg

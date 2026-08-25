@@ -50,7 +50,7 @@ public class CategorizeStateEmitOperator implements Operator {
 
         @Override
         public String describe() {
-            return "CategorizeStateEmitOperator";
+            return "CategorizeStateEmitOperator[]";
         }
     }
 
@@ -109,16 +109,17 @@ public class CategorizeStateEmitOperator implements Operator {
         }
         Page bufferedPage = buffered.get(nextEmitIndex++);
         int positionCount = bufferedPage.getPositionCount();
-        BytesRefBlock stateBlock = blockFactory.newConstantBytesRefBlockWith(serializedState, positionCount);
-        boolean success = false;
+        BytesRefBlock stateBlock = null;
         try {
-            Page result = bufferedPage.appendBlock(stateBlock);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
+            stateBlock = blockFactory.newConstantBytesRefBlockWith(serializedState, positionCount);
+            return bufferedPage.appendBlock(stateBlock);
+        } catch (Exception e) {
+            if (stateBlock != null) {
                 stateBlock.close();
             }
+            // nextEmitIndex was already incremented; release the page here since close() won't reach it.
+            bufferedPage.releaseBlocks();
+            throw e;
         }
     }
 

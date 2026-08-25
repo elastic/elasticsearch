@@ -33,7 +33,9 @@ public class LimitByGoldenTests extends GoldenTestCase {
         Stage.ANALYSIS,
         Stage.LOGICAL_OPTIMIZATION,
         Stage.PHYSICAL_OPTIMIZATION,
-        Stage.LOCAL_PHYSICAL_OPTIMIZATION
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+        Stage.NODE_REDUCE,
+        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
 
     public void testLimitByWithoutSort() {
@@ -56,6 +58,40 @@ public class LimitByGoldenTests extends GoldenTestCase {
             FROM employees
             | LIMIT 1 BY BUCKET(hire_date, 1 year)
             """, STAGES, STATS);
+    }
+
+    /** Shows INITIAL (data node) and FINAL (coordinator) plan for {@code LIMIT N BY CATEGORIZE(...)}. */
+    public void testLimitByCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 2 BY CATEGORIZE(message)
+            """, STAGES);
+    }
+
+    /** Shows INITIAL (data node) and FINAL (coordinator) plan for {@code SORT ... | LIMIT N BY CATEGORIZE(...)}. */
+    public void testSortLimitByCategorize() {
+        runGoldenTest("""
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(message)
+            """, STAGES);
+    }
+
+    /** CATEGORIZE alongside a plain grouping key. */
+    public void testLimitByCategorizeWithExtraGroupKey() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 2 BY CATEGORIZE(message), client_ip
+            """, STAGES);
+    }
+
+    /** CATEGORIZE alongside a plain grouping key, with sort. */
+    public void testSortLimitByCategorizeWithExtraGroupKey() {
+        runGoldenTest("""
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(message), client_ip
+            """, STAGES);
     }
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(

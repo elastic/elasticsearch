@@ -186,7 +186,27 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<TopNByExec> info() {
-        return NodeInfo.create(this, TopNByExec::new, child(), order, limitPerGroup, groupings, estimatedRowSize);
+        return NodeInfo.create(
+            this,
+            (src, child, ord, lim, grp, size, m) -> new TopNByExec(
+                src,
+                child,
+                ord,
+                lim,
+                grp,
+                size,
+                Set.of(),
+                OutputOrdering.SORTED,
+                m,
+                null
+            ),
+            child(),
+            order,
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            categorizeMode
+        );
     }
 
     @Override

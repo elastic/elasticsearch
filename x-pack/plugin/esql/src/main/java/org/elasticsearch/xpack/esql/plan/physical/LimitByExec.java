@@ -157,7 +157,15 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<? extends LimitByExec> info() {
-        return NodeInfo.create(this, LimitByExec::new, child(), limitPerGroup, groupings, estimatedRowSize);
+        return NodeInfo.create(
+            this,
+            (src, child, lim, grp, size, m) -> new LimitByExec(src, child, lim, grp, size, m, null),
+            child(),
+            limitPerGroup,
+            groupings,
+            estimatedRowSize,
+            mode
+        );
     }
 
     @Override

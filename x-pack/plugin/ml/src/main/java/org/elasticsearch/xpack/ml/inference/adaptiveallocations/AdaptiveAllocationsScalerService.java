@@ -160,7 +160,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 )
             );
             metrics.add(
-                meterRegistry.registerLongsGauge(
+                meterRegistry.registerLongsAsyncGauge(
                     "es.ml.trained_models.adaptive_allocations.max_allocations_by_memory.current",
                     "the maximum number of allocations that fit in the available ML memory given the observed per-allocation memory",
                     "",

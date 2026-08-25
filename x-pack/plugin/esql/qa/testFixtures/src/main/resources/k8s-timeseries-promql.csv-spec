@@ -620,6 +620,25 @@ result:double | step:datetime
 5.0           | 2024-05-10T01:00:00.000Z
 ;
 
+// Prometheus drops every series when min > max (clamp returns an empty result), see promql/functions.go clamp().
+clamp_scalar_min_greater_than_max
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(clamp(vector(5), 10, 0));
+
+result:double | step:datetime
+;
+
+clamp_min_greater_than_max_drops_series
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(clamp(sum by (cluster) (network.cost), 100, 0)) | SORT cluster;
+
+result:double | step:datetime | cluster:keyword
+;
+
 round_to_nearest_scalar
 required_capability: promql_command_v0
 required_capability: fix_promql_round_to_nearest
@@ -1627,6 +1646,28 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_non_finite_math
 PROMQL index=k8s step=1h result=(vector(5) % 0);
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// round(v, 0) divides by 1/to_nearest = +Inf, so every value folds to NaN (matches Prometheus) rather than being dropped.
+nonfinite_round_to_nearest_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(round(vector(3.7), 0));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// round(0, 0) exercises the 0 * +Inf = NaN path of the round translation.
+nonfinite_round_zero_value_to_nearest_zero
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(round(vector(0), 0));
 
 result:double | step:datetime
 NaN           | 2024-05-10T01:00:00.000Z

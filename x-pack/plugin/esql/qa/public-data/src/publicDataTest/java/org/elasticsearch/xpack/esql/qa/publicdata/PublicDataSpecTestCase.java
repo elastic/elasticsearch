@@ -150,12 +150,21 @@ public abstract class PublicDataSpecTestCase extends EsqlSpecTestCase {
         PublicDataRetry.run(specTestName + "{" + variant.label() + "}", () -> doTest(testCase.query));
     }
 
+    /**
+     * Resolves a {@code dataset:} directive's resource template against the variant under test:
+     * {@code {{corpus}}} binds the whole corpus, {@code {{corpus:<name>}}} one of its declared
+     * {@code sub_resources} — the form a multi-source {@code FROM d1, ..., dN} test uses to point
+     * each of its datasets at a different remote location.
+     */
     private String resolveTemplate(String resource) {
         if (resource.equals("{{corpus}}")) {
             return variant.resource();
         }
+        if (resource.startsWith("{{corpus:") && resource.endsWith("}}")) {
+            return variant.subResource(resource.substring("{{corpus:".length(), resource.length() - 2).trim());
+        }
         throw new IllegalArgumentException(
-            "dataset directive must bind {{corpus}} (validator-enforced), got [" + resource + "] in " + specTestName
+            "dataset directive must bind {{corpus}} or {{corpus:<name>}} (validator-enforced), got [" + resource + "] in " + specTestName
         );
     }
 

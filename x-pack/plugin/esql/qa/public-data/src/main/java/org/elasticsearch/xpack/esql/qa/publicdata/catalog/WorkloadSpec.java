@@ -43,6 +43,10 @@ public record WorkloadSpec(String fileName, List<TestSpec> tests) {
      * @param datasetDirectives raw {@code dataset:} directive lines
      * @param query             the query text (directives excluded)
      * @param expectedRowCount  number of data rows in the expected table (header excluded)
+     * @param expectedTable     the expected table verbatim (header line first, then data rows;
+     *                          comments and warning directives excluded). Retained so paired tests
+     *                          — a single-dataset query and its multi-source twin over the same
+     *                          rows — can be asserted to carry identical answers offline
      */
     public record TestSpec(
         String name,
@@ -51,7 +55,8 @@ public record WorkloadSpec(String fileName, List<TestSpec> tests) {
         List<String> requiredCapabilities,
         List<String> datasetDirectives,
         String query,
-        int expectedRowCount
+        int expectedRowCount,
+        List<String> expectedTable
     ) {
 
         /** The test name without the {@code -Ignore} disable suffix. */
@@ -98,6 +103,7 @@ public record WorkloadSpec(String fileName, List<TestSpec> tests) {
         int nameLine = -1;
         List<String> capabilities = new ArrayList<>();
         List<String> datasets = new ArrayList<>();
+        List<String> expectedTable = new ArrayList<>();
         StringBuilder query = new StringBuilder();
         boolean inQuery = false;
         boolean inResults = false;
@@ -117,13 +123,15 @@ public record WorkloadSpec(String fileName, List<TestSpec> tests) {
                             List.copyOf(capabilities),
                             List.copyOf(datasets),
                             query.toString().trim(),
-                            rowCount
+                            rowCount,
+                            List.copyOf(expectedTable)
                         )
                     );
                     provenance = new LinkedHashMap<>();
                     name = null;
                     capabilities = new ArrayList<>();
                     datasets = new ArrayList<>();
+                    expectedTable = new ArrayList<>();
                     query = new StringBuilder();
                     inQuery = false;
                     inResults = false;
@@ -131,6 +139,7 @@ public record WorkloadSpec(String fileName, List<TestSpec> tests) {
                     sawHeader = false;
                 } else if (line.isEmpty() == false && line.startsWith("//") == false && line.startsWith("#") == false) {
                     if (lineIsWarningDirective(line) == false) {
+                        expectedTable.add(line);
                         if (sawHeader) {
                             rowCount++;
                         } else {

@@ -37,6 +37,8 @@ public final class CatalogValidator {
     static final int ABSOLUTE_MAX_ROWS = 1000;
 
     private static final Pattern GLOB_METACHARS = Pattern.compile("[*?\\[{]");
+    /** The {@code {{corpus:<name>}}} form a multi-source test uses to address one named fragment. */
+    private static final Pattern SUB_RESOURCE_TEMPLATE = Pattern.compile("\\{\\{corpus:([a-z0-9_]+)}}");
     private static final Pattern SORT_CLAUSE = Pattern.compile("\\bSORT\\b(?<keys>[^|]*)", Pattern.CASE_INSENSITIVE);
 
     private CatalogValidator() {}
@@ -147,12 +149,66 @@ public final class CatalogValidator {
                 }
             } else if (variant.pin().degenerate()) {
                 errors.add("variant [" + label + "] has a degenerate pin (zero objects, or no samples/verified_at)");
+            } else if (variant.pin().isVolatile()) {
+                // A volatile pin silences ETag drift, so it must never be reachable by accident:
+                // it needs a written reason, and an expected table frozen against moving bytes
+                // would be a slow-motion false alarm, so the corpus must assert invariants instead.
+                if (variant.notes() == null || variant.notes().isBlank()) {
+                    errors.add("variant [" + label + "] has a volatile pin but no notes: justifying why the bytes move");
+                }
+                if (corpus.assertionMode() != CorpusSpec.AssertionMode.INVARIANT) {
+                    errors.add(
+                        "variant ["
+                            + label
+                            + "] has a volatile pin but corpus ["
+                            + corpus.id()
+                            + "] is assertion_mode exact; bytes that move nightly cannot carry frozen expected tables"
+                    );
+                }
+                if (variant.pin().sizeTolerancePercent() <= 0 || variant.pin().sizeTolerancePercent() >= 100) {
+                    errors.add("variant [" + label + "] volatile pin size_tolerance_pct must be in (0, 100)");
+                }
             }
         }
+        validateSubResources(variant, label, errors);
         validateExtensions(corpus, variant, label, hasGlob, errors);
         if (variant.querySubset().isEmpty() == false && corpus.workload() == null) {
             errors.add("variant [" + label + "] declares a query_subset but its corpus has no workload");
         }
+    }
+
+    /**
+     * Named fragments obey exactly the rules their parent resource does — same provider scheme, no
+     * {@code file://}, globs only where the provider can list. A fragment that slipped past these
+     * would be an unreviewed second way into the object store.
+     */
+    private static void validateSubResources(VariantSpec variant, String label, List<String> errors) {
+        variant.subResources().forEach((name, uri) -> {
+            if (name.matches("[a-z0-9_]+") == false) {
+                errors.add("variant [" + label + "] sub_resource name [" + name + "] must be lower-case alphanumeric with underscores");
+            }
+            checkNoFileScheme(label, uri, errors);
+            for (String location : uri.split(",")) {
+                if (variant.provider().matchesScheme(location.trim()) == false) {
+                    errors.add(
+                        "variant ["
+                            + label
+                            + "] sub_resource ["
+                            + name
+                            + "] entry ["
+                            + location.trim()
+                            + "] does not match provider ["
+                            + variant.provider()
+                            + "]"
+                    );
+                }
+            }
+            if (GLOB_METACHARS.matcher(uri).find() && variant.supportsGlob() == false) {
+                errors.add(
+                    "variant [" + label + "] sub_resource [" + name + "] uses a glob but provider [" + variant.provider() + "] cannot list"
+                );
+            }
+        });
     }
 
     private static void validateExtensions(CorpusSpec corpus, VariantSpec variant, String label, boolean hasGlob, List<String> errors) {
@@ -259,11 +315,7 @@ public final class CatalogValidator {
             if (previous != null) {
                 errors.add(where + " duplicates a test name already used in [" + previous + "] (names must be unique suite-wide)");
             }
-            if (test.datasetDirectives().size() != 1) {
-                errors.add(where + " must carry exactly one dataset: directive, found " + test.datasetDirectives().size());
-            } else if (test.datasetDirectives().get(0).contains("{{corpus}}") == false) {
-                errors.add(where + " dataset: directive must bind the {{corpus}} template, not a literal resource");
-            }
+            validateDatasetDirectives(corpus, test, where, errors);
             if (test.requiredCapabilities().contains(DATASET_CAPABILITY) == false) {
                 errors.add(where + " must declare required_capability: " + DATASET_CAPABILITY);
             }
@@ -287,12 +339,68 @@ public final class CatalogValidator {
         }
     }
 
+    /**
+     * Every {@code dataset:} directive must bind a template, never a literal resource: {@code
+     * {{corpus}}} for the whole corpus, or {@code {{corpus:<name>}}} for one of the variant's
+     * declared {@code sub_resources}. More than one directive is the multi-source
+     * {@code FROM d1, ..., dN} shape, and then each must name a <em>distinct</em> sub-resource that
+     * every active variant of the corpus actually declares — otherwise the test would silently read
+     * the same location N times, or fail only on the leg that is missing the name.
+     */
+    private static void validateDatasetDirectives(CorpusSpec corpus, WorkloadSpec.TestSpec test, String where, List<String> errors) {
+        List<String> directives = test.datasetDirectives();
+        if (directives.isEmpty()) {
+            errors.add(where + " must carry at least one dataset: directive");
+            return;
+        }
+        Set<String> names = new HashSet<>();
+        boolean multiSource = directives.size() > 1;
+        for (String directive : directives) {
+            Matcher matcher = SUB_RESOURCE_TEMPLATE.matcher(directive);
+            if (matcher.find()) {
+                String name = matcher.group(1);
+                if (names.add(name) == false) {
+                    errors.add(where + " binds sub_resource [" + name + "] more than once");
+                }
+                for (VariantSpec variant : corpus.variants()) {
+                    if (variant.active() && variant.subResources().containsKey(name) == false) {
+                        errors.add(
+                            where + " binds {{corpus:" + name + "}} but variant [" + variant.label() + "] declares no such sub_resource"
+                        );
+                    }
+                }
+            } else if (directive.contains("{{corpus}}")) {
+                if (multiSource) {
+                    errors.add(
+                        where + " is multi-source but binds the whole-corpus {{corpus}} template; use {{corpus:<name>}} per dataset"
+                    );
+                }
+            } else {
+                errors.add(where + " dataset: directive must bind {{corpus}} or {{corpus:<name>}}, not a literal resource");
+            }
+        }
+    }
+
     private static void validateProvenance(CorpusSpec corpus, WorkloadSpec.TestSpec test, String where, List<String> errors) {
         Map<String, String> provenance = test.provenance();
         if (test.disabled()) {
             if (provenance.containsKey("defect") == false && provenance.containsKey("disabled") == false) {
                 errors.add(where + " is -Ignore'd without a // defect: block or an explicit // disabled: reason");
             }
+        }
+        if (corpus.assertionMode() == CorpusSpec.AssertionMode.INVARIANT) {
+            // An invariant claims less than a frozen table, so it must say so and show its work:
+            // the value actually observed at authoring time is what lets a reviewer see the
+            // threshold is tight enough to catch a truncated read rather than vacuously true.
+            if ("invariant".equals(provenance.get("assertion-mode")) == false) {
+                errors.add(where + " is in an invariant corpus and must carry // assertion-mode: invariant");
+            }
+            String observed = provenance.get("oracle-observed");
+            if (observed == null || observed.isBlank()) {
+                errors.add(where + " must carry // oracle-observed: <the value measured at authoring time>");
+            }
+        } else if (provenance.containsKey("assertion-mode")) {
+            errors.add(where + " declares an assertion-mode but corpus [" + corpus.id() + "] is assertion_mode exact");
         }
         String declaredCorpus = provenance.get("corpus");
         if (declaredCorpus == null || declaredCorpus.equals(corpus.id()) == false) {

@@ -106,6 +106,27 @@ steps:
         artifact_paths: *test_artifacts
         agents: *agents
         retry: *retry
+      - label: "ghcnd-parquet-8st"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-parquet-8st
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ghcnd-by-year-1750"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-by-year-1750
+        timeout_in_minutes: 60
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
+      - label: "ghcnd-by-year-2024"
+        command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=ghcnd-by-year-2024
+        timeout_in_minutes: 180
+        soft_fail: true
+        artifact_paths: *test_artifacts
+        agents: *agents
+        retry: *retry
       - label: "overture-divisions"
         command: .ci/scripts/run-gradle.sh :x-pack:plugin:esql:qa:public-data:publicDataTest -Dtests.public_data.source=overture-divisions
         timeout_in_minutes: 60

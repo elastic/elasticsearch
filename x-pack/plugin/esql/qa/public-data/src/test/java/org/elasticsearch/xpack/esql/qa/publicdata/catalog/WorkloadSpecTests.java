@@ -17,7 +17,7 @@ public class WorkloadSpecTests extends ESTestCase {
     public void testParseFixtureWorkload() {
         WorkloadSpec workload = WorkloadSpec.loadFromClasspath("/fixture-workload.csv-spec");
         assertEquals("fixture-workload.csv-spec", workload.fileName());
-        assertEquals(5, workload.tests().size());
+        assertEquals(6, workload.tests().size());
 
         WorkloadSpec.TestSpec scan = workload.tests().get(0);
         assertEquals("q1_scan", scan.name());
@@ -39,7 +39,15 @@ public class WorkloadSpecTests extends ESTestCase {
         assertEquals("aggregate", agg.readShape());
         assertEquals(1, agg.expectedRowCount());
 
-        WorkloadSpec.TestSpec defect = workload.tests().get(4);
+        WorkloadSpec.TestSpec multi = workload.tests().get(2);
+        assertEquals("q2_aggMulti", multi.name());
+        assertEquals(
+            List.of("dataset: fixture_left: \"{{corpus:left}}\"", "dataset: fixture_right: \"{{corpus:right}}\""),
+            multi.datasetDirectives()
+        );
+        assertEquals(workload.tests().get(1).expectedTable(), multi.expectedTable());
+
+        WorkloadSpec.TestSpec defect = workload.tests().get(5);
         assertEquals("q5_defect-Ignore", defect.name());
         assertTrue(defect.disabled());
         assertEquals("q5_defect", defect.baseName());

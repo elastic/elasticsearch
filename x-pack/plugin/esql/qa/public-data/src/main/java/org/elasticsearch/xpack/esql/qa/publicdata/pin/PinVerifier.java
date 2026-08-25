@@ -92,7 +92,7 @@ public class PinVerifier {
         List<String> drift = new ArrayList<>();
         for (PinSpec.PinnedObject pinned : pin.samples()) {
             ObjectMetadata live = probe.head(headUri(variant, pinned.key()));
-            compare(pinned, live, drift);
+            compare(pin, pinned, live, drift);
         }
         return drift;
     }
@@ -102,11 +102,13 @@ public class PinVerifier {
         PinSpec pin = variant.pin();
         List<String> drift = new ArrayList<>();
         List<ObjectMetadata> live = probe.list(listPrefix(variant.resource()), (int) Math.max(pin.objectCount() * 2, 1000));
+        // Deliberately strict even for a volatile pin: a publisher that rewrites objects in place is
+        // one thing, a prefix that gained or lost objects is a different corpus and must be reviewed.
         if (live.size() != pin.objectCount()) {
             drift.add("object count changed: pinned " + pin.objectCount() + ", live " + live.size());
         }
         long liveBytes = live.stream().mapToLong(ObjectMetadata::sizeBytes).sum();
-        if (liveBytes != pin.totalBytes()) {
+        if (pin.isVolatile() ? pin.sizeWithinTolerance(pin.totalBytes(), liveBytes) == false : liveBytes != pin.totalBytes()) {
             drift.add("total bytes changed: pinned " + pin.totalBytes() + ", live " + liveBytes);
         }
         Map<String, ObjectMetadata> liveByKey = new java.util.HashMap<>();
@@ -116,13 +118,33 @@ public class PinVerifier {
             if (match == null) {
                 drift.add("pinned object vanished: " + pinned.key());
             } else {
-                compare(pinned, match, drift);
+                compare(pin, pinned, match, drift);
             }
         }
         return drift;
     }
 
-    private static void compare(PinSpec.PinnedObject pinned, ObjectMetadata live, List<String> drift) {
+    /**
+     * Frozen objects must match byte-for-byte identity; a volatile one only has to still be there at
+     * roughly its pinned size. The ETag of a volatile object is deliberately not compared — the
+     * publisher rewrites it on a schedule, and reporting that every night would train the reader to
+     * ignore PIN_DRIFT, which is the one signal that must stay meaningful.
+     */
+    private static void compare(PinSpec pin, PinSpec.PinnedObject pinned, ObjectMetadata live, List<String> drift) {
+        if (pin.isVolatile()) {
+            if (pin.sizeWithinTolerance(pinned.sizeBytes(), live.sizeBytes()) == false) {
+                drift.add(
+                    pinned.key()
+                        + " size moved beyond the volatile pin's "
+                        + pin.sizeTolerancePercent()
+                        + "% tolerance: pinned "
+                        + pinned.sizeBytes()
+                        + ", live "
+                        + live.sizeBytes()
+                );
+            }
+            return;
+        }
         if (pinned.sizeBytes() != live.sizeBytes()) {
             drift.add(pinned.key() + " size changed: pinned " + pinned.sizeBytes() + ", live " + live.sizeBytes());
         }

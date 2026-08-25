@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +100,9 @@ public record PublicDataCatalog(int version, List<CorpusSpec> corpora, List<GapS
             Scale.fromId(requireString(map, "scale", context)),
             DataQuality.fromId(requireString(map, "quality", context)),
             optionalString(map, "workload"),
+            map.containsKey("assertion_mode")
+                ? CorpusSpec.AssertionMode.fromId(requireString(map, "assertion_mode", context))
+                : CorpusSpec.AssertionMode.EXACT,
             List.copyOf(variants)
         );
     }
@@ -128,6 +132,7 @@ public record PublicDataCatalog(int version, List<CorpusSpec> corpora, List<GapS
             map.containsKey("partitioning") ? requireString(map, "partitioning", context) : "none",
             optionalString(map, "region"),
             requireString(map, "resource", context),
+            orderedStringMap(map, "sub_resources"),
             mapOrEmpty(map, "data_source_settings"),
             mapOrEmpty(map, "dataset_settings"),
             mapOrEmpty(map, "dataset_mappings"),
@@ -159,7 +164,9 @@ public record PublicDataCatalog(int version, List<CorpusSpec> corpora, List<GapS
             Instant.parse(requireString(map, "verified_at", context + " pin")),
             requireLong(map, "object_count", context + " pin"),
             requireLong(map, "total_bytes", context + " pin"),
-            List.copyOf(samples)
+            List.copyOf(samples),
+            map.get("volatile") instanceof Boolean isVolatile && isVolatile,
+            map.get("size_tolerance_pct") instanceof Number tolerance ? tolerance.intValue() : PinSpec.DEFAULT_SIZE_TOLERANCE_PERCENT
         );
     }
 
@@ -215,6 +222,20 @@ public record PublicDataCatalog(int version, List<CorpusSpec> corpora, List<GapS
         }
         // duplicates are rejected loudly where the result feeds Set.copyOf (tags, query_subset)
         return List.copyOf(result);
+    }
+
+    /**
+     * An insertion-ordered string map. Order is load-bearing for {@code sub_resources}: the named
+     * fragments are expected to line up with the comma-separated locations of the variant's
+     * {@code resource}, and a reviewer diffing the two must see them in the same order.
+     */
+    private static Map<String, String> orderedStringMap(Map<String, Object> map, String key) {
+        if (map.get(key) instanceof Map<?, ?> value) {
+            Map<String, String> result = new LinkedHashMap<>();
+            value.forEach((k, v) -> result.put(k.toString(), v.toString()));
+            return Collections.unmodifiableMap(result);
+        }
+        return Map.of();
     }
 
     private static Map<String, Object> mapOrEmpty(Map<String, Object> map, String key) {

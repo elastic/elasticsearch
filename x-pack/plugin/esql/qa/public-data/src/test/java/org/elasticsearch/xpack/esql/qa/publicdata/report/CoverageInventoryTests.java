@@ -28,7 +28,7 @@ public class CoverageInventoryTests extends ESTestCase {
 
         CoverageInventory.Cell reference = cell(cells, "fixture-s3-parquet-snappy-single");
         assertEquals("covered", reference.status());
-        assertEquals(5, reference.tests());
+        assertEquals(6, reference.tests());
         assertTrue(reference.crossValidated());
         assertTrue(reference.detail().contains("defect-disabled"));
 
@@ -36,7 +36,7 @@ public class CoverageInventoryTests extends ESTestCase {
         assertEquals("covered", shards.status());
         assertEquals(4, shards.tests());
         assertFalse(shards.crossValidated());
-        assertTrue(shards.detail(), shards.detail().contains("subset: 4/5"));
+        assertTrue(shards.detail(), shards.detail().contains("subset: 4/6"));
 
         CoverageInventory.Cell backup = cell(cells, "fixture-https-parquet-snappy-single");
         assertEquals("gap", backup.status());
@@ -52,7 +52,7 @@ public class CoverageInventoryTests extends ESTestCase {
 
     public void testRenderings() {
         String markdown = inventory().toMarkdown();
-        assertTrue(markdown.contains("| fixture | fixture-s3-csv-gzip-shards | covered | 4 | no | subset: 4/5 |"));
+        assertTrue(markdown.contains("| fixture | fixture-s3-csv-gzip-shards | covered | 4 | no | subset: 4/6 |"));
         String json = inventory().toJson();
         assertTrue(json.contains("\"cell\": \"fixture-s3-csv-gzip-shards\""));
         assertTrue(json.contains("\"status\": \"covered\""));

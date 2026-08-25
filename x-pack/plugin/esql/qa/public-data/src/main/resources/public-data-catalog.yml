@@ -1323,6 +1323,334 @@ corpora:
             - key: "csv.gz/by_station/USW00003999.csv.gz"
               etag: "dc0f85c172accb7dbc0f70f928a1eb9f"
               size: 498604
+  - id: ghcnd-parquet-8st
+    title: GHCN-D daily observations, 8 US stations, Parquet hive tree
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      The same GHCN-D observations as ghcnd-usw3, in the Parquet by_station tree: 8 US stations
+      (7 major airports plus NY Central Park), 427 objects, 2,941,551 rows, two-level hive
+      partitioning STATION=<id>/ELEMENT=<code>. Closes parquet x nested_hive, and carries the
+      suite's only MULTI-SOURCE reads: the same rows are queried as one comma-list dataset and as
+      eight datasets unioned by FROM, which must agree. The whole USW00* subtree left NOAA's
+      active set in 2025-02 (data stops at 20250206) and has been byte-frozen since.
+    kind: workload
+    scale: small
+    quality: clean
+    workload: public-ghcnd-parquet-8st.csv-spec
+    variants:
+      - provider: s3
+        format: parquet
+        codec: snappy
+        layout: nested_hive
+        partitioning: hive
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094728/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023174/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094846/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00012960/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023183/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00013874/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00024233/ELEMENT=*/*.parquet,s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00003017/ELEMENT=*/*.parquet"
+        # The same 8 locations addressable one at a time, so a spec can read them as eight
+        # datasets in one FROM. Their union is exactly `resource`, which is what makes the
+        # ...Multi twins' expected tables identical to their single-dataset originals.
+        sub_resources:
+          st_nyc: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094728/ELEMENT=*/*.parquet"   # NY CITY CNTRL PARK
+          st_lax: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023174/ELEMENT=*/*.parquet"   # LOS ANGELES INTL AP
+          st_ord: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00094846/ELEMENT=*/*.parquet"   # CHICAGO OHARE INTL AP
+          st_iah: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00012960/ELEMENT=*/*.parquet"   # HOUSTON INTERCONTINENTAL AP
+          st_phx: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00023183/ELEMENT=*/*.parquet"   # PHOENIX AP
+          st_atl: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00013874/ELEMENT=*/*.parquet"   # ATLANTA HARTSFIELD-JACKSON INT
+          st_sea: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00024233/ELEMENT=*/*.parquet"   # SEATTLE TACOMA AP
+          st_den: "s3://noaa-ghcn-pds/parquet/by_station/STATION=USW00003017/ELEMENT=*/*.parquet"   # DENVER INTL AP
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: >
+          DATE is a Parquet STRING (18690101..20250206) declared as integer, matching
+          ghcnd-usw3's declared schema so the two encodings stay comparable; STATION and ELEMENT
+          are NOT declared - they are auto-detected from the key=value path segments and the
+          files carry no physical column of either name, so there is no shadowing. Pinned by HEAD
+          with one sample per station: a comma-list's common listing prefix
+          (parquet/by_station/STATION=USW000) would enumerate far more than these 427 objects.
+          Live dependency worth restating: this subtree is frozen only because NOAA stopped
+          updating it; should the USW00* stations re-enter the active set, these pins (and
+          ghcnd-usw3's) drift and the pre-step reports PIN_DRIFT as maintenance.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 427
+          total_bytes: 19964198
+          samples:
+            - key: "parquet/by_station/STATION=USW00094728/ELEMENT=TMAX/40d8adc719b24b828f15e28fe9eeb340_0.snappy.parquet"
+              etag: "eda3f8c8e54a61ab92c0b390c054fc03"
+              size: 374165
+            - key: "parquet/by_station/STATION=USW00023174/ELEMENT=TMAX/8680a8418e704c968cd7dc5511172c5b_0.snappy.parquet"
+              etag: "27657e10243ed396b900a0f24e42d4bb"
+              size: 187426
+            - key: "parquet/by_station/STATION=USW00094846/ELEMENT=TMAX/ba5daf4b160b4c74a0a7995d5820582b_0.snappy.parquet"
+              etag: "e13e8006fe1da3729e93451baa80b1d5"
+              size: 161319
+            - key: "parquet/by_station/STATION=USW00012960/ELEMENT=TMAX/471a829f833f47459bca79bebd706a75_0.snappy.parquet"
+              etag: "a2b0d28ef5cf8eec87274e4ddcb51464"
+              size: 133673
+            - key: "parquet/by_station/STATION=USW00023183/ELEMENT=TMAX/de59fc8648ea4e3e920c83a74959e92a_0.snappy.parquet"
+              etag: "c97081aadc4cc0442a3e7a15a3a037c2"
+              size: 204693
+            - key: "parquet/by_station/STATION=USW00013874/ELEMENT=TMAX/c321eef2417d400f97c5d260af766522_0.snappy.parquet"
+              etag: "829f6ce6e183a825f031afe30ccd5e39"
+              size: 229216
+            - key: "parquet/by_station/STATION=USW00024233/ELEMENT=TMAX/5d0f6aa26d7d4e6899962f46f80200d6_0.snappy.parquet"
+              etag: "39bc0008ff812375b7e3aadfde8eed8d"
+              size: 183380
+            - key: "parquet/by_station/STATION=USW00003017/ELEMENT=TMAX/ac18eb1e839f48a39d1eaeabd9b9c320_0.snappy.parquet"
+              etag: "13e7c1195baed5a0ccde8ebc7e089aa1"
+              size: 72879
+  - id: ghcnd-by-year-1750
+    title: GHCN-D by_year 1750, the one frozen file in that tree
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      csv/by_year/1750.csv - 11.6 MB, 344,589 rows, 3,570 stations, dates 17500201..17500723.
+      NOAA rebuilds the by_year tree nightly for the entire period of record, but skips this file:
+      it holds records whose dates predate GHCN-D by a century (an implausible-date bucket), so it
+      has not moved since 2025-01-14. The only by_year object that can carry exact expected tables,
+      and the suite's csv x SINGLE_FILE cell, which the MANY_SMALL ghcnd-usw3 corpus lacks.
+    kind: workload
+    scale: small
+    quality: schema-drift
+    workload: public-ghcnd-by-year-1750.csv-spec
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv/by_year/1750.csv"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            ELEMENT:
+              type: keyword
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: headered tree; declared types for parity with the headerless gz twin.
+        pin:
+          method: HEAD
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 11608918
+          samples:
+            - key: "csv/by_year/1750.csv"
+              etag: "31401f45348426343dcd42f14934a699-3"
+              size: 11608918
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv.gz/by_year/1750.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_settings:
+          header_row: false
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+              path: col0
+            DATE:
+              type: integer
+              path: col1
+            ELEMENT:
+              type: keyword
+              path: col2
+            DATA_VALUE:
+              type: integer
+              path: col3
+            M_FLAG:
+              type: keyword
+              path: col4
+            Q_FLAG:
+              type: keyword
+              path: col5
+            S_FLAG:
+              type: keyword
+              path: col6
+            OBS_TIME:
+              type: keyword
+              path: col7
+        notes: >
+          The csv.gz tree is headerless where the csv tree is headered - the same systematic
+          dialect drift the by_station trees show - hence header_row false plus positional path
+          mappings. Rows proven identical to the reference: sha1 of the csv's post-header bytes
+          equals sha1 of the gunzipped gz (7f60ee6e1e89695b563c2a18cbc20498a05bf0eb).
+        pin:
+          method: HEAD
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 1385743
+          samples:
+            - key: "csv.gz/by_year/1750.csv.gz"
+              etag: "737328e471455987d32527a7950b0472"
+              size: 1385743
+  - id: ghcnd-by-year-2024
+    title: GHCN-D by_year 2024, the large uncompressed-text leg (volatile)
+    registry_url: https://registry.opendata.aws/noaa-ghcn/
+    license: NOAA open data (US Government work)
+    description: >
+      csv/by_year/2024.csv - a 1.3 GB uncompressed CSV single object, 37.1M rows, 44,667 stations -
+      plus its 168 MB gzip twin. The large-uncompressed-text-over-real-blob-latency shape #1650
+      names as the uncovered case. NOAA rewrites these files nightly, so this corpus is
+      assertion_mode invariant: every query reduces to something a re-publish cannot change (a
+      calibrated band, an in-year date range, a fixed cardinality, an absent needle, an exact
+      LIMIT) while still streaming the whole object. Reported as covered (invariant).
+    kind: workload
+    scale: large
+    quality: clean
+    workload: public-ghcnd-by-year-2024.csv-spec
+    assertion_mode: invariant
+    variants:
+      - provider: s3
+        format: csv
+        codec: uncompressed
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv/by_year/2024.csv"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+            DATE:
+              type: integer
+            ELEMENT:
+              type: keyword
+            DATA_VALUE:
+              type: integer
+            M_FLAG:
+              type: keyword
+            Q_FLAG:
+              type: keyword
+            S_FLAG:
+              type: keyword
+            OBS_TIME:
+              type: keyword
+        tags: [reference]
+        notes: >
+          VOLATILE by upstream design: NOAA's readme-by_year.txt states the by_year files are
+          "updated daily for the entire period of record", and this object was observed at
+          1336374349 bytes and then 1336374356 bytes a day apart. The pin therefore verifies
+          existence and an approximate size only; comparing ETags would report PIN_DRIFT every
+          night and train the reader to ignore the one signal that must stay meaningful. The
+          workload asserts invariants rather than frozen tables for the same reason.
+        pin:
+          method: HEAD
+          volatile: true
+          size_tolerance_pct: 10
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 1336374356
+          samples:
+            - key: "csv/by_year/2024.csv"
+              size: 1336374356
+      - provider: s3
+        format: csv
+        codec: gzip
+        layout: single_file
+        partitioning: none
+        region: us-east-1
+        resource: "s3://noaa-ghcn-pds/csv.gz/by_year/2024.csv.gz"
+        data_source_settings:
+          auth: anonymous
+          region: us-east-1
+        dataset_settings:
+          header_row: false
+        dataset_mappings:
+          dynamic: "false"
+          properties:
+            ID:
+              type: keyword
+              path: col0
+            DATE:
+              type: integer
+              path: col1
+            ELEMENT:
+              type: keyword
+              path: col2
+            DATA_VALUE:
+              type: integer
+              path: col3
+            M_FLAG:
+              type: keyword
+              path: col4
+            Q_FLAG:
+              type: keyword
+              path: col5
+            S_FLAG:
+              type: keyword
+              path: col6
+            OBS_TIME:
+              type: keyword
+              path: col7
+        query_subset: [q01_y2024CountInBand, q06_y2024DatesWithinYear, q07_y2024TopElementsCount, q08_y2024NeedleAbsent, q09_y2024LimitTen]
+        notes: >
+          VOLATILE by upstream design: NOAA's readme-by_year.txt states the by_year files are
+          "updated daily for the entire period of record", and this object was observed at
+          1336374349 bytes and then 1336374356 bytes a day apart. The pin therefore verifies
+          existence and an approximate size only; comparing ETags would report PIN_DRIFT every
+          night and train the reader to ignore the one signal that must stay meaningful. The
+          workload asserts invariants rather than frozen tables for the same reason.
+          Headerless like every csv.gz tree in this bucket, hence header_row false plus
+          positional path mappings. Non-seekable: each test re-streams all 168 MB and inflates
+          1.3 GB, so this leg runs a 5-query subset that still covers all four read shapes.
+        pin:
+          method: HEAD
+          volatile: true
+          size_tolerance_pct: 10
+          verified_at: 2026-08-25T00:00:00Z
+          object_count: 1
+          total_bytes: 168385897
+          samples:
+            - key: "csv.gz/by_year/2024.csv.gz"
+              size: 168385897
   - id: overture-divisions
     title: Overture Maps divisions (release 2026-07-22.0)
     registry_url: https://overturemaps.org/
@@ -1484,12 +1812,18 @@ gaps:
       an oracle mirror of union-by-name semantics: deferred to Phase 2, tracked here so the cell
       is not silently unasserted.
     cells: []
-  - id: ghcnd-by-year-unpinnable
+  - id: ghcnd-by-year-exact-tables-impossible
     reason: >
-      The plan's large-uncompressed-single-file case wanted GHCN-D by_year, but that whole tree is
-      regenerated DAILY (even 1913.csv carries today's Last-Modified) - unpinnable, the NYC-311
-      problem. The by_station trees are frozen and carry GHCN-D instead; the
-      large-uncompressed-text shape stays covered by CSE-CIC-IDS2018's 100-380 MB files.
+      The GHCN-D by_year trees (csv, csv.gz AND parquet alike) are rebuilt nightly: NOAA's own
+      readme-by_year.txt says "updated daily for the entire period of record", 1763/1800/1850/1950/
+      2024/2025 all carry the previous night's Last-Modified, and 2024.csv was observed moving from
+      1336374349 to 1336374356 bytes a day apart. Exact frozen expected tables over this tree are
+      therefore impossible, and no re-proposal should assume otherwise. What IS covered: 1750.csv
+      is the tree's one frozen object (skipped by the rebuild because its dates predate GHCN-D) and
+      carries exact tables as ghcnd-by-year-1750; 2024.csv carries the large-uncompressed-text
+      shape as ghcnd-by-year-2024 under assertion_mode invariant with volatile pins. What remains
+      uncovered: exact row-level assertions at by_year scale, and the parquet/by_year tree
+      (same volatility, and parquet x nested_hive is already covered by ghcnd-parquet-8st).
     cells: []
   - id: vpc-flow-logs-real-data
     reason: >

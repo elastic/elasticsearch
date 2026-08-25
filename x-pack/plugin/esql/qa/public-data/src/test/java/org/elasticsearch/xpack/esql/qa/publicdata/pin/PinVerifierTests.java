@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.publicdata.pin;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.qa.publicdata.catalog.PinSpec;
 import org.elasticsearch.xpack.esql.qa.publicdata.catalog.PublicDataCatalog;
 import org.elasticsearch.xpack.esql.qa.publicdata.catalog.VariantSpec;
 
@@ -74,6 +75,62 @@ public class PinVerifierTests extends ESTestCase {
         PinVerifier.VariantResult result = verifier.verifyVariant(referenceVariant());
         assertEquals(PinVerifier.Status.OK, result.status());
         assertEquals(List.of("HEAD s3://example-bucket/data/fixture.parquet"), probe.calls);
+    }
+
+    /**
+     * A volatile pin exists for publishers that rewrite the same logical object nightly (NOAA's
+     * by_year CSVs). ETag churn there is noise, and reporting it every run would teach the reader to
+     * ignore PIN_DRIFT — so it is deliberately not compared, while a size move beyond the declared
+     * tolerance still is.
+     */
+    public void testVolatilePinIgnoresEtagButNotLargeSizeMoves() {
+        VariantSpec variant = volatileVariant();
+        StubProbe rewritten = new StubProbe(
+            Map.of(
+                "s3://example-bucket/data/fixture.parquet",
+                // same object, re-published: new ETag, a handful of bytes different
+                new ObjectMetadata("data/fixture.parquet", "COMPLETELY-DIFFERENT", 12345678 + 7, "whenever")
+            ),
+            Map.of()
+        );
+        assertEquals(PinVerifier.Status.OK, new PinVerifier(v -> rewritten).verifyVariant(variant).status());
+
+        StubProbe halved = new StubProbe(
+            Map.of(
+                "s3://example-bucket/data/fixture.parquet",
+                new ObjectMetadata("data/fixture.parquet", "abc123-4", 12345678 / 2, "whenever")
+            ),
+            Map.of()
+        );
+        PinVerifier.VariantResult result = new PinVerifier(v -> halved).verifyVariant(variant);
+        assertEquals(PinVerifier.Status.PIN_DRIFT, result.status());
+        assertTrue(result.details().toString(), result.details().get(0).contains("tolerance"));
+    }
+
+    private static VariantSpec volatileVariant() {
+        VariantSpec reference = referenceVariant();
+        PinSpec pin = reference.pin();
+        return new VariantSpec(
+            reference.corpusId(),
+            reference.provider(),
+            reference.format(),
+            reference.codec(),
+            reference.layout(),
+            reference.partitioning(),
+            reference.region(),
+            reference.resource(),
+            reference.subResources(),
+            reference.dataSourceSettings(),
+            reference.datasetSettings(),
+            reference.datasetMappings(),
+            new PinSpec(pin.method(), pin.verifiedAt(), pin.objectCount(), pin.totalBytes(), pin.samples(), true, 10),
+            reference.tags(),
+            reference.querySubset(),
+            "upstream re-publishes this object nightly",
+            reference.expectFailure(),
+            reference.caseId(),
+            reference.disabledReason()
+        );
     }
 
     public void testHeadPinDriftOnEtagAndSize() {

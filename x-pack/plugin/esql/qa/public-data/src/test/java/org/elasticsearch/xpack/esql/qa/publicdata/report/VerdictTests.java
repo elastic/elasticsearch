@@ -20,8 +20,9 @@ import java.util.Set;
 
 /**
  * The verdict threshold over the fixture catalog: the fixture has one workload corpus with two
- * active variants (5 tests, one -Ignore'd -> 4 enabled on the reference; a 4-test query_subset on
- * the shards leg) and one failure-only corpus (1 case) -> expectation: 4 + 4 + 1 = 9 executions.
+ * active variants (6 tests, one -Ignore'd -> 5 enabled on the reference; a 4-test query_subset on
+ * the shards leg, which excludes the multi-source twin) and one failure-only corpus (1 case) ->
+ * expectation: 5 + 4 + 1 = 10 executions.
  */
 public class VerdictTests extends ESTestCase {
 
@@ -43,6 +44,7 @@ public class VerdictTests extends ESTestCase {
             results.add(new TestResult(REF, test, Status.PASSED, null));
             results.add(new TestResult(SHARDS, test, Status.PASSED, null));
         }
+        results.add(new TestResult(REF, "q2_aggMulti", Status.PASSED, null)); // not in the shards leg's query_subset
         results.add(new TestResult(REF, "q5_defect-Ignore", Status.SKIPPED, null)); // -Ignore'd: skips don't count
         results.add(new TestResult(DIRTY, "testFailsCleanly", Status.PASSED, null));
         return results;

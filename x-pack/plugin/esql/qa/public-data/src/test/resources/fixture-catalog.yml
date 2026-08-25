@@ -18,6 +18,9 @@ corpora:
         partitioning: none
         region: eu-central-1
         resource: "s3://example-bucket/data/fixture.parquet"
+        sub_resources:
+          left: "s3://example-bucket/data/fixture-left.parquet"
+          right: "s3://example-bucket/data/fixture-right.parquet"
         data_source_settings:
           auth: anonymous
           region: eu-central-1
@@ -38,6 +41,9 @@ corpora:
         partitioning: none
         region: eu-central-1
         resource: "s3://example-bucket/shards/part_*.csv.gz"
+        sub_resources:
+          left: "s3://example-bucket/shards/part_0.csv.gz"
+          right: "s3://example-bucket/shards/part_[12].csv.gz"
         data_source_settings:
           auth: anonymous
           region: eu-central-1

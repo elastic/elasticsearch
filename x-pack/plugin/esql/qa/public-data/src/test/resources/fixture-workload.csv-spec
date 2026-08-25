@@ -37,6 +37,23 @@ count:long
 // corpus: fixture
 // reference-variant: fixture-s3-parquet-snappy-single
 // oracle: clickhouse local 26.8.1
+// oracle-sql: SELECT count() FROM file('fixture/fixture-left.parquet') UNION ALL ...;
+// oracle-run: 2026-08-11
+// read-shape: aggregate
+// max-rows: 1
+q2_aggMulti
+required_capability: dataset_in_from_command
+dataset: fixture_left: "{{corpus:left}}"
+dataset: fixture_right: "{{corpus:right}}"
+FROM fixture_left, fixture_right | STATS count = COUNT(*);
+
+count:long
+2
+;
+
+// corpus: fixture
+// reference-variant: fixture-s3-parquet-snappy-single
+// oracle: clickhouse local 26.8.1
 // oracle-sql: SELECT a, count() AS c FROM file('fixture/fixture.parquet') GROUP BY a ORDER BY c DESC, a ASC LIMIT 5;
 // oracle-run: 2026-08-11
 // read-shape: topn

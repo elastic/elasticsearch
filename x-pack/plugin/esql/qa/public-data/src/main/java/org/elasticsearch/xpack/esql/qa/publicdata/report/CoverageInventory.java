@@ -97,7 +97,14 @@ public class CoverageInventory {
         if (detail.length() == 0) {
             detail.append("full workload");
         }
-        return new Cell(corpus.id(), variant.label(), "covered", detail.toString(), effective.size(), variant.isReference());
+        String status = "covered";
+        if (corpus.assertionMode() == CorpusSpec.AssertionMode.INVARIANT) {
+            // An invariant-asserted leg is exercised but claims less than a frozen table, so it must
+            // never read as fully covered -- the same no-silent-caps rule the subset trim obeys.
+            status = "covered (invariant)";
+            detail.append("; invariant assertions (upstream re-publishes these objects)");
+        }
+        return new Cell(corpus.id(), variant.label(), status, detail.toString(), effective.size(), variant.isReference());
     }
 
     /** Renders {@code coverage.md}. */

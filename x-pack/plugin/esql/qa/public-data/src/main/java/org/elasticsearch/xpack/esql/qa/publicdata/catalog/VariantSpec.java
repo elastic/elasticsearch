@@ -26,6 +26,12 @@ import java.util.Set;
  * @param partitioning       {@code none}, {@code hive} or {@code template}
  * @param region             provider region (S3), or null where not applicable (HTTPS)
  * @param resource           the pinned remote resource URI (may contain a glob where supported)
+ * @param subResources       optional <em>named</em> fragments of the same corpus, in declaration
+ *                           order, addressable from a spec as {@code {{corpus:<name>}}}. Their union
+ *                           must be exactly {@link #resource()}'s rows: this is what lets one
+ *                           workload read a corpus both as a single dataset and as a multi-source
+ *                           {@code FROM d1, ..., dN} union, and assert the two agree. Empty for
+ *                           every ordinary variant
  * @param dataSourceSettings settings for the {@code PUT _query/data_source} registration; every S3
  *                           variant must carry {@code auth: anonymous} (validator-enforced) so CI
  *                           agents with instance roles behave identically to a workstation
@@ -59,6 +65,7 @@ public record VariantSpec(
     String partitioning,
     String region,
     String resource,
+    Map<String, String> subResources,
     Map<String, Object> dataSourceSettings,
     Map<String, Object> datasetSettings,
     Map<String, Object> datasetMappings,
@@ -95,6 +102,20 @@ public record VariantSpec(
     /** Whether glob/multi-file reads are possible on this variant's provider. */
     public boolean supportsGlob() {
         return provider.supportsGlob();
+    }
+
+    /**
+     * Resolves a named sub-resource, or throws with the available names — the multi-source
+     * counterpart of binding {@code {{corpus}}} to {@link #resource()}.
+     */
+    public String subResource(String name) {
+        String uri = subResources.get(name);
+        if (uri == null) {
+            throw new IllegalArgumentException(
+                "Variant [" + label() + "] has no sub_resource [" + name + "]; declared: " + subResources.keySet()
+            );
+        }
+        return uri;
     }
 
     /**

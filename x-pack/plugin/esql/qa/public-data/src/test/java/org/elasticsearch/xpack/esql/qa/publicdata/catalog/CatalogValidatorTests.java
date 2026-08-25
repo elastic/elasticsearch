@@ -72,7 +72,7 @@ public class CatalogValidatorTests extends ESTestCase {
         PublicDataCatalog catalog = mutateVariant(
             fixtureCatalog(),
             "fixture-s3-parquet-snappy-single",
-            v -> withPin(v, new PinSpec("HEAD", v.pin().verifiedAt(), 0, 0, List.of()))
+            v -> withPin(v, new PinSpec("HEAD", v.pin().verifiedAt(), 0, 0, List.of(), false, PinSpec.DEFAULT_SIZE_TOLERANCE_PERCENT))
         );
         assertThat(validate(catalog, fixtureWorkloadLines()), hasItem(containsString("degenerate pin")));
     }
@@ -98,6 +98,94 @@ public class CatalogValidatorTests extends ESTestCase {
     public void testFailureOnlyCorpusNeedsFailureVariant() throws IOException {
         PublicDataCatalog catalog = mutateVariant(fixtureCatalog(), "fixture-dirty-s3-csv-uncompressed-single", v -> withFailure(v, null));
         assertThat(validate(catalog, fixtureWorkloadLines()), hasItem(containsString("no expect_failure variant")));
+    }
+
+    public void testVolatilePinNeedsInvariantCorpusAndNotes() throws IOException {
+        // the fixture corpus is assertion_mode exact and the reference variant has no notes,
+        // so a volatile pin there must trip both guards at once
+        // tags: [reference] is unique to the fixture's reference variant, so this targets its pin only
+        String yaml = fixtureYaml().replace(
+            "        tags: [reference]\n        pin:\n          method: HEAD",
+            "        tags: [reference]\n        pin:\n          method: HEAD\n          volatile: true"
+        );
+        List<String> errors = validate(parseCatalog(yaml), fixtureWorkloadLines());
+        assertThat(errors, hasItem(containsString("no notes: justifying why the bytes move")));
+        assertThat(errors, hasItem(containsString("cannot carry frozen expected tables")));
+    }
+
+    public void testInvariantCorpusNeedsPerTestProvenance() throws IOException {
+        // flipping the fixture corpus to invariant mode must demand the markers on every test,
+        // so an invariant expectation can never look like a frozen one
+        String yaml = fixtureYaml().replace(
+            "    workload: fixture-workload.csv-spec",
+            "    workload: fixture-workload.csv-spec\n    assertion_mode: invariant"
+        );
+        List<String> errors = validate(parseCatalog(yaml), fixtureWorkloadLines());
+        assertThat(errors, hasItem(containsString("must carry // assertion-mode: invariant")));
+        assertThat(errors, hasItem(containsString("// oracle-observed:")));
+    }
+
+    public void testAssertionModeMarkerRejectedOnExactCorpus() throws IOException {
+        List<String> workload = replaceLine(
+            fixtureWorkloadLines(),
+            "// read-shape: scan",
+            "// read-shape: scan",
+            "// assertion-mode: invariant"
+        );
+        assertThat(validate(fixtureCatalog(), workload), hasItem(containsString("is assertion_mode exact")));
+    }
+
+    public void testUndeclaredSubResourceIsRejected() throws IOException {
+        List<String> workload = replaceLine(
+            fixtureWorkloadLines(),
+            "dataset: fixture_right: \"{{corpus:right}}\"",
+            "dataset: fixture_right: \"{{corpus:nowhere}}\""
+        );
+        assertThat(validate(fixtureCatalog(), workload), hasItem(containsString("declares no such sub_resource")));
+    }
+
+    public void testSubResourceMissingFromOneVariantIsRejected() throws IOException {
+        // the gz shards leg drops [right]; the parquet reference still has it, so only one leg
+        // would break at runtime -- exactly the asymmetry this rule exists to catch offline
+        String yaml = fixtureYaml().replace("          right: \"s3://example-bucket/shards/part_[12].csv.gz\"\n", "");
+        assertThat(validate(parseCatalog(yaml), fixtureWorkloadLines()), hasItem(containsString("declares no such sub_resource")));
+    }
+
+    public void testRepeatedSubResourceBindingIsRejected() throws IOException {
+        List<String> workload = replaceLine(
+            fixtureWorkloadLines(),
+            "dataset: fixture_right: \"{{corpus:right}}\"",
+            "dataset: fixture_right: \"{{corpus:left}}\""
+        );
+        assertThat(validate(fixtureCatalog(), workload), hasItem(containsString("more than once")));
+    }
+
+    public void testMultiSourceTestMayNotBindTheWholeCorpus() throws IOException {
+        List<String> workload = replaceLine(
+            fixtureWorkloadLines(),
+            "dataset: fixture_right: \"{{corpus:right}}\"",
+            "dataset: fixture_right: \"{{corpus}}\""
+        );
+        assertThat(validate(fixtureCatalog(), workload), hasItem(containsString("use {{corpus:<name>}} per dataset")));
+    }
+
+    public void testLiteralResourceInDatasetDirectiveIsRejected() throws IOException {
+        List<String> workload = replaceLine(
+            fixtureWorkloadLines(),
+            "dataset: fixture: \"{{corpus}}\"",
+            "dataset: fixture: \"s3://example-bucket/data/fixture.parquet\""
+        );
+        assertThat(validate(fixtureCatalog(), workload), hasItem(containsString("not a literal resource")));
+    }
+
+    public void testSubResourceMustMatchProviderScheme() throws IOException {
+        String yaml = fixtureYaml().replace(
+            "          left: \"s3://example-bucket/data/fixture-left.parquet\"",
+            "          left: \"file:///tmp/left.parquet\""
+        );
+        List<String> errors = validate(parseCatalog(yaml), fixtureWorkloadLines());
+        assertThat(errors, hasItem(containsString("file://")));
+        assertThat(errors, hasItem(containsString("sub_resource [left]")));
     }
 
     public void testUnknownQuerySubsetEntryIsRejected() throws IOException {
@@ -232,6 +320,7 @@ public class CatalogValidatorTests extends ESTestCase {
                 corpus.scale(),
                 corpus.quality(),
                 corpus.workload(),
+                corpus.assertionMode(),
                 variants
             );
         }).toList();
@@ -276,6 +365,7 @@ public class CatalogValidatorTests extends ESTestCase {
             v.partitioning(),
             v.region(),
             resource,
+            v.subResources(),
             dataSourceSettings,
             v.datasetSettings(),
             v.datasetMappings(),

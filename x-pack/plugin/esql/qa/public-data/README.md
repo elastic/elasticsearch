@@ -64,6 +64,24 @@ regression. Upstream re-publishes surface in the pipeline's pin pre-step as `PIN
    the corpus does not cover.
 2. Write `public-<corpus>.csv-spec` through the authoring workflow below.
 
+Two opt-in catalog features exist for corpora that need them; neither costs anything for an
+ordinary corpus:
+
+- **`sub_resources:`** — named fragments of the same corpus (`st_nyc: "s3://.../STATION=.../*"`),
+  addressable from a spec as `{{corpus:st_nyc}}`. That is how a workload reads one corpus both as a
+  single dataset and as a multi-source `FROM d1, ..., dN` union over its parts. Name the union test
+  `<base>Multi`: the validator then requires the fragments to exist on every active variant, and
+  `ShippedCatalogContractTests` requires its expected table to be byte-identical to `<base>`'s —
+  so the union is a *correctness cross-check*, verified offline, not just another query.
+- **`assertion_mode: invariant`** + **`pin: {volatile: true}`** — for corpora whose publisher
+  rewrites the objects on a schedule (NOAA's by_year CSVs). Each query reduces to a drift-proof
+  constant (a calibrated band, a date range, a fixed cardinality, an absent needle, an exact
+  `LIMIT`) instead of a frozen table, every test must carry `// assertion-mode: invariant` and
+  `// oracle-observed: <value measured at authoring time>`, the pin stops comparing ETags, and
+  `coverage.md` reports the cell as `covered (invariant)` rather than `covered`. Use it only where
+  the volatility is documented upstream — the validator demands a written `notes:` justification
+  and refuses a volatile pin on an `exact` corpus.
+
 That's it: `PublicDataIT` enumerates the whole catalog; a unit test
 (`ShippedCatalogContractTests`) fails if a catalogued corpus is not reachable from its parameters,
 so a new corpus cannot be silently unrun. `./gradlew :x-pack:plugin:esql:qa:public-data:check`
@@ -108,6 +126,16 @@ Nightly, ~12h orientative. Never query hundreds of GBs from a single source: hug
 partial fractions, in-query filters, or catalog-declared `query_subset`s (still covering all four
 read shapes — trimmed legs report as `covered (subset: n/m)`, never as full coverage). Per-leg
 wall-clock is logged on every execution; tuning is iterative by design.
+
+Measured Phase-5 legs (local, 3-node cluster, `-Dtests.public_data.heap=4g`, 2026-08-25):
+`ghcnd-by-year-1750` 28 tests / 1m44s; `ghcnd-parquet-8st` 30 tests / 4m24s;
+`ghcnd-by-year-2024` 15 tests / 35m49s. One outlier inside the last one is worth watching rather
+than tuning away: `q06_y2024DatesWithinYear` took **1235s** on the 1.3 GB uncompressed object
+against **156s** on its gzip twin (same logical rows) and ~65–75s for every other uncompressed test
+on the same object — with no retries, no warnings and a correct answer. That is a performance
+observation for triage, not a correctness defect, and it is recorded as a `// timing:` note on the
+test itself. It is also exactly the shape #1650 says is under-tested, so the nightly timings are
+where to watch it.
 
 ## Operational notes (learned from the first real runs, 2026-08-13)
 
@@ -158,7 +186,7 @@ is a marked TBD in the yml pending an owner/channel.
 
 ## Datasources and matrix coverage
 
-The nine catalogued corpora, all on **anonymous S3** (the only active provider). Every workload
+The twelve catalogued corpora, all on **anonymous S3** (the only active provider). Every workload
 covers **all four read shapes** (SCAN, AGGREGATE, TOPN, LIMIT) — including the ClickBench text
 legs, whose 6-query `query_subset` was chosen to keep all four; read shape is therefore not
 repeated per row.
@@ -173,6 +201,9 @@ repeated per row.
 | `clickbench-dirty` | Failure-only: deliberately wrong configs over pinned ClickBench objects (mislabeled format, mispointed glob, zero-byte, nonexistent key) — each must fail with a clean client error | csv, parquet | uncompressed | single_file, uniform_shards | none | small | mislabeled |
 | `ookla-fixed-2024` | 26M broadband speed-test tiles, four 2024 quarters | parquet | snappy | hive_partitioned | hive | medium | clean |
 | `ghcnd-usw3` | 195 NOAA station files × 2 mirrored trees with proven-identical rows but different dialects (headered vs systematically headerless) | csv | uncompressed, gzip | many_small | none | medium | schema-drift |
+| `ghcnd-parquet-8st` | The same NOAA observations as `ghcnd-usw3`, Parquet-encoded: 8 US stations × all elements in a two-level `STATION=/ELEMENT=` tree. Carries the suite's only **multi-source** reads — 15 shapes × (one comma-list dataset vs eight datasets unioned by `FROM`), which must agree | parquet | snappy | nested_hive | hive | small | clean |
+| `ghcnd-by-year-1750` | The one frozen object in NOAA's nightly-rebuilt by_year tree (it holds pre-GHCN-D dates, so the rebuild skips it); mirrored headered/headerless pair with sha1-proven identical rows | csv | uncompressed, gzip | single_file | none | small | schema-drift |
+| `ghcnd-by-year-2024` | The large-uncompressed-text leg: a 1.3 GB CSV single object (37.1M rows) plus its 168 MB gzip twin. **`assertion_mode: invariant`** — NOAA rewrites these nightly, so the queries assert drift-proof constants while still streaming the whole object | csv | uncompressed, gzip | single_file | none | large | clean |
 | `overture-divisions` | 4.7M map divisions, deeply nested schema (structs/maps/arrays + geometry); carries the nested-read probe (q30) | parquet | zstd | single_file | none | medium | clean |
 | `btc-tx-skew` | Bitcoin transactions, six pinned dates spanning 2011 (~1 MB) vs 2024 (~600 MB): a genuine 1000× shard-size skew | parquet | snappy | skewed_shards | none | large | clean |
 | `abo-listings` | 147K Amazon product listings, extreme per-attribute nesting (language-tagged value arrays), pins frozen since 2021 | ndjson | gzip | uniform_shards | none | small | clean |
@@ -196,7 +227,15 @@ Dimension closure against the issue's matrix:
 Phases 0–4 delivered: ClickBench (5 legs incl. the gzip text subsets), CSE-CIC-IDS2018 (dirty
 security logs), OpenAQ (nested hive), the dirty-data failure corpus, Ookla (hive partitions),
 GHCN-D (many-small, mirrored codecs), Overture (zstd + nested schema), BTC transactions (1000×
-skew), ABO (nested NDJSON) — 9 corpora, 16 pinned variants, all four read shapes each. Remaining
+skew), ABO (nested NDJSON) — all four read shapes each. Remaining
 declared gaps: WIDE_SINGLE_ROW_GROUP (no anonymously-readable public carrier found; Common Crawl
 denies anonymous S3 and sits as a backup entry), GCS/Azure providers, HTTPS (backup-only by
-decision). Current defects on file: see `publicDataDefectReport`.
+decision).
+
+Phase 5 added the two NOAA datasets from the PR review: `ghcnd-parquet-8st` (parquet × nested_hive,
+and the suite's first **multi-source** `FROM d1, ..., d8` coverage against real object storage) and
+the by_year pair `ghcnd-by-year-1750` (exact) / `ghcnd-by-year-2024` (invariant, volatile pins) —
+**12 corpora, 20 pinned variants**. The `ghcnd-by-year-exact-tables-impossible` gap records why the
+by_year tree can never carry exact tables, with the upstream evidence, so it is not re-proposed.
+
+Current defects on file: see `publicDataDefectReport`.

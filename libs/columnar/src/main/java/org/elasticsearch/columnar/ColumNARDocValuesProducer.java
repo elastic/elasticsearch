@@ -22,6 +22,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.columnar.numeric.ColumnarNumericBinaryDocValues;
@@ -105,7 +106,9 @@ final class ColumNARDocValuesProducer extends DocValuesProducer {
                 state.segmentSuffix,
                 ColumNARDocValuesFormat.SKIP_EXTENSION
             );
-            skipIndex = state.directory.openInput(skipName, state.context);
+            // Index-like rather than data-like: the skip index is consulted to decide what to read, so a
+            // directory that distinguishes the two should treat it as it treats the terms index.
+            skipIndex = state.directory.openInput(skipName, state.context.withHints(FileTypeHint.INDEX));
             final FormatVersion skipVersion = ColumnarCodecUtil.checkHeader(
                 skipIndex,
                 ColumNARDocValuesFormat.SKIP_CODEC,

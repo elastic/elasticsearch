@@ -135,6 +135,7 @@ public class StreamOutputToBytesTests extends ESTestCase {
                         isExpectedWriteSize.set(greaterThanOrEqualTo(bufferLen)); // large writes may bypass the buffer
                     }
                     s.writeText(text);
+                    assertFalse(text.hasBytes());
                     isExpectedWriteSize.set(isFullBufferWrite);
                 };
             });

@@ -167,9 +167,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     var shardId = new ShardId(metadata.getIndex(), 0);
                     var created = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                     var builder = IndexRoutingTable.builder(metadata.getIndex())
-                        .addShard(
-                            shardRouting(shardId, true, primaryState, RecoverySource.EmptyStoreRecoverySource.INSTANCE, created)
-                        );
+                        .addShard(shardRouting(shardId, true, primaryState, RecoverySource.EmptyStoreRecoverySource.INSTANCE, created));
                     if (primaryState == UNASSIGNED) {
                         creatingPrimaries++;
                         diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));

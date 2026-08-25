@@ -220,8 +220,15 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * which is why only magnitudes need sorting and not the dimension indices alongside them.
      */
     protected float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
+        // Base level: all dims at 0.5 -> dot = sum(0.5 * |z_j|), normSq = 0.25 * d
+        // use doubles here, as small differences between steps can be significant
         int[] absZF = new int[d];
-        double baseDot = calculateBaseLevel(z, zOffset, absZF);
+        double baseDot = 0;
+        for (int j = 0; j < d; j++) {
+            float a = Math.abs(z[zOffset + j]);
+            absZF[j] = Float.floatToRawIntBits(a);
+            baseDot = Math.fma(0.5, a, baseDot);
+        }
 
         // Sorted ascending; the iteration is then done backwards
         // sort as ints - see use in 2bit method

@@ -66,6 +66,14 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
             return value;
         }
 
+        /**
+         * The value written into {@code _source} for this field. Defaults to {@link #value()}; subclasses override this to index an
+         * alternate representation of the same vector, such as an encoded string.
+         */
+        public Object sourceValue() {
+            return value();
+        }
+
         /** The {@link VectorType} this field produces. */
         public abstract VectorType vectorType();
 
@@ -140,7 +148,7 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
 
         Map<String, Object> source = new HashMap<>();
         for (C field : vectorFields) {
-            source.put(field.fieldName(), field.value());
+            source.put(field.fieldName(), field.sourceValue());
         }
 
         BulkRequestBuilder bulk = client().prepareBulk(indexName);

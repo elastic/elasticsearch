@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.VectorType;
@@ -18,7 +19,11 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
@@ -55,11 +60,22 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
      */
     private static final double COSINE_EPSILON = 1e-6;
 
+    /**
+     * Encoding used when writing the vector value into {@code _source}.
+     */
+    private enum SourceEncoding {
+        ARRAY,
+        BASE64,
+        HEX
+    }
+
     static class DenseVectorFieldConfig extends VectorFieldConfig<Object> {
         private final DenseVectorFieldMapper.ElementType elementType;
         private final boolean indexed;
         private final DenseVectorFieldMapper.VectorSimilarity similarity;
         private final DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions;
+        private final SourceEncoding sourceEncoding;
+        private final int bfloat16BytesPerDim;
 
         DenseVectorFieldConfig(String fieldName) {
             this(fieldName, randomFrom(DenseVectorFieldMapper.ElementType.values()), randomBoolean());
@@ -89,6 +105,10 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
                 this.similarity = null;
                 this.indexOptions = null;
             }
+            this.sourceEncoding = randomSourceEncoding(elementType);
+            this.bfloat16BytesPerDim = elementType == DenseVectorFieldMapper.ElementType.BFLOAT16
+                ? randomFrom(Float.BYTES, BFloat16.BYTES)
+                : 0;
         }
 
         @Override
@@ -114,26 +134,66 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
             builder.endObject();
         }
 
+        /**
+         * Returns the value in the form that will be written into {@code _source}: a numeric array, a base64-encoded string, or a
+         * hex-encoded string, according to the randomly chosen {@link #sourceEncoding}.
+         */
+        @Override
+        public Object sourceValue() {
+            return switch (sourceEncoding) {
+                case ARRAY -> switch (elementType) {
+                    case FLOAT, BFLOAT16 -> DenseVectorFieldMapperTests.convertToList((float[]) value());
+                    // A List is written as a numeric array in every XContent type, whereas a primitive byte[] in a source map is
+                    // written by XContentBuilder's binary writer and only round-trips correctly under JSON.
+                    case BYTE, BIT -> DenseVectorFieldMapperTests.convertToList((byte[]) value());
+                };
+                case BASE64 -> switch (elementType) {
+                    case FLOAT -> encodeBase64((float[]) value(), Float.BYTES);
+                    case BFLOAT16 -> encodeBase64((float[]) value(), bfloat16BytesPerDim);
+                    case BYTE, BIT -> Base64.getEncoder().encodeToString((byte[]) value());
+                };
+                case HEX -> HexFormat.of().formatHex((byte[]) value());
+            };
+        }
+
         @Override
         public String toString() {
             return Strings.format(
-                "DenseVectorFieldConfig{fieldName=%s, elementType=%s, indexed=%s, similarity=%s, indexOptions=%s}",
+                "DenseVectorFieldConfig{fieldName=%s, elementType=%s, indexed=%s, similarity=%s, indexOptions=%s, sourceEncoding=%s,"
+                    + " bfloat16BytesPerDim=%s}",
                 fieldName(),
                 elementType,
                 indexed,
                 similarity,
-                indexOptions
+                indexOptions,
+                sourceEncoding,
+                bfloat16BytesPerDim
             );
         }
 
         private static Object randomValue(DenseVectorFieldMapper.ElementType elementType) {
             return switch (elementType) {
                 case FLOAT, BFLOAT16 -> VectorTestUtils.randomFloatVector(VECTOR_DIMENSIONS);
-                // A List is written as a numeric array in every XContent type, whereas a primitive byte[] in a source map is
-                // written by XContentBuilder's binary writer and only round-trips correctly under JSON.
-                case BYTE -> DenseVectorFieldMapperTests.convertToList(VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS));
-                case BIT -> DenseVectorFieldMapperTests.convertToList(VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS / Byte.SIZE));
+                case BYTE -> VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS);
+                case BIT -> VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS / Byte.SIZE);
             };
+        }
+
+        private static SourceEncoding randomSourceEncoding(DenseVectorFieldMapper.ElementType elementType) {
+            return switch (elementType) {
+                case FLOAT, BFLOAT16 -> randomFrom(SourceEncoding.ARRAY, SourceEncoding.BASE64);
+                case BYTE, BIT -> randomFrom(SourceEncoding.ARRAY, SourceEncoding.BASE64, SourceEncoding.HEX);
+            };
+        }
+
+        private static String encodeBase64(float[] vector, int bytesPerDim) {
+            byte[] buf = new byte[bytesPerDim * vector.length];
+            switch (bytesPerDim) {
+                case BFloat16.BYTES -> BFloat16.floatToBFloat16(vector, 0, buf, 0, vector.length, ByteOrder.BIG_ENDIAN);
+                case Float.BYTES -> ByteBuffer.wrap(buf).order(ByteOrder.BIG_ENDIAN).asFloatBuffer().put(vector);
+                default -> throw new AssertionError("Unhandled bytes per dim [" + bytesPerDim + "]");
+            }
+            return Base64.getEncoder().encodeToString(buf);
         }
     }
 
@@ -162,10 +222,12 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
                 // Byte[] has no dedicated StreamOutput writer, so writeGenericValue falls back to the generic Object[] writer and the
                 // value arrives at the coordinating node as an Object[] of Byte.
                 // Cosine similarity does not normalize byte or bit vectors at index time, so this assertion is exact.
-                Object[] actualVector = singleValue(message, actual);
-                @SuppressWarnings("unchecked")
-                List<Byte> expectedVector = (List<Byte>) field.value();
-                assertArrayEquals(message + ": vector", expectedVector.toArray(), actualVector);
+                Object[] fetchedVector = singleValue(message, actual);
+                byte[] actualVector = new byte[fetchedVector.length];
+                for (int i = 0; i < fetchedVector.length; i++) {
+                    actualVector[i] = (Byte) fetchedVector[i];
+                }
+                assertArrayEquals(message + ": vector", (byte[]) field.value(), actualVector);
             }
         }
     }

@@ -94,6 +94,35 @@ public class LimitByGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    /** Constant CATEGORIZE — pruned to a plain LIMIT by PruneLiteralsInLimitBy. */
+    public void testLimitByCategorizeOnNonNullConstant() {
+        runGoldenTest("""
+            FROM sample_data
+            | EVAL x = "Connection error"::keyword
+            | LIMIT 2 BY CATEGORIZE(x)
+            """, STAGES);
+    }
+
+    /** CATEGORIZE on a function expression (CONCAT). */
+    public void testSortLimitByCategorizeWithFunctionArg() {
+        runGoldenTest("""
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(CONCAT(message, " "))
+            """, STAGES);
+    }
+
+    /** Four mixed groupings: expression, CATEGORIZE(attribute), attribute, CATEGORIZE(expression).
+     *  expression should get extracted into its own eval since it's reused as the first groping and inside the CATEGORIZE
+     *  in the fourth grouping
+     * */
+    public void testLimitByCategorizeMixedGroupings() {
+        runGoldenTest("""
+            FROM sample_data
+            | LIMIT 1 BY CONCAT(message, " "), CATEGORIZE(message), client_ip, CATEGORIZE(CONCAT(message, " "))
+            """, STAGES);
+    }
+
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
         Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))

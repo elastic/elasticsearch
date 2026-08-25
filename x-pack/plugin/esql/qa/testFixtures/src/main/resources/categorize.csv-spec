@@ -1085,43 +1085,37 @@ count:long
 2
 ;
 
-limitByCategorizeMultipleGroupings
+limitByCategorizeMixedGroupings
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
-// Two CATEGORIZE groupings on the same underlying text produce the same three category groups.
-// LIMIT 1 keeps one row per (cat1, cat2) pair — three pairs total.
 FROM sample_data
-  | EVAL msg2 = message
   | SORT @timestamp ASC
   | LIMIT 1000
-  | LIMIT 1 BY CATEGORIZE(message), CATEGORIZE(msg2)
+  | LIMIT 1 BY event_duration > 2000000, CATEGORIZE(message), client_ip, CATEGORIZE(CONCAT(message, " "))
   | STATS count = COUNT()
 ;
 
 count:long
-3
+6
 ;
 
-sortLimitByCategorizeMultipleGroupings
+sortLimitByCategorizeMixedGroupings
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
-// LIMIT 2 with DESC sort keeps the two most-recent rows per (cat1, cat2) pair.
-// sample_data: 3 "Connected to X" rows → 2 kept; 3 "Connection error" → 2 kept; 1 "Disconnected" → 1 kept.
 FROM sample_data
-  | EVAL msg2 = message
-  | SORT @timestamp DESC
+  | SORT @timestamp ASC
   | LIMIT 1000
-  | LIMIT 2 BY CATEGORIZE(message), CATEGORIZE(msg2)
+  | LIMIT 1 BY event_duration > 2000000, CATEGORIZE(message), client_ip, CATEGORIZE(CONCAT(message, " "))
   | STATS count = COUNT()
 ;
 
 count:long
-5
+6
 ;
 
-limitByCategorizeMultipleGroupingsDifferentFields
+limitByMultipleCategorize
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
@@ -1149,15 +1143,15 @@ count:long
 4
 ;
 
-sortLimitByCategorizeMultipleGroupingsDifferentFields
+sortLimitByMultipleCategorize
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by
 
 // Same cross-product as above but LIMIT 2 DESC:
-//   (Connected+Primary):   1 row → keep 1
-//   (Error+Primary):       3 rows → keep 2
+//   (Connected+Primary):      1 row → keep 1
+//   (Error+Primary):          3 rows → keep 2
 //   (Disconnected+Secondary): 1 row → keep 1
-//   (Connected+Remote):    2 rows → keep 2
+//   (Connected+Remote):       2 rows → keep 2
 // Total: 1+2+1+2 = 6.
 FROM sample_data
   | EVAL source = CASE(

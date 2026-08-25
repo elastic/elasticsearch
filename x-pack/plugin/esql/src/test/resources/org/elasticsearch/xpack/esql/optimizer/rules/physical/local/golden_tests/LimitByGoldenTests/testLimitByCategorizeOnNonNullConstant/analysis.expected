@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[2[INTEGER],[CATEGORIZE(x{r}#0)],false]
+  \_Eval[[TO_STRING(Connection error[KEYWORD]) AS x#0]]
+    \_EsRelation[sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f}#4]

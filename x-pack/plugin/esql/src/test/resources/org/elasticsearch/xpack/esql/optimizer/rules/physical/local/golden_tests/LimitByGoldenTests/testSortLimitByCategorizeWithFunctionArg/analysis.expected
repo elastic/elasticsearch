@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_LimitBy[2[INTEGER],[CATEGORIZE(CONCAT(message{f}#0, [KEYWORD]))],false]
+  \_OrderBy[[Order[@timestamp{f}#1,DESC,FIRST]]]
+    \_EsRelation[sample_data][@timestamp{f}#1, client_ip{f}#2, event_duration{f}#3, message{f}#0]

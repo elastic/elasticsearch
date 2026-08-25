@@ -1,0 +1,5 @@
+ExchangeSinkExec[[@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3, $$limit_by$0{r$}#4, $$limit_by$1{r$}#5],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+LimitBy[1[INTEGER],[$$limit_by$0{r$}#4, CATEGORIZE(message{f}#3), client_ip{f}#1, CATEGORIZE($$limit_by$1{r$}#5)],false]
+\_Eval[[CONCAT(message{f}#3, [KEYWORD]) AS $$limit_by$0#4, CONCAT(message{f}#3, [KEYWORD]) AS $$limit_by$1#5]]
+  \_EsRelation[sample_data][@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3]<>]]

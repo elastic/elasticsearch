@@ -1,0 +1,2 @@
+FROM sample_data
+| LIMIT 1 BY CONCAT(message, " "), CATEGORIZE(message), client_ip, CATEGORIZE(CONCAT(message, " "))

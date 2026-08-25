@@ -1,0 +1,8 @@
+ProjectExec[[@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3]]
+\_LimitExec[1000[INTEGER],null]
+  \_TopNByExec[[Order[@timestamp{f}#0,DESC,FIRST]],2[INTEGER],[CATEGORIZE($$limit_by$0{r$}#4)],null,FINAL]
+    \_ExchangeExec[[],false]
+      \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+TopNBy[[Order[@timestamp{f}#0,DESC,FIRST]],2[INTEGER],[CATEGORIZE($$limit_by$0{r$}#4)]]
+\_Eval[[CONCAT(message{f}#3, [KEYWORD]) AS $$limit_by$0#4]]
+  \_EsRelation[sample_data][@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3]<>]]

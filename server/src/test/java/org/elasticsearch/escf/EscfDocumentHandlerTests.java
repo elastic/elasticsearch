@@ -13,8 +13,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -76,7 +76,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
     }
 
     private static byte[] encodeItemsArrayViaSimdWalk(String doc, String innerObjectJson) throws IOException {
-        assumeTrue("native simdjson required", SimdJsonPool.AVAILABLE);
+        assumeTrue("simdjson ESCF encoding required", SimdJsonPool.isEnabled());
         byte[] bytes = doc.getBytes(StandardCharsets.UTF_8);
         EscfBatchBuilder backend = newBackend();
         EscfRowBuffer row = backend.beginRow();

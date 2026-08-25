@@ -308,6 +308,24 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
+     * When {@link SimdJsonPool#SIMDJSON_ESCF_FEATURE_FLAG} is disabled, the default encoder
+     * uses Jackson even though {@code allowSimd} is true.
+     */
+    public void testFeatureFlagDisabledUsesJackson() throws IOException {
+        assumeFalse("simdjson ESCF feature flag must be disabled", SimdJsonPool.SIMDJSON_ESCF_FEATURE_FLAG.isEnabled());
+        String json = "{\"k\":\"v\",\"n\":42,\"arr\":[1,2]}";
+        BytesReference source = new BytesArray(json);
+        Recycler<BytesRef> recycler = newRecycler();
+
+        try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
+            encoder.addDocument(source, XContentType.JSON, 0);
+            try (EscfBatch batch = encoder.buildPartition(0)) {
+                assertEquals(asMap(json), reconstruct(batch, 0));
+            }
+        }
+    }
+
+    /**
      * Top-level array: the direct walker requires a root object, so SIMD falls back to Jackson.
      * {@link EscfEncoder} also requires an object root on the Jackson path — both encoders reject
      * the document the same way.

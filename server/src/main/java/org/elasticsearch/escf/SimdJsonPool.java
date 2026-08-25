@@ -9,8 +9,9 @@
 
 package org.elasticsearch.escf;
 
-import org.elasticsearch.simdjson.SimdJsonParser;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 
 /**
@@ -19,8 +20,18 @@ import org.elasticsearch.simdjson.SimdJsonParserPool;
  *
  * <p>Delegates thread-local parser/walker management and field name sharing to the
  * default {@link SimdJsonParserPool} singleton.
+ *
+ * <p>Simdjson ESCF encoding is gated by {@link #SIMDJSON_ESCF_FEATURE_FLAG}. In snapshot
+ * builds the flag defaults to enabled; in release builds it defaults to disabled and can
+ * be turned on with {@code -Des.simdjson_escf_feature_flag_enabled=true}.
  */
 final class SimdJsonPool {
+
+    /**
+     * Feature flag for the simdjson-backed ESCF JSON encode path. Disabled by default in
+     * release builds.
+     */
+    static final FeatureFlag SIMDJSON_ESCF_FEATURE_FLAG = new FeatureFlag("simdjson_escf");
 
     /** Documents larger than this threshold are handled by the Jackson parser. */
     static final int MAX_DOC_BYTES = 16 * 1024;
@@ -29,6 +40,14 @@ final class SimdJsonPool {
 
     /** Whether the native simdjson library is loaded and ready. */
     static final boolean AVAILABLE = POOL != null;
+
+    /**
+     * Returns {@code true} when simdjson ESCF encoding may be used: the native library is
+     * loaded and {@link #SIMDJSON_ESCF_FEATURE_FLAG} is enabled.
+     */
+    static boolean isEnabled() {
+        return AVAILABLE && SIMDJSON_ESCF_FEATURE_FLAG.isEnabled();
+    }
 
     /**
      * Scratch buffer of {@code MAX_DOC_BYTES} bytes. Used by the single-doc path to copy a

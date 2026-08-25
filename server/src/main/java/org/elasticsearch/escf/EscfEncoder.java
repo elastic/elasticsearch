@@ -17,8 +17,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdjson.JsonParsingException;
-import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncoder;
@@ -46,8 +46,9 @@ import java.util.List;
  *
  * <p><strong>Parser dispatch:</strong>
  * <ol>
- *   <li>JSON and ≤ {@link SimdJsonPool#MAX_DOC_BYTES}: {@link SimdJsonDirectWalker}
- *       (native SIMD stage 1 + fused stage 2/walk). Falls back to Jackson on any failure.</li>
+ *   <li>JSON, ≤ {@link SimdJsonPool#MAX_DOC_BYTES}, and {@link SimdJsonPool#isEnabled()}:
+ *       {@link SimdJsonDirectWalker} (native SIMD stage 1 + fused stage 2/walk).
+ *       Falls back to Jackson on any failure.</li>
  *   <li>Otherwise: Jackson stream parser.</li>
  * </ol>
  */
@@ -93,7 +94,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
      */
     private boolean tryDirectWalkSingle(BytesReference source, XContentType xContentType, LeafSink sink) {
         if (allowSimd == false
-            || SimdJsonPool.AVAILABLE == false
+            || SimdJsonPool.isEnabled() == false
             || xContentType.canonical() != XContentType.JSON
             || source.length() > SimdJsonPool.MAX_DOC_BYTES) {
             return false;
@@ -170,7 +171,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public EscfBatch buildPartition(int partitionKey) {
-        if (allowSimd && SimdJsonPool.AVAILABLE) {
+        if (allowSimd && SimdJsonPool.isEnabled()) {
             SimdJsonPool.releaseNames();
         }
         return backend.buildPartition(partitionKey);

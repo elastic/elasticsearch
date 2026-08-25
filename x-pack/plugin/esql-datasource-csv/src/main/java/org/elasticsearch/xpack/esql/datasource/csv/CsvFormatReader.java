@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -257,7 +258,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE;
 
     private static final Logger logger = LogManager.getLogger(CsvFormatReader.class);
-    private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
 
     private static final int READER_BUFFER_SIZE = 64 * 1024;
 
@@ -3260,7 +3260,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return true;
             }
             long startNanos = System.nanoTime();
-            long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             long startTotal = totalRowCount;
             long startError = errorCount;
             try {
@@ -3279,7 +3279,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 counters.addParseErrors(deltaErrors);
                 counters.addReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
-                    counters.addReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                    counters.addReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
             }
         }

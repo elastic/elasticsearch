@@ -52,10 +52,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayDeque;
@@ -107,7 +106,6 @@ import java.util.function.Consumer;
 final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
     private static final Logger logger = LogManager.getLogger(OptimizedParquetColumnIterator.class);
-    private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
 
     private final ParquetFileReader reader;
     private final MessageType projectedSchema;
@@ -989,13 +987,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // counter would otherwise claim there is data when every remaining batch is empty.
         if (twoPhase != null) {
             long startNanos = System.nanoTime();
-            long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
+            long startCpuNanos = ThreadCpuTimer.currentNanos();
             try {
                 drainEmptyTwoPhaseBatches();
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
                 if (startCpuNanos >= 0) {
-                    counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                    counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
                 }
             }
             if (twoPhase != null && twoPhase.hasMoreBatches() == false) {
@@ -1072,7 +1070,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private boolean advanceRowGroup() throws IOException {
         long startNanos = System.nanoTime();
-        long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             closeTwoPhaseState();
             if (rowGroup != null) {
@@ -1173,7 +1171,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
-                counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
         }
     }
@@ -1871,7 +1869,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             throw new NoSuchElementException();
         }
         long startNanos = System.nanoTime();
-        long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
+        long startCpuNanos = ThreadCpuTimer.currentNanos();
         try {
             if (twoPhase != null) {
                 // Captured before nextTwoPhaseBatch decrements rowsRemainingInGroup: the in-block index
@@ -1904,7 +1902,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {
-                counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                counters.addTotalReadCpuNanos(ThreadCpuTimer.elapsedNanos(startCpuNanos));
             }
         }
     }

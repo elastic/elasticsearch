@@ -267,32 +267,31 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
      * subscriber's {@code onError}.
      */
     public void testExceptionOccurredIsNoOpAfterSubscriberHandledError() throws Exception {
-        try (BufferAllocator child = ALLOCATOR.newChildAllocator("stale-exceptionOccurred", 0, Long.MAX_VALUE)) {
-            DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16, factory);
-            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
-            transformer.onResponse(response(16));
+        CircuitBreaker breaker = new LimitedBreaker("test-breaker", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(16, factory);
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(16));
 
-            RuntimeException subscriberError = new RuntimeException("subscriber onError");
-            transformer.onStream(new SdkPublisher<>() {
-                @Override
-                public void subscribe(Subscriber<? super ByteBuffer> s) {
-                    s.onSubscribe(new TestSubscription());
-                    s.onError(subscriberError);
-                }
-            });
-            expectThrows(ExecutionException.class, future::get);
-            assertEquals("subscriber should have released its buffer", 0L, child.getAllocatedMemory());
+        RuntimeException subscriberError = new RuntimeException("subscriber onError");
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new TestSubscription());
+                s.onError(subscriberError);
+            }
+        });
+        expectThrows(ExecutionException.class, future::get);
+        assertEquals("subscriber should have released its buffer", 0L, breaker.getUsed());
 
-            // Stale exceptionOccurred (e.g. from a prior attempt's event loop) fires after the
-            // subscriber already completed the future — must be a no-op.
-            transformer.exceptionOccurred(new RuntimeException("stale"));
+        // Stale exceptionOccurred (e.g. from a prior attempt's event loop) fires after the
+        // subscriber already completed the future — must be a no-op.
+        transformer.exceptionOccurred(new RuntimeException("stale"));
 
-            assertEquals("exceptionOccurred must not double-free", 0L, child.getAllocatedMemory());
-            // The future should still hold the original subscriber error, not the stale one.
-            ExecutionException ex = expectThrows(ExecutionException.class, future::get);
-            assertSame(subscriberError, ex.getCause());
-        }
+        assertEquals("exceptionOccurred must not double-free", 0L, breaker.getUsed());
+        // The future should still hold the original subscriber error, not the stale one.
+        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+        assertSame(subscriberError, ex.getCause());
     }
 
     /**
@@ -304,60 +303,59 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
      * and by verifying no exception escapes either thread.
      */
     public void testExceptionOccurredConcurrentWithOnNextDoesNotLeakBuffer() throws Exception {
-        try (BufferAllocator child = ALLOCATOR.newChildAllocator("concurrent-release", 0, Long.MAX_VALUE)) {
-            DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
-            int payloadSize = 4096;
-            byte[] payload = randomByteArrayOfLength(payloadSize);
+        CircuitBreaker breaker = new LimitedBreaker("test-breaker", ByteSizeValue.ofMb(16));
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(breaker);
+        int payloadSize = 4096;
+        byte[] payload = randomByteArrayOfLength(payloadSize);
 
-            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
-                payloadSize,
-                factory
-            );
-            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
-            transformer.onResponse(response(payloadSize));
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            payloadSize,
+            factory
+        );
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response(payloadSize));
 
-            // subscriberReady: publisher thread signals after onSubscribe, just before delivering onNext.
-            // exceptionDone: exceptionOccurred thread signals after releaseOnFailure has run.
-            CountDownLatch subscriberReady = new CountDownLatch(1);
-            CountDownLatch exceptionDone = new CountDownLatch(1);
+        // subscriberReady: publisher thread signals after onSubscribe, just before delivering onNext.
+        // exceptionDone: exceptionOccurred thread signals after releaseOnFailure has run.
+        CountDownLatch subscriberReady = new CountDownLatch(1);
+        CountDownLatch exceptionDone = new CountDownLatch(1);
 
-            // The publisher callback blocks mid-delivery so that exceptionOccurred can race it.
-            // It must run on a separate thread because publisher.subscribe() is synchronous — if
-            // called on the test thread it would deadlock before the exception thread starts.
-            Thread publisherThread = new Thread(() -> {
-                transformer.onStream(new SdkPublisher<>() {
-                    @Override
-                    public void subscribe(Subscriber<? super ByteBuffer> s) {
-                        s.onSubscribe(new TestSubscription());
-                        // Signal: buffer is allocated, about to deliver chunks.
-                        subscriberReady.countDown();
-                        // Wait for exceptionOccurred to finish; then onNext runs into the freed-buffer
-                        // path or races with the synchronized release — either way must be safe.
-                        try {
-                            exceptionDone.await();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new RuntimeException(e);
-                        }
-                        s.onNext(ByteBuffer.wrap(payload));
-                        s.onError(new RuntimeException("simulated stream error"));
+        // The publisher callback blocks mid-delivery so that exceptionOccurred can race it.
+        // It must run on a separate thread because publisher.subscribe() is synchronous — if
+        // called on the test thread it would deadlock before the exception thread starts.
+        Thread publisherThread = new Thread(() -> {
+            transformer.onStream(new SdkPublisher<>() {
+                @Override
+                public void subscribe(Subscriber<? super ByteBuffer> s) {
+                    s.onSubscribe(new TestSubscription());
+                    // Signal: buffer is allocated, about to deliver chunks.
+                    subscriberReady.countDown();
+                    // Wait for exceptionOccurred to finish; then onNext runs into the freed-buffer
+                    // path or races with the synchronized release — either way must be safe.
+                    try {
+                        exceptionDone.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException(e);
                     }
-                });
+                    s.onNext(ByteBuffer.wrap(payload));
+                    s.onError(new RuntimeException("simulated stream error"));
+                }
             });
-            publisherThread.start();
+        });
+        publisherThread.start();
 
-            // Wait until the subscriber has a live buffer, then race exceptionOccurred with onNext.
-            subscriberReady.await();
-            transformer.exceptionOccurred(new RuntimeException("concurrent exceptionOccurred"));
-            exceptionDone.countDown();
+        // Wait until the subscriber has a live buffer, then race exceptionOccurred with onNext.
+        subscriberReady.await();
+        transformer.exceptionOccurred(new RuntimeException("concurrent exceptionOccurred"));
+        exceptionDone.countDown();
 
-            publisherThread.join();
+        publisherThread.join();
 
-            // The future must be completed (by exceptionOccurred, and the trailing onError is a no-op).
-            expectThrows(ExecutionException.class, future::get);
-            // No memory must remain allocated after both paths have run.
-            assertEquals("no buffer leak after concurrent release", 0L, child.getAllocatedMemory());
-        }
+        // The future must be completed (by exceptionOccurred, and the trailing onError is a no-op).
+        expectThrows(ExecutionException.class, future::get);
+        // No memory must remain allocated after both paths have run.
+        assertEquals("no buffer leak after concurrent release", 0L, breaker.getUsed());
     }
 
     public void testResponseObjectExposedViaGetter() throws Exception {

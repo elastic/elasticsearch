@@ -259,10 +259,7 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.LONG_HISTOGRAM,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC
-                ),
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
             RecordingMeterRegistry.measures(computationTimeNanos)
         );
 
@@ -289,10 +286,7 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.LONG_HISTOGRAM,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC
-                ),
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
             empty()
         );
 
@@ -330,10 +324,7 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         assertRuns(gate);
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(
-                    InstrumentType.LONG_HISTOGRAM,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC
-                ),
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
             RecordingMeterRegistry.measures(computationTimeNanos)
         );
     }

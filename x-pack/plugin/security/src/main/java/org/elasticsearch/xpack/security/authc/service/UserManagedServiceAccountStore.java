@@ -163,7 +163,6 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     private void loadAccountFromIndex(String principal, long invalidationCount, ActionListener<UserManagedServiceAccount> listener) {
         final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
         if (projectSecurityIndex.indexExists() == false) {
-            cacheAccount(principal, null, invalidationCount);
             listener.onResponse(null);
             return;
         }

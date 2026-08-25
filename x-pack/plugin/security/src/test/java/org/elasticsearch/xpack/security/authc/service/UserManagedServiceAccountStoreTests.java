@@ -278,6 +278,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     public void testPutAccountWritesTheDocumentAndClearsTheCacheClusterWide() {
+        store = newStore(randomCacheTtlSettings());
         respondWithBulkResult(true);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
@@ -338,6 +339,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     public void testDeleteAccountClearsTheCacheClusterWide() {
+        store = newStore(randomCacheTtlSettings());
         respondWithDeleteResult(true);
 
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
@@ -497,6 +499,21 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final PlainActionFuture<Boolean> delete = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.NONE, delete);
         assertThat(expectThrows(ElasticsearchException.class, delete::actionGet), is(unavailable));
+    }
+
+    /**
+     * A write still broadcasts a cache clear when this node does not cache: another node may.
+     */
+    private static Settings randomCacheTtlSettings() {
+        if (randomBoolean()) {
+            return Settings.EMPTY;
+        }
+        return Settings.builder()
+            .put(
+                UserManagedServiceAccountStore.CACHE_TTL_SETTING.getKey(),
+                randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMinutes(randomIntBetween(1, 20))
+            )
+            .build();
     }
 
     private UserManagedServiceAccountStore newStore(Settings settings) {

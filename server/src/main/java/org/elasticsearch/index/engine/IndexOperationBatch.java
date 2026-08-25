@@ -467,6 +467,24 @@ public final class IndexOperationBatch {
         return sources;
     }
 
+    /** The version requested by the client; on REPLICA this is the version assigned by the primary. */
+    public long version(int i) {
+        return requestedVersion[abs(i)];
+    }
+
+    /**
+     * The requested {@link VersionType}, or {@code null} on REPLICA origin — replicas replay the
+     * version assigned by the primary rather than resolving one.
+     */
+    @Nullable
+    public VersionType versionType(int i) {
+        return versionType[abs(i)];
+    }
+
+    public boolean isRetry(int i) {
+        return isRetry[abs(i)];
+    }
+
     /** {@link SequenceNumbers#UNASSIGNED_SEQ_NO} when no CAS condition was set. */
     public long ifSeqNo(int i) {
         final int absIdx = abs(i);

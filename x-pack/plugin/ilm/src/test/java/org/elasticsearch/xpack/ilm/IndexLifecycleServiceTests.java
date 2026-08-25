@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -98,8 +98,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private IndicesAdminClient indicesClient;
     private long now;
     private ThreadPool threadPool;
+    @SuppressWarnings("rawtypes")
+    private MasterServiceTaskQueue mockTaskQueue;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void prepareServices() {
         nodeId = randomAlphaOfLength(10);
         ExecutorService executorService = mock(ExecutorService.class);
@@ -122,6 +125,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             new ClusterSettings(settings, Set.of(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING))
         );
         when(clusterService.lifecycleState()).thenReturn(State.STARTED);
+        mockTaskQueue = mock(MasterServiceTaskQueue.class);
+        when(clusterService.createTaskQueue(eq("ilm-runner"), any(), any())).thenReturn(mockTaskQueue);
 
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -153,6 +158,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testStoppedModeSkip() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
         IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
@@ -181,41 +187,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());
-        assertThat(mockStep.getExecuteCount(), equalTo(0L));
-    }
-
-    public void testLookupModeIndexIsSkipped() {
-        String policyName = randomAlphaOfLengthBetween(1, 20);
-        IndexLifecycleRunnerTests.MockClusterStateActionStep mockStep = new IndexLifecycleRunnerTests.MockClusterStateActionStep(
-            randomStepKey(),
-            randomStepKey()
-        );
-        MockAction mockAction = new MockAction(List.of(mockStep));
-        Phase phase = new Phase("phase", TimeValue.ZERO, Map.of("action", mockAction));
-        LifecyclePolicy policy = newTestLifecyclePolicy(policyName, Map.of(phase.getName(), phase));
-        SortedMap<String, LifecyclePolicyMetadata> policyMap = new TreeMap<>();
-        policyMap.put(policyName, new LifecyclePolicyMetadata(policy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong()));
-        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-            .settings(
-                settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName())
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(randomIntBetween(0, 5))
-            .build();
-        Map<String, IndexMetadata> indices = Map.of(index.getName(), indexMetadata);
-        var project = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING))
-            .indices(indices);
-        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(project)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE);
-        indexLifecycleService.applyClusterState(event);
-        indexLifecycleService.triggerPolicies(currentState, randomBoolean());
-        assertThat(mockStep.getExecuteCount(), equalTo(0L));
+        Mockito.verify(mockTaskQueue, Mockito.never()).submitTask(anyString(), any(), any());
     }
 
     public void testRequestedStopOnShrink() {

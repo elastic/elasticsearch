@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
@@ -61,13 +60,11 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
         private final int catIdChannel;
         private final int stateChannel;
         private final CategorizeDef categorizeDef;
-        private final AnalysisRegistry analysisRegistry;
 
-        public Factory(int catIdChannel, int stateChannel, CategorizeDef categorizeDef, AnalysisRegistry analysisRegistry) {
+        public Factory(int catIdChannel, int stateChannel, CategorizeDef categorizeDef) {
             this.catIdChannel = catIdChannel;
             this.stateChannel = stateChannel;
             this.categorizeDef = categorizeDef;
-            this.analysisRegistry = analysisRegistry;
         }
 
         @Override
@@ -76,7 +73,6 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
                 catIdChannel,
                 stateChannel,
                 categorizeDef,
-                analysisRegistry,
                 driverContext.blockFactory()
             );
         }
@@ -86,9 +82,6 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
             return "CategorizeStateMergeOperator[catIdChannel=" + catIdChannel + ", stateChannel=" + stateChannel + "]";
         }
     }
-
-    private static final CategorizationAnalyzerConfig DEFAULT_ANALYZER_CONFIG = CategorizationAnalyzerConfig
-        .buildStandardEsqlCategorizationAnalyzer();
 
     private static final int NULL_ORD = 0;
 
@@ -101,7 +94,6 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
         int catIdChannel,
         int stateChannel,
         CategorizeDef categorizeDef,
-        AnalysisRegistry analysisRegistry,
         BlockFactory blockFactory
     ) {
         this.catIdChannel = catIdChannel;
@@ -140,10 +132,6 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
     private Map<Integer, Integer> buildIdMap(BytesRefBlock stateBlock) {
         Map<Integer, Integer> idMap = new HashMap<>();
         idMap.put(NULL_ORD, NULL_ORD);
-
-        if (stateBlock.isNull(0)) {
-            return idMap;
-        }
 
         BytesRef stateBytes = stateBlock.getBytesRef(stateBlock.getFirstValueIndex(0), new BytesRef());
         try (StreamInput in = new BytesArray(stateBytes).streamInput()) {

@@ -157,9 +157,13 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<? extends LimitByExec> info() {
+        // Capture initialCategorizeOutput so that plan-transformation rules that rebuild this
+        // node via the NodeInfo factory (instead of replaceChild) preserve the output snapshot
+        // required by INITIAL-mode CATEGORIZE execution.
+        List<Attribute> capturedOutput = initialCategorizeOutput;
         return NodeInfo.create(
             this,
-            (src, child, lim, grp, size, m) -> new LimitByExec(src, child, lim, grp, size, m, null),
+            (src, child, lim, grp, size, m) -> new LimitByExec(src, child, lim, grp, size, m, capturedOutput),
             child(),
             limitPerGroup,
             groupings,

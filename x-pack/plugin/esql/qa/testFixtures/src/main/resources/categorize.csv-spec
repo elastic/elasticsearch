@@ -1054,3 +1054,18 @@ Connection error
 Connection error
 Disconnected
 ;
+
+limitByCategorizeOnNull
+required_capability: categorize_in_limit_by
+
+// When the CATEGORIZE field is null, all rows are assigned NULL_ORD=0 (the same group).
+// LIMIT 2 BY the single null group keeps 2 of the 7 rows.
+FROM sample_data
+  | EVAL x = null
+  | LIMIT 2 BY CATEGORIZE(x)
+  | STATS count = COUNT()
+;
+
+count:long
+2
+;

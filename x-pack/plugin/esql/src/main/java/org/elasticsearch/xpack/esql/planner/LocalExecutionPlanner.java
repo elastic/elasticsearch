@@ -1305,8 +1305,7 @@ public class LocalExecutionPlanner {
                     new CategorizeStateMergeOperator.Factory(
                         catIdChannel,
                         stateChannel,
-                        categorize.categorizeDef(),
-                        context.analysisRegistry()
+                        categorize.categorizeDef()
                     ),
                     mergedLayout
                 );
@@ -2489,11 +2488,6 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * FINAL mode (coordinator): for each CATEGORIZE grouping in the intermediate exchange schema,
-     * uses {@link CategorizeStateMergeOperator} to merge shard states and remap category IDs
-     * to global IDs. Then applies {@link GroupedLimitOperator} and projects away internal channels.
-     */
-    /**
      * FINAL mode (coordinator): merge per-shard states, remap cat IDs, apply global LIMIT BY.
      * <p>
      * Data nodes append cat_id and state channels beyond the base exchange output, one pair per
@@ -2525,8 +2519,7 @@ public class LocalExecutionPlanner {
                     new CategorizeStateMergeOperator.Factory(
                         catIdChannel,
                         stateChannel,
-                        categorize.categorizeDef(),
-                        context.analysisRegistry()
+                        categorize.categorizeDef()
                     ),
                     mergedLayout
                 );

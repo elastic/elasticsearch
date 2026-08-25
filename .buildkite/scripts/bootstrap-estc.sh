@@ -101,7 +101,9 @@ if [[ ! -x "${ESTC_BIN}" ]]; then
   #      dist/<goos>-<goarch>/estc binary and runs bundleconfig so the embedded
   #      skills bundle is present (raw `go build ./cli/estc` would skip it).
   echo "--- Building estc (${ESTC_SHA_SHORT})"
-  ( cd "${ESTC_SRC}" && bash scripts/build-release.sh --local )
+  # Pre-set TAG so build-release.sh doesn't try `git rev-parse` — the
+  # extracted source tarball has no .git directory.
+  ( cd "${ESTC_SRC}" && TAG="$(date +%Y%m%d)-${ESTC_SHA_SHORT}" bash scripts/build-release.sh --local )
   install -m 0755 "${ESTC_SRC}/dist/linux-amd64/estc" "${ESTC_BIN}"
   rm -rf "${ESTC_SRC}"
 fi

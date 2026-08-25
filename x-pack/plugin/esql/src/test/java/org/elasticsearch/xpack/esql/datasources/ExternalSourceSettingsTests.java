@@ -113,9 +113,11 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(60, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
     }
 
-    public void testThrottleMaxRetryDurationZeroDisablesBudget() {
-        Settings settings = Settings.builder().put("esql.external.throttle_max_retry_duration", 0).build();
-        assertEquals(0, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+    public void testThrottleMaxRetryDurationZeroIsRejected() {
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put("esql.external.throttle_max_retry_duration", 0).build();
+            ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings);
+        });
     }
 
     public void testThrottleMaxRetryDurationUpperBound() {

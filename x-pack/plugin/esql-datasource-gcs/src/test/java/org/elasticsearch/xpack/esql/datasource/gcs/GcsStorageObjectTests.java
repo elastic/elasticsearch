@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.http.HttpResponseException;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -261,6 +263,26 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertEquals('x', wrapped.read());
         ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
         assertTrue("a 503 surfaced mid-read is throttling", e.throttling());
+    }
+
+    public void testMidReadRetryAfterPropagatedFromStorageExceptionCauseChain() throws IOException {
+        // The mid-read path (GcsTransientTypingInputStream) must propagate the Retry-After hint just
+        // like the open-time path (GcsStorageObject.mapReadFailure). Chain: IOException → StorageException(429)
+        // → HttpResponseException(Retry-After: 12).
+        HttpHeaders headers = new HttpHeaders();
+        headers.setRetryAfter("12");
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", headers).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException(se);
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertTrue("429 mid-read is throttling", e.throttling());
+        assertEquals("Retry-After header must be propagated from mid-read path", 12_000L, e.retryAfterMs());
     }
 
     public void testMidReadNon503StorageExceptionIsTransientNotThrottling() {
@@ -590,6 +612,58 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertEquals(rangeBytes, metrics.bytesRead());
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
+    }
+
+    // --- Retry-After hint extraction tests ---
+
+    public void testRetryAfterMsExtractedFromHttpResponseExceptionInChain() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setRetryAfter("5");
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", headers).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+
+        assertEquals(5_000L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testRetryAfterMsAbsentWhenNoHttpResponseExceptionInChain() {
+        StorageException se = new StorageException(429, "Too Many Requests");
+
+        assertEquals(0L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testRetryAfterMsAbsentWhenHeaderNotPresent() {
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", new HttpHeaders()).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+
+        assertEquals(0L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testRetryAfterMsFoundInDeeperExceptionWhenOuterHreHasNoHeader() {
+        // C2: the walk must not stop on the first HRE that has no Retry-After header — it must keep going
+        // and find the header on a deeper exception in the chain.
+        // Chain: StorageException → HttpResponseException (no header) → HttpResponseException (with header)
+        HttpHeaders innerHeaders = new HttpHeaders();
+        innerHeaders.setRetryAfter("7");
+        HttpResponseException inner = new HttpResponseException.Builder(429, "Too Many Requests", innerHeaders).build();
+        HttpResponseException outer = new HttpResponseException.Builder(429, "Too Many Requests", new HttpHeaders()).build();
+        outer.initCause(inner);
+        StorageException se = new StorageException(429, "Too Many Requests", outer);
+
+        assertEquals(7_000L, GcsStorageObject.retryAfterMsFromChain(se));
+    }
+
+    public void testNewStreamPassesRetryAfterToExceptionOnThrottling() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setRetryAfter("10");
+        HttpResponseException hre = new HttpResponseException.Builder(429, "Too Many Requests", headers).build();
+        StorageException se = new StorageException(429, "Too Many Requests", hre);
+
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(se);
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue("429 is throttling", e.throttling());
+        assertEquals("Retry-After header must be propagated", 10_000L, e.retryAfterMs());
     }
 
     /**

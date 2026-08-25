@@ -365,7 +365,7 @@ public class RetryPolicyTests extends ESTestCase {
         RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
         ExternalUnavailableException throttle = new ExternalUnavailableException(true, (Throwable) null, "throttled (HTTP 503)");
 
-        // Sanity cap reached (attempt == throttleMaxRetries / THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
+        // Sanity cap reached (attempt == THROTTLE_RETRIES_SANITY_CAP) -> GIVE_UP,
         // and the backoff must stay at baseline.
         RetryPolicy.RetryDecision giveUp = policy.decide(throttle, policy.throttleMaxRetries(), System.nanoTime());
         assertFalse("sanity-cap throttle must give up", giveUp.retry());
@@ -528,6 +528,32 @@ public class RetryPolicyTests extends ESTestCase {
             "budget must be nearly spent before giving up",
             elapsedMs,
             greaterThan(30_000L - RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS)
+        );
+    }
+
+    public void testSanityCapDoesNotLimitRetriesBeforeBudgetIsSpent() {
+        // The sanity cap must be large enough that the time budget is always spent first.
+        AtomicLong clockNanos = new AtomicLong(0L);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withTotalDurationBudget(300_000).withClock(clockNanos::get);
+        long startNanos = 0L;
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, "throttled");
+        int retries = 0;
+        RetryPolicy.RetryDecision decision;
+        do {
+            decision = policy.decide(throttle, retries, startNanos);
+            if (decision.retry()) {
+                clockNanos.addAndGet(decision.delayMillis() * 1_000_000L);
+                retries++;
+            }
+        } while (decision.retry());
+
+        long elapsedMs = clockNanos.get() / 1_000_000L;
+        assertThat("sanity cap must not terminate retries before budget is spent", retries, greaterThan(10));
+        assertThat("clock must not exceed budget", elapsedMs, lessThanOrEqualTo(300_000L));
+        assertThat(
+            "budget must be nearly spent before giving up",
+            elapsedMs,
+            greaterThan(300_000L - RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS)
         );
     }
 

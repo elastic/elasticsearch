@@ -31,8 +31,8 @@ import java.util.function.LongSupplier;
  * ({@code esql.external.throttle_max_retry_duration}, default 30 s). Within the budget the
  * delay is either the server-supplied {@code Retry-After} hint (when the exception carries one) or the
  * computed exponential backoff, truncated to the remaining budget so the sleep never overshoots.
- * The attempt count ({@link #THROTTLE_RETRIES_SANITY_CAP}) acts only as a backstop against a broken clock,
- * not as the primary bound.
+ * {@link #THROTTLE_RETRIES_SANITY_CAP} is a safety backstop; under typical cloud-provider
+ * behaviour the time budget is the effective bound.
  * <p>
  * <b>Non-throttle transient arm:</b> bounded by attempt count (default {@link #DEFAULT_MAX_RETRIES})
  * with an optional secondary time budget check — semantics unchanged from the original design.
@@ -49,12 +49,12 @@ class RetryPolicy {
     static final long DEFAULT_MAX_DELAY_MS = 5000;
 
     /**
-     * Sanity backstop on the number of throttle retries — guards against an infinite loop when
-     * the budget is zero or the clock is broken. The effective throttle bound is the time budget
-     * ({@code esql.external.throttle_max_retry_duration}), which is always reached first under
-     * any realistic configuration.
+     * Sanity backstop on the number of throttle retries — guards against an infinite loop when the clock
+     * is broken or Retry-After hints are unexpectedly small. Under typical cloud-provider behaviour
+     * (Retry-After ≥ 1 s or exponential back-off from the 500 ms default), the time budget is reached
+     * well before this cap.
      */
-    static final int THROTTLE_RETRIES_SANITY_CAP = 10;
+    static final int THROTTLE_RETRIES_SANITY_CAP = 500;
     static final long DEFAULT_THROTTLE_INITIAL_DELAY_MS = 500;
     static final long DEFAULT_THROTTLE_MAX_DELAY_MS = 30_000;
 

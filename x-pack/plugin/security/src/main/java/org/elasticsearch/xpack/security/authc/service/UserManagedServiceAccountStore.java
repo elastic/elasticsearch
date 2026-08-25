@@ -101,7 +101,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     private final FeatureService featureService;
     private final TimeValue scrollKeepAlive;
     @Nullable
-    private final InvalidationCountingCacheWrapper<String, CachedAccount> accountCache;
+    private final InvalidationCountingCacheWrapper<String, UserManagedServiceAccount> accountCache;
 
     @SuppressWarnings("this-escape")
     public UserManagedServiceAccountStore(
@@ -120,7 +120,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.accountCache = new InvalidationCountingCacheWrapper<>(
-                CacheBuilder.<String, CachedAccount>builder()
+                CacheBuilder.<String, UserManagedServiceAccount>builder()
                     .setExpireAfterWrite(ttl)
                     .setMaximumWeight(CACHE_MAX_ACCOUNTS_SETTING.get(settings))
                     .build()
@@ -136,7 +136,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     /**
-     * Looks up a single account, from the cache when it holds an entry for the principal.
+     * Looks up a single account, from the cache when it holds a found account for the principal.
      * <p>
      * Responds with {@code null} rather than failing when the principal could not name a user-managed account at all
      * — one in the reserved {@link org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings#BUILTIN_NAMESPACE}
@@ -149,9 +149,9 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
             return;
         }
         if (accountCache != null) {
-            final CachedAccount cached = accountCache.get(principal);
+            final UserManagedServiceAccount cached = accountCache.get(principal);
             if (cached != null) {
-                listener.onResponse(cached.account());
+                listener.onResponse(cached);
                 return;
             }
         }
@@ -381,7 +381,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
 
     // package private for testing
     @Nullable
-    InvalidationCountingCacheWrapper<String, CachedAccount> getAccountCache() {
+    InvalidationCountingCacheWrapper<String, UserManagedServiceAccount> getAccountCache() {
         return accountCache;
     }
 
@@ -390,8 +390,8 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     private void cacheAccount(String principal, @Nullable UserManagedServiceAccount account, long invalidationCount) {
-        if (accountCache != null) {
-            accountCache.putIfNoInvalidationSince(principal, new CachedAccount(account), invalidationCount);
+        if (accountCache != null && account != null) {
+            accountCache.putIfNoInvalidationSince(principal, account, invalidationCount);
         }
     }
 
@@ -513,10 +513,4 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         CREATED,
         UPDATED
     }
-
-    /**
-     * Wraps the looked-up account so that "this principal has no account" can be cached too; the cache itself
-     * cannot hold a null value.
-     */
-    record CachedAccount(@Nullable UserManagedServiceAccount account) {}
 }

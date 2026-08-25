@@ -199,14 +199,14 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(getRequestCount.get(), equalTo(1));
     }
 
-    public void testGetByPrincipalCachesTheAbsenceOfAnAccount() {
+    public void testGetByPrincipalDoesNotCacheTheAbsenceOfAnAccount() {
         respondToGetWith(null);
 
         assertThat(getByPrincipal(PRINCIPAL), nullValue());
         assertThat(getRequestCount.get(), equalTo(1));
 
         assertThat(getByPrincipal(PRINCIPAL), nullValue());
-        assertThat(getRequestCount.get(), equalTo(1));
+        assertThat(getRequestCount.get(), equalTo(2));
     }
 
     public void testGetByPrincipalFindsNothingForPrincipalsNoAccountCouldHold() {

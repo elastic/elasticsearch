@@ -469,11 +469,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final Map<String, String> declaredDateFormats;
     /**
-     * True when some column declared a {@code path}, so a pinned (strict) schema binds to the file BY NAME rather
-     * than by position — see {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredPathBinding}.
-     * False (the default) keeps the positional declared-schema contract byte-for-byte.
+     * True when the pinned schema's provenance is {@code DECLARED} (set by {@code FileSourceFactory} from
+     * {@link org.elasticsearch.xpack.esql.datasources.SchemaProvenance#DECLARED}), meaning the schema was explicitly
+     * declared by the user and its columns must bind to the file BY NAME rather than by position — see
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredProvenanceBinding}.
+     * False (the default) means the schema is inferred; the file columns bind positionally.
      */
-    private final boolean declaredPathBinding;
+    private final boolean declaredProvenanceBinding;
 
     /**
      * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
@@ -544,7 +546,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String canonicalConfig,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
-        boolean declaredPathBinding
+        boolean declaredProvenanceBinding
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -556,7 +558,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.canonicalConfig = canonicalConfig;
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.declaredPathBinding = declaredPathBinding;
+        this.declaredProvenanceBinding = declaredProvenanceBinding;
         this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -580,7 +582,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             enabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
@@ -875,7 +877,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
@@ -892,13 +894,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
     @Override
-    public CsvFormatReader withDeclaredPathBinding(boolean binding) {
-        if (binding == declaredPathBinding) {
+    public CsvFormatReader withDeclaredProvenanceBinding(boolean binding) {
+        if (binding == declaredProvenanceBinding) {
             return this;
         }
         return new CsvFormatReader(
@@ -918,24 +920,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public boolean declaredNameBindingNeedsFileStart() {
-        // Headered + declared path binds against the header line, which only the first split carries. Headerless binds
-        // from the names alone, so it stays splittable.
-        return declaredPathBinding && options.headerRow();
+        // Headered + provenance-declared schema binds against the header line, which only the first split carries.
+        // Headerless binds from the names alone, so it stays splittable.
+        return declaredProvenanceBinding && options.headerRow();
     }
 
     /**
-     * Maps each position of a pinned (strict) schema to the raw field index it reads, so a declared {@code path}
-     * binds the same column it binds under {@code dynamic:true}. Returns {@code null} when no {@code path} was
-     * declared — the caller then keeps the positional contract, identity-mapped, byte-for-byte as before.
+     * Maps each position of a pinned declared schema to the raw field index it reads, so a declared {@code path}
+     * binds the same column it binds under {@code dynamic:true}. Returns {@code null} for a pinned inferred schema
+     * ({@link #declaredProvenanceBinding} is false) — the caller then keeps the positional contract.
      * <p>
      * Headerless files self-bind: the physical name IS the position ({@code col4} -> field 4), so no file content is
-     * needed and strict stays content-independent. Headered files bind against {@code headerFields}, which the caller
+     * needed and binding stays content-independent. Headered files bind against {@code headerFields}, which the caller
      * has already read off the file.
      *
      * @param headerFields the file's header names, or {@code null} for a headerless file
      */
     private int[] declaredPathFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
-        if (declaredPathBinding == false || readSchema == null) {
+        if (declaredProvenanceBinding == false || readSchema == null) {
             return null;
         }
         int[] bound = new int[readSchema.size()];
@@ -1041,7 +1043,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             directBlockEnabled,
             physicalNameToPattern,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
@@ -1070,7 +1072,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canon,
             result.directBlockEnabled,
             result.declaredDateFormats,
-            result.declaredPathBinding
+            result.declaredProvenanceBinding
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -1766,7 +1768,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
-                // A declared (pinned) schema binds its columns to the header BY NAME (when declaredPathBinding), which
+                // A declared (pinned) schema binds its columns to the header BY NAME (when declaredProvenanceBinding), which
                 // consumes the header line — so it is read here, not skipped. Runs before ownership of the stream chain
                 // transfers to the returned iterator, so the reader must be closed here or the file handle leaks
                 // (caught by LeakFS in CI).
@@ -1781,11 +1783,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     throw e;
                 }
             }
-            if (options.headerRow() == false && declaredPathBinding) {
+            if (options.headerRow() == false && declaredProvenanceBinding) {
                 // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file
                 // content and runs on EVERY split — macro-splits past the first stay correctly bound.
                 schemaFieldIndex = declaredPathFieldIndexes(readSchema, null, object);
-            } else if (options.headerRow() && declaredPathBinding && context.firstSplit() == false) {
+            } else if (options.headerRow() && declaredProvenanceBinding && context.firstSplit() == false) {
                 // This read does not own the file's start, so the header is not in front of it. Bind by name
                 // against the header columns whoever cut the file up read once and passed down. Without them
                 // there is no way to know what this chunk's fields are called, and binding by position would
@@ -1982,39 +1984,38 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Width tripwire for an externally-supplied (declared) positional schema against the file's actual header.
+     * Dispatches header-based binding for a pinned schema at the start of a headered file.
      *
-     * <p>A declared schema binds text columns <b>positionally</b>: the declared names replace the header's names in
-     * order (the same contract as DuckDB {@code columns=} / ClickHouse {@code structure}), so declared names are NOT
-     * cross-checked against header names — renaming by position is intended. What CAN be checked is width: a
-     * declaration WIDER than the file's header means the file cannot supply the declared columns (a drifted file, or
-     * the wrong file entirely) — fail loudly at the first read instead of null-splicing every row. Fewer declared
-     * columns than the header is allowed: the declaration binds the leading columns and the rest stay unread.
+     * <p>When {@link #declaredProvenanceBinding} is true the schema is a user <em>declaration</em>: its columns
+     * bind to the file <b>by name</b>. This routes to {@link #bindDeclaredToHeaderNames} and the width of the
+     * declaration relative to the file is irrelevant (naming one column of a hundred-column file is legitimate).
      *
-     * <p>When a {@code path} WAS declared ({@link #declaredPathBinding}), the declaration no longer binds
-     * positionally: it names its columns, so this returns the raw field index each declared column reads and the
-     * width tripwire does not apply (naming {@code col100} of a 105-column file is legitimate with 1 declared
-     * column). Returns {@code null} otherwise — the caller then keeps the positional contract.
+     * <p>When {@link #declaredProvenanceBinding} is false the schema is a <em>pinned inferred</em> schema (for
+     * example, a cached first-file schema being reused across a multi-file read). Binding is still positional, so
+     * a schema <em>wider</em> than the file's header is a signal that the file has drifted — fail loudly rather
+     * than null-splicing every row. A narrower schema leaves the trailing file columns unread.
      *
-     * @return the raw field index per {@code readSchema} position, or {@code null} for positional binding
+     * @return the raw field index per {@code readSchema} position (by-name binding), or {@code null} for
+     *         positional binding (pinned inferred schema whose width fits the file)
      */
     private int[] validateDeclaredHeaderBinding(String headerLine, List<Attribute> readSchema, StorageObject object) {
         if (headerLine == null) {
             return null; // empty file — nothing to validate, and nothing to read
         }
         String[] fields = splitFieldsForOptions(headerLine, options);
-        if (declaredPathBinding) {
+        if (declaredProvenanceBinding) {
             return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(
-                "declared schema has "
+                "pinned schema has "
                     + readSchema.size()
                     + " columns but the header of ["
                     + object.path()
-                    + "] has "
+                    + "] has only "
                     + fields.length
-                    + "; a declared schema binds text columns in order (for a headerless file set header_row=false)"
+                    + "; the file has fewer columns than the pinned schema (it may have drifted)"
+                    + " — for a headerless file set header_row=false"
             );
         }
         return null;

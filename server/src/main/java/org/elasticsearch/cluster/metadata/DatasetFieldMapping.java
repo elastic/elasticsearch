@@ -34,15 +34,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * names its underlying field. The physical column becomes this one logical column (the physical name is consumed,
  * 1:1) — a read-path rename. E.g. {@code "@timestamp": {"type":"date","path":"ts"}} renames {@code ts}.
  *
- * <p><b>Binding contract per format family.</b> Non-strict resolution binds a declared column to the file column of
- * the same physical name (from the header/keys). Strict resolution ({@code dynamic: false}) reads no file at
- * declaration time; for <em>text</em> formats (CSV/TSV) it then binds <em>positionally</em> — the declared names
- * replace the header's names in order (the DuckDB {@code columns=} / ClickHouse {@code structure} contract), so
- * renaming by position needs no {@code path} and declared names are deliberately not cross-checked against the
- * header. Two guards keep drifted files loud rather than silently wrong: a declaration <em>wider</em> than a file's
- * header fails at first read (the file cannot supply the declared columns), and for <em>columnar</em> formats
- * (parquet/orc, which bind by name and carry their own types) a declared type that differs from the file's
- * reconciled type is rejected at resolution. Fewer declared columns than the file has leaves the extras unread.
+ * <p><b>Binding contract per format family.</b> Both strict ({@code dynamic: false}) and non-strict resolution bind
+ * a declared column to the file column of the same physical name. For <em>headered text</em> formats (CSV/TSV) the
+ * physical name is the header column name; for <em>headerless</em> text the physical name is the positional alias
+ * the reader assigns ({@code col0}, {@code col1}, …), so declared names there still bind by name. For
+ * <em>columnar</em> formats (Parquet/ORC) the physical name comes from the footer. A declared name the file does
+ * not supply reads null with a warning; fewer declared columns than the file leaves the extras unread. For columnar
+ * formats a declared type that differs from the file's reconciled type is rejected at resolution.
  *
  * <p><b>Type is a plain String here on purpose.</b> {@link Dataset} lives in {@code server} and must not
  * depend on the ES|QL {@code DataType} enum (an x-pack type). The String is validated against the set of

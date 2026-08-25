@@ -309,10 +309,10 @@ public interface FormatReader extends Closeable {
      * NDJSON by object key, so they bind a declared schema by name under either mode already and keep the no-op default.
      * A declared name the file does not supply reads null with a warning, never a silent positional fallback.
      *
-     * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
+     * @param declaredProvenanceBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
      */
-    default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
+    default FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
         return this;
     }
 

@@ -424,7 +424,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                 // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                 // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                .withDeclaredPathBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();

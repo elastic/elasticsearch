@@ -4,6 +4,10 @@
   - skip:
       features: headers
 
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable API key state — must run exactly once"
+
   - do:
       security.create_api_key:
         body:  >
@@ -51,6 +55,10 @@
       test_runner_features: [headers]
       cluster_features: ["gte_v7.13.0"]
       reason: "Support metadata on API keys introduced in 7.13.0"
+
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable API key state — must run exactly once"
 
   - do:
       security.create_api_key:

@@ -198,6 +198,6 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
     }
 
     private ColumnarRowDropHelper helper(long maxErrors) {
-        return ColumnarRowDropHelper.forPolicy(new ErrorPolicy(maxErrors, true), null, "test.parquet");
+        return ColumnarRowDropHelper.forPolicy(new ErrorPolicy(maxErrors, true), SkipWarnings.NOOP, "test.parquet");
     }
 }

@@ -193,7 +193,12 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
 
-        var docsIterator = createDocsIterator(context, profiler, rankDocs, writer != null ? bytes -> {} : memoryChecker);
+        var docsIteratorAndProcessors = createDocsIterator(context, profiler, rankDocs, writer != null ? bytes -> {} : memoryChecker);
+        var docsIterator = docsIteratorAndProcessors.docsIterator();
+        ActionListener<Void> releasingBuildListener = ActionListener.releaseAfter(
+            resolvedBuildListener,
+            Releasables.wrap(docsIteratorAndProcessors.processors())
+        );
 
         // Common completion handler for both sync and streaming modes
         // finalizes profiling, stores the shard result, and signals the outer listener.
@@ -217,7 +222,7 @@ public final class FetchPhase {
         });
 
         if (writer == null) {
-            buildSearchHits(context, docIdsToLoad, docsIterator, resolvedBuildListener, hitsListener);
+            buildSearchHits(context, docIdsToLoad, docsIterator, releasingBuildListener, hitsListener);
         } else {
             assert continuationExecutor != null : "continuationExecutor is required in streaming mode";
             var settings = context.getSearchExecutionContext().getIndexSettings().getSettings();
@@ -229,7 +234,7 @@ public final class FetchPhase {
                 resolveMaxInFlightChunks(maxInFlightChunks, settings),
                 resolveTargetChunkBytes(targetChunkBytes, settings),
                 continuationExecutor,
-                resolvedBuildListener,
+                releasingBuildListener,
                 hitsListener
             );
         }
@@ -266,7 +271,7 @@ public final class FetchPhase {
      * Creates the docs iterator that handles per-document fetching and sub-phase processing.
      * Shared between sync and streaming modes; the memoryChecker parameter controls per-hit memory accounting.
      */
-    private StreamingFetchPhaseDocsIterator createDocsIterator(
+    private DocsIteratorAndProcessors createDocsIterator(
         SearchContext context,
         Profiler profiler,
         RankDocShardInfo rankDocs,
@@ -421,8 +426,15 @@ public final class FetchPhase {
                 }
             }
         };
-        return docsIterator;
+        return new DocsIteratorAndProcessors(docsIterator, processors);
     }
+
+    /**
+     * Pairs the per-search {@link StreamingFetchPhaseDocsIterator} with the {@link FetchSubPhaseProcessor}s
+     * it drives, so callers can release processor resources (e.g. circuit breaker reservations held by
+     * {@link org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase}) once fetching completes.
+     */
+    private record DocsIteratorAndProcessors(StreamingFetchPhaseDocsIterator docsIterator, List<FetchSubPhaseProcessor> processors) {}
 
     /**
      * Synchronous fetch: iterates all documents, collects hits in memory, and returns them at once.

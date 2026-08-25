@@ -9,14 +9,17 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -39,5 +42,45 @@ public class FetchProfilerTests extends ESTestCase {
         // Make sure that serialization preserves the order
         ProfileResult copy = copyWriteable(result, new NamedWriteableRegistry(List.of()), ProfileResult::new);
         assertMap(copy.getDebugInfo(), matchesMap().entry("stored_fields", List.of("_id", "_routing", "_source")));
+    }
+
+    public void testProfileWrapperDelegatesClose() throws IOException {
+        FetchProfiler profiler = new FetchProfiler();
+        CountingProcessor delegate = new CountingProcessor();
+
+        FetchSubPhaseProcessor wrapped = profiler.profile("test", "", delegate);
+        wrapped.setNextReader(null);
+        wrapped.process(null);
+        wrapped.close();
+
+        assertEquals(1, delegate.nextReaderCount.get());
+        assertEquals(1, delegate.processCount.get());
+        assertEquals(1, delegate.closeCount.get());
+    }
+
+    private static class CountingProcessor implements FetchSubPhaseProcessor {
+        final AtomicInteger nextReaderCount = new AtomicInteger();
+        final AtomicInteger processCount = new AtomicInteger();
+        final AtomicInteger closeCount = new AtomicInteger();
+
+        @Override
+        public void setNextReader(LeafReaderContext readerContext) {
+            nextReaderCount.incrementAndGet();
+        }
+
+        @Override
+        public void process(HitContext hitContext) {
+            processCount.incrementAndGet();
+        }
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+
+        @Override
+        public void close() {
+            closeCount.incrementAndGet();
+        }
     }
 }

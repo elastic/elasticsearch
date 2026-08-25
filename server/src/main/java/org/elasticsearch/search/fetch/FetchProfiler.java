@@ -139,6 +139,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
                     timer.stop();
                 }
             }
+
+            @Override
+            public void close() {
+                delegate.close();
+            }
         };
     }
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
@@ -18,7 +19,7 @@ import java.util.Map;
 /**
  * Executes the logic for a {@link FetchSubPhase} against a particular leaf reader and hit
  */
-public interface FetchSubPhaseProcessor {
+public interface FetchSubPhaseProcessor extends Releasable {
 
     /**
      * Called when moving to the next {@link LeafReaderContext} for a set of hits
@@ -42,4 +43,11 @@ public interface FetchSubPhaseProcessor {
      * The stored fields or source required by this sub phase
      */
     StoredFieldsSpec storedFieldsSpec();
+
+    /**
+     * Called once, after all hits have been processed (on success or failure), to release any
+     * resources held for the duration of the fetch phase.
+     */
+    @Override
+    default void close() {}
 }

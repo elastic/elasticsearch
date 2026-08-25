@@ -275,6 +275,9 @@ public class SerialDiffIT extends AggregationIntegTestCase {
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, notNullValue());
                 assertThat(histo.getBuckets(), Matchers.hasSize(numBuckets));
+                for (Bucket bucket : histo.getBuckets()) {
+                    assertThat(bucket.getAggregations().get("diff_values"), nullValue());
+                }
             }
         );
     }

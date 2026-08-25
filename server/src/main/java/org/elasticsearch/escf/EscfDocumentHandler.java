@@ -245,11 +245,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     }
 
     @Override
-    public void arrayElemBigInteger(BigInteger value) {
+    public void arrayElemBigInteger(BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
         ensureArrayCapacity();
-        byte[] text = value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
         elemTypes[elemCount] = SourceValueType.STRING;
-        elemVar[elemCount] = new XContentString.UTF8Bytes(text, 0, text.length);
+        elemVar[elemCount] = new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
         elemCount++;
     }
 
@@ -394,7 +393,10 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             forceUnion = true;
             elemCount++;
         } else {
-            row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
+            int colIdx = row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
+            if (firePathSink) {
+                sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
+            }
         }
     }
 

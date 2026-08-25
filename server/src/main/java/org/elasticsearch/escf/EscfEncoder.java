@@ -16,6 +16,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdjson.JsonParsingException;
 import org.elasticsearch.simdjson.SimdJsonBatchParser;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -125,11 +126,12 @@ public final class EscfEncoder implements SourceBatchEncoder {
             EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
             walker.walkDocument(buf, len, batchParser, handler);
             row.finishRow();
-            walker.releaseNames();
             return true;
+        } catch (JsonParsingException e) {
+            logger.debug(() -> "Direct walk failed, falling back to Jackson: " + e.getMessage());
+            return false;
         } catch (RuntimeException e) {
-            // TODO: revert to debug before merging — temporarily WARN to detect fallbacks during Rally benchmarking
-            logger.warn("Direct walk single-doc failed, falling back: {}", e.getMessage());
+            logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
             return false;
         }
     }
@@ -168,6 +170,9 @@ public final class EscfEncoder implements SourceBatchEncoder {
 
     @Override
     public EscfBatch buildPartition(int partitionKey) {
+        if (allowSimd && SimdJsonPool.AVAILABLE) {
+            SimdJsonPool.releaseNames();
+        }
         return backend.buildPartition(partitionKey);
     }
 

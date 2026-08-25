@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Unit tests for {@link EscfDocumentHandler} routing and KEY_VALUE integration.
@@ -250,6 +251,34 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         assertTrue(paths.contains("b"));
         assertEquals("99", texts.get(paths.indexOf("n")));
         assertEquals("true", texts.get(paths.indexOf("b")));
+    }
+
+    public void testRootArrayFiresOnArrayLeaf() {
+        EscfBatchBuilder backend = newBackend();
+        EscfRowBuffer row = backend.beginRow();
+        AtomicInteger arrayEvents = new AtomicInteger();
+        LeafSink sink = new LeafSink() {
+            @Override
+            public boolean passRawText() {
+                return false;
+            }
+
+            @Override
+            public void onArrayLeaf(int columnIndex, String dottedPath) {
+                assertEquals("tags", dottedPath);
+                arrayEvents.incrementAndGet();
+            }
+        };
+        EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, false);
+
+        byte[] tag = "a".getBytes(StandardCharsets.UTF_8);
+        handler.startArray("tags");
+        handler.arrayElemString(tag, 0, tag.length);
+        handler.endArray();
+        row.finishRow();
+
+        assertEquals(1, arrayEvents.get());
+        assertEquals("tags", backend.columnPath(0));
     }
 
     public void testSimdWalkObjectInArrayMatchesHelper() throws IOException {

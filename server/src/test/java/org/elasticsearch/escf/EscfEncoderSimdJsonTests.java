@@ -607,6 +607,42 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         }
     }
 
+    /**
+     * Root-level array leaves must fire onArrayLeaf once on both parser paths.
+     */
+    public void testArrayLeafSinkFiresOnce() throws IOException {
+        String json = "{\"tags\":[\"a\",\"b\"]}";
+        for (boolean allowSimd : new boolean[] { true, false }) {
+            for (SourceShape shape : SourceShape.values()) {
+                BytesReference source = wrapSource(json, shape);
+                Recycler<BytesRef> recycler = newRecycler();
+                java.util.concurrent.atomic.AtomicInteger arrayEvents = new java.util.concurrent.atomic.AtomicInteger();
+
+                LeafSink sink = new LeafSink() {
+                    @Override
+                    public boolean passRawText() {
+                        return false;
+                    }
+
+                    @Override
+                    public void onArrayLeaf(int columnIndex, String dottedPath) {
+                        assertEquals("tags", dottedPath);
+                        arrayEvents.incrementAndGet();
+                    }
+                };
+
+                try (EscfEncoder encoder = new EscfEncoder(recycler, allowSimd)) {
+                    encoder.parseToScratch(source, XContentType.JSON, sink);
+                    encoder.commitScratchTo(0);
+                    try (EscfBatch batch = encoder.buildPartition(0)) {
+                        assertEquals(1, batch.docCount());
+                    }
+                }
+                assertEquals("allowSimd=" + allowSimd + " shape=" + shape, 1, arrayEvents.get());
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------
     // rawTextMode: sink receives raw text for primitive values
     // -----------------------------------------------------------------------

@@ -6,23 +6,22 @@ Benchmark results on AWS EC2, `nativeStage1=true`, JDK 26.0.1.
 
 ### x64 (AMD EPYC 9R14, 8 threads, AVX-512 / ICE_LAKE)
 
-| Method               | clickbench_flat | otel_nested | small_sparse |
-|----------------------|-----------------|-------------|--------------|
-| jacksonEncode        |  86.5 ops/s     | 365.3 ops/s |  863.3 ops/s |
-| simdJsonEncode       | 110.3 ops/s     | 443.4 ops/s | 1071.3 ops/s |
-| simdJsonBatchEncode  | 101.0 ops/s     | 487.6 ops/s | 1287.0 ops/s |
+| Method         | clickbench_flat | otel_nested | small_sparse |
+|----------------|-----------------|-------------|--------------|
+| jacksonEncode  |  86.5 ops/s     | 365.3 ops/s |  863.3 ops/s |
+| simdJsonEncode | 110.3 ops/s     | 443.4 ops/s | 1071.3 ops/s |
 
 ### ARM (Graviton, 4 threads, NEON)
 
-| Method               | clickbench_flat | otel_nested | small_sparse |
-|----------------------|-----------------|-------------|--------------|
-| jacksonEncode        |  31.7 ops/s     | 176.2 ops/s |  346.8 ops/s |
-| simdJsonEncode       |  54.7 ops/s     | 239.9 ops/s |  548.6 ops/s |
-| simdJsonBatchEncode  |  46.6 ops/s     | 191.5 ops/s |  575.1 ops/s |
+| Method         | clickbench_flat | otel_nested | small_sparse |
+|----------------|-----------------|-------------|--------------|
+| jacksonEncode  |  31.7 ops/s     | 176.2 ops/s |  346.8 ops/s |
+| simdJsonEncode |  54.7 ops/s     | 239.9 ops/s |  548.6 ops/s |
 
 **Note:** Previous ARM results (48.7 / 237.3 / 445.9 for simdJsonEncode) were
-collected with JDK 21. JDK 26 improves per-doc by 10-20% and batch by 5-37%.
-Batch now beats per-doc on `small_sparse` (+5%).
+collected with JDK 21. JDK 26 improves per-doc throughput by 10-20%.
+The removed multi-doc `simdJsonBatchEncode` benchmark path is no longer applicable;
+production encoding uses per-document `parseToScratch` / `commitScratchTo`.
 
 ### Document shapes
 

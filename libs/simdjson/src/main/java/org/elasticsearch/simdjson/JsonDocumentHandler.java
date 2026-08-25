@@ -93,7 +93,7 @@ public interface JsonDocumentHandler {
     void arrayElemLong(long value, boolean fitsInt);
 
     /** An integer element inside an array whose value exceeds the range of {@code long}. */
-    void arrayElemBigInteger(BigInteger value);
+    void arrayElemBigInteger(BigInteger value, byte[] srcBuf, int srcOff, int srcLen);
 
     /** A float or double element inside an array. */
     void arrayElemDouble(double value, boolean fitsFloat);

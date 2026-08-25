@@ -549,7 +549,7 @@ public final class SimdJsonDirectWalker {
             if (digitCount >= 19 && (digitCount > 19 || (negative ? digits == Long.MIN_VALUE ? false : digits < 0 : digits < 0))) {
                 int len = pos - idx;
                 BigInteger bigVal = new BigInteger(new String(buffer, idx, len, java.nio.charset.StandardCharsets.US_ASCII));
-                handler.arrayElemBigInteger(bigVal);
+                handler.arrayElemBigInteger(bigVal, buffer, idx, len);
             } else {
                 long val = negative ? -digits : digits;
                 handler.arrayElemLong(val, val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE);

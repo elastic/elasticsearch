@@ -12,6 +12,7 @@ package org.elasticsearch.simdjson;
 import org.elasticsearch.simdjson.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.BitIndexes;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -126,7 +127,7 @@ public final class SimdJsonTestSupport {
         }
 
         @Override
-        public void bigIntegerField(String fieldName, java.math.BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
+        public void bigIntegerField(String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
             events.add("bigInteger(" + fieldName + "=" + value + ")");
         }
 
@@ -166,7 +167,7 @@ public final class SimdJsonTestSupport {
         }
 
         @Override
-        public void arrayElemBigInteger(java.math.BigInteger value) {
+        public void arrayElemBigInteger(BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
             events.add("arrayElemBigInteger(" + value + ")");
         }
 

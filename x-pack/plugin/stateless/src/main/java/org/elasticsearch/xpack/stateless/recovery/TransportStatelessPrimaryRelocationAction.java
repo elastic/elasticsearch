@@ -136,7 +136,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             PrimaryContextHandoffRequest::new,
             (request, channel, task) -> {
                 final var recoveryRef = peerRecoveryTargetService.getRecoveryRef(request.recoveryId(), request.shardId());
-                boolean success = false;
+                boolean listenerOwnsRef = false;
                 try {
                     primaryRelocationTargetService.handlePrimaryContextHandoff(
                         request,
@@ -145,9 +145,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             recoveryRef
                         )
                     );
-                    success = true;
+                    listenerOwnsRef = true;
                 } finally {
-                    if (success == false) {
+                    if (listenerOwnsRef == false) {
                         recoveryRef.close();
                     }
                 }

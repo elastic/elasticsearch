@@ -8,30 +8,14 @@
 package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-$endif$
-import org.elasticsearch.common.util.$Hash$Table;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int)$
-import org.elasticsearch.compute.data.IntBlock;
-
-$elseif(long)$
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
-
-$elseif(DoubleRange)$
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
 import org.elasticsearch.compute.data.IntBlock;
-
-$else$
-import org.elasticsearch.compute.data.$Type$Block;
-import org.elasticsearch.compute.data.IntBlock;
-$endif$
 
 import java.util.Arrays;
 
@@ -39,73 +23,50 @@ import java.util.Arrays;
  * Removes duplicate values from multivalued positions.
  * This class is generated. Edit {@code X-MultivalueDedupe.java.st} instead.
  */
-public class MultivalueDedupe$Type$ {
+public class MultivalueDedupeDoubleRange {
     /**
      * The number of entries before we switch from and {@code n^2} strategy
      * with low overhead to an {@code n*log(n)} strategy with higher overhead.
      * The choice of number has been experimentally derived.
      */
-$if(BytesRef)$
-    static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
-$elseif(DoubleRange)$
     static final int ALWAYS_COPY_MISSING = 20;
-$elseif(double)$
-    static final int ALWAYS_COPY_MISSING = 110;
-$else$
-    static final int ALWAYS_COPY_MISSING = 300;
-$endif$
-
     /**
      * The {@link Block} being deduplicated.
      */
-    final $Type$Block block;
+    final DoubleRangeBlock block;
     /**
      * Oversized array of values that contains deduplicated values after
      * running {@link #copyMissing} and sorted values after calling
      * {@link #copyAndSort}
      */
-    $type$[] work = new $type$[ArrayUtil.oversize(2, $BYTES$)];
+    DoubleRange[] work = new DoubleRange[ArrayUtil.oversize(2, DoubleRange.SIZE)];
     /**
      * After calling {@link #copyMissing} or {@link #copyAndSort} this is
      * the number of values in {@link #work} for the current position.
      */
     int w;
 
-    public MultivalueDedupe$Type$($Type$Block block) {
+    public MultivalueDedupeDoubleRange(DoubleRangeBlock block) {
         this.block = block;
-$if(BytesRef)$
-        // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
-$elseif(DoubleRange)$
-        fillWork(0, work.length);
-$endif$
     }
 
     /**
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public $Type$Block dedupeToBlockAdaptive(BlockFactory blockFactory) {
+    public DoubleRangeBlock dedupeToBlockAdaptive(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+        try (DoubleRangeBlock.Builder builder = blockFactory.newDoubleRangeBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
-                if (block.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$elseif(DoubleRange)$
+                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
                     default -> {
                         /*
                          * It's better to copyMissing when there are few unique values
@@ -144,27 +105,18 @@ $endif$
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public $Type$Block dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+    public DoubleRangeBlock dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+        try (DoubleRangeBlock.Builder builder = blockFactory.newDoubleRangeBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
-                if (block.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$elseif(DoubleRange)$
+                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
                     default -> {
                         copyAndSort(first, count);
                         deduplicatedSortedWork(builder);
@@ -183,27 +135,18 @@ $endif$
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public $Type$Block dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+    public DoubleRangeBlock dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
         if (block.mvDeduplicated()) {
             block.incRef();
             return block;
         }
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+        try (DoubleRangeBlock.Builder builder = blockFactory.newDoubleRangeBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
-                if (block.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$elseif(DoubleRange)$
+                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
@@ -217,23 +160,14 @@ $endif$
     /**
      * Sort values from each position and write the results to a {@link Block}.
      */
-    public $Type$Block sortToBlock(BlockFactory blockFactory, boolean ascending) {
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+    public DoubleRangeBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try (DoubleRangeBlock.Builder builder = blockFactory.newDoubleRangeBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
-                if (block.isNull(p)) {
-                    builder.appendNull();
-                    continue;
-                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-$if(BytesRef)$
-                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
-$elseif(DoubleRange)$
+                    case 0 -> builder.appendNull();
                     case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
-$else$
-                    case 1 -> builder.append$Type$(block.get$Type$(first));
-$endif$
                     default -> {
                         copyAndSort(first, count);
                         writeSortedWork(builder, ascending);
@@ -249,26 +183,19 @@ $endif$
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, $Hash$Table hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongLongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
-                if (block.isNull(p)) {
-                    sawNull = true;
-                    builder.appendInt(0);
-                    continue;
-                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
+                    case 0 -> {
+                        sawNull = true;
+                        builder.appendInt(0);
+                    }
                     case 1 -> {
-$if(BytesRef)$
-                        BytesRef v = block.getBytesRef(first, work[0]);
-$elseif(DoubleRange)$
                         DoubleRange v = block.getDoubleRange(first, work[0]);
-$else$
-                        $type$ v = block.get$Type$(first);
-$endif$
                         hashAdd(builder, hash, v);
                     }
                     default -> {
@@ -290,24 +217,15 @@ $endif$
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, $Hash$Table hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongLongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
-                if (block.isNull(p)) {
-                    builder.appendInt(0);
-                    continue;
-                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
+                    case 0 -> builder.appendInt(0);
                     case 1 -> {
-$if(BytesRef)$
-                        BytesRef v = block.getBytesRef(first, work[0]);
-$elseif(DoubleRange)$
                         DoubleRange v = block.getDoubleRange(first, work[0]);
-$else$
-                        $type$ v = block.get$Type$(first);
-$endif$
                         hashLookupSingle(builder, hash, v);
                     }
                     default -> {
@@ -332,41 +250,26 @@ $endif$
      */
     public BatchEncoder batchEncoder(int batchSize) {
         block.incRef();
-        return new BatchEncoder.$Type$s(batchSize) {
+        return new BatchEncoder.DoubleRanges(batchSize) {
             @Override
             protected void readNextBatch() {
                 int position = firstPosition();
                 if (w > 0) {
                     // The last block didn't fit so we have to *make* it fit
-$if(BytesRef)$
-                    ensureCapacity(workSize(), w);
-$else$
                     ensureCapacity(w);
-$endif$
                     startPosition();
                     encodeUniquedWork(this);
                     endPosition();
                     position++;
                 }
                 for (; position < block.getPositionCount(); position++) {
-                    if (block.isNull(position)) {
-                        encodeNull();
-                        continue;
-                    }
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
+                        case 0 -> encodeNull();
                         case 1 -> {
-$if(BytesRef)$
-                            BytesRef v = block.getBytesRef(first, work[0]);
-                            if (hasCapacity(v.length, 1)) {
-$elseif(DoubleRange)$
                             DoubleRange v = block.getDoubleRange(first, work[0]);
                             if (hasCapacity(1)) {
-$else$
-                            $type$ v = block.get$Type$(first);
-                            if (hasCapacity(1)) {
-$endif$
                                 startPosition();
                                 encode(v);
                                 endPosition();
@@ -383,11 +286,7 @@ $endif$
                                 copyAndSort(first, count);
                                 convertSortedWorkToUnique();
                             }
-$if(BytesRef)$
-                            if (hasCapacity(workSize(), w)) {
-$else$
                             if (hasCapacity(w)) {
-$endif$
                                 startPosition();
                                 encodeUniquedWork(this);
                                 endPosition();
@@ -398,16 +297,6 @@ $endif$
                     }
                 }
             }
-
-$if(BytesRef)$
-            private int workSize() {
-                int size = 0;
-                for (int i = 0; i < w; i++) {
-                    size += work[i].length;
-                }
-                return size;
-            }
-$endif$
 
             @Override
             public void close() {
@@ -426,15 +315,8 @@ $endif$
 
         w = 0;
         for (int i = first; i < end; i++) {
-$if(BytesRef)$
-            work[w] = block.getBytesRef(i, work[w]);
-            w++;
-$elseif(DoubleRange)$
             block.getDoubleRange(i, work[w]);
             w++;
-$else$
-            work[w++] = block.get$Type$(i);
-$endif$
         }
 
         Arrays.sort(work, 0, w);
@@ -448,30 +330,12 @@ $endif$
         grow(count);
         int end = first + count;
 
-$if(BytesRef)$
-        work[0] = block.getBytesRef(first, work[0]);
-$elseif(DoubleRange)$
         block.getDoubleRange(first, work[0]);
-$else$
-        work[0] = block.get$Type$(first);
-$endif$
         w = 1;
         i: for (int i = first + 1; i < end; i++) {
-$if(BytesRef)$
-            $type$ v = block.getBytesRef(i, work[w]);
-$elseif(DoubleRange)$
             DoubleRange v = block.getDoubleRange(i, work[w]);
-$else$
-            $type$ v = block.get$Type$(i);
-$endif$
             for (int j = 0; j < w; j++) {
-$if(BytesRef)$
                 if (v.equals(work[j])) {
-$elseif(DoubleRange)$
-                if (v.equals(work[j])) {
-$else$
-                if (v == work[j]) {
-$endif$
                     continue i;
                 }
             }
@@ -480,52 +344,46 @@ $endif$
     }
 
     /**
-     * Writes an already deduplicated {@link #work} to a {@link $Type$Block.Builder}.
+     * Writes an already deduplicated {@link #work} to a {@link DoubleRangeBlock.Builder}.
      */
-    private void writeUniquedWork($Type$Block.Builder builder) {
+    private void writeUniquedWork(DoubleRangeBlock.Builder builder) {
         if (w == 1) {
-            builder.append$Type$(work[0]);
+            builder.appendDoubleRange(work[0]);
             return;
         }
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
-            builder.append$Type$(work[i]);
+            builder.appendDoubleRange(work[i]);
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
+     * Writes a sorted {@link #work} to a {@link DoubleRangeBlock.Builder}, skipping duplicates.
      */
-    private void deduplicatedSortedWork($Type$Block.Builder builder) {
+    private void deduplicatedSortedWork(DoubleRangeBlock.Builder builder) {
         builder.beginPositionEntry();
-        $type$ prev = work[0];
-        builder.append$Type$(prev);
+        DoubleRange prev = work[0];
+        builder.appendDoubleRange(prev);
         for (int i = 1; i < w; i++) {
-$if(BytesRef)$
             if (false == prev.equals(work[i])) {
-$elseif(DoubleRange)$
-            if (false == prev.equals(work[i])) {
-$else$
-            if (prev != work[i]) {
-$endif$
                 prev = work[i];
-                builder.append$Type$(prev);
+                builder.appendDoubleRange(prev);
             }
         }
         builder.endPositionEntry();
     }
 
     /**
-     * Writes a {@link #work} to a {@link $Type$Block.Builder}.
+     * Writes a {@link #work} to a {@link DoubleRangeBlock.Builder}.
      */
-    private void writeSortedWork($Type$Block.Builder builder, boolean ascending) {
+    private void writeSortedWork(DoubleRangeBlock.Builder builder, boolean ascending) {
         builder.beginPositionEntry();
         for (int i = 0; i < w; i++) {
             if (ascending) {
-                builder.append$Type$(work[i]);
+                builder.appendDoubleRange(work[i]);
             } else {
-                builder.append$Type$(work[w - i - 1]);
+                builder.appendDoubleRange(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();
@@ -534,7 +392,7 @@ $endif$
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork($Hash$Table hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -549,13 +407,13 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork($Hash$Table hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
         }
         builder.beginPositionEntry();
-        $type$ prev = work[0];
+        DoubleRange prev = work[0];
         hashAdd(builder, hash, prev);
         for (int i = 1; i < w; i++) {
             if (false == valuesEqual(prev, work[i])) {
@@ -569,7 +427,7 @@ $endif$
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork($Hash$Table hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -628,7 +486,7 @@ $endif$
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork($Hash$Table hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -641,7 +499,7 @@ $endif$
          *   firstLookup will contain the first value in the hash
          */
         int i = 1;
-        $type$ prev = work[0];
+        DoubleRange prev = work[0];
         long firstLookup = hashLookup(hash, prev);
         while (firstLookup < 0) {
             if (i >= w) {
@@ -699,9 +557,9 @@ $endif$
     }
 
     /**
-     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.$Type$s}.
+     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.DoubleRanges}.
      */
-    private void encodeUniquedWork(BatchEncoder.$Type$s encoder) {
+    private void encodeUniquedWork(BatchEncoder.DoubleRanges encoder) {
         for (int i = 0; i < w; i++) {
             encoder.encode(work[i]);
         }
@@ -711,81 +569,39 @@ $endif$
      * Converts {@link #work} from sorted array to a deduplicated array.
      */
     private void convertSortedWorkToUnique() {
-        $type$ prev = work[0];
+        DoubleRange prev = work[0];
         int end = w;
         w = 1;
         for (int i = 1; i < end; i++) {
             if (false == valuesEqual(prev, work[i])) {
-$if(BytesRef)$
-                prev = work[i];
-                work[w].bytes = prev.bytes;
-                work[w].offset = prev.offset;
-                work[w].length = prev.length;
-                w++;
-            }
-$elseif(DoubleRange)$
                 prev = work[i];
                 work[w].reset(prev.from(), prev.to());
                 w++;
             }
-$else$
-                prev = work[i];
-                work[w++] = prev;
-            }
-$endif$
         }
     }
 
     private void grow(int size) {
-$if(BytesRef)$
         int prev = work.length;
         work = ArrayUtil.grow(work, size);
         fillWork(prev, work.length);
-$elseif(DoubleRange)$
-        int prev = work.length;
-        work = ArrayUtil.grow(work, size);
-        fillWork(prev, work.length);
-$else$
-        work = ArrayUtil.grow(work, size);
-$endif$
     }
 
-$if(BytesRef)$
-    private void fillWork(int from, int to) {
-        for (int i = from; i < to; i++) {
-            work[i] = new BytesRef();
-        }
-    }
-
-$elseif(DoubleRange)$
     private void fillWork(int from, int to) {
         for (int i = from; i < to; i++) {
             work[i] = new DoubleRange();
         }
     }
 
-$endif$
-    private void hashAdd(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
-$if(double)$
-        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
-$elseif(DoubleRange)$
+    private void hashAdd(IntBlock.Builder builder, LongLongHashTable hash, DoubleRange v) {
         appendFound(builder, hash.add(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to())));
-$else$
-        appendFound(builder, hash.add(v));
-$endif$
     }
 
-    private long hashLookup($Hash$Table hash, $type$ v) {
-$if(double)$
-        return hash.find(Double.doubleToLongBits(v));
-$elseif(DoubleRange)$
+    private long hashLookup(LongLongHashTable hash, DoubleRange v) {
         return hash.find(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to()));
-$else$
-        return hash.find(v);
-$endif$
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongLongHashTable hash, DoubleRange v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);
@@ -798,13 +614,7 @@ $endif$
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
     }
 
-    private static boolean valuesEqual($type$ lhs, $type$ rhs) {
-$if(BytesRef)$
+    private static boolean valuesEqual(DoubleRange lhs, DoubleRange rhs) {
         return lhs.equals(rhs);
-$elseif(DoubleRange)$
-        return lhs.equals(rhs);
-$else$
-        return lhs == rhs;
-$endif$
     }
 }

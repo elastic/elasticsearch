@@ -410,9 +410,8 @@ public abstract class StreamOutput extends OutputStream {
     public void writeText(Text text) throws IOException {
         if (text.hasBytes()) {
             var encoded = text.bytes();
-            BytesReference bytes = new BytesArray(encoded.bytes(), encoded.offset(), encoded.length());
-            writeInt(bytes.length());
-            bytes.writeTo(this);
+            writeInt(encoded.length());
+            write(encoded.bytes(), encoded.offset(), encoded.length());
         } else {
             final String string = text.string();
             final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(string, 0, string.length());

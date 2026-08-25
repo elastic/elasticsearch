@@ -78,20 +78,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         return query;
     }
 
-    @Override
-    protected IVFKnnFloatVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
-        return new IVFKnnFloatVectorQuery(
-            field,
-            query,
-            k,
-            numCands,
-            filter,
-            providedVisitRatio,
-            ivfQueryConfigResolver,
-            postFilterDelegate
-        );
-    }
-
     /**
      * FLOAT32 only. This subtree serves {@code ElementType.FLOAT} and {@code BFLOAT16}, which both index as
      * {@link org.apache.lucene.index.VectorEncoding#FLOAT32}; byte IVF counts its own encoding.

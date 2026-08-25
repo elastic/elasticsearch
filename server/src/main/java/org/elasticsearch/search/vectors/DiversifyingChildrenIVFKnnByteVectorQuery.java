@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.LongAccumulator;
 
 public class DiversifyingChildrenIVFKnnByteVectorQuery extends IVFKnnByteVectorQuery {
 
-    private final BitSetProducer parentsFilter;
+    final BitSetProducer parentsFilter;
 
     /**
      * Creates a new {@link DiversifyingChildrenIVFKnnByteVectorQuery}.
@@ -58,21 +58,6 @@ public class DiversifyingChildrenIVFKnnByteVectorQuery extends IVFKnnByteVectorQ
     ) {
         super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, postFilterDelegate);
         this.parentsFilter = parentsFilter;
-    }
-
-    @Override
-    protected DiversifyingChildrenIVFKnnByteVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
-        return new DiversifyingChildrenIVFKnnByteVectorQuery(
-            field,
-            query,
-            k,
-            numCands,
-            filter,
-            parentsFilter,
-            providedVisitRatio,
-            ivfQueryConfigResolver,
-            postFilterDelegate
-        );
     }
 
     @Override

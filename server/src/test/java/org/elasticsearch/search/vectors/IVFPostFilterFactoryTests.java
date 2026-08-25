@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Contract tests for the {@link PostFilterableKnnQuery} factory methods on the IVF query tree
  * ({@code createPostFilterDelegate}, {@code createRetryQuery}, {@code postFilterExpectedBaseQueryDocMatches}), exercising the
- * {@code withParams} respawn wiring directly without a diskbbq index so they pin the per-subtype
+ * {@code cloneWithParams} respawn wiring directly without a diskbbq index so they pin the per-subtype
  * reconstruction (type, filter, scaled k/numCands, slice range, parents filter) independently of codec
  * behavior. End-to-end search behavior is covered by the diskbbq integration suite.
  */
@@ -250,12 +250,12 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
 
     public void testWithParamsRoundTripsToAnEqualQuery() {
         for (IVFKnnFloatVectorQuery original : allFloatSubtypes()) {
-            IVFKnnFloatVectorQuery respawn = original.withParams(original.filter, original.k(), original.numCands(), false);
+            AbstractIVFKnnVectorQuery respawn = original.clone(original.filter, original.k(), original.numCands(), false);
             assertEquals("respawn with identical params must equal the original", original, respawn);
             assertEquals(original.hashCode(), respawn.hashCode());
         }
         for (IVFKnnByteVectorQuery original : allByteSubtypes()) {
-            IVFKnnByteVectorQuery respawn = original.withParams(original.filter, original.k(), original.numCands(), false);
+            AbstractIVFKnnVectorQuery respawn = original.clone(original.filter, original.k(), original.numCands(), false);
             assertEquals(original, respawn);
             assertEquals(original.hashCode(), respawn.hashCode());
         }
@@ -264,7 +264,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
     /** The delegate flag changes results, so it must take part in equality. */
     public void testPostFilterDelegateFlagParticipatesInEquality() {
         IVFKnnFloatVectorQuery original = plain();
-        IVFKnnFloatVectorQuery asDelegate = original.withParams(original.filter, original.k(), original.numCands(), true);
+        AbstractIVFKnnVectorQuery asDelegate = original.clone(original.filter, original.k(), original.numCands(), true);
         assertNotEquals(original, asDelegate);
         assertNotEquals(original.hashCode(), asDelegate.hashCode());
     }

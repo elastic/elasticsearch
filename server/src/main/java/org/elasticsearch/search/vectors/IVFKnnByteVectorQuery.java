@@ -82,11 +82,6 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
         return query;
     }
 
-    @Override
-    protected IVFKnnByteVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
-        return new IVFKnnByteVectorQuery(field, query, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver, postFilterDelegate);
-    }
-
     /** BYTE-encoded vectors: counting the FLOAT32 values of a byte field would yield 0 and silently
      *  disable post-filtering (see {@link KnnQueryUtils#countByteVectors}). */
     @Override

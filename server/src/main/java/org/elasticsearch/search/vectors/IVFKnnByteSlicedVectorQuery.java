@@ -68,22 +68,6 @@ public class IVFKnnByteSlicedVectorQuery extends IVFKnnByteVectorQuery {
         this.sliceIds = Objects.requireNonNull(sliceIds);
     }
 
-    @Override
-    protected IVFKnnByteSlicedVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
-        return new IVFKnnByteSlicedVectorQuery(
-            field,
-            query,
-            k,
-            numCands,
-            filter,
-            providedVisitRatio,
-            ivfQueryConfigResolver,
-            postFilterDelegate,
-            sliceField,
-            sliceIds
-        );
-    }
-
     /**
      * Restricted to the requested slices: this query never visits the rest of the reader, so estimating
      * selectivity across all of it would size round 1 against a corpus it cannot return hits from.

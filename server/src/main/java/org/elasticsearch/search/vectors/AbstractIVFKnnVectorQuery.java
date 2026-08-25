@@ -298,12 +298,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     ) throws IOException;
 
     /**
-     * Rebuilds this query as a new instance of the same concrete type. Everything the subclass carries -
-     * query vector, slice ids, parents filter, visit ratio, config resolver - is copied across; only
-     * {@code filter}, {@code k}, {@code numCands} and {@code postFilterDelegate} are taken from the
-     * arguments. Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate}.
+     * Rebuilds this query as a new instance of the same concrete type via {@link IVFKnnQueryFactory}.
+     * Everything the source carries - query vector, slice ids, parents filter, visit ratio, config
+     * resolver - is copied across; only {@code filter}, {@code k}, {@code numCands} and
+     * {@code postFilterDelegate} are taken from the arguments. Final so a subclass cannot inherit a
+     * sibling's reconstruction by forgetting to override.
      */
-    protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate);
+    final AbstractIVFKnnVectorQuery clone(Query filter, int k, int numCands, boolean postFilterDelegate) {
+        var query = IVFKnnQueryFactory.cloneWithParams(this, filter, k, numCands, postFilterDelegate);
+        assert query.getClass() == getClass()
+            : "type mismatch: [cloneWithParams] should have generated a " + getClass() + ", got " + query.getClass();
+        return query;
+    }
 
     @Override
     public int postFilterExpectedBaseQueryDocMatches(List<LeafReaderContext> leaves) throws IOException {
@@ -331,13 +337,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // numCands scales down with k: for IVF the numCands/k ratio is the codec's visit-ratio signal, so
         // carrying the full numCands into a small retry would make the retry explore harder than round 0.
-        return withParams(retryFilter, remainingK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, remainingK), true);
+        return clone(retryFilter, remainingK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, remainingK), true);
     }
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         int scaledK = PostFilterableKnnQuery.computeScaledK(k, filterSelectivity);
-        return withParams(null, scaledK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, scaledK), true);
+        return clone(null, scaledK, PostFilterableKnnQuery.numCandsPreservingRatio(numCands, k, scaledK), true);
     }
 
     @Override

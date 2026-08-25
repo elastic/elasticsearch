@@ -68,22 +68,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         this.sliceIds = Objects.requireNonNull(sliceIds);
     }
 
-    @Override
-    protected IVFKnnFloatSlicedVectorQuery withParams(Query filter, int k, int numCands, boolean postFilterDelegate) {
-        return new IVFKnnFloatSlicedVectorQuery(
-            field,
-            query,
-            k,
-            numCands,
-            filter,
-            providedVisitRatio,
-            ivfQueryConfigResolver,
-            postFilterDelegate,
-            sliceField,
-            sliceIds
-        );
-    }
-
     /**
      * Restricted to the requested slices: this query never visits the rest of the reader, so estimating
      * selectivity across all of it would size round 1 against a corpus it cannot return hits from.

@@ -14,12 +14,16 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
@@ -119,6 +123,11 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
         return 0;
     }
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     /**
      * Sets the number of vector fields created for each test.
      */
@@ -128,6 +137,13 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
      * Creates one {@link VectorFieldConfig} for a field named {@code fieldName}.
      */
     abstract C createVectorFieldConfig(String fieldName);
+
+    /**
+     * The oldest index version that this test's randomly generated field configurations are valid on.
+     * {@link #testFetchEmbeddingsFieldsOldIndexVersions()} picks a random version between this and
+     * {@link IndexVersion#current()}, exclusive of current.
+     */
+    abstract IndexVersion minIndexVersion();
 
     /**
      * @param message a description of the assertion context for failure messages
@@ -160,8 +176,56 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
     }
 
     public void testFetchEmbeddingsFields() throws Exception {
+        fetchEmbeddingsFieldsTestCase(IndexVersion.current());
+    }
+
+    public void testFetchEmbeddingsFieldsOldIndexVersions() throws Exception {
+        for (int i = 0; i < 20; i++) {
+            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion(), IndexVersionUtils.getPreviousVersion());
+            while (indexVersion.before(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT) && excludeSourceVectors) {
+                // index.mapping.exclude_source_vectors was settable only on/after this index version
+                indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion(), IndexVersionUtils.getPreviousVersion());
+            }
+
+            fetchEmbeddingsFieldsTestCase(indexVersion);
+        }
+    }
+
+    /**
+     * When the search request returns no documents, the fetch phase is skipped and the vector type match check in {@code embeddingsField}
+     * isn't executed.
+     */
+    public void testFetchEmbeddingsFieldsNoDocuments() throws Exception {
         indexName = randomIndexName();
         assertAcked(prepareCreate(indexName).setMapping(generateMapping()));
+        ensureGreen(indexName);
+
+        for (C field : vectorFields) {
+            String fieldName = field.fieldName();
+            String message = field.toString();
+
+            assertEmbeddingsFieldsNoHits(message, singletonMap(fieldName, null));
+            assertEmbeddingsFieldsNoHits(message, Map.of(fieldName, field.vectorType()));
+            assertEmbeddingsFieldsNoHits(
+                message,
+                Map.of(fieldName, randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values())))
+            );
+        }
+
+        Map<String, VectorType> allRequested = new HashMap<>();
+        vectorFields.forEach(f -> allRequested.put(f.fieldName(), null));
+        assertEmbeddingsFieldsNoHits("Fetching all vector fields at once", allRequested);
+    }
+
+    // TODO: Add no field value test
+
+    void fetchEmbeddingsFieldsTestCase(IndexVersion indexVersion) throws Exception {
+        indexName = randomIndexName();
+        assertAcked(
+            prepareCreate(indexName, Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)).setMapping(
+                generateMapping()
+            )
+        );
 
         Map<String, Object> source = new HashMap<>();
         for (C field : vectorFields) {
@@ -201,34 +265,6 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
         }
         assertEmbeddingsFieldsHit("Fetching all vector fields at once", allRequested, allExpected);
     }
-
-    /**
-     * When the search request returns no documents, the fetch phase is skipped and the vector type match check in {@code embeddingsField}
-     * isn't executed.
-     */
-    public void testFetchEmbeddingsFieldsNoDocuments() throws Exception {
-        indexName = randomIndexName();
-        assertAcked(prepareCreate(indexName).setMapping(generateMapping()));
-        ensureGreen(indexName);
-
-        for (C field : vectorFields) {
-            String fieldName = field.fieldName();
-            String message = field.toString();
-
-            assertEmbeddingsFieldsNoHits(message, singletonMap(fieldName, null));
-            assertEmbeddingsFieldsNoHits(message, Map.of(fieldName, field.vectorType()));
-            assertEmbeddingsFieldsNoHits(
-                message,
-                Map.of(fieldName, randomValueOtherThan(field.vectorType(), () -> randomFrom(VectorType.values())))
-            );
-        }
-
-        Map<String, VectorType> allRequested = new HashMap<>();
-        vectorFields.forEach(f -> allRequested.put(f.fieldName(), null));
-        assertEmbeddingsFieldsNoHits("Fetching all vector fields at once", allRequested);
-    }
-
-    // TODO: Add no field value test
 
     private XContentBuilder generateMapping() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties");

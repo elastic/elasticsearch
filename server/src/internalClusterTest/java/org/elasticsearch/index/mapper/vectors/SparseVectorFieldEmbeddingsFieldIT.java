@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -80,6 +82,12 @@ public class SparseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbed
 
     public SparseVectorFieldEmbeddingsFieldIT(@Name("excludeSourceVectors") boolean excludeSourceVectors) {
         super(excludeSourceVectors);
+    }
+
+    @Override
+    IndexVersion minIndexVersion() {
+        // sparse_vector is rejected on indices created between 8.0 and 8.10 (SparseVectorFieldMapper.ERROR_MESSAGE_8X).
+        return IndexVersions.NEW_SPARSE_VECTOR;
     }
 
     @Override

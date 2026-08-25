@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -96,11 +97,17 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
                 // Optionally pick a random index_options that is compatible with this element type and dimension count.
                 // BBQ_DISK (BBQIVFIndexOptions) is skipped because it requires an enterprise VectorsFormatProvider that is not
                 // available in the internalClusterTest cluster.
+                // Index options carrying a rescore_vector are skipped because rescore_vector is index version gated: it is an
+                // unknown mapping parameter before ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS, and an oversample of 0, which
+                // randomIndexOptionsAll can emit, is rejected before RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS. It plays no
+                // part in the embeddings fetch path, so excluding it keeps every generated mapping valid on old index versions.
                 this.indexOptions = randomBoolean()
                     ? null
                     : randomValueOtherThanMany(
                         opts -> opts instanceof DenseVectorFieldMapper.BBQIVFIndexOptions
-                            || opts.validate(elementType, VECTOR_DIMENSIONS, false) == false,
+                            || opts.validate(elementType, VECTOR_DIMENSIONS, false) == false
+                            || (opts instanceof DenseVectorFieldMapper.QuantizedIndexOptions quantized
+                                && quantized.rescoreVector() != null),
                         DenseVectorFieldTypeTests::randomIndexOptionsAll
                     );
             } else {
@@ -207,6 +214,13 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
 
     public DenseVectorFieldEmbeddingsFieldIT(@Name("excludeSourceVectors") boolean excludeSourceVectors) {
         super(excludeSourceVectors);
+    }
+
+    @Override
+    IndexVersion minIndexVersion() {
+        // Before this version, dense vector doc values are stored big-endian, but VectorEncoderDecoder.decodeBFloat16DenseVector
+        // always decodes little-endian. We cannot use bfloat16 prior to this index version.
+        return DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
     }
 
     @Override

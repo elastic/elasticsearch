@@ -28,8 +28,11 @@ import java.util.Arrays;
  * </ul>
  *
  * <p>Callers must present each row's dimensions in {@code (path, insertion order)} order, which a
- * column-major scan gets for free by visiting columns sorted by path. All layout decisions are
- * delegated to the shared statics on {@link TsidBuilder} so the two paths cannot drift.
+ * column-major scan gets for free by visiting columns sorted by path.
+ *
+ * <p>This reproduces {@link TsidBuilder}'s output without going through it, borrowing its statics
+ * where it can. The two are kept in agreement by tests comparing their bytes directly:
+ * {@code ColumnarTsidAccumulatorTests} and {@code ColumnarTsidCalculatorTests}.
  */
 final class ColumnarTsidAccumulator {
 

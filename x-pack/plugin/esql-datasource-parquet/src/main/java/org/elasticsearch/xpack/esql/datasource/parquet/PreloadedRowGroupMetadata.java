@@ -179,7 +179,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
      *   <li>ColumnIndex: predicate columns (page-level {@code RowRanges} computation) and the
      *       dynamic-threshold / top-N sort column (page skipping).</li>
      *   <li>OffsetIndex: the above, plus projected columns when a filter is active (filtered reads
-     *       skip non-surviving pages via the offset index).</li>
+     *       skip non-surviving pages via the offset index) or when unfiltered LIMIT clips the
+     *       first-window prefix (then only the first K covering row groups are fetched).</li>
      * </ul>
      * For a full scan with no filter and no threshold, no plan consumes the page indexes, so the
      * caller passes empty sets and zero index ranges are fetched.
@@ -200,6 +201,23 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> offsetIndexPaths,
         CircuitBreaker breaker
     ) {
+        return preload(reader, storageObject, predicateColumnPaths, columnIndexPaths, offsetIndexPaths, Integer.MAX_VALUE, breaker);
+    }
+
+    /**
+     * As {@link #preload(ParquetFileReader, StorageObject, Set, Set, Set, CircuitBreaker)}, plus a
+     * row-group cap on OffsetIndex fetches. ColumnIndex and dictionary/bloom pre-warm ranges are
+     * not capped. {@code Integer.MAX_VALUE} (or any value {@code >=} the block count) is "all groups".
+     */
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
+        CircuitBreaker breaker
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -214,13 +232,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     predicateColumnPaths,
                     columnIndexPaths,
                     offsetIndexPaths,
+                    offsetIndexRowGroupLimit,
                     breaker
                 );
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
             }
         }
-        return preloadSequential(reader, rowGroups);
+        return preloadSequential(reader, rowGroups, columnIndexPaths, offsetIndexPaths, offsetIndexRowGroupLimit);
     }
 
     /**
@@ -246,6 +265,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         Set<String> columnIndexPaths,
         Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit,
         CircuitBreaker breaker
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
@@ -264,7 +284,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     addRange(ranges, rangeMetas, ciRef.getOffset(), ciRef.getLength(), rgIdx, col, RangeKind.COLUMN_INDEX);
                 }
                 IndexReference oiRef = col.getOffsetIndexReference();
-                if (oiRef != null && oiRef.getLength() > 0 && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
+                if (oiRef != null
+                    && oiRef.getLength() > 0
+                    && rgIdx < offsetIndexRowGroupLimit
+                    && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
                     addRange(ranges, rangeMetas, oiRef.getOffset(), oiRef.getLength(), rgIdx, col, RangeKind.OFFSET_INDEX);
                 }
                 if (fetchPreWarm && predicateColumnPaths.contains(path)) {
@@ -439,31 +462,43 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
-     * Sequential fallback using {@link ParquetFileReader}'s built-in methods.
+     * Sequential fallback using {@link ParquetFileReader}'s built-in methods. Honors the same
+     * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}.
      */
-    private static PreloadedRowGroupMetadata preloadSequential(ParquetFileReader reader, List<BlockMetaData> rowGroups) {
+    private static PreloadedRowGroupMetadata preloadSequential(
+        ParquetFileReader reader,
+        List<BlockMetaData> rowGroups,
+        Set<String> columnIndexPaths,
+        Set<String> offsetIndexPaths,
+        int offsetIndexRowGroupLimit
+    ) {
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
 
         for (int rgIdx = 0; rgIdx < rowGroups.size(); rgIdx++) {
             BlockMetaData block = rowGroups.get(rgIdx);
             for (ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
                 String k = key(rgIdx, col);
-                try {
-                    ColumnIndex ci = reader.readColumnIndex(col);
-                    if (ci != null) {
-                        columnIndexes.put(k, ci);
+                if (columnIndexPaths == null || columnIndexPaths.contains(path)) {
+                    try {
+                        ColumnIndex ci = reader.readColumnIndex(col);
+                        if (ci != null) {
+                            columnIndexes.put(k, ci);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("Failed to read column index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                     }
-                } catch (IOException e) {
-                    logger.debug("Failed to read column index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                 }
-                try {
-                    OffsetIndex oi = reader.readOffsetIndex(col);
-                    if (oi != null) {
-                        offsetIndexes.put(k, oi);
+                if (rgIdx < offsetIndexRowGroupLimit && (offsetIndexPaths == null || offsetIndexPaths.contains(path))) {
+                    try {
+                        OffsetIndex oi = reader.readOffsetIndex(col);
+                        if (oi != null) {
+                            offsetIndexes.put(k, oi);
+                        }
+                    } catch (IOException e) {
+                        logger.debug("Failed to read offset index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                     }
-                } catch (IOException e) {
-                    logger.debug("Failed to read offset index for [{}] in row group [{}]: {}", col.getPath(), rgIdx, e.getMessage());
                 }
             }
         }

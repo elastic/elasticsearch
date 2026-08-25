@@ -110,13 +110,16 @@ fi
 
 ln -sf "${ESTC_BIN}" "${HOME}/.local/bin/estc"
 export PATH="${HOME}/.local/bin:${PATH}"
-estc --version || true
+estc version show || true
 
 # ── 6. Broker: assemble token JSON, spawn broker, wait for READY ────────────
 : "${BUILDKITE_RO_API_TOKEN:?bootstrap-estc: BUILDKITE_RO_API_TOKEN must be set before sourcing this script}"
 : "${DEVELOCITY_API_KEY:?bootstrap-estc: DEVELOCITY_API_KEY must be set before sourcing this script}"
 
-ESTC_BROKER_DIR="${BUILDKITE_BUILD_CHECKOUT_PATH:-${PWD}}/.estc-broker"
+# Use /tmp for broker files — the checkout path under /dev/shm can exceed
+# Linux's 108-char UNIX_PATH_MAX for socket paths, causing bind: invalid argument.
+# /tmp is already in the archimedes sandbox allowlist (ReadWrite).
+ESTC_BROKER_DIR="/tmp/estc-broker-${BUILDKITE_BUILD_ID:-$$}"
 mkdir -p "${ESTC_BROKER_DIR}"
 chmod 700 "${ESTC_BROKER_DIR}"
 ESTC_BROKER_SOCKET="${ESTC_BROKER_DIR}/broker.sock"

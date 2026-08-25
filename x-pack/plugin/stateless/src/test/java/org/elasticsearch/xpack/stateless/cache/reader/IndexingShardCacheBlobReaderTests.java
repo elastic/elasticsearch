@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

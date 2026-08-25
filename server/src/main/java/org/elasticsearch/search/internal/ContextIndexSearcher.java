@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -25,6 +26,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
@@ -81,7 +83,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Nullable
     private CircuitBreaker circuitBreaker;
 
-    private final AtomicReference<PointRangeExecutionAccounting> pointRangeAccounting = new AtomicReference<>();
+    private final AtomicReference<LeafExecutionAccounting> leafExecutionAccounting = new AtomicReference<>();
 
     private final MutableQueryTimeout cancellable;
 
@@ -173,7 +175,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void setCircuitBreaker(@Nullable CircuitBreaker circuitBreaker) {
-        PointRangeExecutionAccounting previous = pointRangeAccounting.getAndSet(null);
+        LeafExecutionAccounting previous = leafExecutionAccounting.getAndSet(null);
         if (previous != null) {
             previous.close();
         }
@@ -237,7 +239,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         // of memory.
         this.cancellable.clear();
 
-        PointRangeExecutionAccounting accounting = pointRangeAccounting.getAndSet(null);
+        LeafExecutionAccounting accounting = leafExecutionAccounting.getAndSet(null);
         if (accounting != null) {
             accounting.close();
         }
@@ -311,22 +313,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         PointRangeQuery pointRangeQuery = pointRangeQueryOrNull(query);
         if (circuitBreaker != null && pointRangeQuery != null) {
-            getOrCreatePointRangeAccounting();
+            getOrCreateLeafExecutionAccounting();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
+        }
+        if (circuitBreaker != null && isCostlyMultiTermQuery(unwrapBoost(query))) {
+            getOrCreateLeafExecutionAccounting();
+            return new MultiTermBreakerWeight(this, weight);
         }
         return weight;
     }
 
-    void chargeLeaf(LeafReaderContext ctx, long bytes) {
-        PointRangeExecutionAccounting accounting = getOrCreatePointRangeAccounting();
+    void chargeLeaf(LeafReaderContext ctx, long bytes, String label) {
+        LeafExecutionAccounting accounting = getOrCreateLeafExecutionAccounting();
         if (accounting != null) {
-            accounting.charge(ctx, bytes);
+            accounting.charge(ctx, bytes, label);
         }
     }
 
     @Nullable
-    private PointRangeExecutionAccounting getOrCreatePointRangeAccounting() {
-        PointRangeExecutionAccounting existing = pointRangeAccounting.get();
+    private LeafExecutionAccounting getOrCreateLeafExecutionAccounting() {
+        LeafExecutionAccounting existing = leafExecutionAccounting.get();
         if (existing != null) {
             return existing;
         }
@@ -334,13 +340,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (breaker == null) {
             return null;
         }
-        PointRangeExecutionAccounting created = new PointRangeExecutionAccounting(breaker, getLeafContexts().size());
-        return pointRangeAccounting.compareAndSet(null, created) ? created : pointRangeAccounting.get();
+        LeafExecutionAccounting created = new LeafExecutionAccounting(breaker, getLeafContexts().size());
+        return leafExecutionAccounting.compareAndSet(null, created) ? created : leafExecutionAccounting.get();
     }
 
     /** Test-only */
-    boolean hasPointRangeAccounting() {
-        return pointRangeAccounting.get() != null;
+    boolean hasLeafExecutionAccounting() {
+        return leafExecutionAccounting.get() != null;
     }
 
     private static PointRangeQuery pointRangeQueryOrNull(Query query) {
@@ -351,6 +357,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return prq;
         }
         return null;
+    }
+
+    /**
+     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through this override, so its child is
+     * already wrapped once; unwrapping it here too would double-charge.
+     */
+    private static Query unwrapBoost(Query query) {
+        while (query instanceof BoostQuery boostQuery) {
+            query = boostQuery.getQuery();
+        }
+        return query;
+    }
+
+    /**
+     * Whether {@code query} is a {@link MultiTermQuery} or its constant-score rewrite wrapper,
+     * both of which allocate an untracked per-leaf {@code DocIdSet}.
+     */
+    private static boolean isCostlyMultiTermQuery(Query query) {
+        if (query instanceof MultiTermQuery) {
+            return true;
+        }
+        final String className = query.getClass().getSimpleName();
+        return className.equals("MultiTermQueryConstantScoreBlendedWrapper") || className.equals("MultiTermQueryConstantScoreWrapper");
     }
 
     /**
@@ -556,7 +585,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
 
-        final PointRangeExecutionAccounting accounting = this.pointRangeAccounting.get();
+        final LeafExecutionAccounting accounting = this.leafExecutionAccounting.get();
         try (Releasable ignored = accounting == null ? NOOP_RELEASABLE : accounting.enterLeaf(ctx)) {
             final LeafCollector leafCollector;
             try {

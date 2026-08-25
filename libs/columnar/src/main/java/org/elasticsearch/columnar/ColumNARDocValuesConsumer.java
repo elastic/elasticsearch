@@ -340,7 +340,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
             // One value per document: that is what this surface carries, and what lets the reader take a
-            // document's rank as its value's index rather than keeping an address for every document.
+            // document's rank as its value's address rather than keeping one for every document.
             assert counter.valueCount() == 1 : "document [" + doc + "] of field [" + field.name + "] has " + counter.valueCount();
             numValues++;
         }

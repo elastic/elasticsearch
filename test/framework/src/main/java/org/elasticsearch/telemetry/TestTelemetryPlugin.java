@@ -57,11 +57,11 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     public List<Measurement> getDoubleGaugeMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_GAUGE, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, name);
     }
 
     public List<Measurement> getLongGaugeMeasurement(String name) {
-        return meter.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, name);
     }
 
     public List<Measurement> getDoubleHistogramMeasurement(String name) {

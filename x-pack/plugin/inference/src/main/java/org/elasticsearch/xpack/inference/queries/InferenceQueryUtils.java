@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.InferenceException;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -176,7 +177,7 @@ public final class InferenceQueryUtils {
             ActionListener<InferenceInfo> localInferenceInfoListener = refs.acquire(localInferenceInfoSupplier::set);
             getLocalInferenceInfo(queryRewriteContext, inferenceInfoRequest, localInferenceInfoListener);
 
-            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false && minimizesRoundTrips(queryRewriteContext) == false) {
                 ActionListener<
                     Map<String, Tuple<GetInferenceFieldsInternalAction.Response, TransportVersion>>> remoteInferenceInfoListener = refs
                         .acquire(remoteInferenceInfoSupplier::set);
@@ -219,16 +220,34 @@ public final class InferenceQueryUtils {
         if (inferenceInfo.minTransportVersion().supports(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV) == false
             && inferenceInfo.inferenceFieldCount() > 0
             && resolvedIndices.getRemoteClusterIndices().isEmpty() == false
-            && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
+            && minimizesRoundTrips(queryRewriteContext) == false) {
+
+            // Only mention the search parameter to a caller that has one. ES|QL always resolves inference across
+            // clusters and exposes no such option, so telling it about [ccs_minimize_roundtrips] sends it looking
+            // for a setting it cannot change.
+            String remedy = queryRewriteContext.isCcsMinimizeRoundTrips() == null
+                ? ""
+                : " Alternatively, set [ccs_minimize_roundtrips] to true.";
 
             throw new IllegalArgumentException(
                 "One or more remote clusters do not support "
                     + queryName
-                    + " query cross-cluster search when"
-                    + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
+                    + " against a ["
+                    + SemanticTextFieldMapper.CONTENT_TYPE
+                    + "] field in cross-cluster search. Please update all clusters to at least "
                     + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
+                    + "."
+                    + remedy
             );
         }
+    }
+
+    /**
+     * null-safe version of {@link QueryRewriteContext#isCcsMinimizeRoundTrips()}, where unset means not minimizing
+     */
+    private static boolean minimizesRoundTrips(QueryRewriteContext queryRewriteContext) {
+        final Boolean isMinimized = queryRewriteContext.isCcsMinimizeRoundTrips();
+        return isMinimized != null && isMinimized;
     }
 
     private static void getLocalInferenceInfo(

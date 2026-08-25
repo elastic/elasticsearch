@@ -3244,7 +3244,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .build();
         try (
             org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storageObject, blockFactory.arrowAllocator()),
+                new ParquetStorageObjectAdapter(storageObject, blockFactory.breaker()),
                 options
             )
         ) {

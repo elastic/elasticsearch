@@ -23,9 +23,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SECRET_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings.API_KEY;
 
 /**
@@ -41,7 +42,7 @@ public abstract class OpenAiSecretSettings implements SecretSettings {
     private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, CLIENT_SECRET_FIELD);
 
     public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(
-        ModelConfigurations.SERVICE_SETTINGS,
+        SERVICE_SETTINGS.toString(),
         SECRET_FIELDS
     );
 

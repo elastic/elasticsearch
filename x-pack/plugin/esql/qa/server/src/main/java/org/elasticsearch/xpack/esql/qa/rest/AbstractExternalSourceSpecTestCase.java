@@ -419,7 +419,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // directive so the suite's reader override still applies. A spec with no directive is returned as-is.
         String query = rebuildExternalFromDatasets(testCase.query);
 
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
+        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
+        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
+        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
+        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
@@ -864,6 +867,13 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static final String MULTIFILE_TEMPORAL_SUFFIX = MATRIX.layout("multifile_temporal").suffix();
     /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
     private static final String HIVE_SUFFIX = MATRIX.layout("hive").suffix();
+
+    /**
+     * Hive-partitioned fixture whose partition key collides with a real payload column (see the
+     * {@code generateHiveShadowParquet_employees} fixture task). Checked before {@link #HIVE_SUFFIX}; the name still
+     * contains {@code _hive} so the HTTP glob-skip applies to it too.
+     */
+    private static final String HIVE_SHADOW_SUFFIX = MATRIX.layout("hive_shadow").suffix();
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.

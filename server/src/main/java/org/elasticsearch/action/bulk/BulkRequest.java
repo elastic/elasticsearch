@@ -98,14 +98,6 @@ public class BulkRequest extends UntypedActionRequest
 
     private long sizeInBytes = 0;
 
-    /**
-     * The raw bulk body that was passed to the {@code add(BytesReference, ...)} method.
-     * Retained so that batch encoders can run SIMD stage 1 once over the contiguous bulk body
-     * instead of per-document. May be null if the bulk was populated via individual
-     * {@link DocWriteRequest} additions rather than bulk body parsing.
-     */
-    private BytesReference rawBody;
-
     public BulkRequest() {}
 
     public BulkRequest(StreamInput in) throws IOException {
@@ -323,7 +315,6 @@ public class BulkRequest extends UntypedActionRequest
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
         Boolean requireDataStream = valueOrDefault(defaultRequireDataStream, globalRequireDatsStream);
-        this.rawBody = data;
         new BulkRequestParser(true, includeSourceOnError, restApiVersion).parse(
             data,
             defaultIndex,
@@ -374,15 +365,6 @@ public class BulkRequest extends UntypedActionRequest
     @Override
     public RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
-    }
-
-    /**
-     * Returns the raw bulk body that was parsed, or null if the request was assembled
-     * from individual {@link DocWriteRequest} additions.
-     */
-    @Nullable
-    public BytesReference rawBody() {
-        return rawBody;
     }
 
     /**

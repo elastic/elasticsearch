@@ -15,7 +15,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingExtractor;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.eirf.EirfEncoder;
 import org.elasticsearch.escf.EscfEncoder;
@@ -87,29 +86,6 @@ final class BulkBatchEncoders implements Releasable {
     private boolean closed;
 
     /**
-     * Pre-indexed batch state: the raw bulk body array and the batch parser holding its
-     * stage 1 structural indices. Null when the bulk body is not contiguous or not JSON,
-     * or when the SIMD path is unavailable.
-     */
-    private final byte[] bulkBodyArray;
-    private final int bulkBodyOffset;
-    private final int bulkBodyLength;
-    private boolean batchStage1Done;
-
-    BulkBatchEncoders(BulkRequest bulkRequest) {
-        BytesReference rawBody = bulkRequest.rawBody();
-        if (rawBody != null && rawBody.hasArray()) {
-            this.bulkBodyArray = rawBody.array();
-            this.bulkBodyOffset = rawBody.arrayOffset();
-            this.bulkBodyLength = rawBody.length();
-        } else {
-            this.bulkBodyArray = null;
-            this.bulkBodyOffset = 0;
-            this.bulkBodyLength = 0;
-        }
-    }
-
-    /**
      * Returns true if every item in {@code bulkRequest} is structurally eligible to be EIRF-encoded:
      * an {@link IndexRequest} with inline source bytes, a known content type, and no pre-attached
      * EIRF row. If false, the bulk goes through the inline-source path end-to-end and no encoder
@@ -163,9 +139,6 @@ final class BulkBatchEncoders implements Releasable {
         if (disabled) {
             return NOT_BATCHABLE;
         }
-
-        maybeBatchStage1();
-
         IndexState state = indexStates.computeIfAbsent(
             concreteIndex,
             idx -> new IndexState(new EscfEncoder(), indexRouting.newRoutingExtractor())
@@ -176,20 +149,16 @@ final class BulkBatchEncoders implements Releasable {
         LeafSink sink = state.extractor != null ? state.extractor : LeafSink.NO_OP;
         XContentType contentType = request.getContentType();
         try {
-            if (batchStage1Done && contentType.canonical() == XContentType.JSON && state.encoder instanceof EscfEncoder escfEncoder) {
-                escfEncoder.parseWithPreIndexedWindow(bulkBodyArray, request.indexSource().bytes(), sink);
-            } else {
-                state.encoder.parseToScratch(request.indexSource().bytes(), contentType, sink);
-            }
+            state.encoder.parseToScratch(request.indexSource().bytes(), contentType, sink);
         } catch (Exception e) {
-            logger.debug("ESCF encoding / routing extraction failed; abandoning batch for the rest of this bulk", e);
-            BatchIndexingFallbackLog.reportFallback(
-                concreteIndex.getName(),
-                "ESCF encoding / routing extraction failed on the coordinating node, abandoning the column batch "
-                    + "for the rest of this bulk: "
-                    + e,
-                e
-            );
+            // Either the source bytes failed the encoder's parse (rare — they already passed
+            // BulkRequestParser validation), or the extractor threw because it can't handle the
+            // input (e.g. an array at a matched routing column). Either way, abandon the entire
+            // bulk's batch: items already committed are discarded by finalizeBatches returning
+            // empty, and subsequent items skip encoding (see the disabled check above). The
+            // encoder's scratch will be reset at the start of the next parseToScratch call, so we
+            // don't need to clean up here.
+            logger.debug("EIRF encoding / routing extraction failed; abandoning batch for the rest of this bulk", e);
             disabled = true;
             return NOT_BATCHABLE;
         }
@@ -199,24 +168,12 @@ final class BulkBatchEncoders implements Releasable {
             int rowIndex = state.encoder.commitScratchTo(shardIdInt);
             state.pendingByShard.computeIfAbsent(destShardId, k -> new ArrayList<>()).add(new PendingAttachment(request, rowIndex));
         } catch (Exception e) {
+            // commitScratchTo failure indicates internal-state corruption (IO error on the
+            // underlying stream). Surface it; the per-item catch in groupRequestsByShards turns it
+            // into a per-item failure response.
             throw new IllegalStateException("Failed to commit EIRF row for item to shard " + destShardId, e);
         }
         return shardIdInt;
-    }
-
-    /**
-     * Runs SIMD batch stage 1 over the raw bulk body on the first call. Subsequent calls are
-     * no-ops. If the bulk body is not contiguous, not JSON, or SIMD is unavailable, this method
-     * does nothing and per-document parsing continues via the standard path.
-     */
-    private void maybeBatchStage1() {
-        if (batchStage1Done || bulkBodyArray == null) {
-            return;
-        }
-        batchStage1Done = EscfEncoder.batchStage1(bulkBodyArray, bulkBodyOffset, bulkBodyLength);
-        if (batchStage1Done) {
-            logger.debug("Batch stage 1 complete: {} bytes (offset={}), body indexed for windowed walks", bulkBodyLength, bulkBodyOffset);
-        }
     }
 
     /**
@@ -225,9 +182,6 @@ final class BulkBatchEncoders implements Releasable {
      * the resulting batches keyed by ShardId. Returns an empty map when {@link #disabled()} is true.
      */
     Map<ShardId, SourceBatch> finalizeBatches() {
-        if (batchStage1Done) {
-            EscfEncoder.releaseWalkerNames();
-        }
         if (disabled) {
             return Collections.emptyMap();
         }

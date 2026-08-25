@@ -1340,15 +1340,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ColumnMapping mapping,
         DriverContext driverContext,
         @Nullable List<Attribute> perFileReadSchema,
-        @Nullable List<String> perFileCols
+        @Nullable List<String> perFileCols,
+        @Nullable Consumer<String> informationalWarningSink
     ) {
         // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
         // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
         // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
         // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
-        if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
+        if (mapping == null || queryDataSchema.isEmpty()) {
             return pages;
         }
+        // Identity mappings are no longer short-circuited here: SchemaAdaptingIterator validates
+        // output block element types on every page, catching reader bugs (wrong block type for a
+        // declared column) before they reach a consumer that casts and throws a bare
+        // ClassCastException with no column name. The overhead is O(columns) per page —
+        // ref-counting for identity slots plus the type check — which is negligible.
         // The reader appends the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} to the
         // per-file projection whenever the query projection carries it — for deferred extraction
         // AND for plain _id / _file.record_ref composition (see {@link #perFileQueryProjection}).
@@ -1374,7 +1380,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             mapping,
             producerBlockFactory(driverContext),
             rowPositionInputIndex,
-            perFileColumnTypes
+            perFileColumnTypes,
+            informationalWarningSink
         );
     }
 
@@ -2100,7 +2107,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 fileSplit.columnMapping(),
                 state.driverContext,
                 perFileReadSchema,
-                perFileCols
+                perFileCols,
+                bufferedInformationalWarningSink(state.buffer)
             );
             // Deferred extraction: register one extractor per opened file split. Range-splits of
             // the same file therefore register multiple extractors; this is benign — each row's
@@ -2268,7 +2276,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
-            CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
+            CloseableIterator<Page> adapted = adaptSchema(
+                pages,
+                mapping,
+                state.driverContext,
+                perFileReadSchema,
+                perFileCols,
+                bufferedInformationalWarningSink(state.buffer)
+            );
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.

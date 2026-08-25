@@ -66,10 +66,11 @@ public final class EqualsTDigestEvaluator implements ExpressionEvaluator {
       TDigestHolder lhsScratch = new TDigestHolder();
       TDigestHolder rhsScratch = new TDigestHolder();
       position: for (int p = 0; p < positionCount; p++) {
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (lhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -77,10 +78,11 @@ public final class EqualsTDigestEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rhsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

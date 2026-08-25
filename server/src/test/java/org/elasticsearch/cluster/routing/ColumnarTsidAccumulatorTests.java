@@ -63,7 +63,7 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
                     sortedPaths.add(d.path());
                 }
             }
-            ColumnarTsidAccumulator accumulator = new ColumnarTsidAccumulator(rows.size(), singleByte);
+            ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(rows.size(), singleByte);
             int pathGroup = TsidBuilder.NO_PATH_GROUP;
             for (String path : sortedPaths) {
                 pathGroup++;
@@ -241,7 +241,7 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
     }
 
     public void testRowWithNoDimensionsThrows() {
-        ColumnarTsidAccumulator accumulator = new ColumnarTsidAccumulator(2, randomBoolean());
+        ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(2, randomBoolean());
         MurmurHash3.Hash128 pathHash = TsidBuilder.hashPath(new BufferedMurmur3Hasher(0L), "dim.host");
         // Row 0 gets a value, row 1 gets nothing.
         accumulator.add(0, pathHash.h1, pathHash.h2, randomLong(), randomLong(), 0, TsidBuilder.PREFIX_RANK_NONE);

@@ -69,7 +69,7 @@ public final class ColumnarTsidCalculator {
 
         List<DimColumn> dimColumns = resolveDimColumns(escfBatch, isDimension);
         // Hoisted out of the scan: the layout is a property of the index, not of a row.
-        ColumnarTsidAccumulator accumulator = new ColumnarTsidAccumulator(
+        ColumnarTsidAccumulator accumulator = ColumnarTsidAccumulator.create(
             batch.docCount(),
             TsidBuilder.useSingleBytePrefixLayout(creationVersion)
         );

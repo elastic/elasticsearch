@@ -13,9 +13,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.RollingUpgradePerformer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ParameterizedYamlRollingUpgradeTestCase;
@@ -28,10 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.RollingUpgradePerformer.getNewClusterVersion;
+import static org.elasticsearch.test.RollingUpgradePerformer.getOldClusterVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class UpgradeClusterClientYamlTestSuiteIT extends ParameterizedYamlRollingUpgradeTestCase {
+public class UpgradeXpackClusterClientYamlTestSuiteIT extends ParameterizedYamlRollingUpgradeTestCase {
 
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
@@ -40,14 +42,28 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ParameterizedYamlRollin
     public static final ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
-        String oldClusterVersion = RollingUpgradePerformer.getOldClusterVersion();
+        String oldClusterVersion = getOldClusterVersion();
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(oldClusterVersion, isOldClusterDetachedVersion())
             .nodes(NODE_NUM)
+            .node(0, node -> node.name("node-0"))
+            .node(1, node -> node.name("node-1"))
+            .node(2, node -> node.name("node-2"))
             // Mark each node with node.attr.upgraded=true as soon as it is restarted on the new version.
             // Some of the tests use "index.routing.allocation.include.upgraded: true" to pin shards to already-upgraded nodes
-            .setting("node.attr.upgraded", () -> "true", nodeSpec -> nodeSpec.getVersion().after(oldClusterVersion))
+            .setting("node.attr.upgraded", () -> "true", node -> {
+                var version = node.getVersion();
+                if (version.after(oldClusterVersion)) {
+                    return true;
+                }
+                // special case: oldClusterVersion == newClusterVersion
+                if (version.equals(Version.fromString(getNewClusterVersion()))) {
+                    // only set that for the first node, one that is sure to be upgraded first
+                    return node.getName().equals("node-0");
+                }
+                return false;
+            })
             .setting("repositories.url.allowed_urls", "http://snapshot.test*")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "true")
@@ -73,7 +89,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ParameterizedYamlRollin
             .build();
     }
 
-    public UpgradeClusterClientYamlTestSuiteIT(
+    public UpgradeXpackClusterClientYamlTestSuiteIT(
         @Name("upgradedNodes") int upgradedNodes,
         @Name("yaml") ClientYamlTestCandidate testCandidate
     ) {

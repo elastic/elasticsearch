@@ -14,6 +14,7 @@ import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
@@ -169,6 +170,23 @@ public final class LuceneLongColumn extends LongColumn implements LuceneColumn {
 
         void setDocValue(long v) {
             fieldsData = v;
+        }
+
+        @Override
+        public Number numericValue() {
+            final long raw = (Long) fieldsData;
+            // For stored-only fields (no doc values), the indexing chain calls numericValue().floatValue()
+            // or .doubleValue() to retrieve the actual value. Return the correctly-typed Number so that
+            // the stored representation matches what StoredField would produce.
+            if (fieldType().stored() && fieldType().docValuesType() == DocValuesType.NONE) {
+                return switch (kind) {
+                    case LONG -> raw;
+                    case INT -> (int) raw;
+                    case FLOAT -> NumericUtils.sortableIntToFloat((int) raw);
+                    case DOUBLE -> NumericUtils.sortableLongToDouble(raw);
+                };
+            }
+            return raw;
         }
 
         @Override

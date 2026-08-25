@@ -1669,6 +1669,27 @@ words:keyword       | in_range:boolean
 // end::mv_in_range_keyword-result[]
 ;
 
+mvInRangeTextNotExactRow
+required_capability: fn_mv_in_range
+required_capability: fn_to_text
+ROW t = TO_TEXT("Connected to 10.1.0.1")
+| EVAL in_range = mv_in_range(t, "a", "u")
+;
+
+t:text                | in_range:boolean
+Connected to 10.1.0.1 | false
+;
+
+mvInRangeTextNotExactFrom
+required_capability: fn_mv_in_range
+FROM mv_text
+| WHERE mv_in_range(message, "a", "u")
+| KEEP message
+;
+
+message:text
+;
+
 mvInRangeHalfOpen
 required_capability: fn_mv_in_range
 // tag::mv_in_range_half_open[]

@@ -34,7 +34,7 @@ Each is its own Gradle subproject. These are expensive; run only the relevant on
 | `ml-with-security` | `./gradlew :x-pack:plugin:ml:qa:ml-with-security:yamlRestTest` | security + RBAC (`ml_admin`/`ml_user`/`no_ml` users) |
 | `ml-inference-service-tests` | `./gradlew :x-pack:plugin:ml:qa:ml-inference-service-tests:javaRestTest` | inference/ingest coordination |
 | `cps-datafeed-tests` | `./gradlew :x-pack:plugin:ml:qa:cps-datafeed-tests:javaRestTest` | cross-project/CCS datafeeds |
-| `multi-cluster-tests-with-security` | `./gradlew :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:integTest` | CCS across clusters |
+| `multi-cluster-tests-with-security` | `./gradlew :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest` | CCS across clusters |
 
 YAML REST tests for ML live in `src/test/resources/rest-api-spec/test/ml/`. Use the root `AGENTS.md` YAML/CSV single-test invocation syntax.
 

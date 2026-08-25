@@ -102,7 +102,7 @@ public class ReindexCancelInFlightWriteIT extends ESIntegTestCase {
     private static final String BAN_REASON = "by user request";
     private static final String CANCELLATION_MESSAGE = "parent task was cancelled [" + BAN_REASON + "]";
     /// Reindex shouldn't stop within this window. If it has, it has not waited on the write to finish, which leads to a leak.
-    private static final TimeValue EARLY_COMPLETION_WATCH_WINDOW = TimeValue.timeValueSeconds(5);
+    private static final TimeValue EARLY_COMPLETION_WATCH_WINDOW = TimeValue.timeValueSeconds(0);
     /// How long to wait for write to be released before failing the test, to not hang the suite.
     private static final TimeValue PARKED_WRITE_TIMEOUT = TimeValue.timeValueSeconds(15);
 

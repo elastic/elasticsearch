@@ -1416,7 +1416,7 @@ public final class InternalTestCluster extends TestCluster {
                     }
                 }
             }
-        }, 60, TimeUnit.SECONDS);
+        }, 15, TimeUnit.SECONDS);
     }
 
     private void assertOpenTranslogReferences() throws Exception {

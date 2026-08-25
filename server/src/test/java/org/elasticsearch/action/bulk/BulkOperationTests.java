@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -49,6 +50,8 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -62,6 +65,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -79,6 +83,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -87,6 +92,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -356,6 +362,60 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find failed item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
+    }
+
+    /// A bulk operation must not complete its top-level listener while a shard level request it has already dispatched is still in
+    /// flight, even when dispatching a later shard throws synchronously. That is what
+    /// [org.elasticsearch.tasks.TaskManager#registerChildConnection] does once the parent task has banned its children.
+    ///
+    /// Callers such as reindex alias pooled search hit bytes into their destination index requests and release those bytes as soon as
+    /// the bulk listener completes, so completing early frees memory that the in-flight write is still reading.
+    public void testDispatchFailureWaitsForInFlightShardRequests() throws Exception {
+        // Requests that go to two separate shards
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(indexName).id("1").source(Map.of("key", "val")));
+        bulkRequest.add(new IndexRequest(indexName).id("3").source(Map.of("key", "val")));
+
+        ExecutorService writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
+        CountDownLatch shardWriteStarted = new CountDownLatch(1);
+        CountDownLatch continueShardWrite = new CountDownLatch(1);
+
+        // Stands in for the pooled hit bytes that reindex releases when the bulk listener completes
+        AtomicInteger releases = new AtomicInteger();
+        ReleasableBytesReference pooledSource = new ReleasableBytesReference(
+            new BytesArray(randomByteArrayOfLength(randomIntBetween(8, 64))),
+            releases::incrementAndGet
+        );
+
+        NodeClient client = throwingAfterFirstShardNodeClient(
+            goAsyncAndWait(writeExecutor, shardWriteStarted, continueShardWrite, acceptAllShardWrites()),
+            () -> new TaskCancelledException("parent task was cancelled [by user request]")
+        );
+
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        newBulkOperation(client, bulkRequest, ActionListener.releaseBefore(pooledSource::decRef, ActionListener.assertOnce(future))).run();
+
+        try {
+            safeAwait(shardWriteStarted);
+            assertFalse("bulk listener completed while a shard request was in flight", future.isDone());
+            // hasReferences() is the only accessor that stays safe to call after release
+            assertTrue("pooled source released while a shard request was in flight", pooledSource.hasReferences());
+        } finally {
+            continueShardWrite.countDown();
+        }
+
+        BulkResponse response = safeGet(future);
+        assertThat(releases.get(), equalTo(1));
+
+        // The shard whose dispatch threw is reported as a shard level failure rather than failing the whole bulk
+        List<BulkItemResponse> failedItems = Arrays.stream(response.getItems()).filter(BulkItemResponse::isFailed).toList();
+        assertThat(failedItems, hasSize(1));
+        assertThat(failedItems.get(0).getFailure().getCause(), is(instanceOf(TaskCancelledException.class)));
+        assertThat(response.getIncrementalState().shardLevelFailures().values(), hasSize(1));
+        assertThat(
+            response.getIncrementalState().shardLevelFailures().values().iterator().next(),
+            is(instanceOf(TaskCancelledException.class))
+        );
     }
 
     /**
@@ -1192,6 +1252,35 @@ public class BulkOperationTests extends ESTestCase {
                 } else {
                     fail("Unexpected client call to " + action.name());
                 }
+            }
+        };
+    }
+
+    /// A client whose first shard dispatch is handled by `firstShardBehavior` and whose later dispatches throw synchronously, the way
+    /// [org.elasticsearch.tasks.TaskManager#registerChildConnection] does once the parent task has banned its children.
+    ///
+    /// Unlike [#getNodeClient], the throw is not converted into a listener failure, so [BulkOperation]'s dispatch loop observes it the
+    /// way it does in production. Dispatches are counted rather than keyed on [ShardId] so the test does not depend on the iteration
+    /// order of the per-shard request map.
+    private NodeClient throwingAfterFirstShardNodeClient(
+        BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> firstShardBehavior,
+        Supplier<RuntimeException> laterShardFailure
+    ) {
+        final AtomicInteger dispatches = new AtomicInteger();
+        return new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                assertSame(TransportShardBulkAction.TYPE, action);
+                if (dispatches.getAndIncrement() > 0) {
+                    throw laterShardFailure.get();
+                }
+                firstShardBehavior.accept((BulkShardRequest) request, (ActionListener<BulkShardResponse>) listener);
+                return null;
             }
         };
     }

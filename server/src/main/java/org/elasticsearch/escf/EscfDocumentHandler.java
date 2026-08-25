@@ -9,15 +9,14 @@
 
 package org.elasticsearch.escf;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.simdjson.JsonDocumentHandler;
+import org.elasticsearch.sourcebatch.KeyValueWriter;
 import org.elasticsearch.sourcebatch.LeafSink;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper.PackedArray;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
 
@@ -25,10 +24,9 @@ import java.util.Arrays;
  * Implements {@link JsonDocumentHandler} by delegating to {@link EscfRowBuffer}
  * for column storage and to {@link LeafSink} for routing/extraction callbacks.
  *
- * <p>Array elements are accumulated into temporary buffers and packed into
- * the ESCF inline binary format on {@link #endArray()}.
- *
- * <p>Nested objects within arrays are serialized into KEY_VALUE binary format.
+ * <p>Array elements are accumulated into temporary buffers and packed via
+ * {@link SourceBatchEncodeHelper}. Nested objects within arrays are serialized
+ * through {@link KeyValueWriter}.
  *
  * <p><strong>Not thread-safe.</strong> One instance per document walk.
  */
@@ -59,14 +57,16 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int arrayDepth;
 
     // KV serialization for nested objects within arrays
-    private BytesStreamOutput kvOut;
+    private KeyValueWriter kvWriter;
     private int kvDepth;
-    private BytesStreamOutput[] kvOutStack;
-    private int kvOutStackDepth;
+    private KeyValueWriter[] kvWriterStack;
+    private int kvWriterStackDepth;
     /** True while serializing an inline array field value inside a KEY_VALUE blob. */
     private boolean kvInlineArrayBuild;
     /** {@link #arrayDepth} at which the current {@link #kvInlineArrayBuild} started. */
     private int kvInlineArrayDepth;
+    /** Field name for a deferred {@link KeyValueWriter#writeArrayField} call. */
+    private String pendingKvArrayFieldName;
 
     EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
         this.row = row;
@@ -81,7 +81,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void startObject(String fieldName) {
         if (kvDepth > 0) {
-            writeKvStartObject(fieldName);
+            kvWriter.beginObjectField(fieldName);
+            kvDepth++;
             return;
         }
         row.startObject(fieldName);
@@ -90,7 +91,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void endObject() {
         if (kvDepth > 0) {
-            writeKvEndObject();
+            kvWriter.endObjectField();
+            kvDepth--;
             return;
         }
         row.endObject();
@@ -99,7 +101,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void emptyObject(String fieldName) {
         if (kvDepth > 0) {
-            writeKvEmptyObject(fieldName);
+            kvWriter.writeEmptyObjectField(fieldName);
             return;
         }
         row.emptyObject(fieldName);
@@ -108,7 +110,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void stringField(String fieldName, byte[] buf, int off, int len) {
         if (kvDepth > 0) {
-            writeKvStringField(fieldName, buf, off, len);
+            kvWriter.writeStringField(fieldName, buf, off, len);
             return;
         }
         int colIdx = row.stringField(fieldName, buf, off, len);
@@ -120,7 +122,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void longField(String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen) {
         if (kvDepth > 0) {
-            writeKvLongField(fieldName, value, fitsInt);
+            kvWriter.writeLongField(fieldName, value, fitsInt);
             return;
         }
         byte type = fitsInt ? SourceValueType.INT : SourceValueType.LONG;
@@ -135,7 +137,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void bigIntegerField(String fieldName, BigInteger value, byte[] srcBuf, int srcOff, int srcLen) {
         if (kvDepth > 0) {
-            writeKvStringField(fieldName, srcBuf, srcOff, srcLen);
+            kvWriter.writeStringField(fieldName, srcBuf, srcOff, srcLen);
             return;
         }
         int colIdx = row.stringField(fieldName, srcBuf, srcOff, srcLen);
@@ -152,7 +154,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void doubleField(String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen) {
         if (kvDepth > 0) {
-            writeKvDoubleField(fieldName, value, fitsFloat);
+            kvWriter.writeDoubleField(fieldName, value, fitsFloat);
             return;
         }
         byte type = fitsFloat ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
@@ -167,7 +169,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void booleanField(String fieldName, boolean value, byte[] srcBuf, int srcOff, int srcLen) {
         if (kvDepth > 0) {
-            writeKvBooleanField(fieldName, value);
+            kvWriter.writeBooleanField(fieldName, value);
             return;
         }
         int colIdx = row.booleanField(fieldName, value);
@@ -182,7 +184,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void nullField(String fieldName) {
         if (kvDepth > 0) {
-            writeKvNullField(fieldName);
+            kvWriter.writeNullField(fieldName);
             return;
         }
         row.nullField(fieldName);
@@ -200,11 +202,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             pushArrayState();
         }
         arrayFieldName = fieldName;
-        elemTypes = new byte[ARRAY_INIT_CAP];
-        elemNumeric = new long[ARRAY_INIT_CAP];
-        elemVar = new Object[ARRAY_INIT_CAP];
-        elemCount = 0;
-        forceUnion = false;
+        initArrayAccumulators();
         arrayDepth++;
     }
 
@@ -214,48 +212,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             writeKvEndArray();
             return;
         }
-        byte[] packed;
-        byte arrayType;
-
-        boolean useFixed = false;
-        byte sharedType = 0;
-        if (forceUnion == false && elemCount > 0) {
-            sharedType = elemTypes[0];
-            useFixed = true;
-            for (int i = 1; i < elemCount; i++) {
-                if (elemTypes[i] != sharedType) {
-                    useFixed = false;
-                    break;
-                }
-            }
-            if (useFixed && SourceValueType.elemDataSize(sharedType) == 0) {
-                useFixed = false;
-            }
-        }
-
-        if (useFixed) {
-            packed = packFixedArray(sharedType, elemNumeric, elemVar, elemCount);
-            arrayType = SourceValueType.FIXED_ARRAY;
-        } else {
-            packed = packUnionArray(elemTypes, elemNumeric, elemVar, elemCount);
-            arrayType = SourceValueType.UNION_ARRAY;
-        }
-        Arrays.fill(elemVar, 0, elemCount, null);
-
-        arrayDepth--;
-
-        if (arrayDepth > 0) {
-            byte savedArrayType = arrayType;
-            byte[] savedPacked = packed;
-            popArrayState();
-            ensureArrayCapacity();
-            elemTypes[elemCount] = savedArrayType;
-            elemVar[elemCount] = savedPacked;
-            forceUnion = true;
-            elemCount++;
-        } else {
-            row.arrayField(arrayFieldName, arrayType, packed);
-        }
+        finishArrayAccumulation();
     }
 
     @Override
@@ -318,19 +275,19 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void arrayElemStartObject() {
         if (kvDepth > 0) {
-            ensureKvOutStackCapacity();
-            kvOutStack[kvOutStackDepth++] = kvOut;
+            ensureKvWriterStackCapacity();
+            kvWriterStack[kvWriterStackDepth++] = kvWriter;
         }
         ensureArrayCapacity();
-        kvOut = new BytesStreamOutput(64);
+        kvWriter = KeyValueWriter.forObjectPayload();
         kvDepth = kvDepth == 0 ? 1 : kvDepth + 1;
     }
 
     @Override
     public void arrayElemEndObject() {
+        byte[] nested = kvWriter.toBytes();
         if (kvDepth > 1) {
-            byte[] nested = BytesReference.toBytes(kvOut.bytes());
-            kvOut = kvOutStack[--kvOutStackDepth];
+            kvWriter = kvWriterStack[--kvWriterStackDepth];
             kvDepth--;
             ensureArrayCapacity();
             elemTypes[elemCount] = SourceValueType.KEY_VALUE;
@@ -340,22 +297,18 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             return;
         }
         elemTypes[elemCount] = SourceValueType.KEY_VALUE;
-        elemVar[elemCount] = BytesReference.toBytes(kvOut.bytes());
+        elemVar[elemCount] = nested;
         forceUnion = true;
         elemCount++;
-        kvOut = null;
+        kvWriter = null;
         kvDepth = 0;
-        kvOutStackDepth = 0;
+        kvWriterStackDepth = 0;
     }
 
     @Override
     public void arrayElemStartArray() {
         pushArrayState();
-        elemTypes = new byte[ARRAY_INIT_CAP];
-        elemNumeric = new long[ARRAY_INIT_CAP];
-        elemVar = new Object[ARRAY_INIT_CAP];
-        elemCount = 0;
-        forceUnion = false;
+        initArrayAccumulators();
         arrayDepth++;
     }
 
@@ -365,6 +318,14 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     }
 
     // ---- Array capacity ----
+
+    private void initArrayAccumulators() {
+        elemTypes = new byte[ARRAY_INIT_CAP];
+        elemNumeric = new long[ARRAY_INIT_CAP];
+        elemVar = new Object[ARRAY_INIT_CAP];
+        elemCount = 0;
+        forceUnion = false;
+    }
 
     private void ensureArrayCapacity() {
         if (elemCount >= elemTypes.length) {
@@ -411,264 +372,51 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         nestedElemVar[depth] = null;
     }
 
-    // ---- Array packing (mirrors SourceBatchEncodeHelper) ----
+    private void finishArrayAccumulation() {
+        PackedArray packed = SourceBatchEncodeHelper.packAccumulatedElements(elemTypes, elemNumeric, elemVar, elemCount, forceUnion);
+        Arrays.fill(elemVar, 0, elemCount, null);
 
-    private static byte[] packUnionArray(byte[] types, long[] numeric, Object[] var, int count) {
-        int size = 0;
-        for (int i = 0; i < count; i++) {
-            size += 1 + elemDataSize(types[i], var[i]);
-        }
-        byte[] packed = new byte[size];
-        int pos = 0;
-        for (int i = 0; i < count; i++) {
-            packed[pos++] = types[i];
-            pos = writeElemData(packed, pos, types[i], numeric[i], var[i]);
-        }
-        return packed;
-    }
+        arrayDepth--;
 
-    private static byte[] packFixedArray(byte sharedType, long[] numeric, Object[] var, int count) {
-        int size = 1;
-        for (int i = 0; i < count; i++) {
-            size += elemDataSize(sharedType, var[i]);
-        }
-        byte[] packed = new byte[size];
-        packed[0] = sharedType;
-        int pos = 1;
-        for (int i = 0; i < count; i++) {
-            pos = writeElemData(packed, pos, sharedType, numeric[i], var[i]);
-        }
-        return packed;
-    }
-
-    private static int elemDataSize(byte type, Object varData) {
-        return switch (type) {
-            case SourceValueType.INT, SourceValueType.FLOAT -> 4;
-            case SourceValueType.LONG, SourceValueType.DOUBLE -> 8;
-            case SourceValueType.STRING -> {
-                XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) varData;
-                yield 4 + (str != null ? str.length() : 0);
-            }
-            case SourceValueType.KEY_VALUE, SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
-                byte[] bytes = (byte[]) varData;
-                yield 4 + bytes.length;
-            }
-            default -> 0;
-        };
-    }
-
-    private static int writeElemData(byte[] packed, int pos, byte type, long numeric, Object var) {
-        switch (type) {
-            case SourceValueType.INT, SourceValueType.FLOAT -> {
-                ByteUtils.writeIntLE((int) numeric, packed, pos);
-                pos += 4;
-            }
-            case SourceValueType.LONG, SourceValueType.DOUBLE -> {
-                ByteUtils.writeLongLE(numeric, packed, pos);
-                pos += 8;
-            }
-            case SourceValueType.STRING -> {
-                XContentString.UTF8Bytes str = (XContentString.UTF8Bytes) var;
-                int len = str.length();
-                ByteUtils.writeIntLE(len, packed, pos);
-                pos += 4;
-                System.arraycopy(str.bytes(), str.offset(), packed, pos, len);
-                pos += len;
-            }
-            case SourceValueType.KEY_VALUE, SourceValueType.UNION_ARRAY, SourceValueType.FIXED_ARRAY -> {
-                byte[] bytes = (byte[]) var;
-                ByteUtils.writeIntLE(bytes.length, packed, pos);
-                pos += 4;
-                System.arraycopy(bytes, 0, packed, pos, bytes.length);
-                pos += bytes.length;
-            }
-        }
-        return pos;
-    }
-
-    // ---- KV serialization helpers (for nested objects within arrays) ----
-
-    private void writeKvKey(String fieldName) {
-        try {
-            byte[] keyBytes = fieldName.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            kvOut.writeIntLE(keyBytes.length);
-            kvOut.writeBytes(keyBytes, 0, keyBytes.length);
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing key: " + e.getMessage());
-        }
-    }
-
-    private void writeKvStringField(String fieldName, byte[] buf, int off, int len) {
-        writeKvKey(fieldName);
-        writeKvStringValue(buf, off, len);
-    }
-
-    private void writeKvStringValue(byte[] buf, int off, int len) {
-        try {
-            kvOut.writeByte(SourceValueType.STRING);
-            kvOut.writeIntLE(len);
-            kvOut.writeBytes(buf, off, len);
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing string: " + e.getMessage());
-        }
-    }
-
-    private void writeKvLongField(String fieldName, long value, boolean fitsInt) {
-        writeKvKey(fieldName);
-        writeKvLongValue(value, fitsInt);
-    }
-
-    private void writeKvLongValue(long value, boolean fitsInt) {
-        try {
-            if (fitsInt) {
-                kvOut.writeByte(SourceValueType.INT);
-                kvOut.writeIntLE((int) value);
-            } else {
-                kvOut.writeByte(SourceValueType.LONG);
-                kvOut.writeLongLE(value);
-            }
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing long: " + e.getMessage());
-        }
-    }
-
-    private void writeKvDoubleField(String fieldName, double value, boolean fitsFloat) {
-        writeKvKey(fieldName);
-        writeKvDoubleValue(value, fitsFloat);
-    }
-
-    private void writeKvDoubleValue(double value, boolean fitsFloat) {
-        try {
-            if (fitsFloat) {
-                kvOut.writeByte(SourceValueType.FLOAT);
-                kvOut.writeIntLE(Float.floatToRawIntBits((float) value));
-            } else {
-                kvOut.writeByte(SourceValueType.DOUBLE);
-                kvOut.writeLongLE(Double.doubleToRawLongBits(value));
-            }
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing double: " + e.getMessage());
-        }
-    }
-
-    private void writeKvBooleanField(String fieldName, boolean value) {
-        writeKvKey(fieldName);
-        writeKvBooleanValue(value);
-    }
-
-    private void writeKvBooleanValue(boolean value) {
-        kvOut.writeByte(value ? SourceValueType.TRUE : SourceValueType.FALSE);
-    }
-
-    private void writeKvNullField(String fieldName) {
-        writeKvKey(fieldName);
-        writeKvNullValue();
-    }
-
-    private void writeKvNullValue() {
-        kvOut.writeByte(SourceValueType.NULL);
-    }
-
-    private void writeKvStartObject(String fieldName) {
-        writeKvKey(fieldName);
-        writeKvStartObjectValue();
-    }
-
-    private void writeKvStartObjectValue() {
-        ensureKvOutStackCapacity();
-        kvOutStack[kvOutStackDepth++] = kvOut;
-        kvOut = new BytesStreamOutput(64);
-        kvDepth++;
-    }
-
-    private void writeKvEndObject() {
-        kvDepth--;
-        byte[] nested = BytesReference.toBytes(kvOut.bytes());
-        kvOut = kvOutStack[--kvOutStackDepth];
-        try {
-            kvOut.writeByte(SourceValueType.KEY_VALUE);
-            kvOut.writeIntLE(nested.length);
-            kvOut.writeBytes(nested, 0, nested.length);
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing nested object: " + e.getMessage());
-        }
-    }
-
-    private void ensureKvOutStackCapacity() {
-        if (kvOutStack == null) {
-            kvOutStack = new BytesStreamOutput[4];
-        } else if (kvOutStackDepth >= kvOutStack.length) {
-            kvOutStack = Arrays.copyOf(kvOutStack, kvOutStack.length * 2);
-        }
-    }
-
-    private void writeKvEmptyObject(String fieldName) {
-        writeKvKey(fieldName);
-        try {
-            kvOut.writeByte(SourceValueType.KEY_VALUE);
-            kvOut.writeIntLE(0);
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing empty object: " + e.getMessage());
+        if (arrayDepth > 0) {
+            popArrayState();
+            ensureArrayCapacity();
+            elemTypes[elemCount] = packed.arrayType();
+            elemVar[elemCount] = packed.packed();
+            forceUnion = true;
+            elemCount++;
+        } else {
+            row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
         }
     }
 
     private void writeKvStartArray(String fieldName) {
-        writeKvKey(fieldName);
-        writeKvStartArrayValue();
-    }
-
-    private void writeKvStartArrayValue() {
+        pendingKvArrayFieldName = fieldName;
         pushArrayState();
-        elemTypes = new byte[ARRAY_INIT_CAP];
-        elemNumeric = new long[ARRAY_INIT_CAP];
-        elemVar = new Object[ARRAY_INIT_CAP];
-        elemCount = 0;
-        forceUnion = false;
+        initArrayAccumulators();
         arrayDepth++;
         kvInlineArrayBuild = true;
         kvInlineArrayDepth = arrayDepth;
     }
 
     private void writeKvEndArray() {
-        byte[] packed;
-        byte arrayType;
-
-        boolean useFixed = false;
-        byte sharedType = 0;
-        if (forceUnion == false && elemCount > 0) {
-            sharedType = elemTypes[0];
-            useFixed = true;
-            for (int i = 1; i < elemCount; i++) {
-                if (elemTypes[i] != sharedType) {
-                    useFixed = false;
-                    break;
-                }
-            }
-            if (useFixed && SourceValueType.elemDataSize(sharedType) == 0) {
-                useFixed = false;
-            }
-        }
-
-        if (useFixed) {
-            packed = packFixedArray(sharedType, elemNumeric, elemVar, elemCount);
-            arrayType = SourceValueType.FIXED_ARRAY;
-        } else {
-            packed = packUnionArray(elemTypes, elemNumeric, elemVar, elemCount);
-            arrayType = SourceValueType.UNION_ARRAY;
-        }
+        PackedArray packed = SourceBatchEncodeHelper.packAccumulatedElements(elemTypes, elemNumeric, elemVar, elemCount, forceUnion);
         Arrays.fill(elemVar, 0, elemCount, null);
 
         arrayDepth--;
         popArrayState();
 
-        try {
-            kvOut.writeByte(arrayType);
-            kvOut.writeIntLE(packed.length);
-            kvOut.writeBytes(packed, 0, packed.length);
-        } catch (IOException e) {
-            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing array: " + e.getMessage());
-        }
+        kvWriter.writeArrayField(pendingKvArrayFieldName, packed);
+        pendingKvArrayFieldName = null;
         kvInlineArrayBuild = false;
         kvInlineArrayDepth = 0;
+    }
+
+    private void ensureKvWriterStackCapacity() {
+        if (kvWriterStack == null) {
+            kvWriterStack = new KeyValueWriter[4];
+        } else if (kvWriterStackDepth >= kvWriterStack.length) {
+            kvWriterStack = Arrays.copyOf(kvWriterStack, kvWriterStack.length * 2);
+        }
     }
 }

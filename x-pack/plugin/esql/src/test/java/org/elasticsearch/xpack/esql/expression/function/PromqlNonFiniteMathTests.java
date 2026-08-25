@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -22,8 +23,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -130,6 +137,83 @@ public class PromqlNonFiniteMathTests extends ESTestCase {
             Double.POSITIVE_INFINITY
         );
         assertFoldsToNaN(new ToDegrees(Source.EMPTY, Literal.fromDouble(Source.EMPTY, Double.NaN), true));
+    }
+
+    /** The issue's headline case: {@code metric * Inf} surfaces {@code ±Inf}, and {@code metric * NaN} surfaces {@code NaN}. */
+    public void testMulByNonFiniteScalarIsPreserved() {
+        assertFoldsTo(mul(2.0, Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY);
+        assertFoldsTo(mul(-2.0, Double.POSITIVE_INFINITY), Double.NEGATIVE_INFINITY);
+        assertFoldsToNaN(mul(2.0, Double.NaN));
+        // 0 * Inf is NaN under IEEE-754, and must be surfaced rather than dropped.
+        assertFoldsToNaN(mul(0.0, Double.POSITIVE_INFINITY));
+    }
+
+    /** {@code pow(-1, 0.5)} yields {@code NaN} and {@code pow(0, -1)} yields {@code +Inf} (IEEE-754). */
+    public void testPowNonFiniteIsPreserved() {
+        assertFoldsToNaN(new Pow(Source.EMPTY, Literal.fromDouble(Source.EMPTY, -1.0), Literal.fromDouble(Source.EMPTY, 0.5), true));
+        assertFoldsTo(
+            new Pow(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 0.0), Literal.fromDouble(Source.EMPTY, -1.0), true),
+            Double.POSITIVE_INFINITY
+        );
+    }
+
+    /**
+     * Non-finite sums/differences ({@code MAX+MAX → +Inf}, {@code Inf-Inf → NaN}) are preserved. A {@code NaN} operand
+     * also propagates ({@code x − NaN → NaN}), rather than dropping the series.
+     */
+    public void testAddSubNonFiniteIsPreserved() {
+        assertFoldsTo(add(Double.MAX_VALUE, Double.MAX_VALUE), Double.POSITIVE_INFINITY);
+        assertFoldsToNaN(add(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY));
+        assertFoldsTo(sub(-Double.MAX_VALUE, Double.MAX_VALUE), Double.NEGATIVE_INFINITY);
+        assertFoldsToNaN(sub(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY));
+        assertFoldsToNaN(sub(5.0, Double.NaN));
+    }
+
+    /**
+     * Division by zero matches Prometheus: {@code x/0 → ±Inf} and {@code 0/0 → NaN}, with the series kept. Verified
+     * against Prometheus {@code vectorElemBinop} (DIV returns {@code lhs / rhs} with {@code keep == true}).
+     */
+    public void testDivByZeroFollowsPrometheus() {
+        assertFoldsTo(div(1.0, 0.0), Double.POSITIVE_INFINITY);
+        assertFoldsTo(div(-1.0, 0.0), Double.NEGATIVE_INFINITY);
+        assertFoldsToNaN(div(0.0, 0.0));
+    }
+
+    /**
+     * The remainder matches Prometheus {@code math.Mod}: {@code x % 0 → NaN} with the series kept, while a regular
+     * remainder is unchanged.
+     */
+    public void testModByZeroFollowsPrometheus() {
+        assertFoldsToNaN(new Mod(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 5.0), Literal.fromDouble(Source.EMPTY, 0.0), true));
+        assertFoldsTo(new Mod(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 5.0), Literal.fromDouble(Source.EMPTY, 3.0), true), 2.0);
+    }
+
+    private static Mul mul(double lhs, double rhs) {
+        return new Mul(Source.EMPTY, Literal.fromDouble(Source.EMPTY, lhs), Literal.fromDouble(Source.EMPTY, rhs), true);
+    }
+
+    private static Add add(double lhs, double rhs) {
+        return new Add(
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, lhs),
+            Literal.fromDouble(Source.EMPTY, rhs),
+            EsqlTestUtils.TEST_CFG,
+            true
+        );
+    }
+
+    private static Sub sub(double lhs, double rhs) {
+        return new Sub(
+            Source.EMPTY,
+            Literal.fromDouble(Source.EMPTY, lhs),
+            Literal.fromDouble(Source.EMPTY, rhs),
+            EsqlTestUtils.TEST_CFG,
+            true
+        );
+    }
+
+    private static Div div(double lhs, double rhs) {
+        return new Div(Source.EMPTY, Literal.fromDouble(Source.EMPTY, lhs), Literal.fromDouble(Source.EMPTY, rhs), null, true);
     }
 
     private static Log log2(Expression value) {

@@ -108,8 +108,9 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     @After
     public void cleanUpInferenceEndpoints() {
-        // The base class cleanup only wipes user indices, not system indices, so inference endpoints survive between test methods when
-        // clusters are reused. Delete them explicitly so that the next test can re-create endpoints using the same inference IDs.
+        // The base class cleanup wipes all indices, including system indices; however the inference endpoints are cached
+        // in InferenceEndpointRegistry thus returning stale model configurations to next test method. So we need to explicitly
+        // delete them.
         for (var clusterEntry : createdInferenceEndpoints.entrySet()) {
             final Client client = client(clusterEntry.getKey());
             for (var endpointEntry : clusterEntry.getValue().entrySet()) {

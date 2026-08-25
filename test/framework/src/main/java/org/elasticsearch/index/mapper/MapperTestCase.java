@@ -2582,7 +2582,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     private void assertViolatingValueCaptured(DocumentMapper mapper, ParsedDocument doc) {
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        if (fieldMapper.writesOnFailureColumn()) {
+        if (fieldMapper.onFailureColumnEnabled()) {
             assertThat(doc.rootDoc().getFields(OnFailureStoredValues.name("field")), not(empty()));
         } else {
             // FALLBACK synthetic source has no composite loader; the violating value is captured in

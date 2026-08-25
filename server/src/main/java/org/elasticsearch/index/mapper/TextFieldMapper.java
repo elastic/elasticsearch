@@ -2135,7 +2135,7 @@ public final class TextFieldMapper extends FieldMapper {
                             b.value((String) value);
                         }
                     });
-                    if (writesOnFailureColumn()) {
+                    if (onFailureColumnEnabled()) {
                         layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                     }
                     return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
@@ -2185,12 +2185,12 @@ public final class TextFieldMapper extends FieldMapper {
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
             layers.addAll(kwd.syntheticFieldLoaderLayers());
-            if (kwd.writesOnFailureColumn()) {
+            if (kwd.onFailureColumnEnabled()) {
                 layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(kwd.fullPath(), indexSettings.getIndexVersionCreated()));
             }
         }
 
-        if (writesOnFailureColumn()) {
+        if (onFailureColumnEnabled()) {
             layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
         }
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
@@ -2238,7 +2238,7 @@ public final class TextFieldMapper extends FieldMapper {
                 )
             );
         }
-        if (writesOnFailureColumn()) {
+        if (onFailureColumnEnabled()) {
             layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
         }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);

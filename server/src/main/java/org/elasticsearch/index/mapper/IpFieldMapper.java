@@ -1177,7 +1177,7 @@ public class IpFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
-                if (writesOnFailureColumn()) {
+                if (onFailureColumnEnabled()) {
                     layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);

@@ -120,6 +120,12 @@ a previous JDK version to JDK 23 or above. For more information, see
 Don't use third-party Java agents that attach to the JVM. These agents
 can reduce {es} performance, including freezing or crashing nodes.
 
+[discrete]
+[[linux-cgroup-version]]
+=== Linux cgroups version
+
+{es} versions 8.0.0–8.4.3 fail to start on Linux distributions that use https://man7.org/linux/man-pages/man7/cgroups.7.html[cgroups] version 2 with the bundled JDK. Upgrade to 8.5.0 or later to resolve this. Refer to https://ela.st/es-may-fail-on-cgroup-v2[our KB article] for more guidance.
+
 
 include::install/targz.asciidoc[]
 

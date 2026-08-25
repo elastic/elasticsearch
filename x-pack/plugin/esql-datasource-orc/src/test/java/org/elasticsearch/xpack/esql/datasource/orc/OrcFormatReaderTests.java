@@ -52,9 +52,11 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -70,6 +72,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -378,6 +381,59 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertTrue(page.getBlock(1).isNull(1));
             assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
         });
+    }
+
+    /**
+     * A column declared in the query schema but absent from the ORC file's footer must emit an
+     * informational warning via the {@link FormatReadContext#informationalWarningSink()} on the
+     * first page produced. The warning must not fire before any page is read (row-group pruning
+     * might return zero rows) and must not re-emit on subsequent pages.
+     */
+    public void testAbsentDeclaredColumnEmitsWarningSink() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("emp_no", TypeDescription.createInt())
+            .addField("first_name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector empNoCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector firstNameCol = (BytesColumnVector) batch.cols[1];
+            empNoCol.vector[0] = 1;
+            firstNameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            empNoCol.vector[1] = 2;
+            firstNameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+        });
+
+        // Project emp_no, first_name, AND department — department is absent from the ORC file.
+        List<String> projection = List.of("emp_no", "first_name", "department");
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projection)
+            .batchSize(1024)
+            .informationalWarningSink(warnings::add)
+            .build();
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), ctx)) {
+            assertTrue("no warning before first page is polled", warnings.isEmpty());
+            assertTrue(iter.hasNext());
+            assertTrue("no warning after hasNext() — warning deferred to next()", warnings.isEmpty());
+            Page page = iter.next();
+            try {
+                assertEquals(2, page.getPositionCount());
+                assertEquals(3, page.getBlockCount());
+                assertTrue("absent column must be a null block", page.getBlock(2).isNull(0));
+                assertEquals(1, warnings.size());
+                assertEquals(SkipWarnings.absentDeclaredColumnMessage("department"), warnings.get(0));
+            } finally {
+                page.releaseBlocks();
+            }
+            // Drain any remaining pages; warning must not re-emit (emitAbsentColumnWarningsOnce is idempotent).
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+            assertEquals("warning must not re-emit on subsequent pages", 1, warnings.size());
+        }
     }
 
     public void testReadWithBatching() throws Exception {

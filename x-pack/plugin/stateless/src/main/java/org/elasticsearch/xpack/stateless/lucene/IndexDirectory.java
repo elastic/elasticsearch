@@ -299,8 +299,10 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
         if (hasLocalRef) {
             // The caller (VirtualBatchedCompoundCommit) holds a local file ref keeping the file on disk.
-            // Unlike openInput/ReopeningIndexInput, this returns a plain IndexInput that is read and closed
-            // in the same thread, so the READONCE→DEFAULT conversion done in the normal {@link #openInput} is not needed here.
+            // Callers must not include ReadOnceHint for files whose upload stream may be closed on a different
+            // thread (MMapDirectory creates a thread-confined MemorySegmentIndexInput for ReadOnce contexts,
+            // causing WrongThreadException). Segments files may include ReadOnceHint only if open and close
+            // are guaranteed to be on the same thread (e.g. MockDirectoryWrapper's correctness check).
             return super.openInput(name, context);
         }
         return cacheDirectory.openInput(name, context);

@@ -1154,11 +1154,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          */
         @Override
         public InputStream getInputStream() throws IOException {
-            // withHints replaces all hints, so re-include ReadOnceHint to preserve READONCE semantics through
-            // non-IndexDirectory wrappers (e.g. MockDirectoryWrapper in tests, which checks for ReadOnceHint).
-            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(
-                directory.openInput(filename, IOContext.READONCE.withHints(ReadOnceHint.INSTANCE, IndexDirectory.PreferLocalHint.INSTANCE))
-            );
+            var ioContext = filename.startsWith(IndexFileNames.SEGMENTS)
+                ? IOContext.READONCE.withHints(ReadOnceHint.INSTANCE, IndexDirectory.PreferLocalHint.INSTANCE)
+                : IOContext.DEFAULT.withHints(IndexDirectory.PreferLocalHint.INSTANCE);
+            Store.VerifyingIndexInput input = new Store.VerifyingIndexInput(directory.openInput(filename, ioContext));
             logger.trace("opening validating input for {}", filename);
 
             return new InputStreamIndexInput(input, input.length()) {

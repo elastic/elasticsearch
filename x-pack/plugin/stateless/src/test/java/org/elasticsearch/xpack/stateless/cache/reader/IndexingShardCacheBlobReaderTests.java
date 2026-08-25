@@ -131,7 +131,7 @@ public class IndexingShardCacheBlobReaderTests extends ESTestCase {
         verify(reader, startChunk, chunkSize + small, large, startChunk, startChunk + chunkSize * 2L);
     }
 
-    public void testMultiGapSharedStreamTriggersClosedAssertion() throws IOException {
+    public void testHandlesMultiGapSharedStream() throws IOException {
         final var directThreadPool = new ThreadPool() {
             @Override
             public ExecutorService executor(String name) {
@@ -176,7 +176,7 @@ public class IndexingShardCacheBlobReaderTests extends ESTestCase {
         );
         final List<SparseFileTracker.Gap> gaps = List.of(mockGap(0L, pageSize), mockGap(secondGapStart, rangeEnd));
         try (var streamFactory = sequentialRangeMissingHandler.sharedInputStreamFactory(gaps)) {
-            assertThat(streamFactory, notNullValue());
+            assertNotNull(streamFactory);
             ActionListener<InputStream> closingListener = ActionListener.wrap(in -> {
                 try (in) {
                     assertNotEquals(-1, in.read());

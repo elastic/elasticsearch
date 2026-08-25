@@ -58,7 +58,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
         .binary(CountDistinct::new)
-        .capabilities("flattened", "precision_clamp")
+        .capabilities("precision_clamp")
         .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(

@@ -737,9 +737,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecChangePointIT
   method: test {csv-spec:change_point.null keys}
   issue: https://github.com/elastic/elasticsearch/issues/157411
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
-  method: testOneRemoteClusterPartial
-  issue: https://github.com/elastic/elasticsearch/issues/157440
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Get index works}
   issue: https://github.com/elastic/elasticsearch/issues/157449

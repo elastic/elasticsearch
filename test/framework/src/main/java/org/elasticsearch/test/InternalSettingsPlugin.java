@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService;
@@ -82,7 +83,8 @@ public final class InternalSettingsPlugin extends Plugin {
             RecoveryDirectCancellationService.ENABLE_DIRECT_RECOVERY_CANCELLATIONS_SETTING,
             RecoveryDirectCancellationService.ENABLE_DIRECT_CANCELLATIONS_FOR_SNAPSHOTS_SETTING,
             RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING,
-            RecoveryGateMonitor.RECHECK_INTERVAL_SETTING
+            RecoveryGateMonitor.RECHECK_INTERVAL_SETTING,
+            IndicesClusterStateService.LOCAL_RECOVERY_RETRY
         );
     }
 }

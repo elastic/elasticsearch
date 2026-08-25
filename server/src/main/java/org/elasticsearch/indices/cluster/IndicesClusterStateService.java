@@ -138,6 +138,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enable / disable local retry functionality on recovery failure. When {@code false}, {@link FailureStrategy#RETRY}
+     * will be treated as {@link FailureStrategy#FAIL_SEND} by {@link ShardRecoveryListener}.
+     */
+    public static final Setting<Boolean> LOCAL_RECOVERY_RETRY = Setting.boolSetting(
+        "indices.recovery.local_retry",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     final AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -167,6 +178,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final NodeClient client;
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
+    private volatile boolean localRecoveryRetryEnabled;
 
     private final Executor shardCloseExecutor;
 
@@ -242,6 +254,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
         this.shardCloseExecutor = new ShardCloseExecutor(settings, threadPool.generic());
+        // setting only registered in tests today
+        clusterService.getClusterSettings().initializeAndWatchIfRegistered(LOCAL_RECOVERY_RETRY, b -> localRecoveryRetryEnabled = b);
     }
 
     @Override
@@ -287,6 +301,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             closingMoreShards = true;
             return currentClusterStateShardsClosedListeners.acquire();
         }
+    }
+
+    // protected for tests
+    protected boolean getLocalRecoveryRetryEnabled() {
+        return localRecoveryRetryEnabled;
     }
 
     /**

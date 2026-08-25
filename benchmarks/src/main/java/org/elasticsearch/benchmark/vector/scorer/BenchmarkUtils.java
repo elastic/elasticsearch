@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.backward_codecs.lucene99.OffHeapQuantizedByteVectorValues;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
@@ -73,6 +74,7 @@ class BenchmarkUtils {
                 buffer.asFloatBuffer().put(vector);
                 out.writeBytes(buffer.array(), buffer.capacity());
             }
+            CodecUtil.writeFooter(out);
         }
     }
 
@@ -206,5 +208,9 @@ class BenchmarkUtils {
         List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
         Collections.shuffle(list, random);
         return list.stream().limit(numVectorsToScore).mapToInt(Integer::intValue).toArray();
+    }
+
+    static int[] generateSequentialOrdinals(int numVectorsToScore) {
+        return IntStream.range(0, numVectorsToScore).toArray();
     }
 }

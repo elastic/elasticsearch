@@ -103,7 +103,7 @@ public abstract class EscfColumn implements SliceableColumn {
     }
 
     /** A forward-only iterator over this column's present (non-absent) doc ids. */
-    final PresentDocIterator presentDocs() {
+    public final PresentDocIterator presentDocs() {
         return new PresentDocIterator(validity, docCount);
     }
 
@@ -119,6 +119,11 @@ public abstract class EscfColumn implements SliceableColumn {
     /** Returns {@code true} if the document at {@code row} is present (has a value). */
     public final boolean isPresent(int row) {
         return isAbsent(row) == false;
+    }
+
+    /** Returns {@code true} if every document in this column is present (no validity bitset). */
+    public final boolean isDense() {
+        return validity == null;
     }
 
     final byte getTypeByte(int row) {

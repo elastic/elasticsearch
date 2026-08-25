@@ -303,8 +303,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
         );
         assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
@@ -429,8 +429,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockContext())
         );
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
@@ -439,8 +439,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testWildcardQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.wildcardQuery("valu*", null, false, randomMockContext())
         );
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());

@@ -45,7 +45,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -56,6 +55,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
@@ -90,9 +90,11 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoad
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorBlockLoaderProcessor;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DenseVectorFromBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
@@ -274,14 +276,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT =
         IndexVersions.DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
     public static final IndexVersion ES_VERSION_94 = IndexVersions.KEYWORD_FIELDS_KEEP_DUPLICATES_IN_BINARY_DOC_VALUES;
-
-    public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
-    public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
-        "mapper.dense_vector.rescore_zero_vector"
-    );
-    public static final NodeFeature USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ = new NodeFeature(
-        "mapper.dense_vector.default_oversample_value_for_bbq"
-    );
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
@@ -2189,13 +2183,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
                 int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
                 if (isAsh) {
-                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 3 || quantizeBits == 4 || quantizeBits == 8) == false) {
+                    if (IvfSegmentConfig.AshConfig.isValidBitsPerDim(quantizeBits) == false) {
                         throw new IllegalArgumentException(
                             "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: " + quantizeBits + " for field [" + fieldName + "]"
                         );
                     }
                 } else {
-                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4 || quantizeBits == 7) == false) {
+                    if (QuantEncoding.isValidBits((byte) quantizeBits) == false) {
                         throw new IllegalArgumentException(
                             "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
                         );
@@ -2997,7 +2991,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
                 }
                 if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
+                    var ashConfig = IvfSegmentConfig.AshConfig.of(
+                        bits,
+                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
+                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                    );
                     return new ESNextDiskASHVectorsFormat(
+                        ashConfig,
                         clusterSize,
                         ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3007,10 +3007,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault(),
-                        bits,
-                        ESNextDiskASHVectorsFormat.DEFAULT_PROJECTED_DIMS_FRACTION,
-                        ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM
+                        IvfMergeConfigResolver.useCodecDefault()
                     );
                 } else {
                     IvfMergeConfigResolver mergeConfigResolver = autoCalibrate
@@ -3374,6 +3371,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public boolean isVectorEmbedding() {
             return true;
+        }
+
+        @Override
+        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+            if (vectorType != null && vectorType != VectorType.DENSE_VECTOR) {
+                return null;
+            }
+            return new FieldAndFormat(name(), null);
         }
 
         @Override

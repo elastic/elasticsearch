@@ -1603,6 +1603,27 @@ final class ParquetPushedExpressions {
         return null;
     }
 
+    /**
+     * True when {@code block} decodes entirely null, in which case the caller must return the
+     * zeroed {@code mask} without consulting the {@code instanceof} chain below it.
+     *
+     * <p>{@code ConstantNullBlock} implements every typed block interface at once, so an all-null
+     * batch otherwise binds whichever arm is tested first — {@code IntBlock} — regardless of the
+     * column's real type, and casts a non-numeric plan literal to {@code Number}
+     * (elastic/elasticsearch#157313).
+     *
+     * <p>Zero survivors is the exact answer, not a conservative one: {@code NULL <op> literal},
+     * {@code NULL IN (...)} and {@code NULL} within a range are SQL-UNKNOWN, and UNKNOWN never
+     * survives a filter. Exactness matters because once a mask leaves the pushdown it can only be
+     * narrowed, so an over-wide mask is recoverable by RECHECK and an over-narrow one is not.
+     */
+    private static boolean allNullShortCircuit(Block block, int rowCount, WordMask mask) {
+        assert rowCount == block.getPositionCount()
+            : "predicate blocks are decoded at exactly rowCount positions; got " + block.getPositionCount() + " for " + rowCount;
+        assert mask.isEmpty() : "caller must reset the mask before the short-circuit";
+        return block.areAllValuesNull();
+    }
+
     private static WordMask evaluateComparison(
         EsqlBinaryComparison bc,
         Block block,
@@ -1612,22 +1633,7 @@ final class ParquetPushedExpressions {
     ) {
         WordMask mask = new WordMask();
         mask.reset(rowCount);
-        if (block.areAllValuesNull()) {
-            // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
-            // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
-            // conservative one. It has to be exact - once a mask leaves the pushdown it can only
-            // ever be narrowed, so an over-wide mask is recoverable by RECHECK and an over-narrow
-            // one is not. (Within the pushdown an OR still widens, via evaluateExpression's
-            // left.or(right); the conclusion is unchanged, since a too-narrow arm keeps the OR
-            // too narrow.)
-            //
-            // Checked before the instanceof dispatch below because ConstantNullBlock implements
-            // every typed Block interface at once, so an all-null batch would otherwise bind the
-            // first arm (IntBlock) regardless of the column's real type and cast a non-numeric
-            // literal to Number (elastic/elasticsearch#157313). Same shape as
-            // DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull() ahead of
-            // its own typed dispatch. The empty mask also lets evaluateFilter exit early and lets
-            // the reader skip decoding this batch's projection columns.
+        if (allNullShortCircuit(block, rowCount, mask)) {
             return mask;
         }
         if (block instanceof IntBlock ib) {
@@ -1795,9 +1801,7 @@ final class ParquetPushedExpressions {
         }
         WordMask mask = new WordMask();
         mask.reset(rowCount);
-        if (block.areAllValuesNull()) {
-            // All-null batch -> zero survivors, and the check must precede the instanceof
-            // dispatch below. See the note in evaluateComparison.
+        if (allNullShortCircuit(block, rowCount, mask)) {
             return mask;
         }
         if (block instanceof IntBlock ib) {
@@ -1914,9 +1918,7 @@ final class ParquetPushedExpressions {
         boolean incHi = range.includeUpper();
         WordMask mask = new WordMask();
         mask.reset(rowCount);
-        if (block.areAllValuesNull()) {
-            // All-null batch -> zero survivors, and the check must precede the instanceof
-            // dispatch below. See the note in evaluateComparison.
+        if (allNullShortCircuit(block, rowCount, mask)) {
             return mask;
         }
         if (block instanceof IntBlock ib) {
@@ -2156,14 +2158,22 @@ final class ParquetPushedExpressions {
      * {@link ParquetFilterPushdownSupport#isFullyEvaluable}, which only allows {@code YES} for
      * {@code Not} when its child is a bare {@link WildcardLike}.
      *
-     * <p>Returns {@code null} when the block is neither an {@link OrdinalBytesRefBlock} on the
-     * dense path nor a {@link BytesRefBlock} — the conservative "all rows survive" sentinel that
-     * {@link #evaluateFilter} treats as a no-op for this predicate. Returns {@code null} also when
-     * the pattern is unusable (failed to determinize). Note an all-null batch does <em>not</em>
-     * reach that sentinel: {@code ConstantNullBlock} implements {@link BytesRefBlock} (as it does
-     * every typed block interface), so it takes the {@link BytesRefBlock} arm and
-     * {@code applyMatcherToBytesRefBlock}'s per-row null guard yields the empty mask — the
-     * TVL-correct answer, and the reason this evaluator family survives the input that broke the
+     * <p>Returns {@code null} — the conservative "all rows survive" sentinel — when the pattern is
+     * unusable (failed to determinize), which {@link ParquetFilterPushdownSupport#canPush} prevents
+     * at plan time by probing
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
+     * before granting YES.
+     *
+     * <p>The block-type arm below cannot produce that sentinel for a KEYWORD column, which matters
+     * because this predicate is YES-eligible and therefore evaluated with {@code FilterExec}
+     * already dropped: a silent all-survive would be a wrong answer, not a slow one. The reader
+     * guarantees it — {@code PageColumnReader} decodes KEYWORD/TEXT through {@code readBytesBatch},
+     * whose only outputs are an {@link OrdinalBytesRefBlock}, a {@link BytesRefBlock}, or a
+     * {@code ConstantNullBlock} for an all-null batch. All three satisfy
+     * {@code instanceof BytesRefBlock} (the ordinals block implements it, and the null block
+     * implements every typed block interface), so an arm is always taken. The all-null case lands
+     * on {@link BytesRefBlock} and {@code applyMatcherToBytesRefBlock}'s per-row null guard yields
+     * the empty mask — TVL-correct, and the reason this family survived the input that broke the
      * value-comparison evaluators in elastic/elasticsearch#157313.
      * Both cases are safe under RECHECK because {@code FilterExec} re-checks; under YES they are
      * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes

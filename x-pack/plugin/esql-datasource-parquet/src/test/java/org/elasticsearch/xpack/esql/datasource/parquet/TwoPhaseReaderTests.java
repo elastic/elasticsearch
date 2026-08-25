@@ -180,9 +180,12 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * defaults to false. This is the two-phase half, and it fails on the parent commit with the
      * same {@code ClassCastException} (elastic/elasticsearch#157313).
      *
-     * <p>It also demonstrates the skip the fix buys: with no survivors in the all-null row groups,
-     * Phase 2 never fetches their large {@code label} chunks, so two-phase reads strictly fewer
-     * bytes than the single-phase run of the same file and filter.
+     * <p>Scope note: this pins correctness only. An earlier revision also asserted that two-phase
+     * reads fewer bytes than single-phase for this shape; with the layout pinned it does not, so
+     * the claim was removed rather than tuned into passing. The projection-decode skip on a
+     * survivor-free batch is real (see {@code OptimizedParquetColumnIterator}'s
+     * {@code survivorCount == 0} branch), but total bytes read is not a faithful proxy for it and
+     * this module has no counter that is.
      */
     public void testTwoPhaseKeywordFilterOverAllNullPredicateBatches() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -196,17 +199,23 @@ public class TwoPhaseReaderTests extends ESTestCase {
             .named("label")
             .named("two_phase_all_null_schema");
 
-        final int rowCount = 10_000;
-        final int firstValuedRow = 9_800;
+        final int rowCount = 8192;
+        final int nullRun = 1024;
         // code is null for the overwhelming majority of the file and valued only in a short run at
         // the end, so most batches decode all-null and produce no survivors. label is the bulky
         // projection-only column whose fetch those survivor-free batches should avoid entirely.
-        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+        // Layout pinned deliberately, and the null runs sized against it. Row groups are large
+        // enough to hold several read batches, so every row group carries both null and valued
+        // `code` values — otherwise the Parquet row-group filter prunes the all-null groups on
+        // statistics and the evaluator never sees a null block, which silently turns this from a
+        // regression test into a pin. The null runs are aligned to the read batch size so whole
+        // decoded batches are null within a surviving row group.
+        byte[] parquetData = buildParquetWithLayout(schema, rowCount, 8L * 1024 * 1024, 1024, i -> {
             SimpleGroupFactory factory = new SimpleGroupFactory(schema);
             Group g = factory.newGroup();
             g.add("id", (long) i);
-            if (i >= firstValuedRow) {
-                g.add("code", "US");
+            if ((i / nullRun) % 2 == 1) {
+                g.add("code", i % 2 == 0 ? "US" : "CA");
             }
             g.add("label", repeat('z', 512) + "_" + i);
             return g;
@@ -232,20 +241,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
         }
 
         List<Long> expected = new ArrayList<>();
-        for (int i = firstValuedRow; i < rowCount; i++) {
-            expected.add((long) i);
+        for (int i = 0; i < rowCount; i++) {
+            if ((i / nullRun) % 2 == 1 && i % 2 == 0) {
+                expected.add((long) i);
+            }
         }
-        assertThat("survivors must come only from the valued run", survivingIds, equalTo(expected));
+        assertThat("survivors must come only from the valued runs", survivingIds, equalTo(expected));
         assertFalse("the fixture must actually produce survivors", expected.isEmpty());
 
-        // Same file and filter on storage that does not advertise native async, so the reader
-        // takes the single-phase route and fetches the label chunks it cannot defer.
-        CountingStorageObject singlePhaseObj = new CountingStorageObject(parquetData, false);
-        readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), singlePhaseObj).forEach(Page::releaseBlocks);
-
-        long two = twoPhaseObj.totalBytesRead.get();
-        long single = singlePhaseObj.totalBytesRead.get();
-        assertThat("two-phase must skip the projection chunks of survivor-free batches: " + two + " vs " + single, two, lessThan(single));
     }
 
     public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
@@ -1416,6 +1419,32 @@ public class TwoPhaseReaderTests extends ESTestCase {
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withPageSize(pageSize)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    /** Pins BOTH row-group and page size, so a test's layout claims are what actually gets written. */
+    private byte[] buildParquetWithLayout(
+        MessageType schema,
+        int rowCount,
+        long rowGroupSize,
+        int pageSize,
+        java.util.function.IntFunction<Group> rowFactory
+    ) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withConf(new PlainParquetConfiguration())
                 .build()

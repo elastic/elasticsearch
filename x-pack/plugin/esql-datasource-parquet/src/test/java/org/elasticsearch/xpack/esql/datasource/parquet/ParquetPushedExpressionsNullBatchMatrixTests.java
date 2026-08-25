@@ -83,13 +83,21 @@ public class ParquetPushedExpressionsNullBatchMatrixTests extends ESTestCase {
 
         List<String> failures = new ArrayList<>();
         int cells = 0;
+        int rejected = 0;
         for (DataType type : types) {
             for (BlockShape shape : BlockShape.values()) {
                 for (PredicateKind kind : PredicateKind.values()) {
+                    Expression expr = kind.build(attr(COL, type), sampleLiteral(type), type);
+                    if (ParquetFilterPushdownSupport.canConvert(expr) == false) {
+                        // The planner cannot produce this shape (e.g. ordering comparisons and
+                        // ranges over BOOLEAN), so asserting evaluator behaviour for it would be
+                        // asserting something no query can reach. Pin the rejection instead.
+                        rejected++;
+                        continue;
+                    }
                     cells++;
                     Block block = shape.build(blockFactory, type);
                     try (block) {
-                        Expression expr = kind.build(attr(COL, type), sampleLiteral(type), type);
                         Map<String, Block> blocks = Map.of(COL, block);
                         WordMask result = new ParquetPushedExpressions(List.of(expr)).evaluateFilter(blocks, ROWS, new WordMask());
                         if (result == null) {
@@ -104,6 +112,8 @@ public class ParquetPushedExpressionsNullBatchMatrixTests extends ESTestCase {
             }
         }
         assertTrue("matrix did not run", cells > 0);
+        assertTrue("no shape was rejected - has canConvert widened? re-check the axes", rejected > 0);
+        logger.info("null-batch matrix: {} pushable cells asserted, {} planner-unreachable shapes pinned as rejected", cells, rejected);
         assertTrue(cells + " cells, " + failures.size() + " failed:\n" + String.join("\n", failures), failures.isEmpty());
     }
 

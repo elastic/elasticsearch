@@ -168,6 +168,11 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         .named("opt_label")
         .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
         .named("opt_bool")
+        // Numeric twin of opt_label. Without a nullable NUMERIC column whose nulls are batch
+        // aligned, random search cannot reach evaluateRange's all-null case at all: ID is
+        // required, and the oracle's Range arm is Number-only so it cannot take opt_label.
+        .optional(PrimitiveType.PrimitiveTypeName.INT64)
+        .named("opt_num")
         .named("differential_test_schema");
 
     private static final ReferenceAttribute ID = attr("id", DataType.LONG);
@@ -179,6 +184,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private static final ReferenceAttribute NULLABLE_FLAG = attr("nullable_flag", DataType.INTEGER);
     private static final ReferenceAttribute OPT_LABEL = attr("opt_label", DataType.KEYWORD);
     private static final ReferenceAttribute OPT_BOOL = attr("opt_bool", DataType.BOOLEAN);
+    private static final ReferenceAttribute OPT_NUM = attr("opt_num", DataType.LONG);
 
     private static final int ROW_COUNT = 4000;
 
@@ -1135,6 +1141,12 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         } else {
             row.put("opt_bool", ((BooleanBlock) boolBlock).getBoolean(rowIndex));
         }
+        Block numBlock = page.getBlock(9);
+        if (numBlock.isNull(rowIndex)) {
+            row.put("opt_num", null);
+        } else {
+            row.put("opt_num", ((LongBlock) numBlock).getLong(rowIndex));
+        }
         return row;
     }
 
@@ -1165,6 +1177,11 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             row.put("opt_bool", null);
         } else {
             row.put("opt_bool", g.getBoolean("opt_bool", 0));
+        }
+        if (g.getFieldRepetitionCount("opt_num") == 0) {
+            row.put("opt_num", null);
+        } else {
+            row.put("opt_num", g.getLong("opt_num", 0));
         }
         return row;
     }
@@ -1220,6 +1237,10 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             case 8 -> eq(CATEGORY, randomFrom(CATEGORIES), DataType.KEYWORD);
             // Predicates over the OPTIONAL columns. These are the leaves that can land on a batch
             // that decoded entirely null, which is what hands the evaluator a ConstantNullBlock.
+            case 9 -> and(
+                gte(SCORE, randomDoubleBetween(0.0, 1.0, true), DataType.DOUBLE),
+                lt(SCORE, randomDoubleBetween(0.0, 1.0, true) + 1.0, DataType.DOUBLE)
+            );
             case 10 -> eq(OPT_LABEL, randomFrom(OPT_LABELS), DataType.KEYWORD);
             case 11 -> neq(OPT_LABEL, randomFrom(OPT_LABELS), DataType.KEYWORD);
             case 12 -> eq(OPT_BOOL, randomBoolean(), DataType.BOOLEAN);
@@ -1227,16 +1248,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             // were never exercised by random search despite carrying the same hazard shape.
             case 13 -> in(OPT_LABEL, DataType.KEYWORD, randomFrom(OPT_LABELS), randomFrom(OPT_LABELS));
             case 14 -> in(STATUS, DataType.LONG, randomLongStatus(), randomLongStatus());
-            case 15 -> range(
-                ID,
-                DataType.LONG,
-                (long) randomIntBetween(0, ROW_COUNT / 2),
-                (long) randomIntBetween(ROW_COUNT / 2, ROW_COUNT)
-            );
-            case 9 -> and(
-                gte(SCORE, randomDoubleBetween(0.0, 1.0, true), DataType.DOUBLE),
-                lt(SCORE, randomDoubleBetween(0.0, 1.0, true) + 1.0, DataType.DOUBLE)
-            );
+            case 15 -> range(OPT_NUM, DataType.LONG, (long) randomIntBetween(0, 250), (long) randomIntBetween(250, 500));
             // Fail loudly rather than silently folding an unhandled kind into another leaf:
             // a widened range with a missing case would quietly shrink coverage, which is the
             // absence-shaped failure this suite exists to catch.
@@ -1432,6 +1444,9 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             // Coarser runs so the two optional columns do not go null in lockstep.
             boolean nullBoolBatch = (i / (READ_BATCH_SIZE * 2)) % 2 == 0;
             row.put("opt_bool", nullBoolBatch ? null : Boolean.valueOf(i % 2 == 0));
+            // Offset from opt_label's phase so the two do not go null together.
+            boolean nullNumBatch = ((i / READ_BATCH_SIZE) + 1) % 2 == 0;
+            row.put("opt_num", nullNumBatch ? null : Long.valueOf(i % 500));
             rows.add(row);
         }
         byte[] bytes = writeParquet(rows, layout);
@@ -1472,6 +1487,10 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
                 Object optBool = row.get("opt_bool");
                 if (optBool != null) {
                     g.add("opt_bool", ((Boolean) optBool).booleanValue());
+                }
+                Object optNum = row.get("opt_num");
+                if (optNum != null) {
+                    g.add("opt_num", ((Long) optNum).longValue());
                 }
                 writer.write(g);
             }

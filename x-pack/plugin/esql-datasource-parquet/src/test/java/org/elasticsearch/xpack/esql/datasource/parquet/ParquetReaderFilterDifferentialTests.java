@@ -29,6 +29,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -158,6 +159,15 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         .named("description")
         .optional(PrimitiveType.PrimitiveTypeName.INT32)
         .named("nullable_flag")
+        // opt_label / opt_bool exist to make all-null DECODED BATCHES reachable. Every other
+        // string column here is `required`, so no keyword column could ever decode all-null, and
+        // nullable_flag is numeric - which is why this suite could not see the eager-literal-cast
+        // bug (elastic/elasticsearch#157313) despite being built for that bug's family.
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("opt_label")
+        .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+        .named("opt_bool")
         .named("differential_test_schema");
 
     private static final ReferenceAttribute ID = attr("id", DataType.LONG);
@@ -167,11 +177,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private static final ReferenceAttribute URL = attr("url", DataType.KEYWORD);
     private static final ReferenceAttribute DESCRIPTION = attr("description", DataType.KEYWORD);
     private static final ReferenceAttribute NULLABLE_FLAG = attr("nullable_flag", DataType.INTEGER);
+    private static final ReferenceAttribute OPT_LABEL = attr("opt_label", DataType.KEYWORD);
+    private static final ReferenceAttribute OPT_BOOL = attr("opt_bool", DataType.BOOLEAN);
 
     private static final int ROW_COUNT = 4000;
 
     private static final String[] CATEGORIES = { "alpha", "beta", "gamma", "delta" };
     private static final String[] URL_HOSTS = { "google.com", "example.org", "elastic.co", "github.com" };
+    private static final String[] OPT_LABELS = { "red", "green", "blue" };
+
+    /**
+     * Batch size the reader is driven with throughout this suite. Null runs in {@code opt_label} /
+     * {@code opt_bool} are aligned to it so that whole decoded batches are null, which is what
+     * makes the reader emit a {@code ConstantNullBlock} for the predicate column.
+     */
+    private static final int READ_BATCH_SIZE = 1024;
 
     @Before
     public void initBlockFactory() throws Exception {
@@ -775,6 +795,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             boolean uOk = range.includeUpper() ? dv <= du : dv < du;
             return lOk && uOk;
         }
+        if (expr instanceof In in) {
+            String name = ((ReferenceAttribute) in.value()).name();
+            Object v = row.get(name);
+            if (v == null) return null;
+            for (Expression item : in.list()) {
+                Object literal = ((Literal) item).value();
+                Object comparable = literal instanceof BytesRef br ? br.utf8ToString() : literal;
+                if (comparable instanceof Number n && v instanceof Number nv) {
+                    if (Double.compare(n.doubleValue(), nv.doubleValue()) == 0) return true;
+                } else if (comparable.equals(v)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         if (expr instanceof Equals e) {
             return cmpEq(row, e.left(), e.right());
         }
@@ -1088,6 +1123,18 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         } else {
             row.put("nullable_flag", ((IntBlock) flagBlock).getInt(rowIndex));
         }
+        Block labelBlock = page.getBlock(7);
+        if (labelBlock.isNull(rowIndex)) {
+            row.put("opt_label", null);
+        } else {
+            row.put("opt_label", ((BytesRefBlock) labelBlock).getBytesRef(rowIndex, new BytesRef()).utf8ToString());
+        }
+        Block boolBlock = page.getBlock(8);
+        if (boolBlock.isNull(rowIndex)) {
+            row.put("opt_bool", null);
+        } else {
+            row.put("opt_bool", ((BooleanBlock) boolBlock).getBoolean(rowIndex));
+        }
         return row;
     }
 
@@ -1108,6 +1155,16 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             row.put("nullable_flag", null);
         } else {
             row.put("nullable_flag", g.getInteger("nullable_flag", 0));
+        }
+        if (g.getFieldRepetitionCount("opt_label") == 0) {
+            row.put("opt_label", null);
+        } else {
+            row.put("opt_label", g.getString("opt_label", 0));
+        }
+        if (g.getFieldRepetitionCount("opt_bool") == 0) {
+            row.put("opt_bool", null);
+        } else {
+            row.put("opt_bool", g.getBoolean("opt_bool", 0));
         }
         return row;
     }
@@ -1150,7 +1207,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     private Expression randomLeaf() {
-        int kind = randomIntBetween(0, 9);
+        int kind = randomIntBetween(0, 15);
         return switch (kind) {
             case 0 -> eq(STATUS, randomLongStatus(), DataType.LONG);
             case 1 -> neq(STATUS, randomLongStatus(), DataType.LONG);
@@ -1161,6 +1218,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             case 6 -> isNull(NULLABLE_FLAG);
             case 7 -> isNotNull(NULLABLE_FLAG);
             case 8 -> eq(CATEGORY, randomFrom(CATEGORIES), DataType.KEYWORD);
+            // Predicates over the OPTIONAL columns. These are the leaves that can land on a batch
+            // that decoded entirely null, which is what hands the evaluator a ConstantNullBlock.
+            case 10 -> eq(OPT_LABEL, randomFrom(OPT_LABELS), DataType.KEYWORD);
+            case 11 -> neq(OPT_LABEL, randomFrom(OPT_LABELS), DataType.KEYWORD);
+            case 12 -> eq(OPT_BOOL, randomBoolean(), DataType.BOOLEAN);
+            // IN and Range were absent from this axis entirely, so evaluateIn and evaluateRange
+            // were never exercised by random search despite carrying the same hazard shape.
+            case 13 -> in(OPT_LABEL, DataType.KEYWORD, randomFrom(OPT_LABELS), randomFrom(OPT_LABELS));
+            case 14 -> in(STATUS, DataType.LONG, randomLongStatus(), randomLongStatus());
+            case 15 -> range(
+                ID,
+                DataType.LONG,
+                (long) randomIntBetween(0, ROW_COUNT / 2),
+                (long) randomIntBetween(ROW_COUNT / 2, ROW_COUNT)
+            );
             default -> and(
                 gte(SCORE, randomDoubleBetween(0.0, 1.0, true), DataType.DOUBLE),
                 lt(SCORE, randomDoubleBetween(0.0, 1.0, true) + 1.0, DataType.DOUBLE)
@@ -1215,6 +1287,19 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
 
     private static Expression neq(ReferenceAttribute a, Object v, DataType t) {
         return new NotEquals(Source.EMPTY, a, lit(v, t), null);
+    }
+
+    private static Expression in(ReferenceAttribute a, DataType t, Object... values) {
+        List<Expression> items = new ArrayList<>(values.length);
+        for (Object v : values) {
+            items.add(lit(v, t));
+        }
+        return new In(Source.EMPTY, a, items);
+    }
+
+    /** Numeric only: the pure-Java oracle's Range arm compares as {@code Number}. */
+    private static Expression range(ReferenceAttribute a, DataType t, Object lower, Object upper) {
+        return new Range(Source.EMPTY, a, lit(lower, t), true, lit(upper, t), true, ZoneOffset.UTC);
     }
 
     private static Expression gt(ReferenceAttribute a, Object v, DataType t) {
@@ -1333,6 +1418,14 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             row.put("description", "padding_" + ("p".repeat(50)) + "_row_" + i);
             // ~30% nulls in nullable_flag.
             row.put("nullable_flag", (i % 10 < 3) ? null : Integer.valueOf(i % 100));
+            // Null in runs ALIGNED to the read batch size: batches 0 and 2 of every row group are
+            // entirely null, batches 1 and 3 are fully valued. An all-null batch is what makes the
+            // reader hand a ConstantNullBlock to the pushed-filter evaluator.
+            boolean nullBatch = (i / READ_BATCH_SIZE) % 2 == 0;
+            row.put("opt_label", nullBatch ? null : OPT_LABELS[i % OPT_LABELS.length]);
+            // Coarser runs so the two optional columns do not go null in lockstep.
+            boolean nullBoolBatch = (i / (READ_BATCH_SIZE * 2)) % 2 == 0;
+            row.put("opt_bool", nullBoolBatch ? null : Boolean.valueOf(i % 2 == 0));
             rows.add(row);
         }
         byte[] bytes = writeParquet(rows, layout);
@@ -1365,6 +1458,14 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
                 Object flag = row.get("nullable_flag");
                 if (flag != null) {
                     g.add("nullable_flag", ((Integer) flag).intValue());
+                }
+                Object label = row.get("opt_label");
+                if (label != null) {
+                    g.add("opt_label", (String) label);
+                }
+                Object optBool = row.get("opt_bool");
+                if (optBool != null) {
+                    g.add("opt_bool", ((Boolean) optBool).booleanValue());
                 }
                 writer.write(g);
             }

@@ -47,7 +47,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
@@ -263,7 +262,6 @@ public class Aggregate extends UnaryPlan
             || e.dataType() == AGGREGATE_METRIC_DOUBLE
             || e.dataType() == DATE_PERIOD
             || e.dataType() == DATE_RANGE
-            || e.dataType() == DOUBLE_RANGE
             || e.dataType() == EXPONENTIAL_HISTOGRAM
             || e.dataType() == PARTIAL_AGG
             || e.dataType() == TDIGEST

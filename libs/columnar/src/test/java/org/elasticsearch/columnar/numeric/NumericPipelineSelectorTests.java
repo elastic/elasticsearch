@@ -198,7 +198,7 @@ public class NumericPipelineSelectorTests extends ESTestCase {
                 final ColumnIterator iterator = reader.iterator();
                 int idx = 0;
                 for (int doc = iterator.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = iterator.nextDoc()) {
-                    assertEquals(values[idx++], reader.valueForOrdinal(reader.firstOrdinal(iterator.index())));
+                    assertEquals(values[idx++], reader.valueAt(reader.firstValueAddress(iterator.rank())));
                 }
             }
             return read;

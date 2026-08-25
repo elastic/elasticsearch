@@ -98,8 +98,8 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         this.serviceName = logResourceProvider.serviceName();
     }
 
-    // for tests and contexts with no filter providers
-    public OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
+    // for tests
+    OtelSdkExportLogsSupplier(Settings settings, Path configDir) {
         this(settings, configDir, List.of(), new TelemetryLogResourceProvider.Default());
     }
 

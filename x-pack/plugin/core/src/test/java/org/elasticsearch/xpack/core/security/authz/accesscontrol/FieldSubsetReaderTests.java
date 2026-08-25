@@ -1026,6 +1026,58 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * A grant-only FLS role that names specific fields but does NOT include {@code _ignored_source} must still return values for those
+     * fields when their values are stored in {@code _ignored_source} (e.g. dynamically-mapped text fields in a logsdb index). Before
+     * the fix, hiding the binary doc values field by name caused the synthetic-source loader to see an empty iterator, silently
+     * dropping every value stored only in {@code _ignored_source}.
+     */
+    public void testIgnoredSourceDocValuesGrantOnlyFLSDoesNotDropFieldValues() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        assertTrue(indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES));
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", true)
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        assertEquals(
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
+        );
+
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
+
+        // Grant-only role: grants fieldA but NOT _ignored_source. With the bug, _ignored_source was completely hidden,
+        // making the loader see an empty iterator and silently drop fieldA's value.
+        var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "fieldA" }, null));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("fieldA", "valueA");
+                b.field("fieldB", "valueB");  // must be filtered out by FLS
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
+                    (fieldName) -> true
+                )
+            ) {
+                assertEquals("{\"fieldA\":\"valueA\"}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
      * A field-level-security role that filters out an array field must also hide that field's {@code .offsets} companion. Otherwise
      * synthetic source reconstruction reads the hidden field's offsets (which point at now-absent values) and takes the "all values are
      * null" branch, tripping an assertion (node crash with assertions enabled) or emitting an array of nulls in production.

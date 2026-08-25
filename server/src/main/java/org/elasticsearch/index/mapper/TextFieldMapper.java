@@ -113,6 +113,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntPredicate;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -1910,12 +1911,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         if (fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated())) {
-            // rely on the delegate field if we can
-            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
-                return;
-            }
-
-            // otherwise, just store the field ourselves
+            // Always store in the fallback field to ensure synthetic source can be reconstructed
+            // even when the keyword delegate's doc values are inaccessible (e.g., blocked by field-level security).
             String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
 
             if (usesBinaryDocValuesForFallbackFields) {
@@ -1923,7 +1920,9 @@ public final class TextFieldMapper extends FieldMapper {
                 storeValueInFallbackField(fallbackFieldName, new BytesRef(value), context);
             } else {
                 // otherwise for bwc, store the value in a stored fields like we used to
-                context.doc().add(new StoredField(fallbackFieldName, value));
+                if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value) == false) {
+                    context.doc().add(new StoredField(fallbackFieldName, value));
+                }
             }
         }
     }
@@ -2166,7 +2165,19 @@ public final class TextFieldMapper extends FieldMapper {
         // doesn't even exist in the first place), we must check both the current field, as well as the delegate
         var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            layers.addAll(kwd.syntheticFieldLoaderLayers());
+            var kwdLayers = kwd.syntheticFieldLoaderLayers();
+            if (kwdLayers.isEmpty() == false) {
+                if (usesBinaryDocValuesForFallbackFields) {
+                    // Binary DV path: ._original always holds every value (see parseValue), so keyword layers serve
+                    // only as a BWC fallback for documents indexed before this fix. Wrap them so they activate only
+                    // when ._original is empty, preventing duplicates on new indices.
+                    layers.add(new KeywordFallbackLayer(layers.get(0), kwdLayers));
+                } else {
+                    // Stored field path: ._original holds values that exceed keyword's ignore_above while keyword
+                    // doc values hold values that fit. The layers are complementary and both must always contribute.
+                    layers.addAll(kwdLayers);
+                }
+            }
         }
 
         return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
@@ -2253,6 +2264,98 @@ public final class TextFieldMapper extends FieldMapper {
             // the field must be stored in some way, whether that be via store or doc values
             return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
                 && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
+        }
+    }
+
+    /**
+     * A synthetic field loader layer that activates keyword sub-field layers only when the primary
+     * fallback field ({@code ._original}) has no values for the current document.
+     * <p>
+     * This is used to: (1) prevent duplicate values when both {@code ._original} and the keyword
+     * delegate carry data for a newly-indexed document, and (2) preserve backward-compatibility for
+     * old indices where {@code ._original} is empty because the indexing-time optimisation skipped
+     * storing there (the keyword layer then acts as the sole source of truth).
+     */
+    private static class KeywordFallbackLayer implements CompositeSyntheticFieldLoader.Layer {
+        private final CompositeSyntheticFieldLoader.Layer primary;
+        private final List<CompositeSyntheticFieldLoader.Layer> delegates;
+
+        KeywordFallbackLayer(CompositeSyntheticFieldLoader.Layer primary, List<CompositeSyntheticFieldLoader.Layer> delegates) {
+            this.primary = primary;
+            this.delegates = delegates;
+        }
+
+        @Override
+        public long valueCount() {
+            if (primary.valueCount() > 0) {
+                return 0;
+            }
+            long count = 0;
+            for (var d : delegates) {
+                count += d.valueCount();
+            }
+            return count;
+        }
+
+        @Override
+        public boolean hasValue() {
+            if (primary.valueCount() > 0) {
+                return false;
+            }
+            for (var d : delegates) {
+                if (d.hasValue()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return delegates.stream().flatMap(CompositeSyntheticFieldLoader.Layer::storedFieldLoaders);
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            var loaders = new ArrayList<DocValuesLoader>();
+            for (var d : delegates) {
+                var loader = d.docValuesLoader(leafReader, docIdsInLeaf);
+                if (loader != null) {
+                    loaders.add(loader);
+                }
+            }
+            if (loaders.isEmpty()) {
+                return null;
+            }
+            return docId -> {
+                boolean hasDocs = false;
+                for (var loader : loaders) {
+                    hasDocs |= loader.advanceToDoc(docId);
+                }
+                return hasDocs;
+            };
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (primary.valueCount() > 0) {
+                return;
+            }
+            for (var d : delegates) {
+                d.write(b);
+            }
+        }
+
+        @Override
+        public void reset() {
+            for (var d : delegates) {
+                d.reset();
+            }
+        }
+
+        @Override
+        public String fieldName() {
+            return delegates.isEmpty() ? null : delegates.get(0).fieldName();
         }
     }
 

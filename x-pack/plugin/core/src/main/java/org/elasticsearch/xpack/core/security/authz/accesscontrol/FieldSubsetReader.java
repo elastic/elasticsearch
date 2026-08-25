@@ -189,6 +189,17 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 }
             }
 
+            // _ignored_source must always pass through to the synthetic-source loader so FLS content-filtering runs inside
+            // FilteredIgnoredSourceDocValues. Blocking the binary doc values field entirely makes the loader see an empty
+            // doc values iterator, silently dropping every value stored only in _ignored_source (e.g. dynamically-mapped
+            // text fields in a logsdb index). The field is user-invisible regardless: getBinaryDocValues wraps it in
+            // FilteredIgnoredSourceDocValues, which applies the FLS automaton to each stored entry.
+            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE
+                && IgnoredSourceFieldMapper.NAME.equals(name)) {
+                filteredInfos.add(fi);
+                continue;
+            }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }

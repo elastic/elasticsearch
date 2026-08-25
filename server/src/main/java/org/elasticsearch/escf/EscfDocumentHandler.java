@@ -61,6 +61,12 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     // KV serialization for nested objects within arrays
     private BytesStreamOutput kvOut;
     private int kvDepth;
+    private BytesStreamOutput[] kvOutStack;
+    private int kvOutStackDepth;
+    /** True while serializing an inline array field value inside a KEY_VALUE blob. */
+    private boolean kvInlineArrayBuild;
+    /** {@link #arrayDepth} at which the current {@link #kvInlineArrayBuild} started. */
+    private int kvInlineArrayDepth;
 
     EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
         this.row = row;
@@ -204,7 +210,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void endArray() {
-        if (kvDepth > 0) {
+        if (kvInlineArrayBuild && arrayDepth == kvInlineArrayDepth) {
             writeKvEndArray();
             return;
         }
@@ -254,10 +260,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemString(byte[] buf, int off, int len) {
-        if (kvDepth > 0) {
-            writeKvStringValue(buf, off, len);
-            return;
-        }
         ensureArrayCapacity();
         elemTypes[elemCount] = SourceValueType.STRING;
         elemVar[elemCount] = new XContentString.UTF8Bytes(buf, off, len);
@@ -266,10 +268,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemLong(long value, boolean fitsInt) {
-        if (kvDepth > 0) {
-            writeKvLongValue(value, fitsInt);
-            return;
-        }
         ensureArrayCapacity();
         if (fitsInt) {
             elemTypes[elemCount] = SourceValueType.INT;
@@ -283,11 +281,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemBigInteger(BigInteger value) {
-        if (kvDepth > 0) {
-            byte[] text = value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            writeKvStringValue(text, 0, text.length);
-            return;
-        }
         ensureArrayCapacity();
         byte[] text = value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
         elemTypes[elemCount] = SourceValueType.STRING;
@@ -297,10 +290,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemDouble(double value, boolean fitsFloat) {
-        if (kvDepth > 0) {
-            writeKvDoubleValue(value, fitsFloat);
-            return;
-        }
         ensureArrayCapacity();
         if (fitsFloat) {
             elemTypes[elemCount] = SourceValueType.FLOAT;
@@ -314,10 +303,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemBoolean(boolean value) {
-        if (kvDepth > 0) {
-            writeKvBooleanValue(value);
-            return;
-        }
         ensureArrayCapacity();
         elemTypes[elemCount] = value ? SourceValueType.TRUE : SourceValueType.FALSE;
         elemCount++;
@@ -325,10 +310,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemNull() {
-        if (kvDepth > 0) {
-            writeKvNullValue();
-            return;
-        }
         ensureArrayCapacity();
         elemTypes[elemCount] = SourceValueType.NULL;
         elemCount++;
@@ -337,18 +318,25 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void arrayElemStartObject() {
         if (kvDepth > 0) {
-            writeKvStartObjectValue();
-            return;
+            ensureKvOutStackCapacity();
+            kvOutStack[kvOutStackDepth++] = kvOut;
         }
         ensureArrayCapacity();
         kvOut = new BytesStreamOutput(64);
-        kvDepth = 1;
+        kvDepth = kvDepth == 0 ? 1 : kvDepth + 1;
     }
 
     @Override
     public void arrayElemEndObject() {
         if (kvDepth > 1) {
-            writeKvEndObject();
+            byte[] nested = BytesReference.toBytes(kvOut.bytes());
+            kvOut = kvOutStack[--kvOutStackDepth];
+            kvDepth--;
+            ensureArrayCapacity();
+            elemTypes[elemCount] = SourceValueType.KEY_VALUE;
+            elemVar[elemCount] = nested;
+            forceUnion = true;
+            elemCount++;
             return;
         }
         elemTypes[elemCount] = SourceValueType.KEY_VALUE;
@@ -357,14 +345,11 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         elemCount++;
         kvOut = null;
         kvDepth = 0;
+        kvOutStackDepth = 0;
     }
 
     @Override
     public void arrayElemStartArray() {
-        if (kvDepth > 0) {
-            writeKvStartArrayValue();
-            return;
-        }
         pushArrayState();
         elemTypes = new byte[ARRAY_INIT_CAP];
         elemNumeric = new long[ARRAY_INIT_CAP];
@@ -376,10 +361,6 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     @Override
     public void arrayElemEndArray() {
-        if (kvDepth > 0) {
-            writeKvEndArray();
-            return;
-        }
         endArray();
     }
 
@@ -594,11 +575,31 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     }
 
     private void writeKvStartObjectValue() {
+        ensureKvOutStackCapacity();
+        kvOutStack[kvOutStackDepth++] = kvOut;
+        kvOut = new BytesStreamOutput(64);
         kvDepth++;
     }
 
     private void writeKvEndObject() {
         kvDepth--;
+        byte[] nested = BytesReference.toBytes(kvOut.bytes());
+        kvOut = kvOutStack[--kvOutStackDepth];
+        try {
+            kvOut.writeByte(SourceValueType.KEY_VALUE);
+            kvOut.writeIntLE(nested.length);
+            kvOut.writeBytes(nested, 0, nested.length);
+        } catch (IOException e) {
+            throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing nested object: " + e.getMessage());
+        }
+    }
+
+    private void ensureKvOutStackCapacity() {
+        if (kvOutStack == null) {
+            kvOutStack = new BytesStreamOutput[4];
+        } else if (kvOutStackDepth >= kvOutStack.length) {
+            kvOutStack = Arrays.copyOf(kvOutStack, kvOutStack.length * 2);
+        }
     }
 
     private void writeKvEmptyObject(String fieldName) {
@@ -624,6 +625,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         elemCount = 0;
         forceUnion = false;
         arrayDepth++;
+        kvInlineArrayBuild = true;
+        kvInlineArrayDepth = arrayDepth;
     }
 
     private void writeKvEndArray() {
@@ -665,5 +668,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
         } catch (IOException e) {
             throw new org.elasticsearch.simdjson.JsonParsingException("IO error serializing array: " + e.getMessage());
         }
+        kvInlineArrayBuild = false;
+        kvInlineArrayDepth = 0;
     }
 }

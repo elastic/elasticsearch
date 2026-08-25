@@ -102,16 +102,23 @@ public final class EscfEncoder implements SourceBatchEncoder {
         SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
 
         byte[] buf;
+        int offset;
         try {
-            buf = simdInput(source);
+            if (source.hasArray()) {
+                buf = source.array();
+                offset = source.arrayOffset();
+            } else {
+                buf = copyToScratch(source);
+                offset = 0;
+            }
         } catch (java.io.IOException e) {
             return false;
         }
         int len = source.length();
 
         try {
-            batchParser.stage1(buf, len);
-            batchParser.prepareDocumentWindow(0, len);
+            batchParser.stage1(buf, offset, len);
+            batchParser.prepareDocumentWindow(offset, len);
 
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
@@ -135,35 +142,22 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Returns a byte array containing the source bytes starting at offset 0, suitable for passing
-     * to the SIMD structural indexer.
+     * Copies a non-array-backed source into the thread-local scratch buffer for SIMD parsing.
+     * Array-backed sources (including bulk slices with a non-zero {@code arrayOffset()}) are used
+     * in place by the caller instead.
      *
-     * <ul>
-     *   <li>Zero-copy: if the source is already array-backed with {@code arrayOffset() == 0}.</li>
-     *   <li>Single {@code arraycopy}: if array-backed with a non-zero offset (common for bulk slices).</li>
-     *   <li>Page-walk copy: if composite / non-contiguous (e.g. {@code CompositeBytesReference}).</li>
-     * </ul>
-     *
-     * <p>The returned array may be the caller's own bytes or the thread-local scratch; it must not
-     * be retained past the next call on this thread.
+     * <p>The returned scratch must not be retained past the next call on this thread.
      */
-    private static byte[] simdInput(BytesReference source) throws IOException {
+    private static byte[] copyToScratch(BytesReference source) throws IOException {
         int len = source.length();
-        if (source.hasArray() && source.arrayOffset() == 0) {
-            return source.array();
-        }
         byte[] scratch = SimdJsonPool.scratch();
-        if (source.hasArray()) {
-            System.arraycopy(source.array(), source.arrayOffset(), scratch, 0, len);
-        } else {
-            int pos = 0;
-            BytesRefIterator it = source.iterator();
-            for (BytesRef page = it.next(); page != null; page = it.next()) {
-                System.arraycopy(page.bytes, page.offset, scratch, pos, page.length);
-                pos += page.length;
-            }
-            assert pos == len : pos + " != " + len;
+        int pos = 0;
+        BytesRefIterator it = source.iterator();
+        for (BytesRef page = it.next(); page != null; page = it.next()) {
+            System.arraycopy(page.bytes, page.offset, scratch, pos, page.length);
+            pos += page.length;
         }
+        assert pos == len : pos + " != " + len;
         return scratch;
     }
 

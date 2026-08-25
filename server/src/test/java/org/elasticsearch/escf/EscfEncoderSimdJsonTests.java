@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -42,8 +43,9 @@ import java.util.Map;
  * macro benchmark — it is not expected to match Jackson for every JSON edge case (e.g. exotic
  * number formats or unicode escape sequences).
  *
- * <p>Ineligibility cases (doc size, composite source, non-zero offset, {@code passRawText} sinks)
- * assert that the SIMD encoder falls back correctly and still produces the right output.
+ * <p>Ineligibility cases (doc size, {@code passRawText} sinks) assert that the SIMD encoder
+ * falls back correctly and still produces the right output. Differential tests exercise zero-offset,
+ * non-zero-offset, and composite {@link BytesReference} shapes via {@link #assertSameOutputAllSourceShapes}.
  */
 public class EscfEncoderSimdJsonTests extends ESTestCase {
 
@@ -52,62 +54,62 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testFlatScalars() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"i":42,"l":10000000000,"d":1.5,"s":"hello","b":true,"f":false,"n":null}""");
     }
 
     public void testNestedObjects() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"user":{"name":"alice","age":30},"status":"active"}""");
     }
 
     public void testDeepNesting() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":1}}}}}}}}""");
     }
 
     public void testEmptyObject() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"empty":{},"x":1}""");
     }
 
     public void testFixedLongArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":[1,2,3,4]}""");
     }
 
     public void testFixedDoubleArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":[1.5,2.5,-3.25]}""");
     }
 
     public void testFixedStringArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"tags":["alpha","beta","gamma"]}""");
     }
 
     public void testArrayOfObjects() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"x":1},{"y":"two"}]}""");
     }
 
     public void testHeterogeneousArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"mixed":[1,"two",true]}""");
     }
 
     public void testExplicitNull() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":null,"b":5}""");
     }
 
     public void testEmptyArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"empty":[],"x":1}""");
     }
 
     public void testBooleans() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"t":true,"f":false}""");
     }
 
@@ -118,7 +120,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * commit per document, so this is safe, but a regression would corrupt later rows.
      */
     public void testMultiRowBatchStringLifetime() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"host":"server-alpha","service":"api","env":"prod"}""", """
             {"host":"server-beta","service":"worker","env":"staging"}""", """
             {"host":"server-gamma","service":"api","env":"prod"}""", """
@@ -130,7 +132,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * variation that promotes a column to UNION. Representative of real OTEL-shaped docs.
      */
     public void testOtelLogShapedDocs() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"@timestamp":"2025-09-23T02:00:00Z","TraceId":"abc123","SpanId":"def456",\
             "TraceFlags":1,"SeverityText":"error","SeverityNumber":0,\
             "ServiceName":"frontend","Body":"Failed to place order",\
@@ -149,7 +151,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * the union-promotion path in the column builder.
      */
     public void testHeterogeneousColumnsAcrossDocs() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":1,"keep":true}""", """
             {"a":"text","keep":false}""", """
             {"keep":true}""");
@@ -161,7 +163,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * "a" and "x" at the root are treated as distinct columns.
      */
     public void testSameNameDifferentParent() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":{"x":1},"y":2}""", """
             {"x":10,"y":20}""", """
             {"a":{"x":3},"y":4}""");
@@ -172,7 +174,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * permuted row and must remain correct rather than assigning the wrong column index.
      */
     public void testFieldOrderPermuted() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":1,"b":2,"c":3}""", """
             {"c":30,"a":10,"b":20}""", """
             {"b":200,"c":300,"a":100}""");
@@ -183,7 +185,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * on the longer document and shrinks gracefully on the shorter one (fieldPos stops early).
      */
     public void testAbsentFieldBetweenDocs() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":1,"b":2,"c":3}""", """
             {"a":10}""", """
             {"a":100,"b":200,"c":300}""");
@@ -195,7 +197,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      * first two documents).
      */
     public void testRotatingFieldSets() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"x":1,"y":2}""", """
             {"y":20,"z":30}""", """
             {"z":300,"x":100}""", """
@@ -204,35 +206,41 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             {"z":300000,"x":100000}""");
     }
 
-    /** Zero-offset contiguous source — direct array pass-through, no copy needed. */
-    public void testZeroOffsetArrayBackedSource() throws IOException {
-        byte[] json = "{\"k\":\"v\",\"n\":123}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        BytesReference source = new BytesArray(json, 0, json.length);
-        assertSameOutput(List.of(source));
+    /**
+     * Empty object vs absent field across documents — must not collapse into the same representation.
+     */
+    public void testEmptyObjectDistinctFromAbsent() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"obj":{}}""", """
+            {"other":1}""");
     }
 
     /**
-     * Non-zero array offset: the source bytes start partway into the backing array (common for bulk
-     * body slices). Copied into the thread-local scratch buffer before parsing; SIMD still runs.
+     * Empty object in one document and a nested object with a leaf field in the next.
      */
-    public void testNonZeroOffsetArrayBackedSource() throws IOException {
-        byte[] padding = new byte[32];
-        byte[] json = "{\"k\":\"v\",\"n\":42}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] combined = Arrays.copyOf(padding, padding.length + json.length);
-        System.arraycopy(json, 0, combined, padding.length, json.length);
-        BytesReference source = new BytesArray(combined, padding.length, json.length);
-        assertSameOutput(List.of(source));
+    public void testEmptyObjectAndNestedObjectAcrossDocs() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"obj":{}}""", """
+            {"obj":{"k":1}}""");
     }
 
     /**
-     * Composite (multi-page) source — pages are walked and concatenated into the thread-local
-     * scratch buffer before parsing; SIMD still runs.
+     * Array column kind changes across rows (long[] vs string[]) and is absent in a third row.
      */
-    public void testCompositeSource() throws IOException {
-        byte[] part1 = "{\"k\":\"va".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] part2 = "lue\",\"n\":7}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        BytesReference composite = CompositeBytesReference.of(new BytesArray(part1), new BytesArray(part2));
-        assertSameOutput(List.of(composite));
+    public void testAbsentAndMixedArrayKinds() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"vals":[1,2,3]}""", """
+            {"vals":["x","y"]}""", """
+            {"other":9}""");
+    }
+
+    /**
+     * Cross-row numeric type variation (long vs double) promotes columns to UNION.
+     */
+    public void testHeterogeneousNumericColumnsAcrossDocs() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"a":1,"b":2.5}""", """
+            {"a":1.5,"b":2}""");
     }
 
     // -----------------------------------------------------------------------
@@ -252,14 +260,11 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
-     * {@link LeafSink} with {@code passRawText() == true}: the direct walker handles rawTextMode
-     * natively, passing raw JSON text for numbers and booleans to the sink. Output must still
-     * match Jackson.
+     * {@link LeafSink} with {@code passRawText() == true}: the direct walker passes raw JSON text
+     * for numbers and booleans to the sink. Output must still match Jackson.
      */
     public void testPassRawTextSinkHandledByDirectWalker() throws IOException {
         String json = "{\"k\":\"v\",\"n\":99}";
-        BytesReference source = new BytesArray(json);
-        Recycler<BytesRef> recycler = newRecycler();
 
         LeafSink rawTextSink = new LeafSink() {
             @Override
@@ -271,13 +276,16 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             public void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {}
         };
 
-        // Encode with SIMD encoder (will fall back due to passRawText)
-        try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true)) {
-            simdEncoder.parseToScratch(source, XContentType.JSON, rawTextSink);
-            simdEncoder.commitScratchTo(0);
-            try (EscfBatch batch = simdEncoder.buildPartition(0)) {
-                Map<String, Object> actual = reconstruct(batch, 0);
-                assertEquals(asMap(json), actual);
+        for (SourceShape shape : SourceShape.values()) {
+            BytesReference source = wrapSource(json, shape);
+            Recycler<BytesRef> recycler = newRecycler();
+            try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true)) {
+                simdEncoder.parseToScratch(source, XContentType.JSON, rawTextSink);
+                simdEncoder.commitScratchTo(0);
+                try (EscfBatch batch = simdEncoder.buildPartition(0)) {
+                    Map<String, Object> actual = reconstruct(batch, 0);
+                    assertEquals("source shape " + shape, asMap(json), actual);
+                }
             }
         }
     }
@@ -300,27 +308,24 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
-     * Direct walker fails mid-parse (e.g. invalid JSON) — falls back through trySimdParse
-     * then to Jackson. If Jackson also can't parse, we get an error. This test verifies
-     * that valid-but-tricky JSON (top-level array) triggers fallback and still produces
-     * correct output.
+     * Top-level array: the direct walker requires a root object, so SIMD falls back to Jackson.
+     * {@link EscfEncoder} also requires an object root on the Jackson path — both encoders reject
+     * the document the same way.
      */
     public void testTopLevelArrayFallsBackToJackson() throws IOException {
-        // The direct walker expects a top-level object '{', so a top-level array '[' triggers fallback.
-        // Jackson handles it via flattenDocument.
-        // Note: this might fail if flattenDocument also requires an object at root.
-        // In that case, this test documents the expected error behavior.
-        String json = "{\"k\":\"v\"}";
-        BytesReference source = new BytesArray(json);
+        BytesReference source = new BytesArray("[1,2]");
         Recycler<BytesRef> recycler = newRecycler();
 
-        try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true); EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
-            simdEncoder.addDocument(source, XContentType.JSON, 0);
-            jacksonEncoder.addDocument(source, XContentType.JSON, 0);
-            try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
-                assertEquals(reconstruct(jacksonBatch, 0), reconstruct(simdBatch, 0));
+        expectThrows(Exception.class, () -> {
+            try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true)) {
+                simdEncoder.addDocument(source, XContentType.JSON, 0);
             }
-        }
+        });
+        expectThrows(Exception.class, () -> {
+            try (EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
+                jacksonEncoder.addDocument(source, XContentType.JSON, 0);
+            }
+        });
     }
 
     /**
@@ -389,7 +394,15 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         sb.append("\"}");
         String json = sb.toString();
         assertTrue("doc should be under limit", json.length() <= SimdJsonPool.MAX_DOC_BYTES);
-        assertSameOutput(json);
+        assertSameOutputAllSourceShapes(json);
+    }
+
+    /**
+     * SIMD enabled at exactly the size limit — should be handled by the SIMD path (no fallback).
+     */
+    public void testExactlyAtSizeLimit() throws IOException {
+        String json = jsonOfLength(SimdJsonPool.MAX_DOC_BYTES);
+        assertSameOutputAllSourceShapes(json);
     }
 
     /**
@@ -398,7 +411,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      */
     public void testValidUnicodeEscape() throws IOException {
         // A = 'A'; all four hex digits are valid, so SIMD processes this directly.
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"name":"\\u0041lice","age":30}""");
     }
 
@@ -408,17 +421,17 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
     /** Field name with a backslash escape — the direct walker's resolveFieldName must fall back to StringParser. */
     public void testEscapedFieldName() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"line\\none":1,"normal":2}""");
     }
 
     public void testFieldNameWithQuoteEscape() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"say\\"hello\\"":true,"b":2}""");
     }
 
     public void testFieldNameWithUnicodeEscape() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"\\u0041lpha":1,"beta":2}""");
     }
 
@@ -427,12 +440,12 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testEscapedStringsInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"tags":["normal","with\\nnewline","also\\ttab"]}""");
     }
 
     public void testUnicodeEscapedStringsInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":["\\u0041","\\u0042","plain"]}""");
     }
 
@@ -441,17 +454,17 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testNestedArrays() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"matrix":[[1,2],[3,4]]}""");
     }
 
     public void testDeeplyNestedArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"deep":[[[1]]]}""");
     }
 
     public void testMixedNestedArrays() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"data":[[1,"two"],[true,null]]}""");
     }
 
@@ -460,22 +473,22 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testNestedObjectsInArrays() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"a":1,"b":"x"},{"a":2,"b":"y"}]}""");
     }
 
     public void testDeepNestedObjectInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"outer":{"inner":42}}]}""");
     }
 
     public void testEmptyObjectInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{},{"k":1}]}""");
     }
 
     public void testArrayInNestedObjectInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"tags":["a","b"]},{"tags":["c"]}]}""");
     }
 
@@ -484,42 +497,114 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testNegativeNumbers() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"neg":-42,"negzero":-0,"neglarge":-9999999999}""");
     }
 
     public void testLongBoundaries() throws IOException {
-        assertSameOutput("{\"min\":" + Long.MIN_VALUE + ",\"max\":" + Long.MAX_VALUE + "}");
+        assertSameOutputAllSourceShapes("{\"min\":" + Long.MIN_VALUE + ",\"max\":" + Long.MAX_VALUE + "}");
     }
 
     public void testIntBoundaries() throws IOException {
-        assertSameOutput("{\"imin\":" + Integer.MIN_VALUE + ",\"imax\":" + Integer.MAX_VALUE + "}");
+        assertSameOutputAllSourceShapes("{\"imin\":" + Integer.MIN_VALUE + ",\"imax\":" + Integer.MAX_VALUE + "}");
     }
 
     public void testJustBeyondIntRange() throws IOException {
         long aboveIntMax = (long) Integer.MAX_VALUE + 1;
         long belowIntMin = (long) Integer.MIN_VALUE - 1;
-        assertSameOutput("{\"above\":" + aboveIntMax + ",\"below\":" + belowIntMin + "}");
+        assertSameOutputAllSourceShapes("{\"above\":" + aboveIntMax + ",\"below\":" + belowIntMin + "}");
     }
 
     public void testScientificNotation() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"big":1.5e10,"small":2.5e-3,"cap":1E2}""");
     }
 
     public void testNegativeFloat() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"nf":-3.14,"ne":-1.5e10}""");
     }
 
     public void testZeroVariants() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"z":0,"zd":0.0,"ze":0e0}""");
     }
 
     public void testFloatVsDoubleClassification() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"exact_float":1.5,"needs_double":1.23456789012345}""");
+    }
+
+    /** Integer values beyond {@code long} range are stored as strings (BigInteger path). */
+    public void testBigIntegerBeyondLongMax() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":9223372036854775808}");
+    }
+
+    public void testVeryLargeBigInteger() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":99999999999999999999999999999}");
+    }
+
+    public void testBigIntegerInArray() throws IOException {
+        assertSameOutputAllSourceShapes("{\"arr\":[1,9223372036854775808,-9223372036854775809]}");
+    }
+
+    public void testBigIntegerInObjectInArray() throws IOException {
+        assertSameOutputAllSourceShapes("""
+            {"items":[{"n":9223372036854775808}]}""");
+    }
+
+    public void testDoubleMaxValue() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":" + Double.MAX_VALUE + "}");
+    }
+
+    public void testDoubleMinPositiveValue() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":" + Double.MIN_VALUE + "}");
+    }
+
+    public void testDoubleNearUnderflow() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":5e-324}");
+    }
+
+    public void testScientificNotationExplicitPositiveSign() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":1.5e+10}");
+    }
+
+    public void testDoublePrecisionClassic() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":0.1}");
+    }
+
+    public void testDoubleDoesNotFitFloat() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":1.1}");
+    }
+
+    public void testLargeIntegerAsDouble() throws IOException {
+        assertSameOutputAllSourceShapes("{\"n\":1e19}");
+    }
+
+    /**
+     * Duplicate field names are rejected by {@link EscfRowBuffer} regardless of parser; SIMD must
+     * fail the same way as Jackson (including after SIMD fallback).
+     */
+    public void testDuplicateKeysRejected() throws IOException {
+        String json = "{\"a\":1,\"a\":2}";
+        for (SourceShape shape : SourceShape.values()) {
+            BytesReference source = wrapSource(json, shape);
+            Recycler<BytesRef> recycler = newRecycler();
+
+            IllegalArgumentException simdEx = expectThrows(IllegalArgumentException.class, () -> {
+                try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
+                    encoder.addDocument(source, XContentType.JSON, 0);
+                }
+            });
+            assertEquals("source shape " + shape, "Duplicate field [a]", simdEx.getMessage());
+
+            IllegalArgumentException jacksonEx = expectThrows(IllegalArgumentException.class, () -> {
+                try (EscfEncoder encoder = new EscfEncoder(recycler, false)) {
+                    encoder.addDocument(source, XContentType.JSON, 0);
+                }
+            });
+            assertEquals("source shape " + shape, "Duplicate field [a]", jacksonEx.getMessage());
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -532,48 +617,61 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
      */
     public void testRawTextModeCaptures() throws IOException {
         String json = "{\"n\":42,\"d\":3.14,\"t\":true,\"f\":false,\"s\":\"hello\"}";
-        BytesReference source = new BytesArray(json);
-        Recycler<BytesRef> recycler = newRecycler();
 
-        List<String> capturedPaths = new ArrayList<>();
-        List<String> capturedTexts = new ArrayList<>();
+        for (SourceShape shape : SourceShape.values()) {
+            BytesReference source = wrapSource(json, shape);
+            Recycler<BytesRef> recycler = newRecycler();
 
-        LeafSink captureSink = new LeafSink() {
-            @Override
-            public boolean passRawText() {
-                return true;
+            List<String> capturedPaths = new ArrayList<>();
+            List<String> capturedTexts = new ArrayList<>();
+
+            LeafSink captureSink = new LeafSink() {
+                @Override
+                public boolean passRawText() {
+                    return true;
+                }
+
+                @Override
+                public void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {
+                    capturedPaths.add(dottedPath);
+                    capturedTexts.add(new String(textBytes.bytes(), textBytes.offset(), textBytes.length(), StandardCharsets.UTF_8));
+                }
+            };
+
+            try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
+                encoder.parseToScratch(source, XContentType.JSON, captureSink);
+                encoder.commitScratchTo(0);
+                try (EscfBatch batch = encoder.buildPartition(0)) {
+                    Map<String, Object> actual = reconstruct(batch, 0);
+                    assertEquals("source shape " + shape, asMap(json), actual);
+                }
             }
 
-            @Override
-            public void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {
-                capturedPaths.add(dottedPath);
-                capturedTexts.add(
-                    new String(textBytes.bytes(), textBytes.offset(), textBytes.length(), java.nio.charset.StandardCharsets.UTF_8)
-                );
-            }
-        };
-
-        try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
-            encoder.parseToScratch(source, XContentType.JSON, captureSink);
-            encoder.commitScratchTo(0);
-            try (EscfBatch batch = encoder.buildPartition(0)) {
-                Map<String, Object> actual = reconstruct(batch, 0);
-                assertEquals(asMap(json), actual);
-            }
+            assertTrue("source shape " + shape + " sink should have received callbacks", capturedPaths.size() >= 5);
+            assertTrue("source shape " + shape + " sink should capture 'n'", capturedPaths.contains("n"));
+            assertTrue("source shape " + shape + " sink should capture 't'", capturedPaths.contains("t"));
+            int nIdx = capturedPaths.indexOf("n");
+            assertEquals("source shape " + shape, "42", capturedTexts.get(nIdx));
+            int tIdx = capturedPaths.indexOf("t");
+            assertEquals("source shape " + shape, "true", capturedTexts.get(tIdx));
         }
-
-        assertTrue("sink should have received callbacks", capturedPaths.size() >= 5);
-        assertTrue("sink should capture 'n'", capturedPaths.contains("n"));
-        assertTrue("sink should capture 't'", capturedPaths.contains("t"));
-        int nIdx = capturedPaths.indexOf("n");
-        assertEquals("42", capturedTexts.get(nIdx));
-        int tIdx = capturedPaths.indexOf("t");
-        assertEquals("true", capturedTexts.get(tIdx));
     }
 
     // -----------------------------------------------------------------------
     // Depth limit
     // -----------------------------------------------------------------------
+
+    /** Nesting depth exactly at the direct walker's limit (64) — SIMD path succeeds. */
+    public void testDepthAtLimit() throws IOException {
+        assertSameOutputAllSourceShapes(nestedObjectJson(64, 1));
+    }
+
+    /**
+     * Nesting depth one past the limit (65) — direct walker throws, fallback to Jackson succeeds.
+     */
+    public void testDepthJustOverLimit() throws IOException {
+        assertSameOutputAllSourceShapes(nestedObjectJson(65, 1));
+    }
 
     /**
      * A document exceeding the maximum nesting depth (64) should cause the direct walker to throw,
@@ -589,7 +687,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
         for (int i = 0; i < depth; i++) {
             sb.append("}");
         }
-        assertSameOutput(sb.toString());
+        assertSameOutputAllSourceShapes(sb.toString());
     }
 
     // -----------------------------------------------------------------------
@@ -597,7 +695,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testWhitespaceInDocument() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             { "a" : 1 , "b" : "two" , "c" : [ 1 , 2 ] }""");
     }
 
@@ -612,7 +710,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             sb.append("\"field_").append(i).append("\":").append(i);
         }
         sb.append("}");
-        assertSameOutput(sb.toString());
+        assertSameOutputAllSourceShapes(sb.toString());
     }
 
     // -----------------------------------------------------------------------
@@ -620,12 +718,12 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testEscapedStringValues() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"msg":"line1\\nline2","path":"C:\\\\Users\\\\file"}""");
     }
 
     public void testEscapedQuoteInValue() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"q":"say \\"hello\\""}""");
     }
 
@@ -634,17 +732,17 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testBooleanArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"flags":[true,false,true]}""");
     }
 
     public void testNullArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"nils":[null,null]}""");
     }
 
     public void testMixedNullsInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"mix":[1,null,"x",true]}""");
     }
 
@@ -653,27 +751,27 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testTriplyNestedArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"deep":[[[1,2],[3,4]],[[5,6]]]}""");
     }
 
     public void testArrayOfArraysOfObjects() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"data":[[{"x":1},{"x":2}],[{"x":3}]]}""");
     }
 
     public void testNestedArraysWithStrings() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"m":[["a","b"],["c","d","e"]]}""");
     }
 
     public void testEmptyNestedArrays() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"e":[[],[]]}""");
     }
 
     public void testMixedNestedArrayDepths() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"mix":[1,[2,3],[[4]]]}""");
     }
 
@@ -682,37 +780,37 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testObjectInArrayWithEscapedStringValue() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"msg":"hello\\nworld"}]}""");
     }
 
     public void testObjectInArrayWithEscapedKey() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"line\\none":42}]}""");
     }
 
     public void testObjectInArrayWithArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"tags":["a","b"],"n":1}]}""");
     }
 
     public void testObjectInArrayWithNestedObject() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"inner":{"deep":true}}]}""");
     }
 
     public void testObjectInArrayWithAllTypes() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"s":"hi","n":42,"d":1.5,"t":true,"f":false,"nl":null}]}""");
     }
 
     public void testObjectInArrayWithFloat() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"pi":3.14},{"e":2.718}]}""");
     }
 
     public void testObjectInArrayWithScientificNotation() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"items":[{"big":1.5e10},{"small":2.5e-3}]}""");
     }
 
@@ -727,7 +825,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             sb.append(i);
         }
         sb.append("]}");
-        assertSameOutput(sb.toString());
+        assertSameOutputAllSourceShapes(sb.toString());
     }
 
     public void testLargeStringArray() throws IOException {
@@ -737,7 +835,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             sb.append("\"item").append(i).append("\"");
         }
         sb.append("]}");
-        assertSameOutput(sb.toString());
+        assertSameOutputAllSourceShapes(sb.toString());
     }
 
     public void testLargeObjectArray() throws IOException {
@@ -747,7 +845,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             sb.append("{\"i\":").append(i).append(",\"s\":\"v").append(i).append("\"}");
         }
         sb.append("]}");
-        assertSameOutput(sb.toString());
+        assertSameOutputAllSourceShapes(sb.toString());
     }
 
     // -----------------------------------------------------------------------
@@ -755,32 +853,32 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testNegativeNumbersInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":[-1,-42,-999999999999]}""");
     }
 
     public void testMixedIntLongArray() throws IOException {
         long bigLong = (long) Integer.MAX_VALUE + 100;
-        assertSameOutput("{\"vals\":[1," + bigLong + ",2]}");
+        assertSameOutputAllSourceShapes("{\"vals\":[1," + bigLong + ",2]}");
     }
 
     public void testScientificNotationInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":[1.5e10,2.5e-3,1E2]}""");
     }
 
     public void testNegativeFloatInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":[-3.14,-1.5e10]}""");
     }
 
     public void testZeroVariantsInArray() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"vals":[0,0.0]}""");
     }
 
     public void testLongBoundariesInArray() throws IOException {
-        assertSameOutput("{\"vals\":[" + Long.MIN_VALUE + "," + Long.MAX_VALUE + "]}");
+        assertSameOutputAllSourceShapes("{\"vals\":[" + Long.MIN_VALUE + "," + Long.MAX_VALUE + "]}");
     }
 
     // -----------------------------------------------------------------------
@@ -788,12 +886,12 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testMultipleEscapedFieldNames() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"line\\none":1,"tab\\there":2,"quote\\"s":3}""");
     }
 
     public void testMultipleEscapedStringValues() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":"x\\ny","b":"p\\tq","c":"m\\"n"}""");
     }
 
@@ -802,7 +900,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testMultiDocEscapedStrings() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"msg":"hello\\nworld"}""", """
             {"path":"C:\\\\Users\\\\file"}""", """
             {"q":"say \\"hi\\""}""");
@@ -813,32 +911,32 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testSingleStringField() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"k":"v"}""");
     }
 
     public void testSingleIntField() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"n":0}""");
     }
 
     public void testSingleBoolField() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"b":true}""");
     }
 
     public void testSingleNullField() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"n":null}""");
     }
 
     public void testSingleArrayField() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"a":[1]}""");
     }
 
     public void testSingleNestedObjectField() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"o":{"k":"v"}}""");
     }
 
@@ -847,7 +945,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testEmptyDocument() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {}""");
     }
 
@@ -856,7 +954,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testClickBenchLikeDocument() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"WatchID":6655575552203051000,"JavaEnable":1,"Title":"Candidate for \\\"best\\\" role",\
             "GoodEvent":1,"EventTime":"2013-07-15T00:00:00","CounterID":57,\
             "ClientIP":1111111111,"RegionID":229,"UserID":-5765445394498964000,\
@@ -866,7 +964,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     public void testDocumentWithAllValueTypes() throws IOException {
-        assertSameOutput("""
+        assertSameOutputAllSourceShapes("""
             {"str":"hello","escaped_str":"line\\none","int":42,"neg_int":-7,\
             "long":9999999999999,"float":1.5,"double":1.23456789012345,\
             "sci":1.5e10,"neg_sci":-2.5e-3,"true":true,"false":false,"null":null,\
@@ -879,23 +977,64 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     // Helpers
     // -----------------------------------------------------------------------
 
-    /** Encodes each JSON string as a {@link BytesArray} and asserts SIMD ≡ Jackson. */
+    private enum SourceShape {
+        ZERO_OFFSET,
+        NON_ZERO_OFFSET,
+        COMPOSITE
+    }
+
+    /**
+     * Encodes each JSON document under zero-offset, non-zero-offset, and composite
+     * {@link BytesReference} shapes and asserts SIMD ≡ Jackson for each.
+     */
+    private static void assertSameOutputAllSourceShapes(String... jsonDocs) throws IOException {
+        for (SourceShape shape : SourceShape.values()) {
+            List<BytesReference> sources = new ArrayList<>(jsonDocs.length);
+            for (String doc : jsonDocs) {
+                sources.add(wrapSource(doc, shape));
+            }
+            try {
+                compareSimdAndJackson(sources);
+            } catch (AssertionError e) {
+                throw new AssertionError("source shape " + shape + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /** Encodes each JSON string as a zero-offset {@link BytesArray} and asserts SIMD ≡ Jackson. */
     private static void assertSameOutput(String... jsonDocs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(jsonDocs.length);
         for (String doc : jsonDocs) {
             sources.add(new BytesArray(doc));
         }
-        assertSameOutput(sources);
+        compareSimdAndJackson(sources);
+    }
+
+    private static BytesReference wrapSource(String json, SourceShape shape) {
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        return switch (shape) {
+            case ZERO_OFFSET -> new BytesArray(bytes);
+            case NON_ZERO_OFFSET -> {
+                byte[] padding = new byte[32];
+                byte[] combined = Arrays.copyOf(padding, padding.length + bytes.length);
+                System.arraycopy(bytes, 0, combined, padding.length, bytes.length);
+                yield new BytesArray(combined, padding.length, bytes.length);
+            }
+            case COMPOSITE -> {
+                int mid = Math.max(1, bytes.length / 2);
+                yield CompositeBytesReference.of(new BytesArray(bytes, 0, mid), new BytesArray(bytes, mid, bytes.length - mid));
+            }
+        };
     }
 
     /**
      * Encodes {@code sources} through both the SIMD-enabled and the Jackson-only encoder and
      * asserts that every row's decoded source map is identical.
      */
-    private static void assertSameOutput(List<BytesReference> sources) throws IOException {
+    private static void compareSimdAndJackson(List<BytesReference> sources) throws IOException {
         Recycler<BytesRef> recycler = newRecycler();
 
-        try (EscfEncoder simdEncoder = new EscfEncoder(recycler, true); EscfEncoder jacksonEncoder = new EscfEncoder(recycler, false)) {
+        try (var simdEncoder = new EscfEncoder(recycler, true); var jacksonEncoder = new EscfEncoder(recycler, false)) {
             for (BytesReference source : sources) {
                 simdEncoder.addDocument(source, XContentType.JSON, 0);
                 jacksonEncoder.addDocument(source, XContentType.JSON, 0);
@@ -925,5 +1064,27 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
     private static Recycler<BytesRef> newRecycler() {
         return new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+    }
+
+    /** Builds {@code {"l0":{"l1":...:leaf}}} with {@code depth} nested object wrappers. */
+    private static String nestedObjectJson(int depth, int leafValue) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            sb.append("{\"l").append(i).append("\":");
+        }
+        sb.append(leafValue);
+        for (int i = 0; i < depth; i++) {
+            sb.append("}");
+        }
+        return sb.toString();
+    }
+
+    /** Builds a JSON object whose UTF-8 encoding length is exactly {@code targetLen}. */
+    private static String jsonOfLength(int targetLen) {
+        String prefix = "{\"d\":\"";
+        String suffix = "\"}";
+        int padding = targetLen - prefix.length() - suffix.length();
+        assert padding >= 0 : "targetLen too small: " + targetLen;
+        return prefix + "x".repeat(padding) + suffix;
     }
 }

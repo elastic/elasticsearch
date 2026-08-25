@@ -70,6 +70,11 @@ public class SparseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbed
     }
 
     @Override
+    int vectorFieldCount() {
+        return randomIntBetween(3, 5);
+    }
+
+    @Override
     SparseVectorFieldConfig createVectorFieldConfig(String fieldName) {
         return new SparseVectorFieldConfig(fieldName);
     }

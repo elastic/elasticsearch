@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -94,6 +95,11 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
     }
 
     /**
+     * Sets the number of vector fields created for each test.
+     */
+    abstract int vectorFieldCount();
+
+    /**
      * Creates one {@link VectorFieldConfig} for a field named {@code fieldName}.
      */
     abstract C createVectorFieldConfig(String fieldName);
@@ -107,7 +113,7 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
 
     @Before
     private void createVectorFields() {
-        int numFields = randomIntBetween(1, 5);
+        int numFields = vectorFieldCount();
         for (int i = 0; i < numFields; i++) {
             vectorFields.add(createVectorFieldConfig("vector_field_" + i));
         }
@@ -140,7 +146,7 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
         BulkRequestBuilder bulk = client().prepareBulk(indexName);
         bulk.add(client().prepareIndex(indexName).setSource(source));
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        bulk.get(TEST_REQUEST_TIMEOUT);
+        assertNoFailures(bulk.get(TEST_REQUEST_TIMEOUT));
         ensureGreen(indexName);
 
         for (C field : vectorFields) {

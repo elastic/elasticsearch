@@ -12,11 +12,14 @@ package org.elasticsearch.index.mapper.vectors;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils.getSupportedSimilarities;
 import static org.hamcrest.Matchers.closeTo;
@@ -43,6 +46,15 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
      */
     private static final double BFLOAT16_EPSILON = 0.004;
 
+    /**
+     * Maximum absolute error introduced by the cosine normalize/denormalize round trip. {@link DenseVectorFieldMapper} divides each
+     * component by the vector's L2 length at index time and {@link DenormalizedCosineFloatVectorValues} multiplies it back on read,
+     * using the identical float32 length in both directions. Each step rounds once, so the error is bounded by {@code 2 * 2^-24 ~=
+     * 1.2e-7} relative; {@link VectorTestUtils#randomFloatVector} bounds every component to {@code [-1, +1)}, making that an absolute
+     * bound.
+     */
+    private static final double COSINE_EPSILON = 1e-6;
+
     static class DenseVectorFieldConfig extends VectorFieldConfig<Object> {
         private final DenseVectorFieldMapper.ElementType elementType;
         private final boolean indexed;
@@ -58,7 +70,10 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
             this.elementType = elementType;
             this.indexed = indexed;
             if (indexed) {
-                this.similarity = randomFrom(getSupportedSimilarities(elementType)).vectorSimilarity();
+                List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(getSupportedSimilarities(elementType));
+                // Dot product requires unit vectors. This test generates random vectors, which may or may not be unit vectors.
+                supportedSimilarities.remove(SimilarityMeasure.DOT_PRODUCT);
+                this.similarity = randomFrom(supportedSimilarities).vectorSimilarity();
                 // Optionally pick a random index_options that is compatible with this element type and dimension count.
                 // BBQ_DISK (BBQIVFIndexOptions) is skipped because it requires an enterprise VectorsFormatProvider that is not
                 // available in the internalClusterTest cluster.
@@ -114,10 +129,17 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
         private static Object randomValue(DenseVectorFieldMapper.ElementType elementType) {
             return switch (elementType) {
                 case FLOAT, BFLOAT16 -> VectorTestUtils.randomFloatVector(VECTOR_DIMENSIONS);
-                case BYTE -> VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS);
-                case BIT -> VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS / Byte.SIZE);
+                // A List is written as a numeric array in every XContent type, whereas a primitive byte[] in a source map is
+                // written by XContentBuilder's binary writer and only round-trips correctly under JSON.
+                case BYTE -> DenseVectorFieldMapperTests.convertToList(VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS));
+                case BIT -> DenseVectorFieldMapperTests.convertToList(VectorTestUtils.randomByteVector(VECTOR_DIMENSIONS / Byte.SIZE));
             };
         }
+    }
+
+    @Override
+    int vectorFieldCount() {
+        return randomIntBetween(30, 50);
     }
 
     @Override
@@ -128,12 +150,22 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
     @Override
     void assertEmbeddingsFieldValue(String message, DenseVectorFieldConfig field, DocumentField actual) {
         switch (field.elementType) {
-            case FLOAT -> assertFloatVector(message, field, actual, 0.0);
+            case FLOAT -> assertFloatVector(
+                message,
+                field,
+                actual,
+                field.similarity == DenseVectorFieldMapper.VectorSimilarity.COSINE ? COSINE_EPSILON : 0.0
+            );
             case BFLOAT16 -> assertFloatVector(message, field, actual, BFLOAT16_EPSILON);
             case BYTE, BIT -> {
-                byte[] actualBytes = singleValue(message, actual);
-                byte[] expectedBytes = (byte[]) field.value();
-                assertArrayEquals(expectedBytes, actualBytes);
+                // Byte and bit vectors are fetched from doc values as a boxed Byte[].
+                // Byte[] has no dedicated StreamOutput writer, so writeGenericValue falls back to the generic Object[] writer and the
+                // value arrives at the coordinating node as an Object[] of Byte.
+                // Cosine similarity does not normalize byte or bit vectors at index time, so this assertion is exact.
+                Object[] actualVector = singleValue(message, actual);
+                @SuppressWarnings("unchecked")
+                List<Byte> expectedVector = (List<Byte>) field.value();
+                assertArrayEquals(message + ": vector", expectedVector.toArray(), actualVector);
             }
         }
     }

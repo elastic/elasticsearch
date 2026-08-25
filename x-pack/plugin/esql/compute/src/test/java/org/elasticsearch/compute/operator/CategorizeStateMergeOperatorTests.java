@@ -102,7 +102,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
         // catIdChannel=0, stateChannel=1; analysisRegistry is not used by the constructor
-        return new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF, null);
+        return new CategorizeStateMergeOperator.Factory(0, 1, null);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testNullOrdPassesThroughUnchanged() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF, null).get(ctx)) {
+        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, null).get(ctx)) {
             IntBlock catIds = blockFactory.newConstantIntBlockWith(0, 3);
             BytesRefBlock state = blockFactory.newConstantBytesRefBlockWith(EMPTY_STATE, 3);
             op.addInput(new Page(catIds, state));
@@ -141,7 +141,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testStateChannelDropped() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF, null).get(ctx)) {
+        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, null).get(ctx)) {
             IntBlock catIds = blockFactory.newConstantIntBlockWith(1, 2);
             BytesRefBlock state = blockFactory.newConstantBytesRefBlockWith(EMPTY_STATE, 2);
             op.addInput(new Page(catIds, state));
@@ -190,7 +190,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
         assertNotNull(emitPage);
 
         // Feed the emit output through the merge operator
-        try (CategorizeStateMergeOperator mergeOp = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF, null).get(ctx)) {
+        try (CategorizeStateMergeOperator mergeOp = new CategorizeStateMergeOperator.Factory(0, 1, null).get(ctx)) {
             mergeOp.addInput(emitPage);
             mergeOp.finish();
             Page mergeResult = mergeOp.getOutput();
@@ -214,7 +214,7 @@ public class CategorizeStateMergeOperatorTests extends OperatorTestCase {
     public void testMultivaluedIdsRemappedViaEmptyState() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, CATEGORIZE_DEF, null).get(ctx)) {
+        try (CategorizeStateMergeOperator op = new CategorizeStateMergeOperator.Factory(0, 1, null).get(ctx)) {
             IntBlock catIds;
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(2)) {
                 // position 0: single value 1

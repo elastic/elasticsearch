@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -30,9 +31,15 @@ public final class PruneLiteralsInLimitBy extends OptimizerRules.OptimizerRule<L
         List<Expression> newGroupings = new ArrayList<>();
         for (Expression g : limitBy.groupings()) {
             Expression toCheck = g instanceof Alias as ? as.child() : g;
-            if (toCheck.foldable() == false) {
-                newGroupings.add(g);
+            if (toCheck.foldable()) {
+                continue;
             }
+            // CATEGORIZE(foldable_field) is a runtime-constant: every row maps to the same
+            // category, so the grouping has no discriminating effect and can be pruned.
+            if (toCheck instanceof Categorize cat && cat.field().foldable()) {
+                continue;
+            }
+            newGroupings.add(g);
         }
 
         if (newGroupings.size() == limitBy.groupings().size()) {

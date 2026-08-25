@@ -1070,6 +1070,21 @@ count:long
 2
 ;
 
+limitByCategorizeOnNonNullConstant
+required_capability: categorize_in_limit_by
+
+// When the CATEGORIZE field is a non-null constant, all rows still map to the same group
+// (every position produces the same category). LIMIT 2 keeps 2 of the 7 rows.
+FROM sample_data
+  | EVAL x = "Connection error"::keyword
+  | LIMIT 2 BY CATEGORIZE(x)
+  | STATS count = COUNT()
+;
+
+count:long
+2
+;
+
 limitByCategorizeMultipleGroupings
 skip_flattened_rewrite: categorize_on_flattened_unsupported
 required_capability: categorize_in_limit_by

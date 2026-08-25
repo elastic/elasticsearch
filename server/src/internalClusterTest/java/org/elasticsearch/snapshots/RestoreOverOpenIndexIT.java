@@ -87,11 +87,12 @@ public class RestoreOverOpenIndexIT extends AbstractSnapshotIntegTestCase {
         final int docCount = createRepositoryAndSnapshottedIndex();
         assertThat("a never-restored index has no history UUID", historyUuid(), nullValue());
 
-        // Without the REOPENED transition, applying the restored metadata in place throws (IndexSettings rejects an in-place history
-        // UUID change), which IndicesClusterStateService#updateIndices falls back to handling as an ordinary failed shard: it still ends
-        // up reusing the on-disk store (IndexRemovalReason.FAILURE keeps it too) once the shard is retried, so that fallback path would
-        // pass the assertions below even though it isn't the single clean transition this test means to verify. Assert directly that no
-        // shard failure occurred, so a regression that disables the transition is caught here rather than silently masked.
+        // Without the REOPENED transition, applying the restored metadata in place would throw IllegalArgumentException (IndexSettings
+        // rejects an in-place history UUID change), which IndicesClusterStateService#updateIndices falls back to handling as an ordinary
+        // failed shard: it still ends up reusing the on-disk store (IndexRemovalReason.FAILURE keeps it too) once the shard is retried, so
+        // that fallback path would pass the assertions below even though it isn't the single clean transition this test means to verify.
+        // Assert directly that no shard failure occurred, so a regression that disables the transition is caught here rather than silently
+        // masked.
         try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(

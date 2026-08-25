@@ -19,8 +19,10 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.ThreadUtilizationTracker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
@@ -133,6 +135,49 @@ public final class InternalIndexingStats implements IndexingOperationListener {
                 totalStats.indexFailedDueToVersionConflicts.inc();
             }
         }
+    }
+
+    @Override
+    public IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
+        if (batch.origin().isRecovery() == false) {
+            totalStats.indexCurrent.inc(batch.docCount());
+        }
+        return batch;
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} calls. Successes are
+     * aggregated without materializing per-operation {@link Engine.Index} instances; Failures delegate
+     * to {@link #postIndex(ShardId, Engine.Index, Exception)}, materializing just the failed operation.
+     * Engine level failures inherit the delegating default of
+     * {@link IndexingOperationListener#postIndexBatch(ShardId, IndexOperationBatch, Exception)}.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
+        if (batch.origin().isRecovery()) {
+            return;
+        }
+        long tookTotal = 0;
+        long successes = 0;
+        for (int i = 0; i < results.size(); i++) {
+            Engine.IndexResult result = results.get(i);
+            switch (result.getResultType()) {
+                case SUCCESS -> {
+                    long took = result.getTook();
+                    tookTotal += took;
+                    totalStats.indexMetric.inc(took);
+                    successes++;
+                }
+                case FAILURE -> postIndex(shardId, batch.toIndexOp(i), result.getFailure());
+                default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+            }
+        }
+        if (tookTotal > 0) {
+            totalStats.recentIndexMetric.addIncrement(tookTotal, relativeTimeInNanosSupplier.getAsLong());
+            totalStats.totalExecutionTimeNanos.add(tookTotal);
+        }
+        // failures decrement indexCurrent in the delegated postIndex, so only successes remain
+        totalStats.indexCurrent.dec(successes);
     }
 
     @Override

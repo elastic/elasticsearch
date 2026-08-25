@@ -100,6 +100,7 @@ import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
@@ -1166,24 +1167,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
-        final List<Engine.Index> operations = batch.batch().materializeIndexOps();
-        List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
-        // TODO: Right now the only production users are stats. Should add batch listener.
-        for (Engine.Index op : operations) {
-            preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
-        }
+        final IndexOperationBatch operationBatch = indexingOperationListeners.preIndexBatch(shardId, batch.batch());
         try {
             final List<Engine.IndexResult> results = engine.indexBatch(batch);
-            // TODO: Look at if these can be batch optimized
-            for (int i = 0; i < results.size(); i++) {
-                indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
-            }
+            indexingOperationListeners.postIndexBatch(shardId, operationBatch, results);
             active.set(true);
             return results;
         } catch (Exception e) {
-            for (Engine.Index preIndexOp : preIndexOps) {
-                indexingOperationListeners.postIndex(shardId, preIndexOp, e);
-            }
+            indexingOperationListeners.postIndexBatch(shardId, operationBatch, e);
             throw e;
         }
     }

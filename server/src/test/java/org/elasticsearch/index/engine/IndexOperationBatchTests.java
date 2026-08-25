@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doReturn;
@@ -575,5 +576,11 @@ public class IndexOperationBatchTests extends ESTestCase {
             assertThat(ops.get(i).id(), equalTo(slice.id(i)));
             assertThat(ops.get(i).id(), equalTo(parent.id(from + i)));
         }
+    }
+
+    public void testListenerOpsMemoizedWhileMaterializeIsFresh() {
+        final IndexOperationBatch batch = primaryBatch(randomIntBetween(1, 8));
+        assertThat(batch.listenerOps(), sameInstance(batch.listenerOps()));
+        assertThat(batch.materializeIndexOps(), not(sameInstance(batch.materializeIndexOps())));
     }
 }

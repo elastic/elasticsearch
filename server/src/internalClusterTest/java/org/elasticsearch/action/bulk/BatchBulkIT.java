@@ -223,6 +223,15 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
+
+        // the batch listener hooks must feed the indexing stats exactly like the sequential path
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo(0L));
+        // replicas take the batch path too: 1 replica per shard doubles the total
+        assertThat(statsResponse.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(numDocs * 2L));
     }
 
     public void testSyntheticSourceReconstruction() throws IOException {

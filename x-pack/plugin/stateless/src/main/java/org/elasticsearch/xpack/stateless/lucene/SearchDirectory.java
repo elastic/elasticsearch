@@ -68,8 +68,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     /// because the field did not exist yet, rather than because the commit lacks `@timestamp` data.
     public static final IndexVersion TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION = IndexVersions.NESTED_PATH_LIMIT;
 
-    /// Estimated `@timestamp` for commits written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
-    public static final long PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
+    /// Fallback `@timestamp` for commits written before [#TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION].
+    public static final long PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
 
     private final CacheBlobReaderService cacheBlobReaderService;
     private final LongAdder totalBytesReadFromIndexing = new LongAdder();
@@ -118,10 +118,11 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         }
         // For a time-based index created after the introduction of timestamp range field, we treat all CCs without timestamp as having
         // a minimal timestamp. This should be a rare case, e.g. a soft-delete only commit.
-        // For indices created before that, we could have CCs lacking timestamp range purely because the field did not exist yet. We
-        // conservatively assign a timestamp to them
+        // For indices created before that, CCs can lack a timestamp range purely because the field did not exist yet. We conservatively
+        // assign a fallback timestamp to them. Note that recent CCs on pre-field indices (e.g. soft-delete only) will also receive this
+        // fallback, which is a known over-estimation but should be negligible in practice.
         return creationVersion.before(TIMESTAMP_FIELD_VALUE_RANGE_INTRODUCED_VERSION)
-            ? PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS
+            ? PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS
             : SharedBlobCacheService.MINIMAL_CACHE_TIMESTAMP;
     }
 

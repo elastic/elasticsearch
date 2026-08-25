@@ -117,9 +117,11 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
      */
     public static final String MINIMAL_METRIC = "es.blob_cache.regions.minimal_timestamp.current";
     /**
-     * Counts occupied regions carrying {@link SearchDirectory#PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS}, the fallback
+     * Counts occupied regions carrying {@link SearchDirectory#PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS}, the fallback
      * timestamp for compound commits with no recorded {@code @timestamp} range on an index created before that
-     * range was introduced in the CC header, independent of eviction-policy protection.
+     * range was introduced in the CC header, independent of eviction-policy protection. This count may also include
+     * regions whose real midpoint happens to coincide with the fallback date, but this should be extremely rare
+     * and thus negligible.
      */
     public static final String PRE_TIMESTAMP_FIELD_METRIC = "es.blob_cache.regions.pre_timestamp_field.current";
 
@@ -256,7 +258,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
             ConsumingLongGaugeMetric.create(
                 meterRegistry,
                 PRE_TIMESTAMP_FIELD_METRIC,
-                "Number of occupied regions carrying the pre-timestamp-field old-tail fallback timestamp",
+                "Number of occupied regions carrying the pre-timestamp-field fallback timestamp",
                 "regions"
             )
         );
@@ -349,7 +351,7 @@ public final class StatelessSharedBlobCachePeriodicMetrics extends AbstractLifec
                 backfill[0]++;
             } else if (timestampMillis == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
                 unknown[0]++;
-            } else if (timestampMillis == SearchDirectory.PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS) {
+            } else if (timestampMillis == SearchDirectory.PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS) {
                 preTimestampField[0]++;
             }
             if (policy.isProtected(region) == false) {

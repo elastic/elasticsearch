@@ -477,7 +477,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
                 new TestCacheKey(shardId, "pre_timestamp_field"),
                 regionSize - 1,
                 0,
-                SearchDirectory.PRE_TIMESTAMP_FIELD_OLD_TAIL_MILLIS
+                SearchDirectory.PRE_TIMESTAMP_FIELD_FALLBACK_MILLIS
             );
 
             metrics.start();

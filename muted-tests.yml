@@ -758,3 +758,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/157535
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 p1=mixed_cluster/20_camel_case_on_format/Verify that we can still use index with camel case date field}
+  issue: https://github.com/elastic/elasticsearch/issues/157570

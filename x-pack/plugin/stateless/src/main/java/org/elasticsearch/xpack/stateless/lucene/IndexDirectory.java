@@ -249,18 +249,25 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        if (context.hints().contains(PreferLocalHint.INSTANCE)) {
-            return openInputPreferLocal(name, context);
+        boolean preferLocal = context.hints().contains(PreferLocalHint.INSTANCE);
+        if (preferLocal == false) {
+            context = maybeAddStatelessAdviceHint(name, context);
         }
-        context = maybeAddStatelessAdviceHint(name, context);
 
-        if (cacheDirectory.containsFile(name) == false) {
+        // Enter the local-disk path if the file has not yet been uploaded (normal path) or if the caller
+        // explicitly requests local disk via PreferLocalHint (e.g. VirtualBatchedCompoundCommit serving BCC
+        // chunk requests during the search-tier notification window, where even uploaded files must be read
+        // from local disk instead of the blob-store cache).
+        if (preferLocal || cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
-            if (localFile != null && localFile.tryIncRefNotUploaded()) {
+            if (localFile != null && (preferLocal ? localFile.tryIncRef() : localFile.tryIncRefNotUploaded())) {
                 try {
+                    if (preferLocal) {
+                        return super.openInput(name, context);
+                    }
                     // Index inputs opened with READONCE IO context are expected to be read and closed within the same thread
                     // (see https://github.com/apache/lucene/pull/13535). This is not the case for ReopeningIndexInput that can be closed
                     // by the uploading thread.
@@ -281,30 +288,6 @@ public class IndexDirectory extends ByteSizeDirectory {
             }
         }
 
-        return cacheDirectory.openInput(name, context);
-    }
-
-    /**
-     * Opens a file for reading, preferring local disk if the file is still locally available (regardless of upload status). This
-     * bypasses the normal {@link #openInput} routing that prevents local reads once a file is marked as uploaded. Invoked by
-     * {@link #openInput} when the context carries a {@link PreferLocalHint}, which
-     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} uses to serve BCC chunk requests directly from
-     * local disk during the notification window. Falls back to the blob store cache directory if the file is not locally available.
-     */
-    private IndexInput openInputPreferLocal(String name, IOContext context) throws IOException {
-        boolean hasLocalRef;
-        try (var ignored = readLock.acquire()) {
-            var ref = localFiles.get(name);
-            hasLocalRef = ref != null && ref.hasReferences();
-        }
-        if (hasLocalRef) {
-            // The caller (VirtualBatchedCompoundCommit) holds a local file ref keeping the file on disk.
-            // Callers must not include ReadOnceHint for files whose upload stream may be closed on a different
-            // thread (MMapDirectory creates a thread-confined MemorySegmentIndexInput for ReadOnce contexts,
-            // causing WrongThreadException). Segments files may include ReadOnceHint only if open and close
-            // are guaranteed to be on the same thread (e.g. MockDirectoryWrapper's correctness check).
-            return super.openInput(name, context);
-        }
         return cacheDirectory.openInput(name, context);
     }
 

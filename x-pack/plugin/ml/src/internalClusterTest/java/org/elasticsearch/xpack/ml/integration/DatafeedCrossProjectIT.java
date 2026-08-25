@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -158,11 +159,13 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 
         client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L)).actionGet();
 
-        assertBusy(
-            () -> assertThat(BaseMlIntegTestCase.getDatafeedState(datafeedId), equalTo(DatafeedState.STARTED)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Response statsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                new GetDatafeedsStatsAction.Request(datafeedId)
+            ).actionGet();
+            assertThat(statsResponse.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STARTED));
+        }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))

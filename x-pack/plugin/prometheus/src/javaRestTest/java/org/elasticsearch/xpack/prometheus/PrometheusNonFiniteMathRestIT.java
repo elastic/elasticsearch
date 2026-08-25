@@ -14,6 +14,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -122,6 +123,24 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     public void testCoshOverflowIsPositiveInfinity() throws Exception {
         ingestTestData("test_gauge_nf");
         assertSingleValue("cosh(" + METRIC + " * 20)", "+Inf");
+    }
+
+    /**
+     * Prometheus {@code round(NaN)} returns {@code NaN}; the single-argument {@code round} preserves the non-finite input
+     * rather than rounding it to {@code 0}.
+     */
+    public void testRoundOfNaNIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue("round(" + METRIC + " * NaN)", "NaN");
+    }
+
+    /**
+     * Prometheus drops every series when {@code min > max} (clamp returns an empty result), see promql/functions.go.
+     */
+    public void testClampWithMinGreaterThanMaxDropsSeries() throws Exception {
+        ingestTestData("test_gauge_nf");
+        ObjectPath response = executeInstantQuery("clamp(" + METRIC + ", 100, 0)");
+        assertThat(response.evaluate("data.result"), empty());
     }
 
     private void assertSingleValue(String query, String expectedValue) throws Exception {

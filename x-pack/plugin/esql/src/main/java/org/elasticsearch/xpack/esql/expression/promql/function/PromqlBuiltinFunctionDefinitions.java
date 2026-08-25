@@ -222,17 +222,13 @@ public class PromqlBuiltinFunctionDefinitions {
     static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
         .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
             if (toNearest == null) {
-                return new Round(source, value, null);
+                return new Round(source, value, null, true);
             } else {
                 return promqlRoundToNearest(source, value, toNearest, configuration);
             }
         })
         .example("round(rate(http_requests_total[5m]))")
         .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
-        .differenceFromPrometheus(
-            "With a `to_nearest` argument, ties round up, matching Prometheus. Called with a single argument, a `NaN` input "
-                + "returns `0` instead of `NaN`."
-        )
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("round");
 
@@ -240,13 +236,18 @@ public class PromqlBuiltinFunctionDefinitions {
      * PromQL {@code round(v, to_nearest)} rounds to the nearest multiple of {@code to_nearest},
      * with ties resolved by rounding up. Matches Prometheus:
      * {@code floor(v * (1 / to_nearest) + 0.5) / (1 / to_nearest)}.
+     * <p>
+     * The arithmetic nodes built here use the non-finite-preserving math variant so the degenerate {@code to_nearest = 0}
+     * input reproduces Prometheus's result of {@code NaN} ({@code 1 / 0 = +Inf}, {@code v * +Inf = ±Inf/NaN},
+     * {@code floor(...) / +Inf = NaN}) instead of hitting the divide-by-zero guard and dropping the series.
+     * </p>
      */
     private static Expression promqlRoundToNearest(Source source, Expression value, Expression toNearest, Configuration configuration) {
-        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest);
+        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest, null, true);
         Expression half = Literal.fromDouble(source, 0.5);
-        Expression scaled = new Mul(source, value, inverse);
-        Expression withHalf = new Add(source, scaled, half, configuration);
-        return new Div(source, new Floor(source, withHalf), inverse);
+        Expression scaled = new Mul(source, value, inverse, true);
+        Expression withHalf = new Add(source, scaled, half, configuration, true);
+        return new Div(source, new Floor(source, withHalf), inverse, null, true);
     }
 
     private static PromqlFunctionDefinition.Builder dateExtraction(ChronoField field) {

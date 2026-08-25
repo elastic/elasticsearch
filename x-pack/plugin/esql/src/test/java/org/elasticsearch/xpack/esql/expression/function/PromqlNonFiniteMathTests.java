@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -186,6 +187,21 @@ public class PromqlNonFiniteMathTests extends ESTestCase {
     public void testModByZeroFollowsPrometheus() {
         assertFoldsToNaN(new Mod(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 5.0), Literal.fromDouble(Source.EMPTY, 0.0), true));
         assertFoldsTo(new Mod(Source.EMPTY, Literal.fromDouble(Source.EMPTY, 5.0), Literal.fromDouble(Source.EMPTY, 3.0), true), 2.0);
+    }
+
+    /**
+     * PromQL rounds with {@code floor(v + 0.5)}, so a tie always moves towards {@code +Inf}. Rounding a tie away from
+     * zero instead disagrees for every negative half-integer.
+     */
+    public void testRoundResolvesTiesTowardsPositiveInfinity() {
+        assertFoldsTo(round(-0.5), 0.0);
+        assertFoldsTo(round(-1.5), -1.0);
+        assertFoldsTo(round(0.5), 1.0);
+        assertFoldsTo(round(2.5), 3.0);
+    }
+
+    private static Round round(double value) {
+        return new Round(Source.EMPTY, Literal.fromDouble(Source.EMPTY, value), null, true);
     }
 
     private static Mul mul(double lhs, double rhs) {

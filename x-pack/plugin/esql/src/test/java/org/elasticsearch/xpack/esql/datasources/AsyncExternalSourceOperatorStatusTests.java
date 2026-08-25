@@ -179,7 +179,8 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
                     + "\"bytes_read\":8192,\"read_nanos\":0,\"read_cpu_nanos\":0,\"stripes_committed\":0,\"partial\":false,"
-                    + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0,\"read_cpu_nanos\":0}}"
+                    + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0,"
+                    + "\"read_cpu_nanos\":0}}"
             )
         );
     }

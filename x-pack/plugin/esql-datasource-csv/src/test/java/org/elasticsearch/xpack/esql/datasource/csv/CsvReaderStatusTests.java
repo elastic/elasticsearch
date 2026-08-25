@@ -54,7 +54,8 @@ public class CsvReaderStatusTests extends AbstractWireSerializingTestCase<CsvRea
         assertThat(
             toJson(status),
             equalTo(
-                "{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true,\"read_nanos\":150,\"read_cpu_nanos\":34}"
+                "{\"format\":\"tsv\",\"rows_emitted\":100,\"parse_errors\":3,\"header_detected\":true,\"read_nanos\":150,"
+                    + "\"read_cpu_nanos\":34}"
             )
         );
     }

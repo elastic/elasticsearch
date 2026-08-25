@@ -18,11 +18,6 @@ import java.util.Arrays;
  * Accumulates one tsid per document row while dimension values are visited <b>column by column</b>,
  * without buffering the values themselves.
  *
- * <p>{@link TsidBuilder} is row-at-a-time: it collects a {@code List<Dimension>}, sorts it, then
- * emits. Feeding it from a column-major scan therefore needs a transpose buffer sized by the total
- * number of dimension entries. This class removes that buffer by folding each value straight into a
- * fixed-size murmur3 accumulator for its row, so all state is sized by document count instead.
- *
  * <p>That works because murmur3-128's streaming state is just {@code (h1, h2)} plus a tail, and
  * each dimension contributes a whole number of 16-byte blocks to the streams that need it:
  * <ul>

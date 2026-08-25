@@ -24,12 +24,6 @@ import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * {@link ColumnarTsidAccumulator} folds dimension values column-major into per-row murmur3 state,
- * reproducing what {@link TsidBuilder} computes row-major from a sorted dimension list. These tests
- * drive the accumulator directly against {@code TsidBuilder} so that a failure isolates the hash
- * folding and layout state machine, independent of ESCF encoding or column traversal.
- */
 public class ColumnarTsidAccumulatorTests extends ESTestCase {
 
     /** One dimension value: a path and its already-computed 128-bit value hash. */
@@ -46,11 +40,6 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE);
     }
 
-    /**
-     * Feeds {@code rows} to the accumulator column-major (paths sorted, then row-major within each
-     * path, exactly as {@link ColumnarTsidCalculator} does) and to {@link TsidBuilder} row-major, then
-     * asserts the tsids are byte-identical for every row and for both layouts.
-     */
     private static void assertAccumulatorMatchesTsidBuilder(List<List<Dim>> rows) {
         for (IndexVersion version : List.of(multiBytePrefixVersion(), singleBytePrefixVersion())) {
             boolean singleByte = TsidBuilder.useSingleBytePrefixLayout(version);

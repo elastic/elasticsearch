@@ -53,10 +53,6 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Builds a batch from {@code sources}, computes tsids via the columnar calculator, and asserts
-     * byte-for-byte equality with the per-doc source-parser tsid for every row.
-     */
     private static void assertColumnarMatchesSourceParser(
         List<BytesReference> sources,
         IndexRouting.ExtractFromSource.ForIndexDimensions strategy
@@ -340,11 +336,6 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         return (IndexRouting.ExtractFromSource.ForIndexDimensions) IndexRouting.fromIndexMetadata(md);
     }
 
-    /**
-     * Asserts columnar/source-parser parity under both tsid layouts. The multi-byte version is drawn
-     * from the window where {@code ForIndexDimensions} is already available but the single prefix byte
-     * is not, so neither layout is ever silently skipped.
-     */
     private static void assertParityForBothLayouts(List<BytesReference> sources, String... dimensionPaths) throws IOException {
         List<IndexVersion> versions = List.of(
             IndexVersionUtils.randomVersionBetween(

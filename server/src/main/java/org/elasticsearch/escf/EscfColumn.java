@@ -129,10 +129,6 @@ public abstract class EscfColumn implements SliceableColumn {
     /**
      * Returns the {@link SourceValueType} byte for document {@code row}. Returns
      * {@link SourceValueType#ABSENT} when the row is out of bounds or absent.
-     *
-     * <p>These getters are intentionally public — the same information is already publicly
-     * reachable via {@code EscfBatch.row(d)} (which allocates an {@code EscfRow}); widening the
-     * modifier avoids that per-row allocation for callers that scan an entire column.
      */
     public final byte getTypeByte(int row) {
         if (row < 0 || row >= docCount || isAbsent(row)) {
@@ -150,9 +146,6 @@ public abstract class EscfColumn implements SliceableColumn {
     }
 
     // Typed value getters — default to throwing; subtypes override what they support.
-    // Public modifier: the same values are already reachable via EscfBatch.row(d) (which returns
-    // an EscfRow that delegates to these methods). Making them public removes the per-row
-    // EscfRow allocation for column-scanning callers.
 
     /** Returns the boolean value at {@code row}. The column kind must be {@link EscfColumnKind#BOOL}. */
     public boolean getBooleanValue(int row) {

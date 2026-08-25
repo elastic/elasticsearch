@@ -221,10 +221,6 @@ public class TsidBuilderTests extends ESTestCase {
         assertTrue(TsidBuilder.useSingleBytePrefixLayout(IndexVersion.current()));
     }
 
-    /**
-     * {@link TsidBuilder#addPrehashedDimension} must produce a tsid byte-identical to the corresponding
-     * typed dimension method when the path hash is computed via {@link TsidBuilder#hashPath}.
-     */
     public void testAddPrehashedDimensionMatchesTypedDimensions() {
         BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0L);
 

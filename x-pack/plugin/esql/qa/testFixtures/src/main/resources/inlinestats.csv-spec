@@ -2056,7 +2056,6 @@ from employees
 
 inlinestatsWithFalseFiltersAndGroups
 required_capability: inline_stats
-skip_columnar: INLINE STATS with false/null WHERE filters grouped by multi-value is_rehired boolean field produces different results in columnar mode
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2083,7 +2082,6 @@ from employees
 
 inlinestatsWithFalseFiltersAndGroups_DropEvaledValue
 required_capability: inline_stats
-skip_columnar: INLINE STATS with false/null WHERE filters grouped by multi-value is_rehired boolean field produces different results in columnar mode
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count_distinct = count_distinct(height.float + 1) where null,
@@ -2111,7 +2109,6 @@ from employees
 
 inlinestatsWithMixedFiltersAndGroup
 required_capability: inline_stats
-skip_columnar: INLINE STATS with mixed false/real WHERE filters grouped by multi-value keyword field produces different results in columnar mode
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,
@@ -2238,7 +2235,6 @@ from employees
 
 inlinestatsWithFilterAndGroupBy
 required_capability: inline_stats
-skip_columnar: INLINE STATS with WHERE filter grouped by multi-value boolean is_rehired field produces different results in columnar mode
 from employees
 | keep height, gender, is_rehired, emp_no
 | inline stats m = max(height), m_f = max(height + 1) where gender == "M" OR is_rehired is null BY gender, is_rehired
@@ -2635,7 +2631,6 @@ FROM employees
 
 groupingByOrdinalsFilterIsAlwaysTrue
 required_capability: inline_stats
-skip_columnar: INLINE STATS with WHERE filter grouped by multi-value keyword field produces different ordinal-based grouping in columnar mode
 FROM employees
 | inline stats max = max(salary) WHERE salary > 0 BY job_positions
 | SORT job_positions ASC, salary DESC
@@ -2652,7 +2647,6 @@ FROM employees
 
 groupingByOrdinalsFilterIsAlwaysFalse
 required_capability: inline_stats
-skip_columnar: INLINE STATS with always-false WHERE filter grouped by multi-value keyword field produces different ordinal-based grouping in columnar mode
 
 FROM employees
 | inline stats max = max(salary) WHERE first_name == "" BY job_positions
@@ -2670,7 +2664,6 @@ Mary           |31120          |10011          |[Architect, Reporting Analyst, S
 
 groupingByOrdinalsFilterSometimesMatches
 required_capability: inline_stats
-skip_columnar: INLINE STATS with sometimes-matching WHERE filter grouped by multi-value keyword field produces different ordinal-based grouping in columnar mode
 
 FROM employees
 | keep salary, first_name, job_positions, emp_no
@@ -5357,7 +5350,6 @@ FROM employees
 
 inlineStatsDroppingMultipleCommandsGroupingFields
 required_capability: inline_stats_drop_groupings_fix
-skip_columnar: Chained INLINE STATS with DROP groupings produces different results in columnar mode
 
 FROM employees
 | KEEP languages, salary, gender, emp_no, *rehired
@@ -5387,7 +5379,6 @@ FROM employees
 
 inlineStatsGroupingByMVField
 required_capability: inline_stats_drop_groupings_fix
-skip_columnar: INLINE STATS grouping by a multi-value double field (salary_change) produces different aggregation results in columnar mode
 
 FROM employees
 | KEEP salary_change, salary

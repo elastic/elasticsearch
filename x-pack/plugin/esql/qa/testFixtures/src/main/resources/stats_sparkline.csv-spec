@@ -130,7 +130,6 @@ sparkline:long | emp_no:integer
 
 sparklineInInlineStatsByMvField
 required_capability: fn_sparkline
-skip_columnar: SPARKLINE in INLINE STATS grouped by multi-value keyword field (job_positions) produces different results in columnar mode
 FROM employees
 | INLINE STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") BY job_positions
 | KEEP emp_no, job_positions, sparkline

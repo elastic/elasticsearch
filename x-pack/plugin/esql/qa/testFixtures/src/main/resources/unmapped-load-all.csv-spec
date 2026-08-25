@@ -41,7 +41,6 @@ FROM partial_mapping_sample_data
 
 evalShadowsUnmappedField
 required_capability: optional_fields_load_all
-skip_columnar: LOAD_ALL unmapped field discovery is not supported in columnar mode; only mapped fields are returned
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -61,7 +60,6 @@ FROM partial_mapping_sample_data
 
 evalShadowsUnmappedFieldWithLiteral
 required_capability: optional_fields_load_all
-skip_columnar: LOAD_ALL unmapped field discovery is not supported in columnar mode; only mapped fields are returned
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -242,7 +240,6 @@ FROM partial_mapping_sample_data
 
 evalAndRenameShadowUnmappedFields
 required_capability: optional_fields_load_all
-skip_columnar: LOAD_ALL unmapped field discovery is not supported in columnar mode; only mapped fields are returned
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -525,7 +522,6 @@ c:long | message:keyword
 
 statsByUnmappedField
 required_capability: optional_fields_load_all_stats
-skip_columnar: STATS grouped by a LOAD_ALL unmapped field returns different row count in columnar mode; unmapped field discovery is limited
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -556,7 +552,6 @@ c:long
 
 statsAfterWhereOnUnmappedField
 required_capability: optional_fields_load_all_stats
-skip_columnar: WHERE filter on LOAD_ALL unmapped field returns 0 rows in columnar mode; unmapped field discovery is limited
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

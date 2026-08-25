@@ -45,14 +45,24 @@ public final class KeyValueWriter {
         writeStringValue(buf, off, len);
     }
 
-    public void writeLongField(String fieldName, long value, boolean fitsInt) {
+    public void writeIntField(String fieldName, int value) {
         writeKey(fieldName);
-        writeLongValue(value, fitsInt);
+        writeIntValue(value);
     }
 
-    public void writeDoubleField(String fieldName, double value, boolean fitsFloat) {
+    public void writeLongField(String fieldName, long value) {
         writeKey(fieldName);
-        writeDoubleValue(value, fitsFloat);
+        writeLongValue(value);
+    }
+
+    public void writeFloatField(String fieldName, float value) {
+        writeKey(fieldName);
+        writeFloatValue(value);
+    }
+
+    public void writeDoubleField(String fieldName, double value) {
+        writeKey(fieldName);
+        writeDoubleValue(value);
     }
 
     public void writeBooleanField(String fieldName, boolean value) {
@@ -112,29 +122,37 @@ public final class KeyValueWriter {
         }
     }
 
-    void writeLongValue(long value, boolean fitsInt) {
+    void writeIntValue(int value) {
         try {
-            if (fitsInt) {
-                out.writeByte(SourceValueType.INT);
-                out.writeIntLE((int) value);
-            } else {
-                out.writeByte(SourceValueType.LONG);
-                out.writeLongLE(value);
-            }
+            out.writeByte(SourceValueType.INT);
+            out.writeIntLE(value);
+        } catch (IOException e) {
+            throw new IllegalStateException("IO error serializing int", e);
+        }
+    }
+
+    void writeLongValue(long value) {
+        try {
+            out.writeByte(SourceValueType.LONG);
+            out.writeLongLE(value);
         } catch (IOException e) {
             throw new IllegalStateException("IO error serializing long", e);
         }
     }
 
-    void writeDoubleValue(double value, boolean fitsFloat) {
+    void writeFloatValue(float value) {
         try {
-            if (fitsFloat) {
-                out.writeByte(SourceValueType.FLOAT);
-                out.writeIntLE(Float.floatToRawIntBits((float) value));
-            } else {
-                out.writeByte(SourceValueType.DOUBLE);
-                out.writeLongLE(Double.doubleToRawLongBits(value));
-            }
+            out.writeByte(SourceValueType.FLOAT);
+            out.writeIntLE(Float.floatToRawIntBits(value));
+        } catch (IOException e) {
+            throw new IllegalStateException("IO error serializing float", e);
+        }
+    }
+
+    void writeDoubleValue(double value) {
+        try {
+            out.writeByte(SourceValueType.DOUBLE);
+            out.writeLongLE(Double.doubleToRawLongBits(value));
         } catch (IOException e) {
             throw new IllegalStateException("IO error serializing double", e);
         }

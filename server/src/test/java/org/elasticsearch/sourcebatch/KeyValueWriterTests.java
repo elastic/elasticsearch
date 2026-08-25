@@ -45,9 +45,9 @@ public class KeyValueWriterTests extends ESTestCase {
 
     public void testScalars() throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
-        writer.writeLongField("i", 42, true);
-        writer.writeLongField("l", 10_000_000_000L, false);
-        writer.writeDoubleField("d", 1.5, true);
+        writer.writeIntField("i", 42);
+        writer.writeLongField("l", 10_000_000_000L);
+        writer.writeFloatField("d", 1.5f);
         writer.writeStringField("s", "hello".getBytes(StandardCharsets.UTF_8), 0, 5);
         writer.writeBooleanField("t", true);
         writer.writeBooleanField("f", false);
@@ -59,7 +59,7 @@ public class KeyValueWriterTests extends ESTestCase {
     public void testNestedObjectField() throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         writer.beginObjectField("outer");
-        writer.writeLongField("inner", 100, true);
+        writer.writeIntField("inner", 100);
         writer.endObjectField();
         assertKvEquals("""
             {"outer":{"inner":100}}""", writer.toBytes());
@@ -104,7 +104,7 @@ public class KeyValueWriterTests extends ESTestCase {
             2
         );
         writer.writeArrayField("tags", new SourceBatchEncodeHelper.PackedArray(SourceValueType.FIXED_ARRAY, packed));
-        writer.writeLongField("n", 1, true);
+        writer.writeIntField("n", 1);
         assertKvEquals("""
             {"tags":["a","b"],"n":1}""", writer.toBytes());
     }
@@ -113,7 +113,7 @@ public class KeyValueWriterTests extends ESTestCase {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         writer.beginObjectField("l0");
         writer.beginObjectField("l1");
-        writer.writeLongField("leaf", 1, true);
+        writer.writeIntField("leaf", 1);
         writer.endObjectField();
         writer.endObjectField();
         assertKvEquals("""
@@ -122,7 +122,7 @@ public class KeyValueWriterTests extends ESTestCase {
 
     public void testDoubleFieldUsesDoubleType() throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
-        writer.writeDoubleField("d", 3.14, false);
+        writer.writeDoubleField("d", 3.14);
         assertKvEquals("""
             {"d":3.14}""", writer.toBytes());
 
@@ -136,7 +136,7 @@ public class KeyValueWriterTests extends ESTestCase {
 
     public void testWriteNestedObjectField() throws IOException {
         KeyValueWriter inner = KeyValueWriter.forObjectPayload();
-        inner.writeLongField("inner", 100, true);
+        inner.writeIntField("inner", 100);
 
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         writer.writeNestedObjectField("outer", inner.toBytes());
@@ -146,7 +146,7 @@ public class KeyValueWriterTests extends ESTestCase {
 
     public void testUnionArrayWithNestedObjectElement() throws IOException {
         KeyValueWriter objectWriter = KeyValueWriter.forObjectPayload();
-        objectWriter.writeLongField("a", 42, true);
+        objectWriter.writeIntField("a", 42);
         byte[] objectKv = objectWriter.toBytes();
 
         byte[] packed = SourceBatchEncodeHelper.packUnionArray(
@@ -182,7 +182,7 @@ public class KeyValueWriterTests extends ESTestCase {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         writer.writeStringField("str", "hello".getBytes(StandardCharsets.UTF_8), 0, 5);
         writer.beginObjectField("nested");
-        writer.writeLongField("a", 1, true);
+        writer.writeIntField("a", 1);
         writer.endObjectField();
         byte[] tagPacked = SourceBatchEncodeHelper.packFixedArray(
             SourceValueType.STRING,
@@ -193,14 +193,14 @@ public class KeyValueWriterTests extends ESTestCase {
             2
         );
         writer.writeArrayField("tags", new SourceBatchEncodeHelper.PackedArray(SourceValueType.FIXED_ARRAY, tagPacked));
-        writer.writeLongField("after", 2, true);
+        writer.writeIntField("after", 2);
         assertArrayEquals(expectedKv(json), writer.toBytes());
     }
 
     public void testWriterBytesEqualReaderRoundTrip() throws IOException {
         KeyValueWriter writer = KeyValueWriter.forObjectPayload();
         writer.beginObjectField("outer");
-        writer.writeLongField("inner", 1, true);
+        writer.writeIntField("inner", 1);
         writer.endObjectField();
         byte[] arrPacked = SourceBatchEncodeHelper.packFixedArray(SourceValueType.INT, new long[] { 1, 2 }, new Object[2], 2);
         writer.writeArrayField("arr", new SourceBatchEncodeHelper.PackedArray(SourceValueType.FIXED_ARRAY, arrPacked));

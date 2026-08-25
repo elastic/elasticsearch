@@ -213,14 +213,24 @@ public final class SourceBatchEncodeHelper {
             case VALUE_NUMBER -> {
                 XContentParser.NumberType numType = parser.numberType();
                 switch (numType) {
-                    case INT, LONG -> {
+                    case INT -> writer.writeIntField(fieldName, parser.intValue());
+                    case LONG -> {
                         long val = parser.longValue();
-                        writer.writeLongField(fieldName, val, val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE);
+                        if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
+                            writer.writeIntField(fieldName, (int) val);
+                        } else {
+                            writer.writeLongField(fieldName, val);
+                        }
                     }
-                    case FLOAT, DOUBLE -> {
+                    case FLOAT -> writer.writeFloatField(fieldName, parser.floatValue());
+                    case DOUBLE -> {
                         double val = parser.doubleValue();
                         float fval = (float) val;
-                        writer.writeDoubleField(fieldName, val, (double) fval == val);
+                        if ((double) fval == val) {
+                            writer.writeFloatField(fieldName, fval);
+                        } else {
+                            writer.writeDoubleField(fieldName, val);
+                        }
                     }
                     default -> {
                         XContentString.UTF8Bytes str = parser.optimizedText().bytes();

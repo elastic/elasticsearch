@@ -56,8 +56,12 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
 
-        List<Bucket> newBuckets = new ArrayList<>();
-        EvictingQueue<Double> lagWindow = new EvictingQueue<>(Math.min(lag, buckets.size()));
+        if (lag >= buckets.size()) {
+            return aggregation;
+        }
+
+        List<Bucket> newBuckets = new ArrayList<>(buckets.size());
+        EvictingQueue<Double> lagWindow = new EvictingQueue<>(lag);
         int counter = 0;
 
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {

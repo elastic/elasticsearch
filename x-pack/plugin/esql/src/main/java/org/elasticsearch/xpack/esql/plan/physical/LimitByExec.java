@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
-
 /**
  * Physical plan node for {@code LIMIT N BY expr1, expr2, ...}.
  * Retains at most N rows per group defined by the grouping expressions.
@@ -64,14 +62,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
     private final CategorizeGroupingMode mode;
 
     /**
-     * For {@link CategorizeGroupingMode#FINAL}: the extra intermediate attributes that the
-     * coordinator's exchange carries beyond the normal output — specifically the category-ID
-     * attribute and the serialized-state attribute for each CATEGORIZE grouping. Not serialized.
-     */
-    private final List<Attribute> intermediateAttributes;
-
-    /**
-     * Snapshot of {@code child().output()} taken at INITIAL-mode creation time.
+     * Snapshot of the logical output taken at INITIAL-mode creation time.
      * <p>
      * In {@link CategorizeGroupingMode#INITIAL} mode, the data node's local physical optimizer
      * may add technical fields (e.g. {@code _doc}) to the child plan's output for late
@@ -85,7 +76,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> initialCategorizeOutput;
 
     public LimitByExec(Source source, PhysicalPlan child, Expression limitPerGroup, List<Expression> groupings, Integer estimatedRowSize) {
-        this(source, child, limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE, emptyList(), null);
+        this(source, child, limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE, null);
     }
 
     private LimitByExec(
@@ -95,7 +86,6 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         List<Expression> groupings,
         Integer estimatedRowSize,
         CategorizeGroupingMode mode,
-        List<Attribute> intermediateAttributes,
         List<Attribute> initialCategorizeOutput
     ) {
         super(source, child);
@@ -103,12 +93,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         this.groupings = groupings;
         this.estimatedRowSize = estimatedRowSize;
         this.mode = mode;
-        this.intermediateAttributes = intermediateAttributes;
         this.initialCategorizeOutput = initialCategorizeOutput;
-    }
-
-    public LimitByExec withMode(CategorizeGroupingMode newMode) {
-        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, newMode, emptyList(), null);
     }
 
     /**
@@ -117,20 +102,19 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
      * {@code channelsBefore} computation is consistent with the data-node channel layout.
      */
     public LimitByExec withInitialCategorizeMode(List<Attribute> logicalOutput) {
-        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.INITIAL, emptyList(), logicalOutput);
-    }
-
-    public LimitByExec withFinalMode(List<Attribute> newIntermediateAttributes) {
         return new LimitByExec(
             source(),
             child(),
             limitPerGroup,
             groupings,
             estimatedRowSize,
-            CategorizeGroupingMode.FINAL,
-            newIntermediateAttributes,
-            null
+            CategorizeGroupingMode.INITIAL,
+            logicalOutput
         );
+    }
+
+    public LimitByExec withFinalMode() {
+        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.FINAL, null);
     }
 
     @Override
@@ -148,17 +132,13 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         return mode;
     }
 
-    public List<Attribute> intermediateAttributes() {
-        return intermediateAttributes;
-    }
-
     private static LimitByExec readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
         Expression limit = in.readNamedWriteable(Expression.class);
         Integer estimatedRowSize = in.readOptionalVInt();
         List<Expression> groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        return new LimitByExec(source, child, limit, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE, emptyList(), null);
+        return new LimitByExec(source, child, limit, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE, null);
     }
 
     @Override
@@ -182,7 +162,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public LimitByExec replaceChild(PhysicalPlan newChild) {
-        return new LimitByExec(source(), newChild, limitPerGroup, groupings, estimatedRowSize, mode, intermediateAttributes, initialCategorizeOutput);
+        return new LimitByExec(source(), newChild, limitPerGroup, groupings, estimatedRowSize, mode, initialCategorizeOutput);
     }
 
     public Expression limitPerGroup() {
@@ -207,7 +187,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new LimitByExec(source(), child(), limitPerGroup, groupings, size, mode, intermediateAttributes, initialCategorizeOutput);
+            : new LimitByExec(source(), child(), limitPerGroup, groupings, size, mode, initialCategorizeOutput);
     }
 
     @Override

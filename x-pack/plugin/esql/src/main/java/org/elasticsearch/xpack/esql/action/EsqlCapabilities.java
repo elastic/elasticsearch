@@ -3106,14 +3106,6 @@ public class EsqlCapabilities {
         CATEGORIZE_IN_LIMIT_BY,
 
         /**
-         * Fix crash when using a function expression as the argument to {@code CATEGORIZE} inside
-         * {@code LIMIT ... BY}, e.g. {@code LIMIT 1 BY CATEGORIZE(CONCAT(field, " "))}.
-         * Previously only plain field references were supported; function arguments caused an
-         * {@code IllegalStateException} in the physical planner.
-         */
-        CATEGORIZE_FUNCTION_ARG_IN_LIMIT_BY(CATEGORIZE_IN_LIMIT_BY.isEnabled()),
-
-        /**
          * Fix pushdown of LIMIT BY past MV_EXPAND when grouping on expanded fields.
          * See <a href="https://github.com/elastic/elasticsearch/issues/148513">#148513</a>.
          */

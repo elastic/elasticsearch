@@ -112,9 +112,6 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
      * {@link GeneratingPlan}. This directly checks the plan's generated attributes rather than comparing
      * child vs grandchild output, which correctly handles the case where a generated attribute shadows
      * (reuses the same {@link NameId} as) an attribute from the grandchild.
-     * <p>
-     * Uses {@link Expression#references()} rather than an {@code instanceof Attribute} check so that grouping
-     * expressions that wrap an attribute (e.g. {@code CATEGORIZE($tmp)}) are handled correctly.
      */
     private static boolean groupingAttrsDefinedBy(LimitBy limitBy, GeneratingPlan<?> generatingPlan) {
         Set<NameId> generatedIds = new HashSet<>();
@@ -134,9 +131,6 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
     /**
      * Returns {@code true} if any attribute referenced by the LimitBy's groupings is absent from the given plan's output.
      * Duplicating the LimitBy below such a plan would leave the grouping attribute unresolved.
-     * <p>
-     * Uses {@link Expression#references()} rather than an {@code instanceof Attribute} check so that grouping
-     * expressions that wrap an attribute (e.g. {@code CATEGORIZE($tmp)}) are handled correctly.
      */
     private static boolean groupingAttrsNotInOutput(LimitBy limitBy, LogicalPlan plan) {
         Set<NameId> outputIds = new HashSet<>();

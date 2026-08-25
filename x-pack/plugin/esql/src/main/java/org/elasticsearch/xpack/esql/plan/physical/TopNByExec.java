@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static java.util.Collections.emptyList;
-
 /**
  * Physical plan node for {@code SORT order1, order2 | LIMIT N BY grouping1, grouping2, ...}.
  * Sorts the input rows retaining at most N rows per group defined by the grouping expressions.
@@ -76,14 +74,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
     private final LimitByExec.CategorizeGroupingMode categorizeMode;
 
     /**
-     * For {@link LimitByExec.CategorizeGroupingMode#FINAL}: the extra intermediate attributes
-     * on the exchange (category-ID + serialized-state attributes per CATEGORIZE grouping).
-     * Not serialized.
-     */
-    private final List<Attribute> intermediateAttributes;
-
-    /**
-     * Snapshot of {@code child().output()} taken at INITIAL-mode creation time.
+     * Snapshot of the logical output taken at INITIAL-mode creation time.
      * <p>
      * In {@link LimitByExec.CategorizeGroupingMode#INITIAL} mode, the data node's local physical
      * optimizer may add technical fields (e.g. {@code _doc}) to the child plan's output for late
@@ -114,7 +105,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             Set.of(),
             OutputOrdering.SORTED,
             LimitByExec.CategorizeGroupingMode.SINGLE,
-            emptyList(),
             null
         );
     }
@@ -139,7 +129,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             outputOrdering,
             LimitByExec.CategorizeGroupingMode.SINGLE,
-            emptyList(),
             null
         );
     }
@@ -154,7 +143,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         Set<Attribute> docValuesAttributes,
         OutputOrdering outputOrdering,
         LimitByExec.CategorizeGroupingMode categorizeMode,
-        List<Attribute> intermediateAttributes,
         List<Attribute> initialCategorizeOutput
     ) {
         super(source, child);
@@ -165,7 +153,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         this.docValuesAttributes = docValuesAttributes;
         this.outputOrdering = outputOrdering;
         this.categorizeMode = categorizeMode;
-        this.intermediateAttributes = intermediateAttributes;
         this.initialCategorizeOutput = initialCategorizeOutput;
     }
 
@@ -178,7 +165,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readOptionalVInt()
         );
-        // docValueAttributes, outputOrdering, categorizeMode, and intermediateAttributes are only
+        // docValueAttributes, outputOrdering, categorizeMode, and initialCategorizeOutput are only
         // used on the local node and never serialized.
     }
 
@@ -214,7 +201,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             outputOrdering,
             categorizeMode,
-            intermediateAttributes,
             initialCategorizeOutput
         );
     }
@@ -230,7 +216,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             outputOrdering,
             categorizeMode,
-            intermediateAttributes,
             initialCategorizeOutput
         );
     }
@@ -246,7 +231,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             OutputOrdering.SORTED,
             categorizeMode,
-            intermediateAttributes,
             initialCategorizeOutput
         );
     }
@@ -262,7 +246,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             OutputOrdering.NOT_SORTED,
             categorizeMode,
-            intermediateAttributes,
             initialCategorizeOutput
         );
     }
@@ -278,7 +261,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             outputOrdering,
             newMode,
-            emptyList(),
             null
         );
     }
@@ -299,12 +281,11 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             outputOrdering,
             LimitByExec.CategorizeGroupingMode.INITIAL,
-            emptyList(),
             logicalOutput
         );
     }
 
-    public TopNByExec withFinalCategorizeMode(List<Attribute> newIntermediateAttributes) {
+    public TopNByExec withFinalCategorizeMode() {
         return new TopNByExec(
             source(),
             child(),
@@ -315,7 +296,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             docValuesAttributes,
             outputOrdering,
             LimitByExec.CategorizeGroupingMode.FINAL,
-            newIntermediateAttributes,
             null
         );
     }
@@ -333,10 +313,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
 
     public LimitByExec.CategorizeGroupingMode categorizeMode() {
         return categorizeMode;
-    }
-
-    public List<Attribute> intermediateAttributes() {
-        return intermediateAttributes;
     }
 
     public OutputOrdering outputOrdering() {
@@ -386,7 +362,6 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 docValuesAttributes,
                 outputOrdering,
                 categorizeMode,
-                intermediateAttributes,
                 initialCategorizeOutput
             );
     }
@@ -401,8 +376,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
             estimatedRowSize,
             docValuesAttributes,
             outputOrdering,
-            categorizeMode,
-            intermediateAttributes
+            categorizeMode
         );
     }
 
@@ -417,8 +391,7 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes)
                 && outputOrdering == other.outputOrdering
-                && categorizeMode == other.categorizeMode
-                && Objects.equals(intermediateAttributes, other.intermediateAttributes);
+                && categorizeMode == other.categorizeMode;
         }
         return equals;
     }

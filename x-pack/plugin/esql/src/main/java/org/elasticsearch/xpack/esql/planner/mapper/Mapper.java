@@ -182,9 +182,7 @@ public class Mapper {
         if (unary instanceof LimitBy limitBy) {
             mappedChild = addExchangeForFragment(limitBy, mappedChild);
             if (LocalMapper.hasCategorize(limitBy.groupings()) && mappedChild instanceof ExchangeExec) {
-                return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null).withFinalMode(
-                    List.of()
-                );
+                return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null).withFinalMode();
             }
             return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
         }
@@ -208,7 +206,7 @@ public class Mapper {
             if (mappedChild instanceof ExchangeExec) {
                 topNByExec = topNByExec.withSortedOutput();
                 if (LocalMapper.hasCategorize(topNBy.groupings())) {
-                    topNByExec = topNByExec.withFinalCategorizeMode(List.of());
+                    topNByExec = topNByExec.withFinalCategorizeMode();
                 }
                 return topNByExec;
             }

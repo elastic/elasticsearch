@@ -2,7 +2,7 @@ ProjectExec[[salary{f}#0]]
 \_LimitExec[1000[INTEGER],null]
   \_ExchangeExec[[salary{f}#0],false]
     \_ProjectExec[[salary{f}#0]]
-      \_FieldExtractExec[salary{f}#0]<[],[],[]>
+      \_FieldExtractExec[[salary{f}#0]<[],[],[]>,_doc{f}#1]
         \_EsQueryExec[employees], indexMode[standard], [_doc{f}#1], limit[1000], sort[] estimatedRowSize[8] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "range" : {
     "salary" : {

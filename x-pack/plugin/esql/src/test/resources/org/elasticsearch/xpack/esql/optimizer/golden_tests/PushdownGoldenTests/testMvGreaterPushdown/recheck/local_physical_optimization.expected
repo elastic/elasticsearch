@@ -4,7 +4,7 @@ ProjectExec[[double{f}#0]]
     \_ProjectExec[[double{f}#0]]
       \_LimitExec[1000[INTEGER],28]
         \_FilterExec[MVGREATER(double{f}#0,1.0[DOUBLE])]
-          \_FieldExtractExec[double{f}#0]<[],[],[]>
+          \_FieldExtractExec[[double{f}#0]<[],[],[]>,_doc{f}#1]
             \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#1], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "bool" : {
     "filter" : [

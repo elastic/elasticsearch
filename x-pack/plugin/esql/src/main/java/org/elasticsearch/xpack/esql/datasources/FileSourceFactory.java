@@ -461,7 +461,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
             // injects it for plain _id composition, where enabling deferred mode would create a
             // SourceExtractors registry no extract operator ever closes.
-            boolean deferredExtraction = format instanceof ColumnExtractorAware && context.deferredExtraction();
+            // Additionally, deferred extraction is disabled when skip_row is active with declared-type
+            // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
+            // that fail coercion; the columnar iterator must do the filtering at emit time instead.
+            boolean skipRowWithCoercions = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                && physicalDeclaredTypeColumns(context.declaredReadSpec()).isEmpty() == false;
+            boolean deferredExtraction = format instanceof ColumnExtractorAware
+                && context.deferredExtraction()
+                && skipRowWithCoercions == false;
 
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,

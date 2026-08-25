@@ -44,6 +44,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 /**
  * Page-level batch column reader that bypasses {@code ColumnReadStoreImpl} and works directly
@@ -102,6 +103,14 @@ final class PageColumnReader implements Releasable {
     /** Per-value declared-coercion failure sink ({@code null} = strict); see the 5-arg constructor. */
     @Nullable
     private final SkipWarnings coercionWarnings;
+    /**
+     * Per-batch row-drop sink for {@code skip_row} mode ({@code null} = not in skip_row mode).
+     * Positions reported are relative to the current batch (0-based within {@link #readBatch}'s
+     * {@code maxRows} window). Set via {@link #setFailedPositionSink} by the iterator after
+     * constructing the reader.
+     */
+    @Nullable
+    private IntConsumer failedPositionSink;
     private final int maxDefLevel;
 
     private Dictionary dictionary;
@@ -179,6 +188,15 @@ final class PageColumnReader implements Releasable {
         this.buffers = new DecodeBuffers();
     }
 
+    /**
+     * Sets the per-batch row-drop sink used in {@code skip_row} mode. Must be called before
+     * the first {@link #readBatch} call when the iterator holds a {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper}.
+     */
+    void setFailedPositionSink(@Nullable IntConsumer sink) {
+        this.failedPositionSink = sink;
+    }
+
     Block readBatch(int maxRows, BlockFactory blockFactory) {
         // A banked pre-jump means the physical cursor is ahead of the caller's logical position; only
         // skipRows may spend that credit. Decoding here would read from the wrong source rows and
@@ -208,7 +226,8 @@ final class PageColumnReader implements Releasable {
                     info.dateFormatter(),
                     blockFactory,
                     String.join(".", descriptor.getPath()),
-                    coercionWarnings
+                    coercionWarnings,
+                    failedPositionSink
                 );
             } finally {
                 physical.close();
@@ -1537,7 +1556,8 @@ final class PageColumnReader implements Releasable {
                     info.dateFormatter(),
                     blockFactory,
                     String.join(".", descriptor.getPath()),
-                    coercionWarnings
+                    coercionWarnings,
+                    failedPositionSink
                 );
             } finally {
                 bytes.close();

@@ -111,10 +111,10 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
      * {@code Warning} header) via {@code error_mode: null_field}. No format defaults to this: every
      * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
      * <p>
-     * Each mode degrades to the other where a reader physically cannot honour it: a columnar batch cannot drop
-     * a single row, so {@link Mode#SKIP_ROW} degrades to this null-field behavior there; a row-oriented reader
-     * cannot null-fill a failure it cannot attribute to one value (a whole-line JSON failure, a structural CSV
-     * row error), so {@link Mode#NULL_FIELD} degrades to a row drop there.
+     * {@link Mode#NULL_FIELD} degrades to a row drop where a row-oriented reader cannot null-fill a failure
+     * it cannot attribute to one value (a whole-line JSON failure, a structural CSV row error); a columnar
+     * batch honors {@link Mode#SKIP_ROW} exactly by accumulating per-column failure positions across the
+     * batch and dropping the whole row at the page emit point via {@code Block.filter}.
      */
     public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
 

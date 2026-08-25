@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -4112,6 +4113,130 @@ public class ParquetFormatReaderTests extends ESTestCase {
             });
         }
         assertTrue("fail_fast must not emit coercion warnings", drainWarnings().isEmpty());
+    }
+
+    public void testSkipRowDropsBadRow() throws Exception {
+        // error_mode: skip_row on a columnar Parquet batch must DROP the entire row when a declared-type
+        // coercion fails — not null-fill the bad cell. Three rows: good/bad/good → 2 survivor rows.
+        // Exercises both the baseline (row-at-a-time) reader and the optimised PageColumnReader path.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group ok1 = factory.newGroup();
+            ok1.add("x", "41");
+            Group bad = factory.newGroup();
+            bad.add("x", "hello");
+            Group ok2 = factory.newGroup();
+            ok2.add("x", "43");
+            return List.of(ok1, bad, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("bad row must be dropped under skip_row", 2, page.getPositionCount());
+                LongBlock longs = (LongBlock) page.getBlock(0);
+                assertEquals(41L, longs.getLong(longs.getFirstValueIndex(0)));
+                assertEquals(43L, longs.getLong(longs.getFirstValueIndex(1)));
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
+    }
+
+    public void testSkipRowMultiColumnSingleBadRowDropsAllColumns() throws Exception {
+        // A coercion failure in one column drops the entire row from ALL column blocks, not just the
+        // failing column. Three rows across two columns: the middle row fails on "x" — both "x" and
+        // "tag" for that row must be absent from the output.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("tag")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group r0 = factory.newGroup();
+            r0.add("x", "1");
+            r0.add("tag", "a");
+            Group r1 = factory.newGroup();
+            r1.add("x", "bad");
+            r1.add("tag", "b");
+            Group r2 = factory.newGroup();
+            r2.add("x", "3");
+            r2.add("tag", "c");
+            return List.of(r0, r1, r2);
+        });
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
+        );
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x", "tag"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("bad row drops all columns", 2, page.getPositionCount());
+                LongBlock xs = (LongBlock) page.getBlock(0);
+                assertEquals(1L, xs.getLong(xs.getFirstValueIndex(0)));
+                assertEquals(3L, xs.getLong(xs.getFirstValueIndex(1)));
+                BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
+                assertEquals("a", tags.getBytesRef(tags.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+                assertEquals("c", tags.getBytesRef(tags.getFirstValueIndex(1), new BytesRef()).utf8ToString());
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
+    }
+
+    public void testSkipRowBudgetExceededThrows() throws Exception {
+        // error_mode: skip_row with max_errors=1 must throw a ParsingException (HTTP 400) after the
+        // second bad row is detected, which exceeds the budget of 1 error.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group ok = factory.newGroup();
+            ok.add("x", "1");
+            Group bad1 = factory.newGroup();
+            bad1.add("x", "bad");
+            Group bad2 = factory.newGroup();
+            bad2.add("x", "also-bad");
+            Group ok2 = factory.newGroup();
+            ok2.add("x", "4");
+            return List.of(ok, bad1, bad2, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        ErrorPolicy budget = new ErrorPolicy(1L, false);
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, budget)
+                )
+            ) {
+                expectThrows(ParsingException.class, () -> {
+                    while (it.hasNext()) {
+                        it.next().releaseBlocks();
+                    }
+                });
+            }
+            drainWarnings();
+        }
     }
 
     public void testInt64DeclaredDoubleCoerces() throws Exception {

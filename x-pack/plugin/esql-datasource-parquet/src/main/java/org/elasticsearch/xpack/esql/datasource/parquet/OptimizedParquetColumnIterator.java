@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -72,6 +73,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
@@ -125,6 +127,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final Consumer<String> warningSink;
     /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
     private final ErrorPolicy errorPolicy;
+    /**
+     * Per-batch row-drop accumulator for {@code skip_row} mode; {@code null} for other modes.
+     * Initialized once in the constructor; {@link ColumnarRowDropHelper#beginBatch} is called
+     * before each decoded batch in {@link #nextStandard}.
+     */
+    @Nullable
+    private final ColumnarRowDropHelper rowDropHelper;
     private final ColumnInfo[] columnInfos;
     private final PreloadedRowGroupMetadata preloadedMetadata;
     private final StorageObject storageObject;
@@ -439,6 +448,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         );
         this.prefetchDepthFloor = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
         this.prefetchDepth = this.prefetchDepthFloor;
+        if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
+            SkipWarnings dropWarnings = new SkipWarnings(
+                "Parquet file [" + fileLocation + "] rows dropped due to skip_row coercion failures",
+                warningSink
+            );
+            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, dropWarnings, fileLocation);
+        } else {
+            this.rowDropHelper = null;
+        }
 
         reader.setRequestedSchema(projectedSchema);
 
@@ -1654,6 +1672,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], null, coercionWarnings());
             }
         }
+        applyDropHelperSinks();
     }
 
     /**
@@ -1675,6 +1694,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], survivorRowRanges, coercionWarnings());
             }
         }
+        applyDropHelperSinks();
+    }
+
+    /**
+     * Propagates the {@link #rowDropHelper} sink to every non-null {@link #pageColumnReaders} entry.
+     * Must be called after any method that rebuilds the {@code pageColumnReaders} array. A null
+     * helper sets a null sink on every reader (no-op for non-skip_row modes).
+     */
+    private void applyDropHelperSinks() {
+        if (pageColumnReaders == null) {
+            return;
+        }
+        IntConsumer sink = rowDropHelper != null ? rowDropHelper::markFailed : null;
+        for (PageColumnReader r : pageColumnReaders) {
+            if (r != null) {
+                r.setFailedPositionSink(sink);
+            }
+        }
     }
 
     private void initColumnReaders(RowRanges currentRowRanges) {
@@ -1692,6 +1729,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 pageColumnReaders[i] = new PageColumnReader(pr, desc, columnInfos[i], currentRowRanges, coercionWarnings());
             }
         }
+        applyDropHelperSinks();
         boolean hasListColumns = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
@@ -1923,6 +1961,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         assert state.hasMoreBatches() && state.currentSurvivorCount() > 0
             : "nextTwoPhaseBatch invoked on empty/missing batch (hasNext should have advanced or returned false)";
         int sourceRows = state.currentSourceRows();
+        // Reset rowDropHelper state so markFailed assertions in readBatch (called by predicate
+        // column readers on this path) see a fresh batchSize and don't spuriously fire. Row-drop
+        // filtering is not applied on this path (known limitation: only nextStandard drops rows).
+        if (rowDropHelper != null) {
+            rowDropHelper.beginBatch(sourceRows);
+        }
         int survivorCount = state.currentSurvivorCount();
         int[] survivorPositions = state.currentSurvivorPositions();
         Block[] predicateBlocks = state.takeCurrentPredicateBlocks();
@@ -2127,6 +2171,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private Page nextStandard(int rowsToRead, int firstRowOfBatchInRG) {
         Block[] blocks = new Block[attributes.size()];
         int producedRows = -1;
+        if (rowDropHelper != null) {
+            rowDropHelper.beginBatch(rowsToRead);
+        }
         try {
             for (int col = 0; col < columnInfos.length; col++) {
                 ColumnInfo info = columnInfos[col];
@@ -2158,10 +2205,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (producedRows < 0) {
                 producedRows = rowsToRead;
             }
+            if (rowDropHelper != null && rowDropHelper.hasFailures()) {
+                // Compact all blocks to exclude failed rows. filterBlocks closes each original
+                // block and replaces it with a filtered copy (or a 0-position constant-null
+                // block when all rows fail). The _rowPosition block, if present, is filtered
+                // together with the data blocks: failed rows disappear from all columns at once.
+                blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
+                producedRows = rowsToRead - rowDropHelper.failedCount();
+            }
             for (int col = 0; col < columnInfos.length; col++) {
                 if (blocks[col] == null) {
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
+            }
+            if (rowDropHelper != null) {
+                rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
+                rowDropHelper.checkBudget();
             }
         } catch (CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
@@ -2179,11 +2238,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + "]"
             );
         }
-        counters.addRowsEmitted(rowsToRead);
+        counters.addRowsEmitted(producedRows);
         return new Page(blocks);
     }
 
     private Page nextWithLateMaterialization(int rowsToRead, int firstRowOfBatchInRG) {
+        // Reset rowDropHelper state so markFailed assertions in readBatch (called by predicate
+        // column readers on this path) see a fresh batchSize and don't spuriously fire. Row-drop
+        // filtering is not applied on this path (known limitation: only nextStandard drops rows).
+        if (rowDropHelper != null) {
+            rowDropHelper.beginBatch(rowsToRead);
+        }
         Block[] blocks = new Block[attributes.size()];
         try {
             // Phase 1: decode predicate columns

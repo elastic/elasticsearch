@@ -12,6 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,13 +21,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 
 public class StGeohashTests extends SpatialGridFunctionTestCase {
@@ -44,18 +48,40 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEOHASH, StGeohashTests::valueOf, StGeohashTests::boundedValueOf);
+        addTestCaseSuppliers(
+            suppliers,
+            new DataType[] { GEO_POINT, GEO_SHAPE },
+            GEOHASH,
+            StGeohashTests::valueOf,
+            StGeohashTests::boundedValueOf
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
-    private static long valueOf(BytesRef wkb, int precision) {
-        return StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
+    private static Object valueOf(BytesRef wkb, int precision) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            return StGeohash.unboundedGrid.calculateGridId(point, precision);
+        }
+        try {
+            return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, null));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
+        }
     }
 
-    private static Long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeohash.GeoHashBoundedGrid bounds = new StGeohash.GeoHashBoundedGrid.Factory(precision, bbox).get(null);
-        long gridId = bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
-        return gridId < 0 ? null : gridId;
+    private static Object boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+        Geometry geometry = GEO.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            StGeohash.GeoHashBoundedGrid bounds = new StGeohash.GeoHashBoundedGrid.Factory(precision, bbox).get(null);
+            long gridId = bounds.calculateGridId(point);
+            return gridId < 0 ? null : gridId;
+        }
+        try {
+            return SpatialGridFunction.foldMultiValue(StGeohash.computeGeohashCells(wkb, precision, bbox));
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to compute geohash for geo_shape", e);
+        }
     }
 
     @Override

@@ -786,28 +786,28 @@ public class UpdateRequest extends UntypedActionRequest
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(index);
-        out.writeOptionalWriteable(shardId);
-        out.writeTimeValue(timeout);
-        out.writeOptionalString(concreteIndex);
         doWrite(out, false);
     }
 
     public void writeThin(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (shardId != null && index.equals(shardId.getIndexName())) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(index);
-        }
-        out.writeTimeValue(timeout);
-        out.writeOptionalString(concreteIndex);
         doWrite(out, true);
     }
 
     private void doWrite(StreamOutput out, boolean thin) throws IOException {
+        super.writeTo(out);
+        if (thin) {
+            if (shardId != null && index.equals(shardId.getIndexName())) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeString(index);
+            }
+        } else {
+            out.writeString(index);
+            out.writeOptionalWriteable(shardId);
+        }
+        out.writeTimeValue(timeout);
+        out.writeOptionalString(concreteIndex);
         waitForActiveShards.writeTo(out);
         out.writeString(id);
         out.writeOptionalString(routing);

@@ -825,12 +825,14 @@ public class BytesStreamsTests extends ESTestCase {
             assertArrayEquals(expected, BytesReference.toBytes(output.bytes()));
         }
 
-        // a buffer this size encodes the short strings in place and falls back to the scratch buffer for the long ones
-        final ByteArrayOutputStream buffered = new ByteArrayOutputStream();
-        try (BufferedStreamOutput output = new BufferedStreamOutput(buffered, new BytesRef(new byte[4096]))) {
-            output.writeText(text);
+        // the encoding fits a buffer of exactly its own size, so these sit either side of the in-place/scratch-buffer decision
+        for (int bufferSize : new int[] { expected.length, expected.length - 1 }) {
+            final ByteArrayOutputStream buffered = new ByteArrayOutputStream();
+            try (BufferedStreamOutput output = new BufferedStreamOutput(buffered, new BytesRef(new byte[bufferSize]))) {
+                output.writeText(text);
+            }
+            assertArrayEquals("buffer size " + bufferSize, expected, buffered.toByteArray());
         }
-        assertArrayEquals(expected, buffered.toByteArray());
 
         // the counting stream feeds serialized-size estimates, so its count must agree with the bytes the other implementations write
         final CountingStreamOutput counting = new CountingStreamOutput();

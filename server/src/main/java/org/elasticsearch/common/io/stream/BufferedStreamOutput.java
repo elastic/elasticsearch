@@ -432,22 +432,25 @@ public class BufferedStreamOutput extends StreamOutput {
         }
     }
 
-    // overridden the same way as writeString, to bypass StreamOutput's intermediary buffer
     @Override
     public void writeText(Text text) throws IOException {
-        if (text.hasBytes() == false) {
-            final String str = text.string();
-            final int charCount = str.length();
-            final int position = this.position;
-            if (Integer.BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
-                // encoding after the prefix lets us backfill the length, so we skip the pass StreamOutput needs to compute it up front
-                final int end = UnicodeUtil.UTF16toUTF8(str, 0, charCount, buffer, position + Integer.BYTES);
-                ByteUtils.writeIntBE(end - position - Integer.BYTES, buffer, position);
-                this.position = end;
-                return;
-            }
+        if (text.hasBytes()) {
+            super.writeText(text);
+            return;
         }
-        super.writeText(text);
+        final String str = text.string();
+        final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(str, 0, str.length());
+        final int position = this.position;
+        if (Integer.BYTES + byteLength <= endPosition - position) {
+            ByteUtils.writeIntBE(byteLength, buffer, position);
+            final int end = UnicodeUtil.UTF16toUTF8(str, 0, str.length(), buffer, position + Integer.BYTES);
+            assert end == position + Integer.BYTES + byteLength : end + " vs " + position + " plus " + byteLength;
+            this.position = end;
+        } else {
+            writeInt(byteLength);
+            final int written = StreamOutputHelper.writeUtf8Chars(str, this);
+            assert written == byteLength : written + " bytes written but expected " + byteLength;
+        }
     }
 
     private static int putCharUtf8(byte[] buffer, int c, int position) {

@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone ORC files.
@@ -47,6 +49,25 @@ public class OrcFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    private static final Set<String> SKIPPED_TESTS = Set.of(
+        // The mixed-temporal pair declares one file `date` and the other `date_nanos`, and ORC cannot
+        // round-trip the nanos half: OrcFormatReader maps TIMESTAMP and TIMESTAMP_INSTANT to DATETIME
+        // and has no DATE_NANOS mapping. OrcFixtureGenerator therefore refuses the type rather than
+        // writing it as a string, and the fixture matrix declares that cell absent -- so these cases
+        // have no data to read here. Reader work, not fixture work; re-enable when ORC gains
+        // DATE_NANOS.
+        "temporalWidensToMinMax",
+        "temporalWidensToFilteredMinMax"
+    );
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        if (SKIPPED_TESTS.contains(testName)) {
+            assumeTrue(testName + " needs DATE_NANOS support in the ORC reader", false);
+        }
+        super.shouldSkipTest(testName);
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")

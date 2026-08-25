@@ -21,7 +21,7 @@
 // column value must still land under its own name (no swap), including the reversed file.
 
 parquetPermThreeColumnReorder
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -39,7 +39,7 @@ p:integer | q:keyword | r:double
 // Order invariance: projecting in the reverse of the unified column order must not disturb the
 // first-listed file's rows (guards the "unified order happens to be identity" masking).
 parquetPermReversedProjection
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -57,7 +57,7 @@ r:double | q:keyword | p:integer
 // Reversed-file row isolation: filter selects only the reversed file's rows, confirming its
 // values are correct per column after reconciliation.
 parquetPermNonAnchorRows
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: reorder_multifile: "{{x_multifile_perm}}" WITH {"schema_resolution": "union_by_name"}
 

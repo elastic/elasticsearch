@@ -1,0 +1,96 @@
+// CSV twin of external-multifile-ubn.csv-spec and external-multifile-ubn-widening.csv-spec.
+//
+// CsvFormatSpecIT does not load the shared external-*.csv-spec files, so the cases are repeated
+// here with multi_value_syntax: brackets declared, as this module's other twins do. CSV declares
+// column types in its file header, so it runs the widening cases too.
+//
+// The layout holds two files that disagree about which columns exist: one has [name, age], the
+// other [age, name, city], so under union_by_name the rows from the first must come back with a
+// null city. `age` is declared integer in one and long in the other, so it widens to long.
+
+ubnUnionNullFillsAbsentColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union_brackets: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM ubn_union_brackets
+| KEEP name, city
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | city:keyword
+alice        | null
+bob          | null
+charlie      | paris
+dave         | london
+;
+
+// Every row from both files survives the union: nothing is dropped when a file lacks a column.
+ubnUnionKeepsAllRows
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union_brackets: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM ubn_union_brackets
+| STATS count = COUNT(*)
+;
+
+count:long
+4
+;
+
+// The null-fill is a real null, not an empty string or a dropped row: only the file that lacks
+// the column contributes nulls, and exactly its two rows do.
+ubnUnionNullFillIsCountable
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union_brackets: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM ubn_union_brackets
+| WHERE city IS NULL
+| KEEP name
+| SORT name ASC
+;
+
+name:keyword
+alice
+bob
+;
+
+ubnWidenedColumnProjection
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union_brackets: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM ubn_union_brackets
+| KEEP name, age
+| SORT name ASC
+| LIMIT 10
+;
+
+name:keyword | age:long
+alice        | 30
+bob          | 40
+charlie      | 50
+dave         | 60
+;
+
+// The widened column aggregates as a long across both files.
+ubnWidenedColumnAggregates
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+required_capability: datasource_file_readers_no_text_type
+dataset: ubn_union_brackets: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM ubn_union_brackets
+| STATS lo = MIN(age), hi = MAX(age)
+;
+
+lo:long | hi:long
+30      | 60
+;

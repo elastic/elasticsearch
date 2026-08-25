@@ -1,0 +1,32 @@
+// CSV twin of external-multifile-temporal.csv-spec -- same cases, same expected instants.
+//
+// CsvFormatSpecIT does not load the shared external-*.csv-spec files, so the cases are repeated here
+// with multi_value_syntax: brackets declared, as this module's other twins do.
+
+temporalWidensToMinMax
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: temporal_union_brackets: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM temporal_union_brackets
+| STATS lo = MIN(ts), hi = MAX(ts);
+
+lo:date_nanos | hi:date_nanos
+1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
+;
+
+// Filtered variant: the WHERE routes the aggregate through the split-filter classifier + filtered stat merge
+// (resolveFilteredStats -> MergedSplitStats) -- the exact path where the double-rescale surfaced. id>0 matches
+// every row, so the extrema equal the full min/max.
+temporalWidensToFilteredMinMax
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: temporal_union_brackets: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
+
+FROM temporal_union_brackets
+| WHERE id > 0
+| STATS lo = MIN(ts), hi = MAX(ts);
+
+lo:date_nanos | hi:date_nanos
+1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
+;

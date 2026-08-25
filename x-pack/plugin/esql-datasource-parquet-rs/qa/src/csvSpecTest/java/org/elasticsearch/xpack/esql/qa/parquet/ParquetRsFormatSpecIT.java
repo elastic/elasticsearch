@@ -103,6 +103,33 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "ffwAggregateByGender",
         "strictAggregateByGender",
         "ubnAggregateByGender",
+        // parquet-rs does not reconcile schemas across a multi-file glob, in two ways that share a
+        // cause. It resolves a projection against ONE file's schema, so a column present only in the
+        // other file is rejected outright ("unknown parquet column [city] ... Known columns name, age,
+        // score") instead of null-filling. And it does not apply the reconciliation cast, so a column
+        // the unified schema widened comes back as its per-file type -- integer where long was
+        // expected, integer where keyword was expected -- surfacing as an IntArrowBufBlock that cannot
+        // be cast to BytesRefBlock, and as a string comparison matching nothing.
+        //
+        // Not every aggregate escapes: ubnUnionKeepsAllRows (COUNT) and ubnWidenedColumnAggregates
+        // (MIN/MAX) both pass, but typeDriftExtremaAreLexicographic does not, because its extrema come
+        // back as the wrong block type.
+        //
+        // The Java Parquet and ORC readers pass all of these, and NDJSON passes every one it runs.
+        // CSV runs its own twin specs rather than these files, so it is not evidence either way for
+        // the typeDrift cases. Re-enable once parquet-rs reconciles across files.
+        "ubnUnionNullFillsAbsentColumn",
+        "ubnUnionNullFillIsCountable",
+        "ubnWidenedColumnProjection",
+        "typeDriftWidensToKeyword",
+        "typeDriftExtremaAreLexicographic",
+        // Widening `date` to `date_nanos` does not RESCALE: the millis value 2 comes back as
+        // 1970-01-01T00:00:00.000000002Z (2 nanoseconds) instead of ...00.002Z (2 milliseconds). The
+        // half of the pair already declared date_nanos reads correctly, so it is the millis-to-nanos
+        // conversion that is missing, not the type. Same reconciliation path as the cases above.
+        "temporalWidensToMinMax",
+        "temporalWidensToFilteredMinMax",
+        "typeDriftFilterIsStringComparison",
         // parquet-rs binds columns across files by physical POSITION rather than by name, so a glob
         // whose files carry the same columns in different order reads the wrong column: the reversed
         // file's leading r:double is taken as the unified schema's leading p:integer and the query

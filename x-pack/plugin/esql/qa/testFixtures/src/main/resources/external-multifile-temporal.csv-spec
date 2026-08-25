@@ -1,0 +1,55 @@
+// Mixed-temporal union: the same column declared `date` in one file and `date_nanos` in the other.
+//
+//   ..._temporal_a — [id:integer, ts:date]        rows: 1,2 / 2,5      (epoch millis)
+//   ..._temporal_b — [id:integer, ts:date_nanos]  rows: 3,9000000 / 4,8000000  (epoch nanos)
+//
+// union_by_name widens `ts` to date_nanos, which is LOSSLESS -- unlike the keyword widening in
+// external-multifile-type-drift.csv-spec, no warning is emitted. The millis values scale up, so the
+// extrema span both files: 2ms = 2,000,000ns is the minimum, 9,000,000ns the maximum.
+//
+// Two formats are excluded, both structurally rather than for a defect.
+//
+// ORC: OrcFormatReader maps TIMESTAMP and TIMESTAMP_INSTANT to DATETIME and has no DATE_NANOS
+// mapping, so it cannot round-trip the date_nanos half. The generator refuses the type rather than
+// writing it as a string, and the matrix declares that cell absent.
+//
+// NDJSON: its schema is INFERRED, and the inferrer's vocabulary has no DATE_NANOS -- both files' ISO
+// timestamps come back DATETIME, so there is no declared date to widen into a declared date_nanos
+// and the case would assert a type the format never produced. NDJSON fixtures for this layout ARE
+// generated: a declared-schema read can name date_nanos explicitly, which is where they are useful.
+// It is this inference-based case that cannot port, not the data.
+//
+// CSV runs its own twin, since it does not load the shared external specs.
+
+// Mixed-temporal warm MIN/MAX: ts is DATETIME (epoch-millis) in file A {2,5} and DATE_NANOS (epoch-nanos) in
+// file B {9e6,8e6}, widened by union_by_name to DATE_NANOS. File A's stats are rescaled millis->nanos ONCE at
+// the source/split boundary (2->2e6, 5->5e6), so MIN=2e6ns, MAX=9e6ns. A DOUBLE-rescale (the removed merge-side
+// rescale re-applying ×1e6 to already-normalized nanos stats) would serve MIN=8e6ns (8000000) — this test
+// pins the single-rescale correctness.
+temporalWidensToMinMax
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM temporal_union
+| STATS lo = MIN(ts), hi = MAX(ts);
+
+lo:date_nanos | hi:date_nanos
+1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
+;
+
+// Filtered variant: the WHERE routes the aggregate through the split-filter classifier + filtered stat merge
+// (resolveFilteredStats -> MergedSplitStats) -- the exact path where the double-rescale surfaced. id>0 matches
+// every row, so the extrema equal the full min/max.
+temporalWidensToFilteredMinMax
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM temporal_union
+| WHERE id > 0
+| STATS lo = MIN(ts), hi = MAX(ts);
+
+lo:date_nanos | hi:date_nanos
+1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
+;

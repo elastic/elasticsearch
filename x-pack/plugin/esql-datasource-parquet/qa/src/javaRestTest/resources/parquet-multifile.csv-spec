@@ -23,7 +23,7 @@
 // widens both to long. Projecting age must read all rows with correct values (file A's int32 is
 // cast up to long), not fail with "Failed to map page".
 parquetUbnProjectWidenedColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -39,7 +39,7 @@ dave         | 60
 ;
 
 parquetUbnAggregateWidenedColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -55,7 +55,7 @@ total:long
 // each file's per-column stats to the unified type BEFORE folding -- MIN/MAX served from stats must
 // equal a full scan, never a unit/representation-blind mix across files.
 parquetUbnMinMaxWidenedColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -69,7 +69,7 @@ lo:long | hi:long
 // Filtered warm MIN/MAX over the widened age: exercises the split-filter classifier + filtered stat
 // merge on footer splits, which read per-file (file-local-typed) stats reconciled to the unified type.
 parquetUbnFilteredMinMaxWidenedColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -81,45 +81,13 @@ lo:long | hi:long
 50      | 60
 ;
 
-// Mixed-temporal warm MIN/MAX: ts is DATETIME (epoch-millis) in file A {2,5} and DATE_NANOS (epoch-nanos) in
-// file B {9e6,8e6}, widened by union_by_name to DATE_NANOS. File A's stats are rescaled millis->nanos ONCE at
-// the source/split boundary (2->2e6, 5->5e6), so MIN=2e6ns, MAX=9e6ns. A DOUBLE-rescale (the removed merge-side
-// rescale re-applying ×1e6 to already-normalized nanos stats) would serve MIN=8e6ns (8000000) — this test
-// pins the single-rescale correctness.
-parquetUbnMixedTemporalMinMax
-required_capability: external_command
-required_capability: external_source_read_schema
-dataset: employees_multifile_temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
-
-FROM employees_multifile_temporal_union
-| STATS lo = MIN(ts), hi = MAX(ts);
-
-lo:date_nanos | hi:date_nanos
-1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
-;
-
-// Filtered variant: the WHERE routes the aggregate through the split-filter classifier + filtered stat merge
-// (resolveFilteredStats -> MergedSplitStats) -- the exact path where the double-rescale surfaced. id>0 matches
-// every row, so the extrema equal the full min/max.
-parquetUbnMixedTemporalFilteredMinMax
-required_capability: external_command
-required_capability: external_source_read_schema
-dataset: employees_multifile_temporal_union: "{{employees_multifile_temporal}}" WITH {"schema_resolution": "union_by_name"}
-
-FROM employees_multifile_temporal_union
-| WHERE id > 0
-| STATS lo = MIN(ts), hi = MAX(ts);
-
-lo:date_nanos | hi:date_nanos
-1970-01-01T00:00:00.002000000Z | 1970-01-01T00:00:00.009000000Z
-;
 
 // Representation safe-miss (B4): code is INTEGER in file A {2,9} and KEYWORD in file B {10,11}, widened by
 // union_by_name to KEYWORD. A numeric-blind warm serve would give MIN "2" / MAX "11"; normalizeStatsToReconciled
 // poisons the numeric extremum (numeric -> KEYWORD is not lexicographically servable), so the aggregate
 // safe-misses to a scan, which returns the correct lexicographic extrema (MIN "10" since '1'<'2', MAX "9").
 parquetUbnMixedRepresentationMinMax
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_type_drift_union: "{{employees_multifile_type_drift}}" WITH {"schema_resolution": "union_by_name"}
 
@@ -133,7 +101,7 @@ lo:keyword | hi:keyword
 ;
 
 parquetUbnFilterWidenedColumn
-required_capability: external_command
+required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
 dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
 

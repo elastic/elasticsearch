@@ -110,7 +110,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
      *     </li>
      * </ol>
      */
-    public void testShouldBeGreenWhenEachProjectHasARandomGreenCase() {
+    public void testAllProjectsAreGreen() {
         int projectCount = randomIntBetween(1, 6);
         Map<ProjectId, List<IndexSetup>> projects = new HashMap<>();
         Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();

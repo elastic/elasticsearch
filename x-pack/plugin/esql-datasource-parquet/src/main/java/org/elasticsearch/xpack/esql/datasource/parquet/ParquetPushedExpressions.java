@@ -1612,6 +1612,19 @@ final class ParquetPushedExpressions {
     ) {
         WordMask mask = new WordMask();
         mask.reset(rowCount);
+        if (block.areAllValuesNull()) {
+            // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
+            // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
+            // conservative one. Checked before the instanceof dispatch below because
+            // ConstantNullBlock implements every typed Block interface at once, so an all-null
+            // batch would otherwise bind the first arm (IntBlock) regardless of the column's real
+            // type and cast a non-numeric literal to Number (elastic/elasticsearch#157313).
+            // Mirrors DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull()
+            // ahead of its own typed dispatch, and GroupingAggregatorFunction.AddInput#add, which
+            // makes ConstantNullBlock the first arm. An empty mask also lets evaluateFilter exit
+            // early and lets the reader skip decoding every projection column for this batch.
+            return mask;
+        }
         if (block instanceof IntBlock ib) {
             int val = ((Number) literal).intValue();
             if (block.mayHaveMultivaluedFields()) {
@@ -1777,6 +1790,19 @@ final class ParquetPushedExpressions {
         }
         WordMask mask = new WordMask();
         mask.reset(rowCount);
+        if (block.areAllValuesNull()) {
+            // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
+            // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
+            // conservative one. Checked before the instanceof dispatch below because
+            // ConstantNullBlock implements every typed Block interface at once, so an all-null
+            // batch would otherwise bind the first arm (IntBlock) regardless of the column's real
+            // type and cast a non-numeric literal to Number (elastic/elasticsearch#157313).
+            // Mirrors DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull()
+            // ahead of its own typed dispatch, and GroupingAggregatorFunction.AddInput#add, which
+            // makes ConstantNullBlock the first arm. An empty mask also lets evaluateFilter exit
+            // early and lets the reader skip decoding every projection column for this batch.
+            return mask;
+        }
         if (block instanceof IntBlock ib) {
             Set<Integer> intSet = new HashSet<>();
             for (Object v : values) {
@@ -1891,6 +1917,19 @@ final class ParquetPushedExpressions {
         boolean incHi = range.includeUpper();
         WordMask mask = new WordMask();
         mask.reset(rowCount);
+        if (block.areAllValuesNull()) {
+            // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
+            // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
+            // conservative one. Checked before the instanceof dispatch below because
+            // ConstantNullBlock implements every typed Block interface at once, so an all-null
+            // batch would otherwise bind the first arm (IntBlock) regardless of the column's real
+            // type and cast a non-numeric literal to Number (elastic/elasticsearch#157313).
+            // Mirrors DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull()
+            // ahead of its own typed dispatch, and GroupingAggregatorFunction.AddInput#add, which
+            // makes ConstantNullBlock the first arm. An empty mask also lets evaluateFilter exit
+            // early and lets the reader skip decoding every projection column for this batch.
+            return mask;
+        }
         if (block instanceof IntBlock ib) {
             boolean hasLo = lower != null;
             boolean hasHi = upper != null;
@@ -2129,9 +2168,14 @@ final class ParquetPushedExpressions {
      * {@code Not} when its child is a bare {@link WildcardLike}.
      *
      * <p>Returns {@code null} when the block is neither an {@link OrdinalBytesRefBlock} on the
-     * dense path nor a {@link BytesRefBlock} (e.g. a constant-null block) — the conservative
-     * "all rows survive" sentinel that {@link #evaluateFilter} treats as a no-op for this
-     * predicate. Returns {@code null} also when the pattern is unusable (failed to determinize).
+     * dense path nor a {@link BytesRefBlock} — the conservative "all rows survive" sentinel that
+     * {@link #evaluateFilter} treats as a no-op for this predicate. Returns {@code null} also when
+     * the pattern is unusable (failed to determinize). Note an all-null batch does <em>not</em>
+     * reach that sentinel: {@code ConstantNullBlock} implements {@link BytesRefBlock} (as it does
+     * every typed block interface), so it takes the {@link BytesRefBlock} arm and
+     * {@code applyMatcherToBytesRefBlock}'s per-row null guard yields the empty mask — the
+     * TVL-correct answer, and the reason this evaluator family survives the input that broke the
+     * value-comparison evaluators in elastic/elasticsearch#157313.
      * Both cases are safe under RECHECK because {@code FilterExec} re-checks; under YES they are
      * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
@@ -2195,7 +2239,8 @@ final class ParquetPushedExpressions {
      * match — TVL-correct.
      *
      * <p>Returns {@code null} when {@link #evaluateWildcardLike} returns {@code null}
-     * (block type unsupported or pattern failed to determinize). The caller propagates that
+     * (foreign block type, or the pattern failed to determinize — an all-null batch is not such a
+     * case; see that method's note on {@code ConstantNullBlock}). The caller propagates that
      * up; {@link #evaluateFilter} treats it as "all rows survive" — the same conservative
      * sentinel used everywhere in this evaluator. <b>That null-return is only safe when the
      * predicate is RECHECK'd downstream</b>, but the YES path in

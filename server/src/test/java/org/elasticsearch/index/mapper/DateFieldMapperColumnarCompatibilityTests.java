@@ -374,4 +374,22 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             )
         );
     }
+
+    public void testStoredNotIndexed() throws IOException {
+        // index=false → columnFieldType is SORTED_NUMERIC_DV_FIELD_TYPE (plain doc values, no BKD).
+        // Exercises the else-branch of the columnFieldType selection together with the stored column.
+        final String idA = TsidExtractingIdFieldMapper.createId(ST_ROUTING_HASH, ST_TSID, ST_TS_A);
+        assertColumnarMatchesXContent(mapping(b -> {
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject(FIELD).field("type", "date").field("store", true).field("index", false).endObject();
+        }),
+            tsdbSettings(),
+            batch(
+                "stored not indexed",
+                1L,
+                doc(idA, ST_ROUTING, ST_TSID, 1L, "{\"@timestamp\":" + ST_TS_A + ",\"f\":\"2024-01-15T12:00:00.000Z\"}")
+            )
+        );
+    }
 }

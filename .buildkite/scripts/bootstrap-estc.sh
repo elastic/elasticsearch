@@ -26,18 +26,18 @@
 #                                 Defaults to "broker-impl" until merged;
 #                                 override on the build trigger to test a ref.
 #   GH_TOKEN                    - required, used to fetch estc source
-#   BUILDKITE_RO_API_TOKEN      - required, moves into the broker as `buildkite`
-#   DEVELOCITY_API_KEY          - required, moves into the broker as
-#                                 `gradle-enterprise`
+#   BUILDKITE_RO_API_TOKEN      - required, exported as ESTC_TOKEN_BUILDKITE
+#   DEVELOCITY_API_KEY          - required, exported as ESTC_TOKEN_GRADLE_ENTERPRISE
 #
 # Contract (env out):
-#   ESTC_BROKER_SOCKET          - UDS path the sandboxed agent uses
+#   ESTC_TOKEN_BUILDKITE        - for archimedes' spawnEstcBroker() (scrubbed
+#   ESTC_TOKEN_GRADLE_ENTERPRISE  post-sandbox by archimedes' applySandbox())
 #   ESTC_NONINTERACTIVE=1       - forbid daemon/browser/prompts inside estc
 #   ESTC_OUTPUT_MODE=agent      - deterministic pipe-delimited output
 #   CI=true                     - belt + braces for estc's own non-interactive
 #                                 detection
 #   PATH                        - $HOME/.local/bin prepended (estc, go)
-#   BUILDKITE_RO_API_TOKEN, DEVELOCITY_API_KEY  - unset (moved into broker)
+#   BUILDKITE_RO_API_TOKEN, BUILDKITE_API_TOKEN, DEVELOCITY_API_KEY  - unset
 
 set -euo pipefail
 
@@ -112,88 +112,32 @@ ln -sf "${ESTC_BIN}" "${HOME}/.local/bin/estc"
 export PATH="${HOME}/.local/bin:${PATH}"
 estc version show || true
 
-# ── 6. Broker: assemble token JSON, spawn broker, wait for READY ────────────
+# ── 6. Export ESTC_TOKEN_* vars for archimedes' spawnEstcBroker() ───────────
+# archimedes (src/estc-broker.js) spawns the broker as its OWN child process
+# before applying the Landlock sandbox, then keeps the broker alive via stdin
+# pipe for the duration of the session. Starting the broker here (in the
+# pre-command hook) would tie its lifetime to the hook's (sub)shell — when the
+# hook exits, the FIFO write-end closes, the broker sees EOF, and dies before
+# archimedes even runs.
+#
+# Instead, we export ESTC_TOKEN_* vars. archimedes' spawnEstcBroker() picks
+# them up, starts the broker, and scrubSecrets() (called inside applySandbox())
+# removes them from the environment before the sandboxed agent session begins.
 : "${BUILDKITE_RO_API_TOKEN:?bootstrap-estc: BUILDKITE_RO_API_TOKEN must be set before sourcing this script}"
 : "${DEVELOCITY_API_KEY:?bootstrap-estc: DEVELOCITY_API_KEY must be set before sourcing this script}"
 
-# Use /tmp for broker files — the checkout path under /dev/shm can exceed
-# Linux's 108-char UNIX_PATH_MAX for socket paths, causing bind: invalid argument.
-# /tmp is already in the archimedes sandbox allowlist (ReadWrite).
-ESTC_BROKER_DIR="/tmp/estc-broker-${BUILDKITE_BUILD_ID:-$$}"
-mkdir -p "${ESTC_BROKER_DIR}"
-chmod 700 "${ESTC_BROKER_DIR}"
-ESTC_BROKER_SOCKET="${ESTC_BROKER_DIR}/broker.sock"
-ESTC_BROKER_STDERR="${ESTC_BROKER_DIR}/broker.stderr.log"
-ESTC_BROKER_TOKEN_FIFO="${ESTC_BROKER_DIR}/broker.stdin"
+export ESTC_TOKEN_BUILDKITE="${BUILDKITE_RO_API_TOKEN}"
+export ESTC_TOKEN_GRADLE_ENTERPRISE="${DEVELOCITY_API_KEY}"
+# Unset raw vars now — ESTC_TOKEN_* carry the same values and will be scrubbed
+# by archimedes' applySandbox(). DEVELOCITY_ACCESS_KEY (the Gradle build-cache
+# format string) is unrelated and must be left alone.
+unset BUILDKITE_RO_API_TOKEN BUILDKITE_API_TOKEN DEVELOCITY_API_KEY
 
-rm -f "${ESTC_BROKER_SOCKET}" "${ESTC_BROKER_TOKEN_FIFO}"
-mkfifo -m 600 "${ESTC_BROKER_TOKEN_FIFO}"
-
-# Broker credKey names come from estc/README §"Credential broker" — the
-# scheme table (Bearer vs ApiKey) is enforced by the service registry.
-# Feed via jq -Rs to escape token characters safely; never let a token
-# reach a shell word.
-BROKER_TOKENS_JSON=$(jq -n \
-  --arg bk_token "${BUILDKITE_RO_API_TOKEN}" \
-  --arg ge_token "${DEVELOCITY_API_KEY}" \
-  '{tokens: {"buildkite": $bk_token, "gradle-enterprise": $ge_token}}')
-
-# Spawn broker with stdin from the fifo. Hold the fifo's write end open on FD
-# 9 in *this* shell (the job shell that also runs the step command); when the
-# job finishes and this shell exits, FD 9 closes, broker sees stdin EOF, and
-# exits cleanly. No post-command cleanup required.
-estc broker serve --socket "${ESTC_BROKER_SOCKET}" \
-    < "${ESTC_BROKER_TOKEN_FIFO}" \
-    > "${ESTC_BROKER_DIR}/broker.stdout.log" \
-    2> "${ESTC_BROKER_STDERR}" &
-ESTC_BROKER_PID=$!
-exec 9>"${ESTC_BROKER_TOKEN_FIFO}"
-printf '%s' "${BROKER_TOKENS_JSON}" >&9
-# Keep FD 9 open — do NOT close it. Broker drains stdin and exits on EOF.
-
-# Wait for READY (broker prints it after socket bind + chmod 0600).
-_estc_broker_ready=""
-for _ in $(seq 1 50); do  # 50 * 200ms = 10s
-  if grep -q '^READY$' "${ESTC_BROKER_DIR}/broker.stdout.log" 2>/dev/null; then
-    _estc_broker_ready=1
-    break
-  fi
-  if ! kill -0 "${ESTC_BROKER_PID}" 2>/dev/null; then
-    echo "bootstrap-estc: broker exited before READY. stderr follows:" >&2
-    cat "${ESTC_BROKER_STDERR}" >&2 || true
-    exit 1
-  fi
-  sleep 0.2
-done
-if [[ -z "${_estc_broker_ready}" ]]; then
-  echo "bootstrap-estc: timed out waiting for broker READY. stderr follows:" >&2
-  cat "${ESTC_BROKER_STDERR}" >&2 || true
-  kill "${ESTC_BROKER_PID}" 2>/dev/null || true
-  exit 1
-fi
-unset _estc_broker_ready BROKER_TOKENS_JSON
-
-# ── 7. Scrub the raw service tokens: the broker heap owns them now. ─────────
-#      Left in place: OPENROUTER_API_KEY (pi provider auth, pinned+scrubbed by
-#      archimedes itself), CURSOR_ACCESS_TOKEN (pi-cursor reads env at request
-#      time), ES_DELIVERY_STATS_* (obs emit Phase 6, stashed by archimedes
-#      around the worker session), GH_TOKEN (gh CLI at runtime).
-unset BUILDKITE_RO_API_TOKEN
-# BUILDKITE_API_TOKEN is aliased to the RO token earlier in pre-command for the
-# agent's own bk_* tools; unset it too so the agent has no path to raw creds.
-unset BUILDKITE_API_TOKEN
-unset DEVELOCITY_API_KEY
-# DEVELOCITY_ACCESS_KEY is a Gradle-Enterprise-format string derived from
-# DEVELOCITY_API_ACCESS_KEY earlier in the hook. That earlier value feeds the
-# Gradle build cache credential for `./gradlew` runs, not the agent tools, and
-# is unrelated to the RO develocity token we just brokered — leave it alone.
-
-export ESTC_BROKER_SOCKET
 export ESTC_NONINTERACTIVE=1
 export ESTC_OUTPUT_MODE=agent
 export CI=true
 
-echo "estc broker ready (pid=${ESTC_BROKER_PID}, socket=${ESTC_BROKER_SOCKET})"
+echo "estc tokens exported (broker will be spawned by archimedes pre-sandbox)"
 
 # ── 8. Sync estc skills into the checkout so the agent can use them. ────────
 # --dir bypasses the settings-based project scan and syncs directly to the

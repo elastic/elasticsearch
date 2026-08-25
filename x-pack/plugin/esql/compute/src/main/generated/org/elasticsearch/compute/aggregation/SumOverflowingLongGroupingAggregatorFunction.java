@@ -5,10 +5,16 @@
 package org.elasticsearch.compute.aggregation;
 
 import java.lang.Integer;
+import java.lang.Long;
+import java.lang.Math;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.Arrays;
 import java.util.List;
+import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -408,7 +414,107 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
   }
 
   @Override
+  public boolean supportsPartitionedSplit() {
+    return true;
+  }
+
+  @Override
+  public void clear() {
+    state.clear();
+  }
+
+  @Override
+  public PartitionedHashTable.AggSplitter newSplitter() {
+    return new SumOverflowingLongAggSplitter();
+  }
+
+  @Override
+  public void combinePartition(PartitionedHashTable.PartitionedAgg source, int partition,
+      int[] dstIds, int offset, int length) {
+    final long[] sourceSums = ((SumOverflowingLongPartitionedAgg) source).subs[partition];
+    int end = offset + length;
+    for (int i = offset; i < end; i++) {
+      state.set(dstIds[i], SumOverflowingLongAggregator.combine(state.getOrDefault(dstIds[i]), sourceSums[i]));
+    }
+  }
+
+  @Override
   public void close() {
     state.close();
+  }
+
+  private final class SumOverflowingLongAggSplitter implements PartitionedHashTable.AggSplitter {
+    private long[][] subs;
+
+    private int[] lengths;
+
+    SumOverflowingLongAggSplitter() {
+    }
+
+    @Override
+    public void preAllocate(int[] partitionCounts) {
+      subs = new long[partitionCounts.length][];
+      lengths = new int[partitionCounts.length];
+      for (int p = 0; p < partitionCounts.length; p++) {
+        subs[p] = new long[partitionCounts[p]];
+      }
+    }
+
+    @Override
+    public void split(PartitionedHashTable.ScratchBuffer scratch, int idOffset, int totalPositions,
+        short[] positions, int[] fills) {
+      LongArray values = state.rawValues();
+      long[] buffer = scratch.longs;
+      if (buffer.length < totalPositions) {
+        buffer = scratch.longs = new long[ArrayUtil.oversize(totalPositions, Long.BYTES)];
+      }
+      final int readLen = (int) Math.min(totalPositions, Math.max(0L, values.size() - idOffset));
+      if (readLen > 0) {
+        values.bulkGet(idOffset, buffer, 0, readLen);
+      }
+      if (readLen < totalPositions) {
+        Arrays.fill(buffer, readLen, totalPositions, 0L);
+      }
+      for (int p = 0; p < subs.length; p++) {
+        final int c = fills[p];
+        if (c == 0) {
+          continue;
+        }
+        final int base = p * scratch.splitWriteBatchSize;
+        long[] sub = subs[p];
+        int dst = lengths[p];
+        for (int i = 0; i < c; i++) {
+          sub[dst++] = buffer[positions[base + i] & 0xFFFF];
+        }
+        lengths[p] += c;
+      }
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedAgg finish() {
+      return new SumOverflowingLongPartitionedAgg(subs);
+    }
+
+    @Override
+    public void close() {
+    }
+  }
+
+  static final class SumOverflowingLongPartitionedAgg implements PartitionedHashTable.PartitionedAgg {
+    final long[][] subs;
+
+    SumOverflowingLongPartitionedAgg(long[][] subs) {
+      this.subs = subs;
+    }
+
+    @Override
+    public void releasePartition(int partition) {
+      subs[partition] = null;
+    }
+
+    @Override
+    public void close() {
+      Arrays.fill(subs, null);
+    }
   }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
@@ -82,6 +83,16 @@ import static org.elasticsearch.compute.gen.Types.vectorType;
  */
 public class GroupingAggregatorImplementer {
     private static final List<ClassName> GROUP_IDS_CLASSES = List.of(INT_ARRAY_BLOCK, INT_BIG_ARRAY_BLOCK, INT_VECTOR);
+
+    private static final ClassName PARTITIONED_HASH_TABLE = ClassName.get("org.elasticsearch.common.util", "PartitionedHashTable");
+    private static final ClassName PARTITIONED_HASH_TABLE_AGG_SPLITTER = PARTITIONED_HASH_TABLE.nestedClass("AggSplitter");
+    private static final ClassName PARTITIONED_HASH_TABLE_PARTITIONED_AGG = PARTITIONED_HASH_TABLE.nestedClass("PartitionedAgg");
+    private static final ClassName PARTITIONED_HASH_TABLE_SCRATCH_BUFFER = PARTITIONED_HASH_TABLE.nestedClass("ScratchBuffer");
+    private static final ClassName LONG_ARRAY_CLASS = ClassName.get("org.elasticsearch.common.util", "LongArray");
+    private static final ClassName ARRAY_UTIL = ClassName.get("org.apache.lucene.util", "ArrayUtil");
+    private static final ClassName ARRAYS_CLASS = ClassName.get("java.util", "Arrays");
+    /** Only non-fallible LongArrayState exposes rawValues()/clear() needed for partitioned split. */
+    private static final ClassName LONG_ARRAY_STATE = ClassName.get("org.elasticsearch.compute.aggregation", "LongArrayState");
 
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;
@@ -264,7 +275,168 @@ public class GroupingAggregatorImplementer {
             builder.addMethod(evaluateFinal());
         }
         builder.addMethod(toStringMethod());
+        if (aggState.type().equals(LONG_ARRAY_STATE)) {
+            builder.addMethod(supportsPartitionedSplitMethod());
+            builder.addMethod(clearMethod());
+            builder.addMethod(newSplitterMethod());
+            builder.addMethod(combinePartitionMethod());
+            builder.addType(aggSplitterType());
+            builder.addType(partitionedAggType());
+        }
         builder.addMethod(close());
+        return builder.build();
+    }
+
+    private String partitionedSplitPrefix() {
+        String name = implementation.simpleName();
+        return name.endsWith("GroupingAggregatorFunction")
+            ? name.substring(0, name.length() - "GroupingAggregatorFunction".length())
+            : name;
+    }
+
+    private MethodSpec supportsPartitionedSplitMethod() {
+        return MethodSpec.methodBuilder("supportsPartitionedSplit")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(TypeName.BOOLEAN)
+            .addStatement("return true")
+            .build();
+    }
+
+    private MethodSpec clearMethod() {
+        return MethodSpec.methodBuilder("clear")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .addStatement("state.clear()")
+            .build();
+    }
+
+    private MethodSpec newSplitterMethod() {
+        String splitterName = partitionedSplitPrefix() + "AggSplitter";
+        return MethodSpec.methodBuilder("newSplitter")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(PARTITIONED_HASH_TABLE_AGG_SPLITTER)
+            .addStatement("return new $L()", splitterName)
+            .build();
+    }
+
+    private MethodSpec combinePartitionMethod() {
+        String partitionedAggName = partitionedSplitPrefix() + "PartitionedAgg";
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("combinePartition");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(PARTITIONED_HASH_TABLE_PARTITIONED_AGG, "source");
+        builder.addParameter(TypeName.INT, "partition");
+        builder.addParameter(ArrayTypeName.of(TypeName.INT), "dstIds");
+        builder.addParameter(TypeName.INT, "offset");
+        builder.addParameter(TypeName.INT, "length");
+        builder.addStatement("final long[] sourceSums = (($L) source).subs[partition]", partitionedAggName);
+        builder.addStatement("int end = offset + length");
+        builder.beginControlFlow("for (int i = offset; i < end; i++)");
+        builder.addStatement("state.set(dstIds[i], $T.combine(state.getOrDefault(dstIds[i]), sourceSums[i]))", declarationType);
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    private TypeSpec aggSplitterType() {
+        String splitterName = partitionedSplitPrefix() + "AggSplitter";
+        String partitionedAggName = partitionedSplitPrefix() + "PartitionedAgg";
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder(splitterName);
+        builder.addModifiers(Modifier.PRIVATE, Modifier.FINAL);
+        builder.addSuperinterface(PARTITIONED_HASH_TABLE_AGG_SPLITTER);
+        builder.addField(ArrayTypeName.of(ArrayTypeName.of(TypeName.LONG)), "subs", Modifier.PRIVATE);
+        builder.addField(ArrayTypeName.of(TypeName.INT), "lengths", Modifier.PRIVATE);
+        builder.addMethod(MethodSpec.constructorBuilder().build());
+
+        MethodSpec.Builder preAlloc = MethodSpec.methodBuilder("preAllocate");
+        preAlloc.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        preAlloc.addParameter(ArrayTypeName.of(TypeName.INT), "partitionCounts");
+        preAlloc.addStatement("subs = new long[partitionCounts.length][]");
+        preAlloc.addStatement("lengths = new int[partitionCounts.length]");
+        preAlloc.beginControlFlow("for (int p = 0; p < partitionCounts.length; p++)");
+        preAlloc.addStatement("subs[p] = new long[partitionCounts[p]]");
+        preAlloc.endControlFlow();
+        builder.addMethod(preAlloc.build());
+
+        MethodSpec.Builder split = MethodSpec.methodBuilder("split");
+        split.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        split.addParameter(PARTITIONED_HASH_TABLE_SCRATCH_BUFFER, "scratch");
+        split.addParameter(TypeName.INT, "idOffset");
+        split.addParameter(TypeName.INT, "totalPositions");
+        split.addParameter(ArrayTypeName.of(TypeName.SHORT), "positions");
+        split.addParameter(ArrayTypeName.of(TypeName.INT), "fills");
+        split.addStatement("$T values = state.rawValues()", LONG_ARRAY_CLASS);
+        split.addStatement("long[] buffer = scratch.longs");
+        split.beginControlFlow("if (buffer.length < totalPositions)");
+        split.addStatement("buffer = scratch.longs = new long[$T.oversize(totalPositions, $T.BYTES)]", ARRAY_UTIL, Long.class);
+        split.endControlFlow();
+        split.addStatement(
+            "final int readLen = (int) $T.min(totalPositions, $T.max(0L, values.size() - idOffset))",
+            Math.class,
+            Math.class
+        );
+        split.beginControlFlow("if (readLen > 0)");
+        split.addStatement("values.bulkGet(idOffset, buffer, 0, readLen)");
+        split.endControlFlow();
+        split.beginControlFlow("if (readLen < totalPositions)");
+        split.addStatement("$T.fill(buffer, readLen, totalPositions, 0L)", ARRAYS_CLASS);
+        split.endControlFlow();
+        split.beginControlFlow("for (int p = 0; p < subs.length; p++)");
+        split.addStatement("final int c = fills[p]");
+        split.beginControlFlow("if (c == 0)");
+        split.addStatement("continue");
+        split.endControlFlow();
+        split.addStatement("final int base = p * scratch.splitWriteBatchSize");
+        split.addStatement("long[] sub = subs[p]");
+        split.addStatement("int dst = lengths[p]");
+        split.beginControlFlow("for (int i = 0; i < c; i++)");
+        split.addStatement("sub[dst++] = buffer[positions[base + i] & 0xFFFF]");
+        split.endControlFlow();
+        split.addStatement("lengths[p] += c");
+        split.endControlFlow();
+        builder.addMethod(split.build());
+
+        builder.addMethod(
+            MethodSpec.methodBuilder("finish")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(PARTITIONED_HASH_TABLE_PARTITIONED_AGG)
+                .addStatement("return new $L(subs)", partitionedAggName)
+                .build()
+        );
+        builder.addMethod(MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).build());
+        return builder.build();
+    }
+
+    private TypeSpec partitionedAggType() {
+        String partitionedAggName = partitionedSplitPrefix() + "PartitionedAgg";
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder(partitionedAggName);
+        builder.addModifiers(Modifier.STATIC, Modifier.FINAL);
+        builder.addSuperinterface(PARTITIONED_HASH_TABLE_PARTITIONED_AGG);
+        builder.addField(ArrayTypeName.of(ArrayTypeName.of(TypeName.LONG)), "subs", Modifier.FINAL);
+        builder.addMethod(
+            MethodSpec.constructorBuilder()
+                .addParameter(ArrayTypeName.of(ArrayTypeName.of(TypeName.LONG)), "subs")
+                .addStatement("this.subs = subs")
+                .build()
+        );
+        builder.addMethod(
+            MethodSpec.methodBuilder("releasePartition")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(TypeName.INT, "partition")
+                .addStatement("subs[partition] = null")
+                .build()
+        );
+        builder.addMethod(
+            MethodSpec.methodBuilder("close")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addStatement("$T.fill(subs, null)", ARRAYS_CLASS)
+                .build()
+        );
         return builder.build();
     }
 

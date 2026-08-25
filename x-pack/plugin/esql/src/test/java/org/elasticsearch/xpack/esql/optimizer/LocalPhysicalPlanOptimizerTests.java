@@ -641,35 +641,59 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * NOT mv_in_range over a numeric field pushes must_not(range) and drops the FilterExec (YES) — sound because the
-     * pushed range is exact, so negating it in Lucene is exact too.
+     * NOT mv_in_range over an exact type (integral, keyword, ip, version) pushes must_not(range) and drops the
+     * FilterExec (YES) — sound because the pushed range is exact, so negating it in Lucene is exact too.
      */
     public void testMvInRangeNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
         var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
+
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var kw = plannerOptimizer.plan("from test | where not mv_in_range(keyword, \"a\", \"m\")", IS_SV_STATS, analyzer);
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(kw).toString(),
+            equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+        );
+
+        var ip = plannerOptimizer.plan("from test | where not mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(ip).toString(),
+            equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", true))).toString())
+        );
+
+        var version = plannerOptimizer.plan(
+            "from test | where not mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(version).toString(),
+            equalTo(boolQuery().mustNot(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true))).toString())
+        );
     }
 
     /**
-     * mv_in_range over a keyword field pushes the range as a pre-filter but keeps the FilterExec (RECHECK): byte-encoded
-     * types are held conservatively out of the exact-YES set, so the range surfaces candidate documents and the retained
-     * evaluator re-checks them. Contrast the numeric YES cases above, which drop the FilterExec.
+     * mv_in_range over a keyword field pushes an exact range and drops the FilterExec (YES): keyword's UTF-8
+     * BytesRef order matches TermRangeQuery, so the pushed range is faithful and the filter can go.
      */
-    public void testMvInRangeKeywordRecheck() {
+    public void testMvInRangeKeywordPushdown() {
         var plan = plannerOptimizer.plan("from test | where mv_in_range(first_name, \"a\", \"m\")");
-        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        var expected = boolQuery().filter(unscore(rangeQuery("first_name").from("a", true).to("m", true)));
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
+        var expected = unscore(rangeQuery("first_name").from("a", true).to("m", true));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
     /**
-     * A text field is never pushed: a Lucene range over analyzed tokens is not a superset of the whole-string
-     * comparison, so the predicate stays entirely in the FilterExec and nothing is lowered to the source query.
+     * A text field is never pushed: a Lucene range over analyzed tokens is not a whole-string comparison. {@code job}
+     * has a {@code .raw} keyword subfield, so it is otherwise pushable — only the TEXT gate stops it. If text were
+     * classified YES, FilterExec would drop and a token range would push (this assertion fails).
      */
     public void testMvInRangeTextNotPushed() {
-        // job is a text field WITH a .raw keyword subfield, so it is otherwise pushable — only the text gate stops it.
-        // (A text range would push over analyzed tokens, not the whole value, which is unsound under NOT.)
         var plan = plannerOptimizer.plan("from test | where mv_in_range(job, \"a\", \"z\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
         assertThat(pushedQuery(plan), nullValue());
@@ -738,62 +762,53 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testMvInRangeDoubleRecheck() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        for (var field : List.of("double", "float", "scaled_float")) {
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
             var plan = plannerOptimizer.plan("from test | where mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
             assertThat("field " + field + " must RECHECK (retain the FilterExec)", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("field " + field + " must still push a range pre-filter", pushedQuery(plan), is(not(nullValue())));
         }
     }
 
-    /** ip and version are byte-encoded, so like keyword they push the range but stay RECHECK (retain the FilterExec). */
-    public void testMvInRangeIpVersionRecheck() {
+    /** ip and version push an exact range and drop the FilterExec (YES) — same byte-faithful encoding as keyword. */
+    public void testMvInRangeIpVersionPushdown() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var ip = plannerOptimizer.plan("from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
-        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(ip), is(not(nullValue())));
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", true)).toString()));
+
         var version = plannerOptimizer.plan(
             "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version)",
             IS_SV_STATS,
             analyzer
         );
-        assertThat(version.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(version), is(not(nullValue())));
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(version).toString(),
+            equalTo(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true)).toString())
+        );
     }
 
     /**
-     * NOT of a RECHECK-typed mv_in_range (double / keyword / ip / version) is not pushed at all. The range is a superset,
-     * so must_not(range) would drop true matches and the retained recheck can't restore them — the whole predicate stays
-     * a filter (NO). Contrast the integral YES types, whose NOT pushes an exact must_not(range) (testMvInRangeNotPushdown).
+     * NOT of a DOUBLE-family mv_in_range (double / float / half_float / scaled_float) is not pushed at all. The range is
+     * a superset (reduced-precision mappers round bounds outward), so must_not(range) would drop true matches and the
+     * retained recheck can't restore them — the whole predicate stays a filter (NO). Contrast the exact YES types
+     * (integral, keyword, ip, version), whose NOT pushes must_not(range) (testMvInRangeNotPushdown).
      */
     public void testMvInRangeNotRecheckTypeNotPushed() {
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        var bounds = Map.of(
-            "double",
-            "1.0, 2.0",
-            "keyword",
-            "\"a\", \"m\"",
-            "ip",
-            "\"1.1.1.1\"::ip, \"2.2.2.2\"::ip",
-            "version",
-            "\"1.0.0\"::version, \"2.0.0\"::version"
-        );
-        for (var field : bounds.keySet()) {
-            var plan = plannerOptimizer.plan(
-                "from test | where not mv_in_range(" + field + ", " + bounds.get(field) + ")",
-                IS_SV_STATS,
-                analyzer
-            );
+        for (var field : List.of("double", "float", "half_float", "scaled_float")) {
+            var plan = plannerOptimizer.plan("from test | where not mv_in_range(" + field + ", 1.0, 2.0)", IS_SV_STATS, analyzer);
             assertThat("NOT over " + field + " must retain the filter", plan.anyMatch(FilterExec.class::isInstance), is(true));
             assertThat("NOT over " + field + " must not push a range", pushedQuery(plan), is(nullValue()));
         }
     }
 
     /**
-     * Exclusive bounds via the options map. For an integral field the pushed range carries the exact exclusive endpoints
-     * (gt/lt) and the FilterExec is still dropped (YES). For a RECHECK field (double/keyword/…) the range is only a
-     * pre-filter, so the exclusive flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward
-     * rounding a reduced-precision mapper would apply to an exclusive bound) and the retained evaluator applies the
-     * exclusivity. (A zero double lower bound is widened outward to -0.0 to keep both signed zeros in the superset.)
+     * Exclusive bounds via the options map. For an exact type the pushed range carries the exact exclusive endpoints
+     * (gt/lt) and the FilterExec is still dropped (YES). For DOUBLE the range is only a pre-filter, so the exclusive
+     * flags are NOT pushed — the range stays inclusive (a true superset, avoiding the inward rounding a reduced-precision
+     * mapper would apply to an exclusive bound) and the retained evaluator applies the exclusivity. (A zero double lower
+     * bound is widened outward to -0.0 to keep both signed zeros in the superset.)
      */
     public void testMvInRangeExclusivePushdown() {
         var lower = plannerOptimizer.plan("from test | where mv_in_range(salary, 25000, 30000, {\"include_lower\": false})");
@@ -806,7 +821,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(both.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(pushedQuery(both).toString(), equalTo(unscore(rangeQuery("salary").from(25000, false).to(30000, false)).toString()));
 
-        // RECHECK type: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
+        // DOUBLE RECHECK: the exclusive flags stay in the retained evaluator; the pushed range is the inclusive superset.
         var dbl = plannerOptimizer.plan(
             "from test | where mv_in_range(double, 0.0, 1.0, {\"include_lower\": false, \"include_upper\": false})",
             IS_SV_STATS,
@@ -818,16 +833,54 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
         );
 
+        // Keyword is YES: exclusive endpoints push exactly and the FilterExec drops.
         var kw = plannerOptimizer.plan(
             "from test | where mv_in_range(keyword, \"a\", \"m\", {\"include_lower\": false})",
             IS_SV_STATS,
             makeAnalyzer("mapping-all-types.json")
         );
-        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(
-            pushedQuery(kw).toString(),
-            equalTo(boolQuery().filter(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+        assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(kw).toString(), equalTo(unscore(rangeQuery("keyword").from("a", false).to("m", true)).toString()));
+
+        // ip and version exclusive bounds push exactly too.
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var ip = plannerOptimizer.plan(
+            "from test | where mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip, {\"include_upper\": false})",
+            IS_SV_STATS,
+            analyzer
         );
+        assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(pushedQuery(ip).toString(), equalTo(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", false)).toString()));
+
+        var version = plannerOptimizer.plan(
+            "from test | where mv_in_range(version, \"1.0.0\"::version, \"2.0.0\"::version, {\"include_lower\": false})",
+            IS_SV_STATS,
+            analyzer
+        );
+        assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
+        assertThat(
+            pushedQuery(version).toString(),
+            equalTo(unscore(rangeQuery("version").from("1.0.0", false).to("2.0.0", true)).toString())
+        );
+    }
+
+    /**
+     * Pins why the double family cannot be promoted with ip/version/keyword: a float-mapped field with a double bound
+     * that is not exactly representable as float. The float mapper rounds the bound when building the Lucene range, so
+     * the pushed query over-matches relative to the evaluator's full-double comparison — the FilterExec (recheck) stays,
+     * and NOT cannot be pushed.
+     */
+    public void testMvInRangeFloatBoundaryRecheck() {
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        // 1.0000001 lies between 1.0f and Math.nextUp(1.0f); the float mapper rounds the lower bound, over-matching.
+        String bound = "1.0000001";
+        var plan = plannerOptimizer.plan("from test | where mv_in_range(float, " + bound + ", 2.0)", IS_SV_STATS, analyzer);
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(plan), is(not(nullValue())));
+
+        var notPlan = plannerOptimizer.plan("from test | where not mv_in_range(float, " + bound + ", 2.0)", IS_SV_STATS, analyzer);
+        assertThat(notPlan.anyMatch(FilterExec.class::isInstance), is(true));
+        assertThat(pushedQuery(notPlan), is(nullValue()));
     }
 
     /**

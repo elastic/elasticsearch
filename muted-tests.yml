@@ -773,3 +773,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testAbsentDeclaredColumnEmitsResponseWarningNdjson
   issue: https://github.com/elastic/elasticsearch/issues/157593
+- class: org.elasticsearch.xpack.stateless.CorruptionIT
+  method: testConcurrentOperations
+  issue: https://github.com/elastic/elasticsearch/issues/157629

@@ -38,7 +38,7 @@ PUT logs
 
 The following mapping parameters are accepted:
 
-[`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga`
+[`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
 :   Whether the field's values should be stored in doc values for retrieval and ES|QL queries. Accepts `true` or `false` (default). Unlike most field types, `match_only_text` doc values do not support sorting or aggregation.
 
 [`fields`](/reference/elasticsearch/mapping-reference/multi-fields.md)

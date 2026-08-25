@@ -78,12 +78,12 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             final var firstFilled = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
                 .getLast();
             assertThat(firstFilled.getLong(), equalTo(0L));
             assertThat(firstFilled.attributes().isEmpty(), equalTo(true));
             final var firstTotal = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
                 .getLast();
             assertThat(firstTotal.getLong(), equalTo((long) numRegions));
 
@@ -95,12 +95,12 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
             taskQueue.runTasksUpToTimeInOrder(taskQueue.getCurrentTimeMillis() + interval.millis());
             recording.getRecorder().collect();
             final var lastFilled = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_FILLED)
                 .getLast();
             assertThat(lastFilled.getLong(), equalTo((long) numRegions));
             assertThat(lastFilled.attributes().isEmpty(), equalTo(true));
             final var lastTotal = recording.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, StatelessSharedBlobCachePeriodicMetrics.BLOB_CACHE_REGIONS_TOTAL)
                 .getLast();
             assertThat(lastTotal.getLong(), equalTo((long) numRegions));
         }
@@ -499,7 +499,7 @@ public class StatelessSharedBlobCachePeriodicMetricsTests extends ESTestCase {
     }
 
     private static void assertGauge(RecordingMeterRegistry recording, String name, long expected) {
-        final var measurement = recording.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name).getLast();
+        final var measurement = recording.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_GAUGE, name).getLast();
         assertThat(measurement.getLong(), equalTo(expected));
         assertThat(measurement.attributes().isEmpty(), equalTo(true));
     }

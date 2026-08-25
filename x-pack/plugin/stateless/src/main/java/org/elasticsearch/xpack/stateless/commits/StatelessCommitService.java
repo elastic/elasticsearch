@@ -2261,6 +2261,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // createAfterNotificationCleanup (called in the same thread, in newUploadTaskListener.onResponse).
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
                     assert removed != null : newBccGeneration + "not found";
+                    recentlyUploadedVbccs.put(newBccGeneration, removed.commit());
 
                     var nextPendingUploadVbcc = pendingUploadBccGenerations.get(newBccGeneration + 1);
                     if (nextPendingUploadVbcc != null) {
@@ -2269,7 +2270,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         // Reset so that we don't track this uploaded commit as pending upload.
                         oldestCommitUploadStartTime = null;
                     }
-                    recentlyUploadedVbccs.put(newBccGeneration, removed);
                 }
                 if (localUploadedGenerationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;

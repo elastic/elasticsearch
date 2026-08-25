@@ -1,0 +1,225 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains, allowed_warnings_regex ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_flattened_layout ]
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype, fn_field_extract, field_extract_flattened_pushdown ]
+      reason: "flattened layout: columnar + field_extract pushdown required"
+
+  - do:
+      indices.create:
+        index: flat_row
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                # layout defaults to columnar in columnar mode, so row must be requested explicitly
+                layout: row
+
+  - do:
+      indices.create:
+        index: flat_columnar
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                # layout: columnar is the default in columnar mode; must NOT appear in the serialized mapping
+
+  - do:
+      bulk:
+        index: flat_row
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "labels": { "host.name": "elastic.co",  "env": "prod",    "version": "1.0" } }
+          - { "index": {} }
+          - { "labels": { "host.name": "kibana.io",   "env": "staging", "version": "2.0" } }
+          - { "index": {} }
+          - { "labels": { "host.name": "elastic.co",  "env": "prod",    "version": "3.0" } }
+          - { "index": {} }
+          - {}
+
+  - do:
+      bulk:
+        index: flat_columnar
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "labels": { "host.name": "elastic.co",  "env": "prod",    "version": "1.0" } }
+          - { "index": {} }
+          - { "labels": { "host.name": "kibana.io",   "env": "staging", "version": "2.0" } }
+          - { "index": {} }
+          - { "labels": { "host.name": "elastic.co",  "env": "prod",    "version": "3.0" } }
+          - { "index": {} }
+          - {}
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: flat_row
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: flat_columnar
+        ignore_unavailable: true
+
+---
+"mapping round-trip: row is serialized, columnar default is not":
+  - do:
+      indices.get_mapping:
+        index: flat_columnar
+  - is_false: flat_columnar.mappings.properties.labels.layout
+
+  - do:
+      indices.get_mapping:
+        index: flat_row
+  - match: { flat_row.mappings.properties.labels.layout: row }
+
+---
+"rejection: layout: columnar requires columnar index mode":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: flat_reject_standard
+        body:
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                layout: columnar
+  - contains: { error.reason: "[layout: columnar] requires" }
+
+---
+"rejection: unknown layout value":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: flat_reject_unknown
+        body:
+          settings:
+            index.mode: columnar
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                layout: bogus
+  - contains: { error.reason: "Unknown value [bogus] for field [layout]" }
+
+---
+"field_extract single key: columnar and row return identical results":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM flat_row
+            | EVAL v = FIELD_EXTRACT(labels, "env")
+            | WHERE v IS NOT NULL
+            | KEEP v
+            | SORT v ASC
+            | LIMIT 10
+  - match: { columns.0.name: v }
+  - match: { columns.0.type: keyword }
+  - match: { values.0.0: prod }
+  - match: { values.1.0: prod }
+  - match: { values.2.0: staging }
+
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM flat_columnar
+            | EVAL v = FIELD_EXTRACT(labels, "env")
+            | WHERE v IS NOT NULL
+            | KEEP v
+            | SORT v ASC
+            | LIMIT 10
+  - match: { columns.0.name: v }
+  - match: { columns.0.type: keyword }
+  - match: { values.0.0: prod }
+  - match: { values.1.0: prod }
+  - match: { values.2.0: staging }
+
+---
+"field_extract where pushdown: columnar and row return identical results":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM flat_row
+            | WHERE FIELD_EXTRACT(labels, "host.name") == "elastic.co"
+            | EVAL v = FIELD_EXTRACT(labels, "host.name")
+            | KEEP v
+            | SORT v ASC
+            | LIMIT 10
+  - match: { columns.0.name: v }
+  - length: { values: 2 }
+  - match: { values.0.0: "elastic.co" }
+  - match: { values.1.0: "elastic.co" }
+
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM flat_columnar
+            | WHERE FIELD_EXTRACT(labels, "host.name") == "elastic.co"
+            | EVAL v = FIELD_EXTRACT(labels, "host.name")
+            | KEEP v
+            | SORT v ASC
+            | LIMIT 10
+  - match: { columns.0.name: v }
+  - length: { values: 2 }
+  - match: { values.0.0: "elastic.co" }
+  - match: { values.1.0: "elastic.co" }
+
+---
+"field_extract absent key returns null: columnar and row agree":
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM flat_row
+            | EVAL v = FIELD_EXTRACT(labels, "no_such_key")
+            | KEEP v
+            | LIMIT 4
+      allowed_warnings_regex:
+        - ".*evaluation of \\[FIELD_EXTRACT.*no_such_key.*\\] failed.*"
+        - ".*path \\[no_such_key\\] does not exist.*"
+  - match: { columns.0.name: v }
+  - match: { columns.0.type: keyword }
+  - length: { values: 4 }
+  - match: { values.0.0: null }
+  - match: { values.1.0: null }
+  - match: { values.2.0: null }
+  - match: { values.3.0: null }
+
+  - do:
+      esql.query:
+        body:
+          query: >
+            FROM flat_columnar
+            | EVAL v = FIELD_EXTRACT(labels, "no_such_key")
+            | KEEP v
+            | LIMIT 4
+      allowed_warnings_regex:
+        - ".*evaluation of \\[FIELD_EXTRACT.*no_such_key.*\\] failed.*"
+        - ".*path \\[no_such_key\\] does not exist.*"
+  - match: { columns.0.name: v }
+  - match: { columns.0.type: keyword }
+  - length: { values: 4 }
+  - match: { values.0.0: null }
+  - match: { values.1.0: null }
+  - match: { values.2.0: null }
+  - match: { values.3.0: null }

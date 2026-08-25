@@ -43,6 +43,9 @@ public enum LuceneFilesExtensions {
     DVS("dvs", "DocValues Skip data", true, false),
     FDM("fdm", "Field Metadata", true, false),
     FDT("fdt", "Field Data", false, false),
+    // Elasticsearch FlattenedDocValuesFormat data and metadata files
+    FDVD("fdvd", "Flattened DocValues", false, true),
+    FDVM("fdvm", "Flattened DocValues Metadata", true, false),
     FDX("fdx", "Field Index", false, false),
     FNM("fnm", "Fields", true, false),
     // old extension

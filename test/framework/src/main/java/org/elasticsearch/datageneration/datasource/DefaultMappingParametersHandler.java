@@ -331,7 +331,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
 
             if (ESTestCase.randomDouble() < 0.2) {
-                mapping.put("preserve_leaf_arrays", ESTestCase.randomFrom("lossy", "exact"));
+                String preserveLeafArrays = ESTestCase.randomFrom("lossy", "exact");
+                mapping.put("preserve_leaf_arrays", preserveLeafArrays);
+                // layout: columnar (the default in strict-columnar mode) requires preserve_leaf_arrays: exact.
+                // If we generated lossy, override the layout to row so the mapping is valid.
+                if ("lossy".equals(preserveLeafArrays) && indexMode.isStrictColumnar()) {
+                    mapping.put("layout", "row");
+                }
             }
 
             return mapping;

@@ -46,12 +46,36 @@ public class FlattenedColumnarArrayOrderFieldDataTests extends MapperServiceTest
         );
     }
 
+    private MapperService columnarLayoutMapperService() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("field")
+                    .field("type", "flattened")
+                    .field("preserve_leaf_arrays", "exact")
+                    .field("layout", "columnar")
+                    .endObject()
+            )
+        );
+    }
+
     /**
      * Indexes a single document and returns the fielddata values for {@code field.<key>}, or {@code null} when the key has no non-null
-     * values for that document.
+     * values for that document. Uses the row (default) layout.
      */
     private List<String> fielddataValues(String key, CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
-        MapperService mapperService = columnarMapperService();
+        return fielddataValues(columnarMapperService(), key, doc);
+    }
+
+    /**
+     * Indexes a single document using the given mapper service and returns the fielddata values for {@code field.<key>}.
+     * When the mapper service has {@code layout: columnar}, the {@code ._keyed} field is stored via
+     * {@link org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat} and read back through
+     * {@link org.elasticsearch.index.fielddata.KeyLookupArrayOrderBinaryDocValues} (the columnar fast path).
+     */
+    private List<String> fielddataValues(MapperService mapperService, String key, CheckedConsumer<XContentBuilder, IOException> doc)
+        throws IOException {
         assertTrue(
             "flattened columnar path must store array values in order",
             mapperService.documentMapper().mappers().getMapper("field").storesArrayValuesInOrder()
@@ -163,6 +187,109 @@ public class FlattenedColumnarArrayOrderFieldDataTests extends MapperServiceTest
             assertEquals(1, searcher.count(cherryQ));  // only doc1
             assertEquals(1, searcher.count(dateQ));    // only doc2 (after null slot)
             assertEquals(0, searcher.count(missingQ)); // no match
+        });
+    }
+
+    // --- Columnar layout variants: same assertions exercised against FlattenedDocValuesFormat ---
+
+    public void testMultiValuedReadsBackSorted_columnarLayout() throws IOException {
+        assertEquals(
+            List.of("apple", "banana", "cherry"),
+            fielddataValues(
+                columnarLayoutMapperService(),
+                "k",
+                b -> b.startObject("field").startArray("k").value("banana").value("apple").value("cherry").endArray().endObject()
+            )
+        );
+    }
+
+    public void testDuplicatesDeduplicatedInFielddata_columnarLayout() throws IOException {
+        assertEquals(
+            List.of("apple", "banana"),
+            fielddataValues(
+                columnarLayoutMapperService(),
+                "k",
+                b -> b.startObject("field").startArray("k").value("apple").value("apple").value("banana").endArray().endObject()
+            )
+        );
+    }
+
+    public void testNullsDropped_columnarLayout() throws IOException {
+        assertEquals(
+            List.of("apple", "cherry"),
+            fielddataValues(
+                columnarLayoutMapperService(),
+                "k",
+                b -> b.startObject("field").startArray("k").value("apple").nullValue().value("cherry").endArray().endObject()
+            )
+        );
+    }
+
+    public void testSingleValue_columnarLayout() throws IOException {
+        assertEquals(
+            List.of("apple"),
+            fielddataValues(columnarLayoutMapperService(), "k", b -> b.startObject("field").field("k", "apple").endObject())
+        );
+    }
+
+    public void testAllNullArrayHasNoValues_columnarLayout() throws IOException {
+        assertNull(
+            fielddataValues(
+                columnarLayoutMapperService(),
+                "k",
+                b -> b.startObject("field").startArray("k").nullValue().nullValue().endArray().endObject()
+            )
+        );
+    }
+
+    public void testKeyIsolation_columnarLayout() throws IOException {
+        MapperService ms = columnarLayoutMapperService();
+        CheckedConsumer<XContentBuilder, IOException> doc = b -> b.startObject("field")
+            .startArray("a")
+            .value("banana")
+            .value("apple")
+            .endArray()
+            .field("z", "other")
+            .endObject();
+        assertEquals(List.of("apple", "banana"), fielddataValues(ms, "a", doc));
+        assertEquals(List.of("other"), fielddataValues(ms, "z", doc));
+    }
+
+    /**
+     * Verifies that term queries work against data stored in {@link org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat}.
+     * On columnar segments, {@link org.elasticsearch.lucene.queries.KeyedFlattenedTermQuery} resolves the key ordinal once
+     * and reads only the matching column, rather than transposing all columns via {@code binaryValue()}.
+     */
+    public void testTermQueryMatchesCorrectDocuments_columnarLayout() throws IOException {
+        MapperService mapperService = columnarLayoutMapperService();
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(
+                mapperService.documentMapper()
+                    .parse(source(b -> b.startObject("field").startArray("k").value("apple").value("banana").endArray().endObject()))
+                    .rootDoc()
+            );
+            iw.addDocument(
+                mapperService.documentMapper().parse(source(b -> b.startObject("field").field("k", "cherry").endObject())).rootDoc()
+            );
+            iw.addDocument(
+                mapperService.documentMapper()
+                    .parse(
+                        source(b -> b.startObject("field").startArray("k").value("banana").nullValue().value("date").endArray().endObject())
+                    )
+                    .rootDoc()
+            );
+        }, reader -> {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            Query appleQ = mapperService.fieldType("field.k").termQuery("apple", null);
+            Query bananaQ = mapperService.fieldType("field.k").termQuery("banana", null);
+            Query cherryQ = mapperService.fieldType("field.k").termQuery("cherry", null);
+            Query dateQ = mapperService.fieldType("field.k").termQuery("date", null);
+            Query missingQ = mapperService.fieldType("field.k").termQuery("missing", null);
+            assertEquals(1, searcher.count(appleQ));
+            assertEquals(2, searcher.count(bananaQ));
+            assertEquals(1, searcher.count(cherryQ));
+            assertEquals(1, searcher.count(dateQ));
+            assertEquals(0, searcher.count(missingQ));
         });
     }
 }

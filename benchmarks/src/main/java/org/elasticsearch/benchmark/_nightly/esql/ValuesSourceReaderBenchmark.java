@@ -9,6 +9,7 @@
 
 package org.elasticsearch.benchmark._nightly.esql;
 
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -51,15 +52,20 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.flattened.FlattenedDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -107,7 +113,21 @@ public class ValuesSourceReaderBenchmark {
         "keyword",
         "stored_keyword",
         "3_stored_keywords",
-        "keyword_mv" };
+        "keyword_mv",
+        "flattened_columnar" };
+
+    /**
+     * Field name for the columnar flattened field written into {@link #flattenedDirectory}.
+     * The {@code ._keyed} suffix is the conventional suffix for the binary DV sub-field that
+     * stores the key-value pairs in {@link KeyedArrayOrderInlineNull} format.
+     */
+    private static final String FLAT_KEYED_FIELD = "flat._keyed";
+
+    /**
+     * Sub-field key used for the flattened benchmark arm. Every document stores one slot:
+     * {@code val\0<i % 1000>}.
+     */
+    private static final String FLAT_KEY = "val";
 
     private static final int BLOCK_LENGTH = 16 * 1024;
     private static final int INDEX_SIZE = 10 * BLOCK_LENGTH;
@@ -159,6 +179,14 @@ public class ValuesSourceReaderBenchmark {
 
     private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
+            case "flattened_columnar" -> List.of(
+                new ValuesSourceReaderOperator.FieldInfo(
+                    FLAT_KEYED_FIELD,
+                    ElementType.BYTES_REF,
+                    false,
+                    (ctx, shardIdx) -> ValuesSourceReaderOperator.load(blockLoader(name))
+                )
+            );
             case "3_stored_keywords" -> List.of(
                 new ValuesSourceReaderOperator.FieldInfo(
                     "keyword_1",
@@ -206,7 +234,7 @@ public class ValuesSourceReaderBenchmark {
             case "double":
                 return ElementType.DOUBLE;
         }
-        if (name.startsWith("keyword")) {
+        if (name.startsWith("keyword") || name.startsWith("flattened_")) {
             return ElementType.BYTES_REF;
         }
         throw new UnsupportedOperationException("no element type for [" + name + "]");
@@ -223,6 +251,9 @@ public class ValuesSourceReaderBenchmark {
                 return numericBlockLoader(w, NumberFieldMapper.NumberType.DOUBLE);
             case "keyword":
                 w = new WhereAndBaseName(w.where, "keyword_1");
+        }
+        if (w.name.startsWith("flattened_")) {
+            return new KeyedFlattenedDocValuesBlockLoader(FLAT_KEYED_FIELD, FLAT_KEY, true, true);
         }
         if (w.name.startsWith("keyword")) {
             boolean syntheticSource = false;
@@ -302,11 +333,21 @@ public class ValuesSourceReaderBenchmark {
     @Param({ "in_order", "shuffled" })
     public String layout;
 
-    @Param({ "long", "keyword", "stored_keyword", "keyword_mv" })
+    @Param({ "long", "keyword", "stored_keyword", "keyword_mv", "flattened_columnar" })
     public String name;
 
     private Directory directory;
     private IndexReader reader;
+
+    /**
+     * Separate directory and reader for the {@code flattened_columnar} arm. A distinct index is
+     * required because the columnar flattened doc-values format must be registered as the codec
+     * for the segment, which would conflict with the standard DV codecs used by the numeric and
+     * keyword fields written into {@link #directory}.
+     */
+    private Directory flattenedDirectory;
+    private IndexReader flattenedReader;
+
     private List<Page> pages;
 
     @Benchmark
@@ -318,7 +359,7 @@ public class ValuesSourceReaderBenchmark {
             new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null),
             ByteSizeValue.ofMb(1).getBytes(),
             fields,
-            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
+            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(currentReader(), (sourcePaths) -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,
@@ -391,11 +432,20 @@ public class ValuesSourceReaderBenchmark {
                         }
                     }
                 }
+                case "flattened_columnar" -> {
+                    BytesRef scratch = new BytesRef();
+                    BytesRefBlock values = op.getOutput().<BytesRefBlock>getBlock(1);
+                    for (int p = 0; p < values.getPositionCount(); p++) {
+                        if (values.isNull(p) == false) {
+                            sum += Integer.parseInt(values.getBytesRef(values.getFirstValueIndex(p), scratch).utf8ToString());
+                        }
+                    }
+                }
             }
         }
         long expected = 0;
         switch (name) {
-            case "keyword", "stored_keyword":
+            case "keyword", "stored_keyword", "flattened_columnar":
                 for (int i = 0; i < INDEX_SIZE; i++) {
                     expected += i % 1000;
                 }
@@ -475,14 +525,47 @@ public class ValuesSourceReaderBenchmark {
             }
         }
         reader = DirectoryReader.open(directory);
+
+        // Build the flattened index used by the "flattened_columnar" arm.
+        // A separate directory is needed so the columnar DV codec only applies here.
+        flattenedDirectory = new ByteBuffersDirectory();
+        try (
+            IndexWriter iw = new IndexWriter(
+                flattenedDirectory,
+                new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setCodec(new Elasticsearch93Lucene104Codec() {
+                    private final FlattenedDocValuesFormat flattenedDvFormat = new FlattenedDocValuesFormat();
+
+                    @Override
+                    public DocValuesFormat getDocValuesFormatForField(String field) {
+                        // Route only the binary keyed field through the columnar format;
+                        // the companion .counts numeric DV field uses the default codec.
+                        if (field.equals(FLAT_KEYED_FIELD)) {
+                            return flattenedDvFormat;
+                        }
+                        return super.getDocValuesFormatForField(field);
+                    }
+                })
+            )
+        ) {
+            for (int i = 0; i < INDEX_SIZE; i++) {
+                LuceneDocument doc = new LuceneDocument();
+                KeyedArrayOrderInlineNull.recordValue(doc, FLAT_KEYED_FIELD, new BytesRef(FLAT_KEY + "\0" + (i % 1000)));
+                iw.addDocument(doc);
+                if (i % COMMIT_INTERVAL == 0) {
+                    iw.commit();
+                }
+            }
+        }
+        flattenedReader = DirectoryReader.open(flattenedDirectory);
     }
 
     private void setupPages() {
         pages = new ArrayList<>();
+        IndexReader currentReader = currentReader();
         switch (layout) {
             case "in_order" -> {
                 IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
-                for (LeafReaderContext ctx : reader.leaves()) {
+                for (LeafReaderContext ctx : currentReader.leaves()) {
                     int begin = 0;
                     while (begin < ctx.reader().maxDoc()) {
                         int end = Math.min(begin + BLOCK_LENGTH, ctx.reader().maxDoc());
@@ -507,8 +590,8 @@ public class ValuesSourceReaderBenchmark {
             }
             case "shuffled" -> {
                 record ItrAndOrd(PrimitiveIterator.OfInt itr, int ord) {}
-                List<ItrAndOrd> docItrs = new ArrayList<>(reader.leaves().size());
-                for (LeafReaderContext ctx : reader.leaves()) {
+                List<ItrAndOrd> docItrs = new ArrayList<>(currentReader.leaves().size());
+                for (LeafReaderContext ctx : currentReader.leaves()) {
                     docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
                 }
                 IntVector.Builder docs = blockFactory.newIntVectorBuilder(BLOCK_LENGTH);
@@ -559,8 +642,8 @@ public class ValuesSourceReaderBenchmark {
             }
             case "shuffled_singles" -> {
                 record ItrAndOrd(PrimitiveIterator.OfInt itr, int ord) {}
-                List<ItrAndOrd> docItrs = new ArrayList<>(reader.leaves().size());
-                for (LeafReaderContext ctx : reader.leaves()) {
+                List<ItrAndOrd> docItrs = new ArrayList<>(currentReader.leaves().size());
+                for (LeafReaderContext ctx : currentReader.leaves()) {
                     docItrs.add(new ItrAndOrd(IntStream.range(0, ctx.reader().maxDoc()).iterator(), ctx.ord));
                 }
                 while (docItrs.isEmpty() == false) {
@@ -589,9 +672,14 @@ public class ValuesSourceReaderBenchmark {
         }
     }
 
+    /** Returns the reader appropriate for the current {@link #name} parameter. */
+    private IndexReader currentReader() {
+        return name.startsWith("flattened_") ? flattenedReader : reader;
+    }
+
     @TearDown
     public void teardownIndex() throws IOException {
-        IOUtils.close(reader, directory);
+        IOUtils.close(reader, directory, flattenedReader, flattenedDirectory);
     }
 
     private static class BenchContext implements MappedFieldType.BlockLoaderContext {

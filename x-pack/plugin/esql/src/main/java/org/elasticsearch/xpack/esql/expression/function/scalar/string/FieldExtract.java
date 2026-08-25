@@ -440,7 +440,6 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             return Optional.empty();
         }
         return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
-            .filter(k -> pushdownPredicates.isIndexed(k.root()))
             .filter(
                 k -> pushdownPredicates.supportsLoaderConfig(
                     k.root(),

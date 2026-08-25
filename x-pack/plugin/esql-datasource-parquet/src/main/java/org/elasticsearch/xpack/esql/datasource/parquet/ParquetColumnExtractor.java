@@ -280,7 +280,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
             ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
         for (int i = 0; i < buckets.size(); i++) {
             BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
-            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.arrowAllocator());
+            futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.breaker());
         }
 
         // result[c][b] = block for column c in bucket b (bucket-visit order). We populate this
@@ -439,9 +439,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     try {
                         landed.release().close();
                     } catch (Throwable releaseFailure) {
-                        // Surface release failures (e.g. ArrowBuf double-decrement) as suppressed
-                        // exceptions on the original error so they don't mask the root cause and
-                        // we still drain the rest of the prefetched chunks.
+                        // Surface release failures as suppressed exceptions on the original error
+                        // so they don't mask the root cause and we still drain the rest of the
+                        // prefetched chunks.
                         t.addSuppressed(releaseFailure);
                     }
                 }
@@ -720,7 +720,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 prefetched,
                 storageObject,
                 reader.codecFactory(),
-                blockFactory.arrowAllocator()
+                blockFactory.breaker()
             )
         ) {
             if (info.maxRepLevel() == 0) {

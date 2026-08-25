@@ -41,11 +41,11 @@ public final class MvMaxBooleanEvaluator extends AbstractMultivalueFunction.Abst
     int positionCount = v.getPositionCount();
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         boolean value = v.getBoolean(first);
@@ -95,11 +95,11 @@ public final class MvMaxBooleanEvaluator extends AbstractMultivalueFunction.Abst
     int positionCount = v.getPositionCount();
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int idx = MvMax.ascendingIndex(valueCount);
         boolean result = v.getBoolean(first + idx);

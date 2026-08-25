@@ -86,9 +86,12 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             equalTo("estimated_heap")
         );
         assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC, telemetry), greaterThan(0L));
-        assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC, telemetry), lessThan(0L));
         assertThat(
-            telemetry.getLongHistogramMeasurement(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS),
+            getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
+            lessThan(0.0)
+        );
+        assertThat(
+            telemetry.getLongHistogramMeasurement(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
             not(empty())
         );
 
@@ -102,7 +105,10 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
         telemetry.collect();
         assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(0L));
-        assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC, telemetry), greaterThan(0L));
+        assertThat(
+            getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
+            greaterThan(0.0)
+        );
         assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), hasSize(1));
     }
 
@@ -285,5 +291,9 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
     private void setWorkloadMemoryOverheadOverride(String nodeName, long value) {
         internalCluster().getInstance(StatelessMemoryMetricsService.class, nodeName).setWorkloadMemoryOverheadOverrideForTesting(value);
+    }
+
+    private static double getLastDoubleGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        return telemetryPlugin.getDoubleGaugeMeasurement(name).getLast().getDouble();
     }
 }

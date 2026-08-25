@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.stateless.EstimatedHeapSettings;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -155,7 +156,7 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         final long maxHeap = randomMaxHeapBytes();
         final int watermarkPercent = between(2, 100);
         final long validityMillis = randomLongBetween(1, 30_000);
-        final AtomicLong nowMillis = new AtomicLong();
+        final AtomicLong nowNanos = new AtomicLong();
         final AtomicLong estimate = new AtomicLong(bytesOf(maxHeap, between(0, watermarkPercent - 1)));
         final AtomicInteger computations = new AtomicInteger();
         final var gate = new EstimatedHeapUsageRecoveryGate(
@@ -166,18 +167,18 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
                 computations.incrementAndGet();
                 return estimate.get();
             },
-            nowMillis::get,
+            nowNanos::get,
             TimeValue.timeValueMillis(validityMillis),
             MeterRegistry.NOOP
         );
 
         assertRuns(gate); // computes at t=0
         estimate.set(bytesOf(maxHeap, between(watermarkPercent + 1, 200)));   // live estimate exceeds watermark
-        nowMillis.set(randomLongBetween(0, validityMillis)); // anywhere inside the window, inclusive
+        nowNanos.set(TimeUnit.MILLISECONDS.toNanos(randomLongBetween(0, validityMillis))); // inside the window, inclusive
         assertRuns(gate); // cached estimate, no recompute, stale RUN
         assertThat(computations.get(), equalTo(1));
 
-        nowMillis.set(validityMillis + 1); // strictly past expiry
+        nowNanos.set(TimeUnit.MILLISECONDS.toNanos(validityMillis + 1)); // strictly past expiry
         assertBlocks(gate); // decision follows the live value again
         assertThat(computations.get(), equalTo(2));
     }
@@ -225,8 +226,9 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         final int usedPercent = between(watermarkPercent + 1, 99);
         final int raisedWatermarkPercent = between(usedPercent + 1, 100);
         final long estimate = bytesOf(maxHeap, usedPercent);
-        final long computationTimeMillis = randomLongBetween(1, 1_000);
-        final AtomicLong nowMillis = new AtomicLong();
+        final double estimatedUsagePercent = 100.0 * estimate / maxHeap;
+        final long computationTimeNanos = randomLongBetween(1, TimeUnit.SECONDS.toNanos(1));
+        final AtomicLong nowNanos = new AtomicLong();
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final ClusterSettings clusterSettings = clusterSettings(settings(true, watermarkPercent + "%", randomEnabledMinHeap(maxHeap)));
         final var gate = new EstimatedHeapUsageRecoveryGate(
@@ -234,10 +236,10 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
             () -> ClusterState.EMPTY_STATE,
             maxHeap,
             state -> {
-                nowMillis.addAndGet(computationTimeMillis);
+                nowNanos.addAndGet(computationTimeNanos);
                 return estimate;
             },
-            nowMillis::get,
+            nowNanos::get,
             TimeValue.timeValueSeconds(1),
             meterRegistry
         );
@@ -252,16 +254,16 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC),
-            RecordingMeterRegistry.measures(bytesOf(maxHeap, watermarkPercent) - estimate)
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC),
+            RecordingMeterRegistry.measures(watermarkPercent - estimatedUsagePercent)
         );
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_HISTOGRAM,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC
                 ),
-            RecordingMeterRegistry.measures(computationTimeMillis)
+            RecordingMeterRegistry.measures(computationTimeNanos)
         );
 
         meterRegistry.getRecorder().resetCalls();
@@ -282,14 +284,14 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertThat(
             meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC),
-            RecordingMeterRegistry.measures(bytesOf(maxHeap, raisedWatermarkPercent) - estimate)
+                .getMeasurements(InstrumentType.DOUBLE_GAUGE, EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC),
+            RecordingMeterRegistry.measures(raisedWatermarkPercent - estimatedUsagePercent)
         );
         assertThat(
             meterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_HISTOGRAM,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC
                 ),
             empty()
         );
@@ -302,25 +304,25 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
         );
         assertFalse(
             meterRegistry.getRecorder()
-                .getRegisteredMetrics(InstrumentType.LONG_GAUGE)
-                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_METRIC)
+                .getRegisteredMetrics(InstrumentType.DOUBLE_GAUGE)
+                .contains(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC)
         );
     }
 
     public void testRecordsFailedEstimateComputationTime() {
         final long maxHeap = randomMaxHeapBytes();
-        final long computationTimeMillis = randomLongBetween(1, 1_000);
-        final AtomicLong nowMillis = new AtomicLong();
+        final long computationTimeNanos = randomLongBetween(1, TimeUnit.SECONDS.toNanos(1));
+        final AtomicLong nowNanos = new AtomicLong();
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var gate = new EstimatedHeapUsageRecoveryGate(
             new EstimatedHeapSettings(clusterSettings(settings(true, randomWatermark(), randomEnabledMinHeap(maxHeap)))),
             () -> ClusterState.EMPTY_STATE,
             maxHeap,
             state -> {
-                nowMillis.addAndGet(computationTimeMillis);
+                nowNanos.addAndGet(computationTimeNanos);
                 throw new RuntimeException("simulated estimate failure");
             },
-            nowMillis::get,
+            nowNanos::get,
             TimeValue.timeValueSeconds(1),
             meterRegistry
         );
@@ -330,9 +332,9 @@ public class EstimatedHeapUsageRecoveryGateTests extends ESTestCase {
             meterRegistry.getRecorder()
                 .getMeasurements(
                     InstrumentType.LONG_HISTOGRAM,
-                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC_IN_MILLIS
+                    EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC
                 ),
-            RecordingMeterRegistry.measures(computationTimeMillis)
+            RecordingMeterRegistry.measures(computationTimeNanos)
         );
     }
 

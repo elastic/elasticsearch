@@ -1001,7 +1001,6 @@ public class StatelessPlugin extends Plugin
                     clusterService,
                     memoryMetricsService,
                     shardsMappingSizeCollector,
-                    threadPool,
                     estimatedHeapSettings.get(),
                     meterRegistry
                 )

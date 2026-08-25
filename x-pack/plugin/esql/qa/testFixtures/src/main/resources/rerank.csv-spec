@@ -7,7 +7,6 @@ reranker using a single field, overwrite existing _score column
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores and rerank scores differ in columnar mode due to different segment statistics
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -28,7 +27,6 @@ reranker using a single field, create a mew column
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores and rerank scores differ in columnar mode due to different segment statistics
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
@@ -70,7 +68,6 @@ reranker using a sparse input field
 required_capability: rerank
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores and rerank scores differ in columnar mode due to different segment statistics
 
 FROM books METADATA _score
 | WHERE MATCH(title, "lord of the rings", {"minimum_should_match": "100%"}) AND author:"tolkien"
@@ -195,7 +192,6 @@ book_no:keyword | title:keyword             | author:keyword   | _score:double
 simple
 required_capability: rerank
 required_capability: routing_function_update
-skip_columnar: BM25 scores and rerank scores differ in columnar mode due to different segment statistics
 
 // tag::simple-query[]
 FROM books METADATA _score
@@ -219,7 +215,6 @@ Letters of J R R Tolkien          | 0.0024999999441206455
 two_queries
 required_capability: rerank
 required_capability: routing_function_update
-skip_columnar: BM25 scores and rerank scores differ in columnar mode due to different segment statistics
 
 // tag::two-queries[]
 FROM books METADATA _score
@@ -338,7 +333,6 @@ book_no:keyword | title:keyword | _score: double
 rerank with timeout option
 required_capability: rerank
 required_capability: inference_accept_timeout
-skip_columnar: BM25 scores and rerank scores differ in columnar mode due to different segment statistics
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"

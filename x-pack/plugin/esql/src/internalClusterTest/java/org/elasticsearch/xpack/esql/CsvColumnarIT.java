@@ -696,7 +696,7 @@ public class CsvColumnarIT extends CsvIT {
         /**
          * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>Performs two adjustments in a single parse-serialize pass:
+         * <p>Performs three adjustments in a single parse-serialize pass:
          * <ol>
          *   <li>Removes the top-level {@code "runtime"} section.
          *       {@code IndexMode.COLUMNAR.validateMapping} calls
@@ -715,12 +715,21 @@ public class CsvColumnarIT extends CsvIT {
          *       a field of type [dense_vector] when it is indexed".  Restoring the standard-mode
          *       default explicitly keeps the mapping semantically equivalent to the one
          *       {@link CsvIT} creates, so the csv-spec oracle results remain valid.</li>
+         *   <li>Injects {@code "norms": true} into every {@code text} field that omits
+         *       {@code "norms"}.
+         *       Columnar mode defaults norms off for text fields
+         *       ({@code TextFieldMapper.java:338-345}, gated on
+         *       {@code IndexMode.isColumnar()}), which causes BM25 length normalization to
+         *       collapse to a constant. That produces different relevance scores for the same
+         *       query, invalidating the csv-spec oracle. Restoring the standard-mode default
+         *       makes BM25 scores bit-identical so all score-asserting specs remain valid.</li>
          * </ol>
          */
         private static String sanitizeMapping(String mapping) throws IOException {
             Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
             map.remove("runtime");
             fixDenseVectorIndexDefault(map);
+            fixTextNormsDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(map);
                 return Strings.toString(builder);
@@ -728,31 +737,64 @@ public class CsvColumnarIT extends CsvIT {
         }
 
         /**
-         * Recursively walks the {@code "properties"} tree in a mapping object and injects
-         * {@code "index": true} into every {@code dense_vector} field that declares
-         * {@code "similarity"} without an explicit {@code "index"} key.
+         * Recursively walks every field definition reachable from {@code mappingObject} — via
+         * {@code "properties"} (top-level and object/nested fields) and {@code "fields"}
+         * (multi-fields) — and applies {@code fieldVisitor} to each one.
          */
         @SuppressWarnings("unchecked")
-        private static void fixDenseVectorIndexDefault(Map<String, Object> mappingObject) {
-            Object propertiesRaw = mappingObject.get("properties");
-            if (propertiesRaw instanceof Map<?, ?> == false) {
-                return;
-            }
-            Map<String, Object> properties = (Map<String, Object>) propertiesRaw;
-            for (Object fieldDefRaw : properties.values()) {
-                if (fieldDefRaw instanceof Map<?, ?> == false) {
+        private static void walkFieldDefs(
+            Map<String, Object> mappingObject,
+            java.util.function.Consumer<Map<String, Object>> fieldVisitor
+        ) {
+            for (String key : new String[] { "properties", "fields" }) {
+                Object raw = mappingObject.get(key);
+                if (raw instanceof Map<?, ?> == false) {
                     continue;
                 }
-                Map<String, Object> fieldDef = (Map<String, Object>) fieldDefRaw;
+                Map<String, Object> container = (Map<String, Object>) raw;
+                for (Object fieldDefRaw : container.values()) {
+                    if (fieldDefRaw instanceof Map<?, ?> == false) {
+                        continue;
+                    }
+                    Map<String, Object> fieldDef = (Map<String, Object>) fieldDefRaw;
+                    fieldVisitor.accept(fieldDef);
+                    walkFieldDefs(fieldDef, fieldVisitor);
+                }
+            }
+        }
+
+        /**
+         * Recursively walks the mapping and injects {@code "index": true} into every
+         * {@code dense_vector} field that declares {@code "similarity"} without an explicit
+         * {@code "index"} key.
+         */
+        private static void fixDenseVectorIndexDefault(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
                 if ("dense_vector".equals(fieldDef.get("type"))
                     && fieldDef.containsKey("similarity")
                     && fieldDef.get("similarity") != null
                     && fieldDef.containsKey("index") == false) {
                     fieldDef.put("index", true);
                 }
-                // Recurse into object / nested fields.
-                fixDenseVectorIndexDefault(fieldDef);
-            }
+            });
+        }
+
+        /**
+         * Recursively walks the mapping and injects {@code "norms": true} into every
+         * {@code text} field that does not already declare {@code "norms"}.
+         *
+         * <p>Columnar mode disables norms on text fields by default
+         * ({@code TextFieldMapper.java:338-345}). That breaks BM25 scoring relative to the
+         * csv-spec oracle. Restoring the standard-mode default keeps scores identical so
+         * score-asserting specs remain valid. Multi-fields (reachable via {@code "fields"}) are
+         * covered through {@link #walkFieldDefs}.
+         */
+        private static void fixTextNormsDefault(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
+                if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("norms") == false) {
+                    fieldDef.put("norms", true);
+                }
+            });
         }
     }
 }

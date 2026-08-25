@@ -7,7 +7,6 @@ required_capability: metadata_score
 required_capability: score_function
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 // tag::score-function[]
 FROM books METADATA _score
@@ -30,7 +29,6 @@ scoreSingleNoMetadata
 required_capability: score_function
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -50,7 +48,6 @@ required_capability: score_function
 required_capability: metadata_score
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books METADATA _score
 | EVAL stars = to_long(ratings / 2.0)
@@ -72,7 +69,6 @@ scoreMatchWithFilterConjunction
 required_capability: score_function
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -90,7 +86,6 @@ scoreMatchWithDisjunction
 required_capability: score_function
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -108,7 +103,6 @@ scoreMatchWithDisjunctionAndFilter
 required_capability: score_function
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -126,7 +120,6 @@ scoreMatchDisjunctionNonPushable
 required_capability: score_function
 required_capability: match_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -161,7 +154,6 @@ required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode; doc-values-based norms produce different IDF/TF statistics than the standard inverted index
 
 FROM books
 | WHERE author == "J R R Tolkien"
@@ -178,7 +170,6 @@ required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode; doc-values-based norms produce different IDF/TF statistics than the standard inverted index
 
 FROM books
 | SORT book_no desc
@@ -205,7 +196,6 @@ required_capability: score_function
 required_capability: match_function
 required_capability: pushing_down_eval_with_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode; doc-values-based norms produce different IDF/TF statistics than the standard inverted index
 
 FROM books
 | sort book_no desc

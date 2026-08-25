@@ -46,7 +46,6 @@ War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 ;
 
 completion using a function as a prompt
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics, causing sort-by-score to return a different top-2 ordering
 required_capability: completion
 required_capability: match_operator_colon
 required_capability: routing_function_update

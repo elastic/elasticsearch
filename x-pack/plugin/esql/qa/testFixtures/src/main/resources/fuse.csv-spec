@@ -26,7 +26,6 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -51,7 +50,6 @@ required_capability: fork_v9
 required_capability: fuse_v6
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode causing post-filter WHERE to drop rows
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" OR author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -146,7 +144,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -172,7 +169,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -198,7 +194,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -224,7 +219,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _score, _index
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -250,7 +244,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
@@ -276,7 +269,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -305,7 +297,6 @@ required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: dots_in_fuse
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -333,7 +324,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
@@ -361,7 +351,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3
@@ -391,7 +380,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -412,7 +400,6 @@ _score:double | _fork:keyword  | _id:keyword
 ;
 
 fuseWithLinearAndL2Norm
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 required_capability: fork_v9
 required_capability: fuse_v6
@@ -438,7 +425,6 @@ _score:double | _fork:keyword  | _id:keyword
 ;
 
 fuseWithLinearAndMinMax
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 required_capability: fork_v9
 required_capability: fuse_v6
@@ -470,7 +456,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -496,7 +481,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -522,7 +506,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
@@ -549,7 +532,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL my_score = _score | DROP _score)
@@ -576,7 +558,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
@@ -604,7 +585,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 | EVAL new_id = CONCAT(_id, _id) | DROP _id)
@@ -631,7 +611,6 @@ required_capability: fuse_v6
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores and RRF rankings differ in columnar mode due to different segment statistics
 
 FROM books METADATA _id, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3

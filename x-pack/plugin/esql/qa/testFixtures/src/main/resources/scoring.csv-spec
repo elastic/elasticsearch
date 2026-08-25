@@ -6,7 +6,6 @@ singleQstrBoostScoringSorted
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("author:Lord Rings^2")
@@ -24,7 +23,7 @@ singleMatchWithKeywordFieldScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
+skip_columnar: columnar mode disables the inverted index on keyword fields by default (index.mapping.index_disabled_by_default=true), so author.keyword queries use a doc-values scan and return a constant score of 1.0 rather than a BM25 score
 
 from books metadata _score
 | where author.keyword:"William Faulkner"
@@ -47,7 +46,6 @@ qstrWithFieldAndScoringSortedEval
 required_capability: qstr_function
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("title:rings")
@@ -66,7 +64,6 @@ qstrWithFieldAndScoringSorted
 required_capability: qstr_function
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("title:rings")
@@ -84,7 +81,6 @@ singleQstrScoringManipulated
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("author:William Faulkner")
@@ -102,7 +98,6 @@ testMultiValuedFieldWithConjunctionWithScore
 required_capability: match_function
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where match(author, "Keith Faulkner") and match(author, "Rory Tyger")
@@ -116,7 +111,6 @@ testMatchAndQueryStringFunctionsWithScore
 required_capability: match_function
 required_capability: metadata_score
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where match(author, "Keith Faulkner") and qstr("author:Rory or author:Beverlie")
@@ -132,7 +126,6 @@ multipleWhereWithMatchScoringNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where title:"short stories"
@@ -148,7 +141,6 @@ multipleWhereWithMatchScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where title:"short stories"
@@ -165,7 +157,6 @@ required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: non_full_text_functions_scoring
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -181,7 +172,6 @@ singleQstrScoring
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("author:William Faulkner")
@@ -198,7 +188,6 @@ singleQstrScoringGrok
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("author:Lord Rings")
@@ -217,7 +206,6 @@ combinedMatchWithScoringEvalNoSort
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: non_full_text_functions_scoring
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -234,7 +222,6 @@ singleQstrScoringRename
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("author:Lord Rings")
@@ -253,7 +240,6 @@ singleMatchWithTextFieldScoring
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where author:"William Faulkner"
@@ -274,7 +260,6 @@ required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: non_full_text_functions_scoring
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -290,7 +275,6 @@ combinedMatchWithScoringEval
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: non_full_text_functions_scoring
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where title:"Tolkien" AND author:"Tolkien" AND year > 2000
@@ -307,7 +291,6 @@ singleQstrScoringEval
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("author:Lord Rings")
@@ -326,7 +309,6 @@ QstrScoreManipulation
 required_capability: metadata_score
 required_capability: qstr_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("title:gentle")
@@ -434,7 +416,6 @@ book_no:keyword | _score:double
 ;
 
 conjunctionScoresPushableNonPushableFunctions
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 required_capability: metadata_score
 required_capability: match_function
@@ -454,7 +435,6 @@ book_no:keyword | _score:double
 ;
 
 conjunctionScoresPushableFunctions
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 required_capability: metadata_score
 required_capability: match_function
@@ -473,7 +453,6 @@ book_no:keyword | _score:double
 ;
 
 disjunctionScoresPushableNonPushableFunctions
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 required_capability: metadata_score
 required_capability: match_operator_colon
@@ -497,7 +476,6 @@ book_no:keyword | _score:double
 ;
 
 disjunctionScoresMultipleClauses
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 required_capability: metadata_score
 required_capability: match_operator_colon
@@ -527,7 +505,6 @@ required_capability: metadata_score
 required_capability: match_function
 required_capability: full_text_functions_in_stats_where
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode; doc-values-based norms produce different IDF/TF statistics than the standard inverted index
 
 from books metadata _score
 | where match(title, "Lord Rings", {"operator": "AND"})
@@ -539,7 +516,6 @@ avg_score:double  | max_score:double   | min_score:double
 ;
 
 testMatchPhraseWithScore
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 required_capability: match_phrase_function
 required_capability: metadata_score
@@ -559,7 +535,6 @@ book_no:keyword | title:text                            | author:text           
 testMatchPhraseWithScoreBoost
 required_capability: match_phrase_function
 required_capability: routing_function_update
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where match_phrase(title, "J. R. R. Tolkien", {"boost": 5})
@@ -575,7 +550,6 @@ book_no:keyword | title:text                            | author:text           
 testQstrWithScoreBoost
 required_capability: qstr_function
 required_capability: qstr_function_boost_fix
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 from books metadata _score
 | where qstr("title:rings", {"boost": 5})

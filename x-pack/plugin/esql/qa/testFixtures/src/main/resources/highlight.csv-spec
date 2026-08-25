@@ -351,7 +351,6 @@ highlightThenEvalScore
 required_capability: highlight_v6
 required_capability: score_function
 required_capability: match_function
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books
 | WHERE match(title, "Return") AND match(author, "Tolkien")
@@ -1587,7 +1586,6 @@ fork2         | 7350            | <em>Return</em> of the Shadow
 highlightAfterForkFuse
 required_capability: highlight_v6
 required_capability: fork_v9
-skip_columnar: BM25 scores differ in columnar mode due to different segment statistics
 
 FROM books METADATA _score, _id, _index
 | WHERE title:"Tolkien"

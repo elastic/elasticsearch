@@ -319,6 +319,9 @@ public final class ParquetFixtureGenerator {
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
                 .named(col.name());
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version] in a list: Parquet has no version type, same as the scalar arm"
+            );
             case "uint32" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
                 .as(LogicalTypeAnnotation.intType(32, false))
@@ -403,6 +406,9 @@ public final class ParquetFixtureGenerator {
             case "float", "half_float" -> listElement.append("element", ((Number) elem).floatValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));
             case "date", "date_nanos" -> listElement.append("element", ((Number) elem).longValue());
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version] in a list: Parquet has no version type, same as the scalar arm"
+            );
             case "uint32" -> listElement.append("element", ((Number) elem).longValue());
             case "uint16" -> listElement.append("element", ((Number) elem).intValue());
             case "uint64" -> listElement.append("element", ((Number) elem).longValue());

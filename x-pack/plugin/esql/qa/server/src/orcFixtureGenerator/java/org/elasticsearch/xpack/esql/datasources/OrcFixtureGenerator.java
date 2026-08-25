@@ -289,6 +289,9 @@ public final class OrcFixtureGenerator {
 
     private static TypeDescription orcListTypeFor(String type) {
         return switch (type) {
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version] in a list: ORC has no version type, same as the scalar arm"
+            );
             case "integer", "short", "byte" -> TypeDescription.createList(TypeDescription.createInt());
             case "long" -> TypeDescription.createList(TypeDescription.createLong());
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createList(TypeDescription.createDouble());

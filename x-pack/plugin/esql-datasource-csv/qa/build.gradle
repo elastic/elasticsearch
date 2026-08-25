@@ -246,7 +246,11 @@ ext.fixtureLayoutFormat = 'csv'
 ext.fixtureLayoutRoot = file("${csvIcebergFixtureRoot}/iceberg-fixtures")
 ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.CsvFixtureGenerator'
 ext.fixtureLayoutGenerator = 'csvFixtureGenerator'
-ext.fixtureLayoutSkip = fixtureMatrix.authoredLayouts() as Set
+// Named explicitly, not derived: a derived set would silently absorb any layout added later,
+// which is the drift this change exists to remove. CSV registers its authored layouts as Sync
+// copies above, so only hive comes from the registrar.
+ext.fixtureLayoutSkip = ['multifile', 'multifile_ubn', 'multifile_type_drift', 'multifile_temporal',
+                         'multifile_perm', 'multifile_split'] as Set
 ext.fixtureLayoutTasks = generateCsvHiveTasks
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 
@@ -302,7 +306,7 @@ tasks.named('javaRestTest') {
 // CsvCompressedFormatSpecIT, TsvFormatSpecIT, and TsvCompressedFormatSpecIT plus their
 // shared abstract base. Keeping them out of javaRestTest prevents tests in that JVM fork
 // from poisoning the JVM-global INGEST guard in EsqlSpecTestCase. All four IT classes
-// inherit the same static cluster field from AbstractCsvExternalSpecTestCase — INGEST fires
+// inherit the same static cluster field from AbstractDelimitedTextSpecTestCase — INGEST fires
 // exactly once for the entire suite. No variants are declared — the IT classes are
 // hand-written in src/csvSpecTest/java/ because the generator hardcodes a 6-parameter
 // constructor and compressed tests need 8 (format, StorageBackend).
@@ -322,7 +326,7 @@ tasks.named('processCsvSpecTestResources').configure {
 }
 
 // Runs the four csv-spec ITs in their own JVM, separate from javaRestTest. All four extend
-// AbstractCsvExternalSpecTestCase, which declares the shared ElasticsearchCluster at the
+// AbstractDelimitedTextSpecTestCase, which declares the shared ElasticsearchCluster at the
 // abstract-class level — INGEST fires exactly once for the entire suite.
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   dependsOn csvFixtureTasks

@@ -34,18 +34,7 @@ public class FixtureExclusionsTests extends ESTestCase {
 
     public void testSuitesAreNamedByTheirFormatToken() {
         // A suite name that does not match a token is a typo that would silently exclude nothing.
-        Set<String> known = Set.of(
-            "csv",
-            "tsv",
-            "ndjson",
-            "orc",
-            "parquet",
-            "parquet-rs",
-            "ndjson-compressed",
-            "csv-compressed",
-            "tsv-compressed",
-            "parquet-compressed"
-        );
+        Set<String> known = Set.of("ndjson", "ndjson-compressed", "orc", "parquet", "parquet-rs");
         for (String suite : FixtureExclusions.get().suites()) {
             assertTrue("unknown suite token [" + suite + "] in the exclusion declaration", known.contains(suite));
         }

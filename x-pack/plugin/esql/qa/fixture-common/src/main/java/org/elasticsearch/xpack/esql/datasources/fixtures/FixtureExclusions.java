@@ -34,9 +34,16 @@ public final class FixtureExclusions {
 
     /** Kind of exclusion: a defect to fix, or something the suite cannot express at all. */
     public enum Kind {
-        /** A defect. The case is right and the reader is wrong; removing the entry verifies the fix. */
+        /**
+         * A defect, or a capability the reader has not implemented yet. Either way the case is right
+         * and the reader is not, so removing the entry is how a fix gets verified. If a reason says
+         * "re-enable once ...", it is this kind.
+         */
         BUG,
-        /** The suite cannot express the case. Permanent; nothing to fix. */
+        /**
+         * The suite cannot express the case at all, and no fix would change that -- the format has no
+         * such type, or its schema is inferred rather than declared. Permanent. Nothing to re-enable.
+         */
         RULE
     }
 

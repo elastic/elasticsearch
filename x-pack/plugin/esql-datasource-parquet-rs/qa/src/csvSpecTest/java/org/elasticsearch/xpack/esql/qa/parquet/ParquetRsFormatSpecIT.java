@@ -79,7 +79,8 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " not supported by parquet-rs reader", false);
+            // The message is the declared reason, so a skip explains itself in the log.
+            assumeTrue(testName + ": " + FixtureExclusions.get().find("parquet-rs", testName).reason(), false);
         }
         super.shouldSkipTest(testName);
     }

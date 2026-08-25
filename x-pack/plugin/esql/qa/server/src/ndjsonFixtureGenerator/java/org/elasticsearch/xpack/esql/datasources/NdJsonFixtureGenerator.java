@@ -243,6 +243,9 @@ public final class NdJsonFixtureGenerator {
             case "boolean", "bool" -> b.value(asBoolean(v));
             case "date" -> b.value(formatDate(v));
             case "date_nanos" -> b.value(formatDateNanos(v));
+            case "uint32", "uint16", "uint64", "version" -> throw new IllegalArgumentException(
+                "declared [" + type + "] in a list: not representable in NDJSON, same as the scalar arm"
+            );
             case "null", "n" -> throw new IllegalStateException("Unexpected null-typed cell in list");
             default -> b.value(((String) v).trim());
         }

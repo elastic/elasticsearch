@@ -233,12 +233,6 @@ public final class TsvFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> Double.toString(((Number) value).doubleValue());
             case "boolean", "bool" -> Boolean.TRUE.equals(value) ? "true" : "false";
             case "date", "datetime", "dt" -> Instant.ofEpochMilli(((Number) value).longValue()).toString();
-            // Refused, not stringified. A `version` column written as text infers as keyword on the
-            // way back, losing the version comparison semantics the declared type exists for; the
-            // unsigned types have no text form the CSV/TSV reader's parseDataType will accept.
-            case "version" -> throw new IllegalArgumentException(
-                "declared [version]: not representable in TSV -- it would read back as a keyword"
-            );
             case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
                 "declared [" + type + "]: unsigned types have no TSV representation the reader accepts"
             );

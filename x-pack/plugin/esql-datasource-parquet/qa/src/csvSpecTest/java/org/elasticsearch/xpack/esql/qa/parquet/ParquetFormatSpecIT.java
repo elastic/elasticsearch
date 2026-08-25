@@ -49,7 +49,8 @@ public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " blocked on the widened-column pushdown defect", false);
+            // The message is the declared reason, so a skip explains itself in the log.
+            assumeTrue(testName + ": " + FixtureExclusions.get().find("parquet", testName).reason(), false);
         }
         super.shouldSkipTest(testName);
     }

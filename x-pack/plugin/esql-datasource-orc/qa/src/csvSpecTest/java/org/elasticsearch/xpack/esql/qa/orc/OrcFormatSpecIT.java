@@ -58,7 +58,8 @@ public class OrcFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " needs DATE_NANOS support in the ORC reader", false);
+            // The message is the declared reason, so a skip explains itself in the log.
+            assumeTrue(testName + ": " + FixtureExclusions.get().find("orc", testName).reason(), false);
         }
         super.shouldSkipTest(testName);
     }

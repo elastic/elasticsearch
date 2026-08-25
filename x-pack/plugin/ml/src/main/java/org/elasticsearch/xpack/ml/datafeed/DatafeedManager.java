@@ -295,11 +295,6 @@ public final class DatafeedManager {
             final boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
 
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
-                // Validate project_routing requires CPS to be enabled in the environment
-                if (updatedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                    validatorListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-                    return;
-                }
                 jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
             };
 
@@ -594,12 +589,6 @@ public final class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) {
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
-
-        // Validate project_routing requires CPS to be enabled in the environment.
-        if (request.getDatafeed().getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-            listener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
-            return;
-        }
 
         CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
             request.getDatafeed(),

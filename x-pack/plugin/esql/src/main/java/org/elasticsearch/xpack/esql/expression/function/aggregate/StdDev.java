@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,15 +38,22 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class StdDev extends AggregateFunction implements ToAggregator {
+public class StdDev extends AggregateFunction implements ToAggregator, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StdDev.class).unary(StdDev::new).name("std_dev");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(StdDev::new)
+        // PromQL requires IEEE-754 semantics, so the across-series standard deviation reports NaN for non-finite input.
+        .acrossSeries((source, field) -> new StdDev(source, field, true))
         .description("Calculates the population standard deviation across the input vector.")
         .example("stddev(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("stddev");
+
+    /**
+     * When {@code true}, a non-finite aggregation result is reported as {@code NaN} instead of {@code null}. Set only by
+     * the PromQL translation; native ES|QL {@code STD_DEV} uses the default strict (finite-only) form.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -63,20 +72,51 @@ public class StdDev extends AggregateFunction implements ToAggregator {
             ) }
     )
     public StdDev(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, false);
+    }
+
+    /**
+     * Builds a {@code StdDev} that reports non-finite results as {@code NaN} when {@code allowNonFinite} is true.
+     * Used by the PromQL translation; native ES|QL {@code STD_DEV} uses the strict (finite-only) form.
+     */
+    public StdDev(Source source, Expression field, boolean allowNonFinite) {
+        this(source, field, Literal.TRUE, NO_WINDOW, allowNonFinite);
     }
 
     public StdDev(Source source, Expression field, Expression filter, Expression window) {
+        this(source, field, filter, window, false);
+    }
+
+    public StdDev(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite) {
         super(source, field, filter, window, emptyList());
+        this.allowNonFinite = allowNonFinite;
     }
 
     private StdDev(StreamInput in) throws IOException {
         super(in);
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new StdDev(source(), field(), filter(), window(), false);
     }
 
     @Override
@@ -97,29 +137,29 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<StdDev> info() {
-        return NodeInfo.create(this, StdDev::new, field(), filter(), window());
+        return NodeInfo.create(this, StdDev::new, field(), filter(), window(), allowNonFinite);
     }
 
     @Override
     public StdDev replaceChildren(List<Expression> newChildren) {
-        return new StdDev(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new StdDev(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite);
     }
 
     public StdDev withFilter(Expression filter) {
-        return new StdDev(source(), field(), filter, window());
+        return new StdDev(source(), field(), filter, window(), allowNonFinite);
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(true);
+            return new StdDevLongAggregatorFunctionSupplier(true, allowNonFinite);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(true);
+            return new StdDevIntAggregatorFunctionSupplier(true, allowNonFinite);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(true);
+            return new StdDevDoubleAggregatorFunctionSupplier(true, allowNonFinite);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

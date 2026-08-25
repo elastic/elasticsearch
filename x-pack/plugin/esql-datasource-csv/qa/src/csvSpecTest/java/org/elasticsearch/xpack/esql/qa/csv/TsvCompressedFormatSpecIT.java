@@ -22,7 +22,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class TsvCompressedFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+public class TsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
 
     // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
     // builds, so .tsv.bz2/.tsv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.

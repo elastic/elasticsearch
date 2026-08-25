@@ -1,0 +1,135 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.fixtures;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+
+/**
+ * The spec cases a suite does not run, and why.
+ * <p>
+ * Read from {@code fixture-exclusions.properties}. Before this, the same information lived in five
+ * separate {@code SKIPPED_TESTS} sets across five suite classes, so "what are we not testing?" could
+ * only be answered by reading all five — and it was possible to work in this area at length without
+ * knowing two of them existed.
+ * <p>
+ * Each suite still enforces its own exclusions; it reads them from here instead of holding its own
+ * copy. Making membership itself declarative — a suite runs everything unless excluded, rather than
+ * only what it names — is the remaining half, tracked separately.
+ */
+public final class FixtureExclusions {
+
+    private static final String RESOURCE = "fixture-exclusions.properties";
+    private static final FixtureExclusions INSTANCE = load();
+
+    /** Kind of exclusion: a defect to fix, or something the suite cannot express at all. */
+    public enum Kind {
+        /** A defect. The case is right and the reader is wrong; removing the entry verifies the fix. */
+        BUG,
+        /** The suite cannot express the case. Permanent; nothing to fix. */
+        RULE
+    }
+
+    /** One exclusion: which suite, which case, what kind, and the reason in full. */
+    public record Exclusion(String suite, String caseName, Kind kind, String reason) {}
+
+    private final Map<String, Map<String, Exclusion>> bySuite;
+
+    public static FixtureExclusions get() {
+        return INSTANCE;
+    }
+
+    private static FixtureExclusions load() {
+        Properties props = new Properties();
+        try (InputStream in = FixtureExclusions.class.getResourceAsStream(RESOURCE)) {
+            if (in == null) {
+                throw new IllegalStateException(
+                    "exclusion declaration ["
+                        + RESOURCE
+                        + "] is not on the classpath; the module reading it must "
+                        + "depend on esql:qa:fixture-common"
+                );
+            }
+            props.load(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException("could not read [" + RESOURCE + "]", e);
+        }
+        return new FixtureExclusions(props);
+    }
+
+    private FixtureExclusions(Properties props) {
+        Map<String, Map<String, Exclusion>> parsed = new LinkedHashMap<>();
+        for (String key : props.stringPropertyNames()) {
+            if (key.startsWith("exclude.") == false) {
+                continue;
+            }
+            String rest = key.substring("exclude.".length());
+            int dot = rest.lastIndexOf('.');
+            if (dot < 0) {
+                throw new IllegalStateException("malformed exclusion key [" + key + "]; expected exclude.<suite>.<caseName>");
+            }
+            String suite = rest.substring(0, dot);
+            String caseName = rest.substring(dot + 1);
+            String value = props.getProperty(key).trim();
+
+            int colon = value.indexOf(':');
+            if (colon < 0) {
+                throw new IllegalStateException(
+                    "exclusion ["
+                        + key
+                        + "] has no kind. Write 'bug: <symptom>' for a defect, or 'rule: <why>' for "
+                        + "something the suite cannot express."
+                );
+            }
+            String kindText = value.substring(0, colon).trim();
+            Kind kind = switch (kindText) {
+                case "bug" -> Kind.BUG;
+                case "rule" -> Kind.RULE;
+                default -> throw new IllegalStateException(
+                    "exclusion [" + key + "] has unknown kind [" + kindText + "]; expected 'bug' or 'rule'"
+                );
+            };
+            String reason = value.substring(colon + 1).trim();
+            if (reason.isEmpty()) {
+                throw new IllegalStateException("exclusion [" + key + "] states a kind but no reason");
+            }
+            parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>()).put(caseName, new Exclusion(suite, caseName, kind, reason));
+        }
+        this.bySuite = Map.copyOf(parsed);
+    }
+
+    /** The case names the given suite does not run. */
+    public Set<String> casesFor(String suite) {
+        return bySuite.getOrDefault(suite, Map.of()).keySet();
+    }
+
+    /** Every exclusion the given suite declares. */
+    public Iterable<Exclusion> forSuite(String suite) {
+        return bySuite.getOrDefault(suite, Map.of()).values();
+    }
+
+    /** The exclusion for a case on a suite, or {@code null} if the suite runs it. */
+    public Exclusion find(String suite, String caseName) {
+        return bySuite.getOrDefault(suite, Map.of()).get(caseName);
+    }
+
+    /** Every suite that declares at least one exclusion. */
+    public Set<String> suites() {
+        return bySuite.keySet();
+    }
+
+    /** Total number of declared exclusions, across every suite. */
+    public int size() {
+        return bySuite.values().stream().mapToInt(Map::size).sum();
+    }
+}

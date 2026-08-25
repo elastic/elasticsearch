@@ -16,6 +16,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
@@ -39,18 +40,8 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
     /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        "strictCount",
-        "strictFilterAndSort",
-        "strictSalaryStats",
-        "strictAggregateByGender",
-        "ubnCount",
-        "ubnExplicitCount",
-        "readAllEmployeesMultiFile",
-        "multiFileDistinctFileCount",
-        "multiFileGroupByFile",
-        "multiFileMetadataSizePositive"
-    );
+    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
+    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("ndjson-compressed");
 
     public NdJsonCompressedFormatSpecIT(
         String fileName,

@@ -14,6 +14,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
@@ -51,16 +52,8 @@ public class OrcFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        // The mixed-temporal pair declares one file `date` and the other `date_nanos`, and ORC cannot
-        // round-trip the nanos half: OrcFormatReader maps TIMESTAMP and TIMESTAMP_INSTANT to DATETIME
-        // and has no DATE_NANOS mapping. OrcFixtureGenerator therefore refuses the type rather than
-        // writing it as a string, and the fixture matrix declares that cell absent -- so these cases
-        // have no data to read here. Reader work, not fixture work; re-enable when ORC gains
-        // DATE_NANOS.
-        "temporalWidensToMinMax",
-        "temporalWidensToFilteredMinMax"
-    );
+    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
+    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("orc");
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {

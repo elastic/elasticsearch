@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,16 +43,8 @@ public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
     // maps a .parquet resource to the Java reader with no reader key), so FROM-on-S3 still uses the Java reader;
     // the explicit reader injection stays exercised on the rebuilt-EXTERNAL backends.
 
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        // Filtering a column that schema reconciliation widened to keyword pushes the comparison
-        // down and evaluates it against the file's PRE-widening type, so in the file where `code`
-        // is declared integer the pushdown holds a Number while the literal is a BytesRef and the
-        // cast fails with a 500 (ParquetPushedExpressions.evaluateComparison). Reading and
-        // aggregating the same widened column both work -- only the pushed filter fails -- and ORC
-        // passes this case against the same rows. Re-enable once a pushed comparison is evaluated
-        // against the reconciled column type rather than the per-file declared type.
-        "typeDriftFilterIsStringComparison"
-    );
+    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
+    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("parquet");
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {

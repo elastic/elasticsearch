@@ -15,6 +15,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
@@ -72,95 +73,8 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return true;
     }
 
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        // unknown parquet column [job_positions] referenced in projection (reported in the schema as "element")
-        "filterFirstRowAllColumns",
-        "mvAppendFromScalars",
-        "mvConcatFromSplit",
-        "mvCountFromSplit",
-        "mvDedupeFromSplit",
-        "mvExpandFromSplit",
-        "mvLikeFromDataset",
-        "mvLikeNotFromDataset",
-        "mvMaxFromSplit",
-        "mvMinFromSplit",
-        "mvRLikeFromDataset",
-        // unknown parquet column [salary_change] referenced in projection (reported in the schema as "element")
-        "mvDedupeFromSplit2",
-        // unknown parquet column [author] referenced in projection
-        "externalRerankBooks",
-        // TODO: parquet-rs OrdinalBytesRefBlock validity buffer is not 8-byte padded per the Arrow
-        // columnar spec; AbstractArrowBufBlock.areAllValuesNull reads it as a long and throws
-        // IndexOutOfBoundsException. Both the multi-key PackedValuesBlockHash path and the single-key
-        // BytesRefBlockHash path (line 77) call areAllValuesNull, so any STATS … BY <keyword> on a
-        // multi-file glob fails with "index: 0, length: 8 (expected: range(0, N))". Single-file STATS BY
-        // tests pass only because the standalone parquet-rs output happens to allocate a buffer ≥ 8 bytes.
-        // Re-enable once the parquet-rs reader pads validity buffers correctly.
-        "hivePartitionStatsByLangAndGender",
-        "aggregateMultiFileByGender",
-        "multiFileEvalAndAggregate",
-        "multiFileGroupByFile",
-        "ffwAggregateByGender",
-        "strictAggregateByGender",
-        "ubnAggregateByGender",
-        // parquet-rs does not reconcile schemas across a multi-file glob, in two ways that share a
-        // cause. It resolves a projection against ONE file's schema, so a column present only in the
-        // other file is rejected outright ("unknown parquet column [city] ... Known columns name, age,
-        // score") instead of null-filling. And it does not apply the reconciliation cast, so a column
-        // the unified schema widened comes back as its per-file type -- integer where long was
-        // expected, integer where keyword was expected -- surfacing as an IntArrowBufBlock that cannot
-        // be cast to BytesRefBlock, and as a string comparison matching nothing.
-        //
-        // Not every aggregate escapes: ubnUnionKeepsAllRows (COUNT) and ubnWidenedColumnAggregates
-        // (MIN/MAX) both pass, but typeDriftExtremaAreLexicographic does not, because its extrema come
-        // back as the wrong block type.
-        //
-        // The Java Parquet and ORC readers pass all of these, and NDJSON passes every one it runs.
-        // CSV runs its own twin specs rather than these files, so it is not evidence either way for
-        // the typeDrift cases. Re-enable once parquet-rs reconciles across files.
-        "ubnUnionNullFillsAbsentColumn",
-        "ubnUnionNullFillIsCountable",
-        "ubnWidenedColumnProjection",
-        "typeDriftWidensToKeyword",
-        "typeDriftExtremaAreLexicographic",
-        // Widening `date` to `date_nanos` does not RESCALE: the millis value 2 comes back as
-        // 1970-01-01T00:00:00.000000002Z (2 nanoseconds) instead of ...00.002Z (2 milliseconds). The
-        // half of the pair already declared date_nanos reads correctly, so it is the millis-to-nanos
-        // conversion that is missing, not the type. Same reconciliation path as the cases above.
-        "temporalWidensToMinMax",
-        "temporalWidensToFilteredMinMax",
-        "typeDriftFilterIsStringComparison",
-        // parquet-rs binds columns across files by physical POSITION rather than by name, so a glob
-        // whose files carry the same columns in different order reads the wrong column: the reversed
-        // file's leading r:double is taken as the unified schema's leading p:integer and the query
-        // fails with "Expected [INT] but was [DOUBLE]". The fixture gives its columns distinct types
-        // precisely so this cannot pass silently. The Java Parquet, ORC, NDJSON, CSV and TSV readers
-        // all pass these cases. Re-enable once parquet-rs reconciles cross-file column order by name.
-        "parquetPermThreeColumnReorder",
-        "parquetPermReversedProjection",
-        "parquetPermNonAnchorRows",
-        // Nested STRUCT subfield projection (external-nested-struct.csv-spec) is implemented by the
-        // Java parquet reader only; parquet-rs does not yet flatten struct schemas.
-        "nestedKeepSingleSubfield",
-        "nestedKeepTwoSubfieldsSameParent",
-        "nestedKeepMixedTopLevelAndNested",
-        "nestedStatsByNested",
-        "nestedNullPropagation",
-        "nestedWhereEquals",
-        "nestedWhereIsNull",
-        "nestedStatsMinMax",
-        "nestedFilterAndProjectMixed",
-        // A LIST leaf reached through a STRUCT (e.g. answers.text where answers is struct<text: list<...>>)
-        // is bound by its flattened logical name only by the Java parquet reader; parquet-rs does not yet
-        // flatten struct schemas, so the leaf resolves to no column descriptor and reads as all-null
-        // (COUNT returns 0, values/min/max are null). Re-enable once parquet-rs binds list-under-struct
-        // leaves by their flattened name in both the read and aggregate-statistics paths.
-        "listUnderStructCount",
-        "listUnderStructValues",
-        "listUnderStructMvCount",
-        "listUnderStructIsNull",
-        "listUnderStructMinMax"
-    );
+    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
+    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("parquet-rs");
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {

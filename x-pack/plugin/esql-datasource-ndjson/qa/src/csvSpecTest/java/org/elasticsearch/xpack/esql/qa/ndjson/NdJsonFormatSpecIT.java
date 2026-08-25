@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,13 +33,8 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
      * fixture/STRICT-semantics gap, unrelated to the empty-projection fix. The empty-projection
      * multi-file tests ({@code COUNT(*)} / {@code _file.*}-only) previously muted here now run.
      */
-    private static final Set<String> SKIPPED_TESTS = Set.of(
-        // STRICT resolution rejects the divergent-schema fixture at resolution time.
-        "strictCount",
-        "strictFilterAndSort",
-        "strictSalaryStats",
-        "strictAggregateByGender"
-    );
+    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
+    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("ndjson");
 
     public NdJsonFormatSpecIT(
         String fileName,

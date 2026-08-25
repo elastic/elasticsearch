@@ -21,7 +21,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvFormatSpecIT extends AbstractCsvExternalSpecTestCase {
+public class CsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
 
     public CsvFormatSpecIT(
         String fileName,

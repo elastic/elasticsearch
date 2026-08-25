@@ -2865,6 +2865,11 @@ public class NumberFieldMapper extends FieldMapper {
     // half_float uses a separate HalfFloatPoint (2-byte BKD points) alongside its doc-values column;
     // LuceneHalfFloatPointColumn emits this type for the points column.
     private static final IndexableFieldType HALF_FLOAT_POINT_FIELD_TYPE = new HalfFloatPoint("_sentinel", 0f).fieldType();
+    // Stored-only variants: match the separate StoredField(name, value) emitted by the row path.
+    private static final IndexableFieldType INT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0).fieldType();
+    private static final IndexableFieldType LONG_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0L).fieldType();
+    private static final IndexableFieldType FLOAT_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0f).fieldType();
+    private static final IndexableFieldType DOUBLE_STORED_ONLY_FIELD_TYPE = new StoredField("_sentinel", 0.0).fieldType();
 
     @Override
     public boolean supportsColumnarParse(IndexSettings indexSettings) {
@@ -2873,7 +2878,6 @@ public class NumberFieldMapper extends FieldMapper {
         // already refuses, and refusing late falls back to row path.
         return (indexSettings.getMode().isStrictColumnar() || indexSettings.getMode().isTsdb())
             && docValuesParameters.enabled()
-            && stored == false
             && indexTerms == false
             && hasScript() == false
             && copyTo().copyToFields().isEmpty()
@@ -2912,6 +2916,31 @@ public class NumberFieldMapper extends FieldMapper {
             IndexableFieldType columnFieldType = indexed ? indexableFieldType(type) : SORTED_NUMERIC_DV_FIELD_TYPE;
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
         }
+        if (stored) {
+            if (type == NumberType.HALF_FLOAT) {
+                // HALF_FLOAT DV data is encoded as sortable shorts; for stored fields we need sortable
+                // float ints so that LongColumn.NumericKind.FLOAT decodes them correctly.
+                EscfColumnData halfFloatStoredData = NumberColumnTransform.toHalfFloatStoredLongColumn(
+                    EscfColumn.from(outData),
+                    ctx.recycler()
+                );
+                ctx.addColumn(
+                    LuceneLongColumn.of(halfFloatStoredData, fieldType().name(), FLOAT_STORED_ONLY_FIELD_TYPE, LongColumn.NumericKind.FLOAT)
+                );
+            } else {
+                ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), storedOnlyFieldType(type), numericKind(type)));
+            }
+        }
+    }
+
+    private static IndexableFieldType storedOnlyFieldType(NumberType type) {
+        return switch (type) {
+            case BYTE, SHORT, INTEGER -> INT_STORED_ONLY_FIELD_TYPE;
+            case FLOAT -> FLOAT_STORED_ONLY_FIELD_TYPE;
+            case LONG -> LONG_STORED_ONLY_FIELD_TYPE;
+            case DOUBLE -> DOUBLE_STORED_ONLY_FIELD_TYPE;
+            case HALF_FLOAT -> throw new AssertionError("unreachable: indexed half_float is handled separately");
+        };
     }
 
     private static IndexableFieldType indexableFieldType(NumberType type) {

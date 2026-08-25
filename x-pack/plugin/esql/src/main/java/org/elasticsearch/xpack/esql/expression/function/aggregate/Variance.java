@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.StdDevLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -36,17 +38,24 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Variance extends AggregateFunction implements ToAggregator {
+public class Variance extends AggregateFunction implements ToAggregator, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Variance", Variance::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Variance.class)
         .unary(Variance::new)
         .name("variance", "std_var");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Variance::new)
+        // PromQL requires IEEE-754 semantics, so the across-series variance reports NaN for non-finite input.
+        .acrossSeries((source, field) -> new Variance(source, field, true))
         .description("Calculates the population variance across the input vector.")
         .example("stdvar(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("stdvar");
+
+    /**
+     * When {@code true}, a non-finite aggregation result is reported as {@code NaN} instead of {@code null}. Set only by
+     * the PromQL translation; native ES|QL {@code VARIANCE}/{@code STD_VAR} uses the default strict (finite-only) form.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -57,20 +66,51 @@ public class Variance extends AggregateFunction implements ToAggregator {
         examples = { @Example(file = "stats", tag = "variance") }
     )
     public Variance(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, false);
+    }
+
+    /**
+     * Builds a {@code Variance} that reports non-finite results as {@code NaN} when {@code allowNonFinite} is true.
+     * Used by the PromQL translation; native ES|QL {@code VARIANCE}/{@code STD_VAR} uses the strict (finite-only) form.
+     */
+    public Variance(Source source, Expression field, boolean allowNonFinite) {
+        this(source, field, Literal.TRUE, NO_WINDOW, allowNonFinite);
     }
 
     public Variance(Source source, Expression field, Expression filter, Expression window) {
+        this(source, field, filter, window, false);
+    }
+
+    public Variance(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite) {
         super(source, field, filter, window, emptyList());
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Variance(StreamInput in) throws IOException {
         super(in);
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Variance(source(), field(), filter(), window(), false);
     }
 
     @Override
@@ -91,29 +131,29 @@ public class Variance extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Variance> info() {
-        return NodeInfo.create(this, Variance::new, field(), filter(), window());
+        return NodeInfo.create(this, Variance::new, field(), filter(), window(), allowNonFinite);
     }
 
     @Override
     public Variance replaceChildren(List<Expression> newChildren) {
-        return new Variance(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Variance(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite);
     }
 
     public Variance withFilter(Expression filter) {
-        return new Variance(source(), field(), filter, window());
+        return new Variance(source(), field(), filter, window(), allowNonFinite);
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(false);
+            return new StdDevLongAggregatorFunctionSupplier(false, allowNonFinite);
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(false);
+            return new StdDevIntAggregatorFunctionSupplier(false, allowNonFinite);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(false);
+            return new StdDevDoubleAggregatorFunctionSupplier(false, allowNonFinite);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

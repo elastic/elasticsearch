@@ -426,11 +426,13 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     /**
-     * PromQL arithmetic is translated to the non-finite-preserving (lenient) operators; native ES|QL EVAL uses the
-     * strict variants. The two must not be mixed: a PromQL {@code / 0} keeps {@code ±Inf}/{@code NaN}, while the same
-     * native division is rejected.
+     * Scope guard for the PromQL-only lenient-math invariant: expressions that preserve non-finite results
+     * ({@link NonFiniteSupport#allowNonFinite()} is {@code true}) must be produced ONLY by the PromQL translation and
+     * never by natively-parsed ES|QL. A native {@code EVAL} division and a native {@code STATS AVG} stay strict and
+     * introduce no lenient expression, while the PromQL translation of a division produces the lenient variant.
      */
     public void testLenientNonFiniteMathIsPromqlOnly() {
+        // Native ES|QL EVAL division is strict and introduces no lenient (non-finite-preserving) expression.
         LogicalPlan nativeEval = optimizedPlan("FROM test | EVAL x = salary / emp_no");
         assertThat(lenientNonFiniteExpressions(nativeEval), empty());
         List<Div> nativeDivs = new ArrayList<>();
@@ -438,6 +440,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(nativeDivs, not(empty()));
         nativeDivs.forEach(div -> assertFalse("native Div must be strict", div.allowNonFinite()));
 
+        // The PromQL translation of a division produces the lenient (non-finite-preserving) variant.
         LogicalPlan promql = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (network.cost) / 0)");
         List<Div> promqlDivs = new ArrayList<>();
         promql.forEachExpressionDown(Div.class, promqlDivs::add);
@@ -452,6 +455,20 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         // its surrogate builds) preserves non-finite results, whereas native STATS AVG above stays strict.
         LogicalPlan promqlAvg = planPromql("PROMQL index=k8s step=1h result=(avg(sum by (cluster) (network.cost)))");
         assertThat(lenientNonFiniteExpressions(promqlAvg), not(empty()));
+
+        // Native ES|QL STATS STD_DEV / VARIANCE stay strict: they introduce no lenient (non-finite-preserving) expression.
+        assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS s = STD_DEV(salary)")), empty());
+        assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS v = VARIANCE(salary)")), empty());
+
+        // The PromQL translation of stddev / stdvar produces the lenient variants.
+        assertThat(
+            lenientNonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stddev(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
+        assertThat(
+            lenientNonFiniteExpressions(planPromql("PROMQL index=k8s step=1h result=(stdvar(sum by (cluster) (network.cost)))")),
+            not(empty())
+        );
 
         // Native ES|QL STATS MAX / MIN stay strict: they introduce no lenient (non-finite-preserving) expression.
         assertThat(lenientNonFiniteExpressions(optimizedPlan("FROM test | STATS m = MAX(salary)")), empty());

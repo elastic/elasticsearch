@@ -146,7 +146,8 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
 
     // ---------------------------------------------------------------------------------------------------------------
     // Across-series aggregations honor Prometheus/IEEE-754 non-finite semantics via the PromQL-only lenient aggregator
-    // path (sum, avg, max, min). See the matching csv-spec blocks (nonfinite_avg_propagates_infinity, etc.).
+    // path (sum, avg, max, min, stddev, stdvar). See the matching csv-spec blocks (nonfinite_avg_propagates_infinity,
+    // etc.).
     // ---------------------------------------------------------------------------------------------------------------
 
     /**
@@ -228,6 +229,24 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     public void testMinOfAllNaNIsNaN() throws Exception {
         ingestTwoSeries("agg_min_allnan", -1.0, -4.0);
         assertSingleValue("min(sqrt(agg_min_allnan))", "NaN");
+    }
+
+    /**
+     * Prometheus {@code stddev} over a set containing non-finite values is {@code NaN}: the lenient (PromQL) path
+     * reports a non-finite {@code m2} as {@code NaN} rather than dropping the result to null.
+     */
+    public void testStddevOfNonFiniteIsNaN() throws Exception {
+        ingestTwoSeries("agg_stddev", 5.0, 7.0);
+        assertSingleValue("stddev(agg_stddev * Inf)", "NaN");
+    }
+
+    /**
+     * Prometheus {@code stdvar} over a set containing non-finite values is {@code NaN}: the lenient (PromQL) path
+     * reports a non-finite {@code m2} as {@code NaN} rather than dropping the result to null.
+     */
+    public void testStdvarOfNonFiniteIsNaN() throws Exception {
+        ingestTwoSeries("agg_stdvar", 5.0, 7.0);
+        assertSingleValue("stdvar(agg_stdvar * Inf)", "NaN");
     }
 
     /**

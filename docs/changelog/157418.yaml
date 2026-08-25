@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 155636
 pr: 157418
 summary: "[ES|QL|DS] Reject `schema_sample_size` for Parquet at PUT; ignore at qu…"
 type: bug

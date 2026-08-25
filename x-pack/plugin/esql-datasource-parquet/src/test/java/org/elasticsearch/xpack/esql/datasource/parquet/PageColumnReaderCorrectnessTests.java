@@ -415,7 +415,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] data) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(storageObject(data), blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storageObject(data), blockFactory.breaker()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

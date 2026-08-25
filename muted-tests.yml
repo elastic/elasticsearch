@@ -352,15 +352,39 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testWildcardSpanningIndexAndDatasetSucceeds
   issue: https://github.com/elastic/elasticsearch/issues/154200
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_minOverflow {default *}
-  issue: https://github.com/elastic/elasticsearch/issues/154341
+- class: org.elasticsearch.reindex.ReindexerTests
+  method: testRemoteReindexClosesRemoteInfoOnEarlyFailure
+  issue: https://github.com/elastic/elasticsearch/issues/154237
+- class: org.elasticsearch.index.rankeval.RankEvalRequestIT
+  method: testIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/154360
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
-- class: org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizerTests
-  method: testMaxExpressionDepth_nestedAbs_maxAllowed {default *}
-  issue: https://github.com/elastic/elasticsearch/issues/154380
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testClusterDetailsAfterCCSWithFailuresOnOneShardOnly_AllowPartialResultsFalse_MinimizeRoundtripsFalse
+  issue: https://github.com/elastic/elasticsearch/issues/154363
+- class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
+  method: testControllerSpawnGatedBySettings
+  issue: https://github.com/elastic/elasticsearch/issues/154291
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: "test {p0=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: multiple sub-objects with all three supported dynamic values}"
+  issue: https://github.com/elastic/elasticsearch/issues/154464
+- class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
+  method: testEnrichRemoteWithVendor
+  issue: https://github.com/elastic/elasticsearch/issues/154532
+- class: org.elasticsearch.xpack.esql.action.CrossClusterEnrichUnavailableClustersIT
+  method: testEnrichWithHostsPolicyAndDisconnectedRemotesWithSkipUnavailableFalse
+  issue: https://github.com/elastic/elasticsearch/issues/154533
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: "test {yaml=mapping/70_columnar_prefix_dynamic_properties/logsdb_columnar: no prefix_properties when dynamic is only set at root level}"
+  issue: https://github.com/elastic/elasticsearch/issues/154537
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
+  method: testRcs1SetupAgain
+  issue: https://github.com/elastic/elasticsearch/issues/154539
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityCcrMigrationIT
+  method: testRcs2Setup
+  issue: https://github.com/elastic/elasticsearch/issues/154540
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/154058

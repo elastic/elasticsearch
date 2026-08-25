@@ -761,3 +761,6 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=2 p1=mixed_cluster/20_camel_case_on_format/Verify that we can still use index with camel case date field}
   issue: https://github.com/elastic/elasticsearch/issues/157570
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {upgradedNodes=2 p1=mixed_cluster/10_basic/Verify custom cluster metadata still exists during upgrade}
+  issue: https://github.com/elastic/elasticsearch/issues/157573

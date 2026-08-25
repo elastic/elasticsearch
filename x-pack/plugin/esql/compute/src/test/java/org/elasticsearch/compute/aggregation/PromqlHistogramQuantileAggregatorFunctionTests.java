@@ -60,15 +60,22 @@ public class PromqlHistogramQuantileAggregatorFunctionTests extends AggregatorFu
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        List<Bucket> buckets = PromqlHistogramQuantileTestHelpers.bucketsFromPages(input, 0, 1);
-        double expected = PromqlHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
-        assertQuantileResult((DoubleBlock) result, 0, expected);
+        assertQuantileResult((DoubleBlock) result, 0, PromqlHistogramQuantileTestHelpers.bucketsFromPages(input, 0, 1), quantile);
     }
 
-    static void assertQuantileResult(DoubleBlock result, int position, double expected) {
-        // A NaN estimate means the histogram cannot produce a quantile; the aggregator emits null rather than NaN.
-        if (Double.isNaN(expected)) {
+    /**
+     * Only the absence of any bucket leaves a position without a value. A histogram that has buckets but cannot yield an
+     * estimate evaluates to {@code NaN}, which is emitted as a sample, since nulling it would drop the series.
+     */
+    static void assertQuantileResult(DoubleBlock result, int position, List<Bucket> buckets, double quantile) {
+        if (buckets.isEmpty()) {
             assertTrue(result.isNull(position));
+            return;
+        }
+        assertFalse("a histogram with buckets must produce a sample", result.isNull(position));
+        double expected = PromqlHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
+        if (Double.isNaN(expected)) {
+            assertTrue("expected NaN but got [" + result.getDouble(position) + "]", Double.isNaN(result.getDouble(position)));
         } else {
             assertThat(result.getDouble(position), equalTo(expected));
         }

@@ -134,7 +134,9 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
                 lastLinkedClusterStates,
                 e.getLinkedClusterStates()
             );
-            throw e;
+            // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
+            // see the same type and HTTP status as before this wrapper was introduced.
+            throw (ResourceNotFoundException) e.getCause();
         }
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);

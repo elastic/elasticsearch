@@ -213,7 +213,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (currentExtractor != null) {
             List<LinkedClusterState> innerStates = currentExtractor.getLinkedClusterStates();
             if (innerStates.isEmpty() == false) {
-                return DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
             }
         }
         return lastLinkedClusterStates;

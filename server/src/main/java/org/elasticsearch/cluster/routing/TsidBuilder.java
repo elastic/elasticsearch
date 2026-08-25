@@ -517,7 +517,6 @@ public class TsidBuilder {
         return new BytesRef(tsid, 0, index);
     }
 
-    /** Sole definition of the empty-dimensions failure, so both tsid paths throw the same message. */
     static void throwIfNoDimensions(int dimensionCount) {
         if (dimensionCount == 0) {
             throw new IllegalArgumentException("Dimensions are empty");

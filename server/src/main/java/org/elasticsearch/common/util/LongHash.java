@@ -118,6 +118,12 @@ public final class LongHash extends AbstractHash implements LongHashTable {
     }
 
     @Override
+    public void clear() {
+        size = 0;
+        ids.fill(0, ids.size(), 0);
+    }
+
+    @Override
     public void close() {
         try (Releasable releasable = keys) {
             super.close();

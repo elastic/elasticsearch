@@ -33,6 +33,12 @@ public abstract class BlockHashWrapper extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        blockHash = blockHash.resetOrCreate();
+        return this;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         blockHash.add(page, addInput);
     }

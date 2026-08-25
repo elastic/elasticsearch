@@ -16,8 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -93,6 +95,37 @@ public class LongLongHashTests extends ESTestCase {
 
     public void testAllocation() {
         MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(256), bigArrays -> new LongLongHash(1, bigArrays));
+    }
+
+    public void testClear() {
+        try (LongLongHash hash = randomHash()) {
+            int rounds = between(2, 5);
+            for (int round = 0; round < rounds; round++) {
+                int count = randomIntBetween(1, 10_000);
+                Set<Long> distinct = new HashSet<>();
+                while (distinct.size() < count) {
+                    distinct.add(randomLong());
+                }
+                long[] key1s = distinct.stream().mapToLong(Long::longValue).toArray();
+                long[] key2s = new long[count];
+                for (int i = 0; i < count; i++) {
+                    key2s[i] = randomLong();
+                }
+                for (int i = 0; i < count; i++) {
+                    assertThat(hash.add(key1s[i], key2s[i]), equalTo((long) i));
+                    assertThat(hash.getKey1(i), equalTo(key1s[i]));
+                    assertThat(hash.getKey2(i), equalTo(key2s[i]));
+                }
+                assertThat(hash.size(), equalTo((long) count));
+
+                hash.clear();
+
+                assertThat(hash.size(), equalTo(0L));
+                for (int i = 0; i < count; i++) {
+                    assertThat(hash.find(key1s[i], key2s[i]), equalTo(-1L));
+                }
+            }
+        }
     }
 
     class Key {

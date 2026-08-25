@@ -82,6 +82,7 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
     private final BatchWork batchWork;
+    private final CircuitBreaker circuitBreaker;
     private boolean seenNull;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
@@ -96,6 +97,7 @@ final class PackedValuesBlockHash extends BlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
+        this.circuitBreaker = circuitBreaker;
         this.nullTrackingBytes = (specs.size() + 7) / 8;
         final int[] columnOffsets = new int[specs.size()];
         int keyLength = nullTrackingBytes;
@@ -136,6 +138,13 @@ final class PackedValuesBlockHash extends BlockHash {
                 close();
             }
         }
+    }
+
+    @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new PackedValuesBlockHash(specs, blockFactory, circuitBreaker, emitBatchSize);
+        close();
+        return next;
     }
 
     @Override

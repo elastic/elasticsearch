@@ -69,6 +69,13 @@ public final class BytesRefLongBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new BytesRefLongBlockHash(blockFactory, bytesChannel, longsChannel, reverseOutput, emitBatchSize);
+        close();
+        return next;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
         BytesRefVector bytesVector = bytesBlock.asVector();

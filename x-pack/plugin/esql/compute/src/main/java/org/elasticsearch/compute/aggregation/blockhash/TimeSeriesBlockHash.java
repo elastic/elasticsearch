@@ -80,6 +80,13 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new TimeSeriesBlockHash(tsidChannel, timestampChannel, reverseOutput, trackTimestamp, blockFactory);
+        close();
+        return next;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         final BytesRefBlock tsidBlock = page.getBlock(tsidChannel);
         final BytesRefVector tsidVector = tsidBlock.asVector();

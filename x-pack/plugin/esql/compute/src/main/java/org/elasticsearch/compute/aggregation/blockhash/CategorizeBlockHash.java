@@ -54,6 +54,7 @@ public class CategorizeBlockHash extends BlockHash {
     private final int channel;
     private final AggregatorMode aggregatorMode;
     private final CategorizeDef categorizeDef;
+    private final AnalysisRegistry analysisRegistry;
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
     private final CategorizeEvaluator evaluator;
 
@@ -77,6 +78,7 @@ public class CategorizeBlockHash extends BlockHash {
         this.channel = channel;
         this.aggregatorMode = aggregatorMode;
         this.categorizeDef = categorizeDef;
+        this.analysisRegistry = analysisRegistry;
 
         this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
@@ -104,6 +106,13 @@ public class CategorizeBlockHash extends BlockHash {
 
     boolean seenNull() {
         return seenNull;
+    }
+
+    @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new CategorizeBlockHash(blockFactory, channel, aggregatorMode, categorizeDef, analysisRegistry);
+        close();
+        return next;
     }
 
     @Override

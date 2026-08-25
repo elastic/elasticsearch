@@ -71,6 +71,13 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new BytesRefBlockHash(channel, blockFactory);
+        close();
+        return next;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         // TODO track raw counts and which implementation we pick for the profiler - #114008
         var block = page.getBlock(channel);

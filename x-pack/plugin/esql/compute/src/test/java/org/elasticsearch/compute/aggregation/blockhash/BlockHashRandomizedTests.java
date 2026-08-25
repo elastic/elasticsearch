@@ -37,6 +37,7 @@ import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -172,7 +173,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
         int pageCount = between(1, groups < 10 ? 10 : 5);
         int positionCount = randomPositionsPerPage(expectedOrds != null, pageCount, elementTypes);
         int emitBatchSize = randomFrom(100, 1_000, 10_000);
-        try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes)) {
+        try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes, randomBoolean())) {
             logger.info("checking {}", blockHash);
             /*
              * Only the long/long implementation still doesn't collect nulls. (LONG, BYTES_REF)/(BYTES_REF, LONG)
@@ -275,14 +276,42 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
         };
     }
 
-    private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
+    private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types, boolean addThenReset) {
         List<BlockHash.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
             specs.add(new BlockHash.GroupSpec(c, types.get(c)));
         }
-        return forcePackedHash
+        BlockHash blockHash = forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);
+        if (addThenReset == false) {
+            return blockHash;
+        }
+        int pageCount = between(1, groups < 10 ? 10 : 5);
+        Block[] blocks = new Block[types.size()];
+        boolean success = false;
+        try {
+            for (int i = 0; i < pageCount; i++) {
+                Arrays.fill(blocks, null);
+                int positionCount = randomPositionsPerPage(randomBoolean(), pageCount, types);
+                try {
+                    for (int g = 0; g < blocks.length; g++) {
+                        blocks[g] = new Basic(types.get(g)).randomBlock(positionCount, maxValuesPerPosition, dups).block();
+                    }
+                    BlockHashTests.hash(false, blockHash, ordsAndKeys -> {}, blocks);
+                } finally {
+                    Releasables.close(blocks);
+                }
+            }
+            blockHash = blockHash.resetOrCreate();
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(blockHash);
+            }
+        }
+        assertThat(blockHash.numKeys(), equalTo(0));
+        return blockHash;
     }
 
     private static final int LOOKUP_POSITIONS = 1_000;

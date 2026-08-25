@@ -71,6 +71,13 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     }
 
     /**
+     * Resets this block hash in place if possible; otherwise closes it and creates a new one with the
+     * same configuration. Callers must only use the returned instance afterwards. This lets operators
+     * that emit periodically refill the hash without paying for allocations and resizes again.
+     */
+    public abstract BlockHash resetOrCreate();
+
+    /**
      * Add all values for the "group by" columns in the page to the hash and
      * pass the ordinals to the provided {@link GroupingAggregatorFunction.AddInput}.
      * <p>

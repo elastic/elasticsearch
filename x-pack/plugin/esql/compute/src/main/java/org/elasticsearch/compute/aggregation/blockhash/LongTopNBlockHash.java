@@ -67,6 +67,13 @@ final class LongTopNBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new LongTopNBlockHash(channel, asc, nullsFirst, limit, blockFactory);
+        close();
+        return next;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         // TODO track raw counts and which implementation we pick for the profiler - #114008
         var block = page.getBlock(channel);

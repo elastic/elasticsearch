@@ -64,6 +64,14 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new BytesRefLongVectorOnlyBlockHash(blockFactory);
+        Releasables.close(current);
+        current = next;
+        return this;
+    }
+
+    @Override
     protected void prepareAddInput(Page page) {
         if (current instanceof BytesRefLongVectorOnlyBlockHash vectorHash) {
             if (longVector(page) == null || bytesRefVector(page) == null) {
@@ -138,6 +146,13 @@ public final class LongBytesRefAdaptiveBlockHash extends AdaptiveBlockHash {
                     Releasables.close(bh, llh);
                 }
             }
+        }
+
+        @Override
+        public BlockHash resetOrCreate() {
+            BlockHash next = new BytesRefLongVectorOnlyBlockHash(blockFactory);
+            close();
+            return next;
         }
 
         @Override

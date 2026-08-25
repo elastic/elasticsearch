@@ -160,6 +160,42 @@ public class LongLongSwissHashTests extends ESTestCase {
         assertThat(recycler.open, hasSize(0));
     }
 
+    public void testClear() {
+        Set<Long> values = randomValues(count);
+        long[] v1 = values.stream().mapToLong(Long::longValue).toArray();
+        long[] v2 = new long[count];
+        for (int i = 0; i < count; i++) {
+            v2[i] = randomLong();
+        }
+
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (LongLongSwissHash hash = new LongLongSwissHash(recycler, breaker)) {
+            for (int i = 0; i < count; i++) {
+                assertThat(hash.add(v1[i], v2[i]), equalTo((long) i));
+            }
+            int openPages = recycler.open.size();
+            hash.clear();
+            assertThat(hash.size(), equalTo(0L));
+            assertFalse(hash.iterator().next());
+            for (int i = 0; i < count; i++) {
+                assertThat(hash.find(v1[i], v2[i]), equalTo(-1L));
+            }
+            for (int i = 0; i < count; i++) {
+                assertThat(hash.add(v1[i], v2[i]), equalTo((long) i));
+            }
+            assertThat(hash.size(), equalTo((long) count));
+            for (int i = 0; i < count; i++) {
+                assertThat(hash.find(v1[i], v2[i]), equalTo((long) i));
+                assertThat(hash.getKey1(i), equalTo(v1[i]));
+                assertThat(hash.getKey2(i), equalTo(v2[i]));
+            }
+            assertThat("clear keeps allocated pages for reuse", recycler.open, hasSize(openPages));
+            assertStatus(hash);
+        }
+        assertThat(recycler.open, hasSize(0));
+    }
+
     // High-probability bucket collisions. You just need structural patterns that
     // tend to collide in the bucket selection logic.
 

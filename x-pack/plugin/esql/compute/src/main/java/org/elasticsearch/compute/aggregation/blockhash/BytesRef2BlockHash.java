@@ -60,6 +60,13 @@ final class BytesRef2BlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        BlockHash next = new BytesRef2BlockHash(blockFactory, channel1, channel2, emitBatchSize);
+        close();
+        return next;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock b1 = page.getBlock(channel1);
         BytesRefBlock b2 = page.getBlock(channel2);

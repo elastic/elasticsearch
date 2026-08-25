@@ -70,6 +70,13 @@ public final class LongIntBlockHash extends BlockHash {
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+        seenBlocks = false;
+        hash.clear();
+        return this;
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         LongBlock longBlock = page.getBlock(longChannel);
         LongVector longVector = longBlock.asVector();

@@ -84,6 +84,19 @@ $endif$
     }
 
     @Override
+    public BlockHash resetOrCreate() {
+$if(BytesRef)$
+        BlockHash next = new $Type$BlockHash(channel, blockFactory);
+        close();
+        return next;
+$else$
+        seenNull = false;
+        hash.clear();
+        return this;
+$endif$
+    }
+
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         // TODO track raw counts and which implementation we pick for the profiler - #114008
         var block = page.getBlock(channel);

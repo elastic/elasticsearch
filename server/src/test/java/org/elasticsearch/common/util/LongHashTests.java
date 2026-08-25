@@ -181,6 +181,32 @@ public class LongHashTests extends ESTestCase {
         hash.close();
     }
 
+    public void testClear() {
+        try (LongHash hash = randomHash()) {
+            int rounds = between(2, 5);
+            for (int round = 0; round < rounds; round++) {
+                int count = randomIntBetween(1, 10_000);
+                Set<Long> distinct = new HashSet<>();
+                while (distinct.size() < count) {
+                    distinct.add(randomLong());
+                }
+                long[] keys = distinct.stream().mapToLong(Long::longValue).toArray();
+                for (int i = 0; i < count; i++) {
+                    assertEquals(i, hash.add(keys[i]));
+                    assertEquals(keys[i], hash.get(i));
+                }
+                assertEquals(count, hash.size());
+
+                hash.clear();
+
+                assertEquals(0, hash.size());
+                for (int i = 0; i < count; i++) {
+                    assertEquals(-1, hash.find(keys[i]));
+                }
+            }
+        }
+    }
+
     public void testAllocation() {
         MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(160), bigArrays -> new LongHash(1, bigArrays));
     }

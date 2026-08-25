@@ -322,6 +322,10 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             }
         }
 
+        void clear() {
+            Arrays.fill(idPage, (byte) 0xff);
+        }
+
         void transitionToBigCore() {
             growTracking();
             try {
@@ -545,6 +549,11 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
             }
         }
 
+        void clear() {
+            Arrays.fill(controlData, EMPTY);
+            insertProbes = 0;
+        }
+
         @Override
         protected Status status() {
             return new BigCoreStatus(growCount, capacity, size, nextGrowSize, insertProbes, keyPages.length, idPages.length);
@@ -652,6 +661,17 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
         final int actualId = Math.toIntExact(id);
         Objects.checkIndex(actualId, size());
         return smallCore != null ? smallCore.key(actualId) : bigCore.key(actualId);
+    }
+
+    @Override
+    public void clear() {
+        if (smallCore != null) {
+            smallCore.clear();
+        }
+        if (bigCore != null) {
+            bigCore.clear();
+        }
+        size = 0;
     }
 
     private int keyOffset(final int id) {

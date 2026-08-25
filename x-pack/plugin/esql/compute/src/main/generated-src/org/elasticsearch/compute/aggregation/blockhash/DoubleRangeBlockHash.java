@@ -12,8 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -42,7 +41,7 @@ import java.util.BitSet;
  */
 final class DoubleRangeBlockHash extends BlockHash {
     private final int channel;
-    final BytesRefHashTable hash;
+    final LongLongHashTable hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -56,7 +55,7 @@ final class DoubleRangeBlockHash extends BlockHash {
     DoubleRangeBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = HashImplFactory.newBytesRefHash(blockFactory);
+        this.hash = HashImplFactory.newLongLongHash(blockFactory);
     }
 
     @Override
@@ -105,17 +104,15 @@ final class DoubleRangeBlockHash extends BlockHash {
 
     @Override
     public DoubleRangeBlock[] getKeys(IntVector selected) {
-        final BytesRef spare = new BytesRef();
         try (DoubleRangeBlock.Builder builder = blockFactory.newDoubleRangeBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int groupId = selected.getInt(i);
                 if (groupId == 0) {
                     builder.appendNull();
                 } else {
-                    hash.get(groupId - 1, spare);
                     builder.appendDoubleRange(
-                        Double.longBitsToDouble(ByteUtils.readLongLE(spare.bytes, spare.offset)),
-                        Double.longBitsToDouble(ByteUtils.readLongLE(spare.bytes, spare.offset + Double.BYTES))
+                        Double.longBitsToDouble(hash.getKey1(groupId - 1)),
+                        Double.longBitsToDouble(hash.getKey2(groupId - 1))
                     );
                 }
             }

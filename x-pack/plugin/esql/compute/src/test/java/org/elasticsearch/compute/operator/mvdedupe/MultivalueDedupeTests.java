@@ -14,11 +14,12 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
+import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -363,37 +364,35 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     private void assertDoubleRangeHash(Set<DoubleRange> previousValues, RandomBlock b) {
-        for (var hashSupplier : bytesRefHashImpls()) {
-            try (BytesRefHashTable hash = hashSupplier.get()) {
-                previousValues.stream().map(MultivalueDedupeTests::encodeDoubleRange).forEach(hash::add);
+        for (var hashSupplier : longLongHashImpls()) {
+            try (LongLongHashTable hash = hashSupplier.get()) {
+                previousValues.forEach(range -> hash.add(Double.doubleToLongBits(range.from()), Double.doubleToLongBits(range.to())));
                 MultivalueDedupe.HashResult hashes = new MultivalueDedupeDoubleRange((DoubleRangeBlock) b.block()).hashAdd(
                     blockFactory(),
                     hash
                 );
                 try (IntBlock ords = hashes.ords()) {
                     assertThat(hashes.sawNull(), equalTo(shouldHaveSeenNull(b)));
-                    assertHash(b, ords, hash.size(), previousValues, i -> decodeDoubleRange(hash.get(i, new BytesRef())));
+                    assertHash(b, ords, hash.size(), previousValues, i -> decodeDoubleRange(hash, i));
                     long sizeBeforeLookup = hash.size();
                     try (IntBlock lookup = new MultivalueDedupeDoubleRange((DoubleRangeBlock) b.block()).hashLookup(blockFactory(), hash)) {
                         assertThat(hash.size(), equalTo(sizeBeforeLookup));
-                        assertLookup(previousValues, b, b, lookup, i -> decodeDoubleRange(hash.get(i, new BytesRef())));
+                        assertLookup(previousValues, b, b, lookup, i -> decodeDoubleRange(hash, i));
                     }
                 }
             }
         }
     }
 
-    private static BytesRef encodeDoubleRange(DoubleRange range) {
-        byte[] bytes = new byte[Double.BYTES * 2];
-        ByteUtils.writeLongLE(Double.doubleToLongBits(range.from()), bytes, 0);
-        ByteUtils.writeLongLE(Double.doubleToLongBits(range.to()), bytes, Double.BYTES);
-        return new BytesRef(bytes);
+    private static DoubleRange decodeDoubleRange(LongLongHashTable hash, long ordinal) {
+        return new DoubleRange(Double.longBitsToDouble(hash.getKey1(ordinal)), Double.longBitsToDouble(hash.getKey2(ordinal)));
     }
 
-    private static DoubleRange decodeDoubleRange(BytesRef range) {
-        return new DoubleRange(
-            Double.longBitsToDouble(ByteUtils.readLongLE(range.bytes, range.offset)),
-            Double.longBitsToDouble(ByteUtils.readLongLE(range.bytes, range.offset + Double.BYTES))
+    List<Supplier<LongLongHashTable>> longLongHashImpls() {
+        var bf = blockFactory();
+        return List.of(
+            () -> SWISS_HASH_FACTORY.newLongLongSwissHash(PageCacheRecycler.NON_RECYCLING_INSTANCE, bf.breaker()),
+            () -> new LongLongHash(1, bf.bigArrays())
         );
     }
 

@@ -149,7 +149,7 @@ tasks.named('stringTemplates').configure {
     "DOUBLE_RANGE",
     "DoubleRange.SIZE",
     "",
-    "BytesRefHash"
+    "LongLongHash"
   )
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "Boolean", "BOOLEAN", "Byte.BYTES", "BitArray", "")
   var bytesRefProperties = prop(

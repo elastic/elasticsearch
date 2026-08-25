@@ -8,9 +8,7 @@
 package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -47,8 +45,6 @@ public class MultivalueDedupeDoubleRange {
      * the number of values in {@link #work} for the current position.
      */
     int w;
-    private final byte[] hashBytes = new byte[Double.BYTES * 2];
-    private final BytesRef hashValue = new BytesRef(hashBytes);
 
     public MultivalueDedupeDoubleRange(DoubleRangeBlock block) {
         this.block = block;
@@ -187,7 +183,7 @@ public class MultivalueDedupeDoubleRange {
      * their hashes. This block is suitable for passing as the grouping block
      * to a {@link GroupingAggregatorFunction}.
      */
-    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, BytesRefHashTable hash) {
+    public MultivalueDedupe.HashResult hashAdd(BlockFactory blockFactory, LongLongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
@@ -221,7 +217,7 @@ public class MultivalueDedupeDoubleRange {
      * Dedupe values and build an {@link IntBlock} of their hashes. This block is
      * suitable for passing as the grouping block to a {@link GroupingAggregatorFunction}.
      */
-    public IntBlock hashLookup(BlockFactory blockFactory, BytesRefHashTable hash) {
+    public IntBlock hashLookup(BlockFactory blockFactory, LongLongHashTable hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int count = block.getValueCount(p);
@@ -396,7 +392,7 @@ public class MultivalueDedupeDoubleRange {
     /**
      * Writes an already deduplicated {@link #work} to a hash.
      */
-    private void hashAddUniquedWork(BytesRefHashTable hash, IntBlock.Builder builder) {
+    private void hashAddUniquedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -411,7 +407,7 @@ public class MultivalueDedupeDoubleRange {
     /**
      * Writes a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashAddSortedWork(BytesRefHashTable hash, IntBlock.Builder builder) {
+    private void hashAddSortedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashAdd(builder, hash, work[0]);
             return;
@@ -431,7 +427,7 @@ public class MultivalueDedupeDoubleRange {
     /**
      * Looks up an already deduplicated {@link #work} to a hash.
      */
-    private void hashLookupUniquedWork(BytesRefHashTable hash, IntBlock.Builder builder) {
+    private void hashLookupUniquedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -490,7 +486,7 @@ public class MultivalueDedupeDoubleRange {
     /**
      * Looks up a sorted {@link #work} to a hash, skipping duplicates.
      */
-    private void hashLookupSortedWork(BytesRefHashTable hash, IntBlock.Builder builder) {
+    private void hashLookupSortedWork(LongLongHashTable hash, IntBlock.Builder builder) {
         if (w == 1) {
             hashLookupSingle(builder, hash, work[0]);
             return;
@@ -597,15 +593,15 @@ public class MultivalueDedupeDoubleRange {
         }
     }
 
-    private void hashAdd(IntBlock.Builder builder, BytesRefHashTable hash, DoubleRange v) {
-        appendFound(builder, hash.add(encodeForHash(v)));
+    private void hashAdd(IntBlock.Builder builder, LongLongHashTable hash, DoubleRange v) {
+        appendFound(builder, hash.add(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to())));
     }
 
-    private long hashLookup(BytesRefHashTable hash, DoubleRange v) {
-        return hash.find(encodeForHash(v));
+    private long hashLookup(LongLongHashTable hash, DoubleRange v) {
+        return hash.find(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to()));
     }
 
-    private void hashLookupSingle(IntBlock.Builder builder, BytesRefHashTable hash, DoubleRange v) {
+    private void hashLookupSingle(IntBlock.Builder builder, LongLongHashTable hash, DoubleRange v) {
         long found = hashLookup(hash, v);
         if (found >= 0) {
             appendFound(builder, found);
@@ -616,12 +612,6 @@ public class MultivalueDedupeDoubleRange {
 
     private void appendFound(IntBlock.Builder builder, long found) {
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
-    }
-
-    private BytesRef encodeForHash(DoubleRange range) {
-        ByteUtils.writeLongLE(Double.doubleToLongBits(range.from()), hashBytes, 0);
-        ByteUtils.writeLongLE(Double.doubleToLongBits(range.to()), hashBytes, Double.BYTES);
-        return hashValue;
     }
 
     private static boolean valuesEqual(DoubleRange lhs, DoubleRange rhs) {

@@ -10,11 +10,6 @@ package org.elasticsearch.compute.operator.mvdedupe;
 import org.apache.lucene.util.ArrayUtil;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-$elseif(DoubleRange)$
-import org.apache.lucene.util.BytesRef;
-$endif$
-$if(DoubleRange)$
-import org.elasticsearch.common.util.ByteUtils;
 $endif$
 import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -75,13 +70,7 @@ $endif$
      * the number of values in {@link #work} for the current position.
      */
     int w;
-$if(DoubleRange)$
-    private final byte[] hashBytes = new byte[Double.BYTES * 2];
-    private final BytesRef hashValue = new BytesRef(hashBytes);
 
-$else$
-
-$endif$
     public MultivalueDedupe$Type$($Type$Block block) {
         this.block = block;
 $if(BytesRef)$
@@ -761,7 +750,7 @@ $endif$
 $if(double)$
         appendFound(builder, hash.add(Double.doubleToLongBits(v)));
 $elseif(DoubleRange)$
-        appendFound(builder, hash.add(encodeForHash(v)));
+        appendFound(builder, hash.add(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to())));
 $else$
         appendFound(builder, hash.add(v));
 $endif$
@@ -771,7 +760,7 @@ $endif$
 $if(double)$
         return hash.find(Double.doubleToLongBits(v));
 $elseif(DoubleRange)$
-        return hash.find(encodeForHash(v));
+        return hash.find(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to()));
 $else$
         return hash.find(v);
 $endif$
@@ -790,14 +779,6 @@ $endif$
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(found)));
     }
 
-$if(DoubleRange)$
-    private BytesRef encodeForHash(DoubleRange range) {
-        ByteUtils.writeLongLE(Double.doubleToLongBits(range.from()), hashBytes, 0);
-        ByteUtils.writeLongLE(Double.doubleToLongBits(range.to()), hashBytes, Double.BYTES);
-        return hashValue;
-    }
-
-$endif$
     private static boolean valuesEqual($type$ lhs, $type$ rhs) {
 $if(BytesRef)$
         return lhs.equals(rhs);

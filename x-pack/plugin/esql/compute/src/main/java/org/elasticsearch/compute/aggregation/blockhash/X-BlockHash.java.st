@@ -12,9 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(DoubleRange)$
-import org.elasticsearch.common.util.ByteUtils;
-$endif$
 import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
@@ -337,8 +334,6 @@ $endif$
 $if(BytesRef)$
         // TODO replace with takeBytesRefsOwnership ?!
         final BytesRef spare = new BytesRef();
-$elseif(DoubleRange)$
-        final BytesRef spare = new BytesRef();
 $endif$
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
@@ -349,10 +344,9 @@ $endif$
 $if(BytesRef)$
                     builder.appendBytesRef(hash.get(groupId - 1, spare));
 $elseif(DoubleRange)$
-                    hash.get(groupId - 1, spare);
                     builder.appendDoubleRange(
-                        Double.longBitsToDouble(ByteUtils.readLongLE(spare.bytes, spare.offset)),
-                        Double.longBitsToDouble(ByteUtils.readLongLE(spare.bytes, spare.offset + Double.BYTES))
+                        Double.longBitsToDouble(hash.getKey1(groupId - 1)),
+                        Double.longBitsToDouble(hash.getKey2(groupId - 1))
                     );
 $elseif(int)$
                     builder.appendInt((int) hash.get(groupId - 1));

@@ -175,6 +175,42 @@ charlie      | paris
 dave         | london
 ;
 
+// ===== Pushed filters on a column one file does not have =====
+// Under union_by_name a file missing the predicate column decodes it as a whole-batch null
+// block. Before elastic/elasticsearch#157313 a keyword predicate on that column failed the
+// whole query: the null block satisfies every typed block interface, so the filter evaluator
+// bound its numeric arm and cast the BytesRef literal to Number. Numeric predicates were
+// unaffected, which is why parquetUbnFilterOnFileBMissingColumn is the pin and
+// parquetUbnFilterOnFileAMissingColumn is the regression.
+
+parquetUbnFilterOnFileAMissingColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE city == "paris"
+| KEEP name, city
+| SORT name ASC;
+
+name:keyword | city:keyword
+charlie      | paris
+;
+
+parquetUbnFilterOnFileBMissingColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE score > 90.0
+| KEEP name, score
+| SORT name ASC;
+
+name:keyword | score:double
+bob          | 92.0
+;
+
 // ===== FIRST_FILE_WINS on divergent Parquet schemas =====
 // Anchor: parquet_ubn_a.parquet (lex-smallest) — schema [name, age:integer, score:double]
 // File B is read through anchor's schema: name maps OK, age (int64 → int32) is incompatible

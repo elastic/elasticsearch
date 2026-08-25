@@ -296,7 +296,6 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup3
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -354,7 +353,6 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup5
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -421,7 +419,6 @@ string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:
 ;
 
 convertStringToBaseIndexGroup7
-skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -1670,6 +1667,27 @@ ROW words = ["apple", "cherry"]
 words:keyword       | in_range:boolean
 [apple, cherry]     | true
 // end::mv_in_range_keyword-result[]
+;
+
+mvInRangeTextNotExactRow
+required_capability: fn_mv_in_range
+required_capability: fn_to_text
+ROW t = TO_TEXT("Connected to 10.1.0.1")
+| EVAL in_range = mv_in_range(t, "a", "u")
+;
+
+t:text                | in_range:boolean
+Connected to 10.1.0.1 | false
+;
+
+mvInRangeTextNotExactFrom
+required_capability: fn_mv_in_range
+FROM mv_text
+| WHERE mv_in_range(message, "a", "u")
+| KEEP message
+;
+
+message:text
 ;
 
 mvInRangeHalfOpen

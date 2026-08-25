@@ -1627,17 +1627,13 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
-    public void testDoubleRangeUnsupportedOperations() {
-        assumeTrue("Requires DOUBLE_RANGE_FIELD_TYPE capability", EsqlCapabilities.Cap.DOUBLE_RANGE_FIELD_TYPE_DEVELOPMENT_V10.isEnabled());
+    public void testDoubleRangeOperations() {
+        assumeTrue("requires GROUP_BY_DOUBLE_RANGE capability", EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
-        analyzer().addIndex("heights", "mapping-heights.json")
-            .stripErrorPrefix(true)
-            .error(
-                "FROM heights | STATS count(*) BY height_range",
-                containsString("cannot group by on [double_range] type for grouping [height_range]")
-            );
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | STATS count(*) BY height_range");
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | LIMIT 1 BY height_range");
         analyzer().addIndex("heights", "mapping-heights.json")
             .addLookupIndex("heights_lookup", "mapping-heights.json")
             .stripErrorPrefix(true)
@@ -3906,6 +3902,23 @@ public class VerifierTests extends ESTestCase {
             and the first aggregation [STATS avg(network.connections)] is not allowed"""));
     }
 
+    public void testTimeSeriesStatsUnresolvedChildColumnReturnsError() {
+        k8s().error(
+            "TS k8s | RENAME nonexistent_src AS dummy | STATS avg(nonexistent_agg) BY tbucket = bucket(@timestamp, 1hour)",
+            containsString("Unknown column [nonexistent_src]")
+        );
+    }
+
+    public void testTimeSeriesStatsEnrichWithMissingPolicyFieldReturnsError() {
+        analyzer().addK8s()
+            .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "my_policy", "language_code", "test_idx", "mapping-languages.json")
+            .stripErrorPrefix(true)
+            .error(
+                "TS k8s | ENRICH my_policy ON pod WITH @timestamp = nonexistent_enrich_field | STATS avg(nonexistent_agg)",
+                containsString("Enrich field [nonexistent_enrich_field] not found in enrich policy [my_policy]")
+            );
+    }
+
     public void testTextEmbeddingFunctionInvalidQuery() {
         assertInvalidEmbeddingFirstArgument("TEXT_EMBEDDING", TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING);
     }
@@ -4653,8 +4666,6 @@ public class VerifierTests extends ESTestCase {
             "123",
             containsString("Option [boundary_scanner_locale] must be a string")
         );
-        assertInvalidHighlightOptionValue("boundary_chars", "10", containsString("Option [boundary_chars] must be a string"));
-        assertInvalidHighlightOptionValue("boundary_max_scan", "\"far\"", containsString("Option [boundary_max_scan] must be numeric"));
         assertInvalidHighlightOptionValue(
             "boundary_scanner_locale",
             "\"en_US\"",
@@ -4669,7 +4680,6 @@ public class VerifierTests extends ESTestCase {
         assertInvalidHighlightOptionValue("number_of_fragments", "-1", containsString("Option [number_of_fragments] must be >= 0"));
         assertInvalidHighlightOptionValue("fragment_size", "-1", containsString("Option [fragment_size] must be >= 0"));
         assertInvalidHighlightOptionValue("no_match_size", "-1", containsString("Option [no_match_size] must be >= 0"));
-        assertInvalidHighlightOptionValue("boundary_max_scan", "-1", containsString("Option [boundary_max_scan] must be >= 0"));
         assertInvalidHighlightOptionValue(
             "max_analyzed_offset",
             "0",
@@ -4730,6 +4740,13 @@ public class VerifierTests extends ESTestCase {
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": \"not_a_real_analyzer\" }",
             allOf(containsString("[not_a_real_analyzer] is not a registered analyzer"), not(containsString("Invalid query")))
         );
+        // A non-string analyzer value is reported by option validation, and the query is still validated against the
+        // default analyzer so its error surfaces alongside it. Contrast with the unknown-but-valid-string analyzer case
+        // above, which returns early and suppresses the query error.
+        defaultAnalyzer().error(
+            "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
+            allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
+        );
     }
 
     public void testHighlightRejectsInvalidQueries() {
@@ -4778,6 +4795,28 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "FROM test | HIGHLIGHT QSTR(\"fox\", {\"default_field\": \"title\"}) ON body",
             containsString("HIGHLIGHT query field [title] is not in ON fields [body]")
+        );
+        // Reject field references outside ON while translating the query.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"title:fox\" ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"title:fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT KQL(\"title: fox\") ON body",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [title] is not one of the searchable fields [body]"))
+        );
+        // Report the first field outside ON.
+        fullText().error(
+            "FROM test | HIGHLIGHT \"body:fox OR tags:dog\" ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
+        );
+        fullText().error(
+            "FROM test | HIGHLIGHT QSTR(\"body:fox OR tags:dog\") ON title",
+            allOf(containsString("in HIGHLIGHT:"), containsString("field [body] is not one of the searchable fields [title]"))
         );
         // KQL syntax is checked while building the query.
         fullText().error("FROM test | HIGHLIGHT KQL(\"title: (fox\") ON title", containsString("in HIGHLIGHT:"));

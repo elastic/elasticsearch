@@ -26,6 +26,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,12 +35,15 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchWithRejectionsIT extends ESIntegTestCase {
+
+    private static final int SEARCH_QUEUE_SIZE = 1;
+
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("thread_pool.search.size", 1)
-            .put("thread_pool.search.queue_size", 1)
+            .put("thread_pool.search.queue_size", SEARCH_QUEUE_SIZE)
             .build();
     }
 
@@ -80,10 +85,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         refresh();
 
-        SearchResponse openResponse = prepareSearch("test-scroll").setQuery(matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(5))
-            .get();
+        SearchResponse openResponse = openScrollRetryingRejection("test-scroll");
         String scrollId = openResponse.getScrollId();
         Set<String> seenIds = new HashSet<>();
         try {
@@ -127,7 +129,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                     if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
                         throw new AssertionError("retry scroll after rejection", e);
                     }
-                    throw new AssertionError(e);
+                    throw e;
                 }
                 assertThat(seenIds, equalTo(expectedIds));
             }, 10, TimeUnit.SECONDS);
@@ -135,6 +137,21 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             openResponse.decRef();
             client().prepareClearScroll().addScrollId(scrollId).get();
         }
+    }
+
+    private SearchResponse openScrollRetryingRejection(String index) throws Exception {
+        AtomicReference<SearchResponse> openHolder = new AtomicReference<>();
+        assertBusy(() -> {
+            try {
+                openHolder.set(prepareSearch(index).setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(5)).get());
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                    throw new AssertionError("retry scroll after rejection", e);
+                }
+                throw e;
+            }
+        }, 10, TimeUnit.SECONDS);
+        return openHolder.get();
     }
 
     /**
@@ -150,19 +167,25 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         // until the returned releasable counts down {@code block}.
         try (ExecutorService searchExecutor = new StoppableExecutorServiceWrapper(threadPool.executor(ThreadPool.Names.SEARCH))) {
             try {
-                for (int i = 0; i < threads; i++) {
-                    searchExecutor.execute(() -> {
-                        started.countDown();
-                        awaitQuietly(block);
-                    });
-                }
+                AtomicInteger submitted = new AtomicInteger();
+                // Submit one execution per thread, plus enough to block all queue slots
+                int executions = threads + SEARCH_QUEUE_SIZE;
+                assertBusy(() -> {
+                    int toSubmit = executions - submitted.get();
+                    for (int i = 0; i < toSubmit; ++i) {
+                        try {
+                            searchExecutor.execute(() -> {
+                                started.countDown();
+                                awaitQuietly(block);
+                            });
+                            submitted.incrementAndGet();
+                        } catch (EsRejectedExecutionException e) {
+                            // one of the search threads was already in use by some transient thing, we'll try resubmitting
+                        }
+                    }
+                    assertThat("Could not saturate the search thread pool and queue", submitted.get(), equalTo(executions));
+                });
                 safeAwait(started);
-                // Fill the queue slot (queue_size=1). With all workers blocked, the next submit rejects.
-                try {
-                    searchExecutor.execute(() -> awaitQuietly(block));
-                } catch (EsRejectedExecutionException e) {
-                    // already full
-                }
                 expectThrows(EsRejectedExecutionException.class, () -> searchExecutor.execute(() -> {}));
             } catch (Throwable t) {
                 // The cluster is shared by the whole suite, so never leave SEARCH threads blocked on a setup failure.

@@ -1627,16 +1627,13 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
-    public void testDoubleRangeUnsupportedOperations() {
+    public void testDoubleRangeOperations() {
+        assumeTrue("requires GROUP_BY_DOUBLE_RANGE capability", EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
-        analyzer().addIndex("heights", "mapping-heights.json")
-            .stripErrorPrefix(true)
-            .error(
-                "FROM heights | STATS count(*) BY height_range",
-                containsString("cannot group by on [double_range] type for grouping [height_range]")
-            );
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | STATS count(*) BY height_range");
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | LIMIT 1 BY height_range");
         analyzer().addIndex("heights", "mapping-heights.json")
             .addLookupIndex("heights_lookup", "mapping-heights.json")
             .stripErrorPrefix(true)
@@ -3903,6 +3900,23 @@ public class VerifierTests extends ESTestCase {
             before the first aggregation [STATS avg(network.connections)] is not allowed; filter data with a WHERE command instead
             line 1:11: sorting [SORT host] between the time-series source \
             and the first aggregation [STATS avg(network.connections)] is not allowed"""));
+    }
+
+    public void testTimeSeriesStatsUnresolvedChildColumnReturnsError() {
+        k8s().error(
+            "TS k8s | RENAME nonexistent_src AS dummy | STATS avg(nonexistent_agg) BY tbucket = bucket(@timestamp, 1hour)",
+            containsString("Unknown column [nonexistent_src]")
+        );
+    }
+
+    public void testTimeSeriesStatsEnrichWithMissingPolicyFieldReturnsError() {
+        analyzer().addK8s()
+            .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "my_policy", "language_code", "test_idx", "mapping-languages.json")
+            .stripErrorPrefix(true)
+            .error(
+                "TS k8s | ENRICH my_policy ON pod WITH @timestamp = nonexistent_enrich_field | STATS avg(nonexistent_agg)",
+                containsString("Enrich field [nonexistent_enrich_field] not found in enrich policy [my_policy]")
+            );
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {

@@ -26,7 +26,6 @@ module org.elasticsearch.nativeaccess {
             org.elasticsearch.columnar,
             org.elasticsearch.parquetrs,
             org.elasticsearch.searchablesnapshots,
-            org.elasticsearch.simdvec,
             org.elasticsearch.systemd,
             org.elasticsearch.xpack.stateless,
             // ESQL data source compression-libs plugin: hosts PanamaZstd, the thin Panama

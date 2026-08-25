@@ -185,11 +185,9 @@ final class PromqlHistogramStates {
                 if (isEmpty()) {
                     return driverContext.blockFactory().newConstantNullBlock(1);
                 }
-                double result = evaluate(toBuckets());
-                if (Double.isNaN(result)) {
-                    return driverContext.blockFactory().newConstantNullBlock(1);
-                }
-                return driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
+                // A histogram that cannot yield an estimate produces NaN, which is emitted as a sample: nulling it here would
+                // drop the series from the result instead.
+                return driverContext.blockFactory().newConstantDoubleBlockWith(evaluate(toBuckets()), 1);
             }
 
             /**
@@ -330,12 +328,9 @@ final class PromqlHistogramStates {
                             builder.appendNull();
                             continue;
                         }
-                        double result = state.evaluate(state.toBuckets());
-                        if (Double.isNaN(result)) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendDouble(result);
-                        }
+                        // A histogram that cannot yield an estimate produces NaN, which is emitted as a sample: nulling it
+                        // here would drop the series from the result instead.
+                        builder.appendDouble(state.evaluate(state.toBuckets()));
                     }
                     return builder.build();
                 }

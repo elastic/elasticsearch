@@ -188,11 +188,15 @@ public class PromqlHistogramStatesTests extends ComputeTestCase {
         }
     }
 
-    public void testSingleStateNaNEstimateReturnsNull() {
+    /**
+     * A histogram without a +Inf bucket cannot produce an estimate, so bucketQuantile returns NaN. Prometheus emits
+     * that NaN as a sample rather than dropping the series, so the estimate must survive to the output block: a null
+     * here is filtered out of the PromQL result and the series disappears.
+     */
+    public void testSingleStateNaNEstimateIsEmitted() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
-        // A histogram without a +Inf bucket cannot produce an estimate, so bucketQuantile returns NaN.
         try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
             state.add(1.0, 1.0);
             state.add(2.0, 2.0);
@@ -201,8 +205,8 @@ public class PromqlHistogramStatesTests extends ComputeTestCase {
             );
 
             try (Block result = state.evaluateFinal(driverContext)) {
-                assertThat(result.elementType(), equalTo(ElementType.NULL));
-                assertTrue(result.areAllValuesNull());
+                assertFalse(result.areAllValuesNull());
+                assertTrue(Double.isNaN(((DoubleBlock) result).getDouble(0)));
             }
         }
     }

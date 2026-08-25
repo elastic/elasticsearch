@@ -128,7 +128,8 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[n];
         // Three separate accumulators — each released under the same label it was charged with so
         // that ChildMemoryCircuitBreaker's per-category gauge stays balanced.
-        long[] renderBytesCharged = { 0L };    // charged/released under [render]
+        long[] renderBytesPerItem = new long[n]; // per-slot render charge; released when the slot is finalized
+        long[] renderBytesCharged = { 0L };    // running total released by runAfter (remainder after early releases)
         long[] responseBytesCharged = { 0L };  // charged/released under [response] (success hits only)
         long[] failureBytesCharged = { 0L };   // charged/released under [failure] (errors and substitutes)
         long startTimeNanos = System.nanoTime();
@@ -144,10 +145,6 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 circuitBreaker.addWithoutBreaking(-failureBytesCharged[0], MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
             }
         });
-        // Dedicated (non-wrapping) listener: onResponse forwards only; onFailure decRefs held responses.
-        // Using ActionListener.wrap here would be wrong — if downstream onResponse threw, wrap would
-        // route to the cleanup onFailure, which decRefs items[], and then respondAndRelease would
-        // also decRef the outer MultiSearchTemplateResponse via closeInternal, double-freeing them.
         ActionListener<MultiSearchTemplateResponse> safeListener = new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchTemplateResponse r) {
@@ -168,8 +165,6 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
         // Render all templates. Simulate-only and render-error slots are filled here;
         // searchable slots collect their SearchRequest for the single multiSearch call below.
-        // Rendered source bytes are charged to the circuit breaker per item so that 30 000 × 1 MB
-        // of retained JSON cannot accumulate in items[] without bound until the HTTP response is sent.
         List<Integer> searchSlots = new ArrayList<>(n);
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.indicesOptions(request.indicesOptions());
@@ -186,20 +181,20 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 continue;
             }
 
-            SearchTemplateRequest templateRequest = request.requests().get(i);
-            SearchTemplateResponse templateResp = new SearchTemplateResponse();
-            SearchRequest searchReq;
+            SearchTemplateRequest searchTemplateRequest = request.requests().get(i);
+            SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
+            SearchRequest searchRequest;
             try {
-                searchReq = convert(
-                    templateRequest,
-                    templateResp,
+                searchRequest = convert(
+                    searchTemplateRequest,
+                    searchTemplateResponse,
                     scriptService,
                     xContentRegistry,
                     clusterSupportsFeature,
                     searchUsageHolder
                 );
             } catch (Exception e) {
-                templateResp.decRef();
+                searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
                 if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
                     logger.warn("MultiSearchTemplate convert failure", e);
@@ -208,19 +203,24 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
 
             // Charge for the rendered source and parsed builder retained in items[] until the response
-            // is sent. Simulate-only items keep their source for the full response lifetime; real-search
-            // items have their source cleared after the inner search, but the charge is released together
-            // with all other bytes when the outer listener completes.
-            long renderBytes = estimateRenderBytes(templateResp, searchReq, counter);
+            // is sent. Aborted slots (CBE or failure) release early when their SearchTemplateResponse
+            // is decRefed; successful slots release via runAfter when the outer response is freed.
+            long renderBytes = estimateRenderBytes(searchTemplateResponse, searchRequest, counter);
             try {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(renderBytes, MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                renderBytesPerItem[i] = renderBytes;
                 renderBytesCharged[0] += renderBytes;
             } catch (CircuitBreakingException cbe) {
-                templateResp.decRef();
+                searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, cbe);
                 long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
                 circuitBreaker.addWithoutBreaking(subBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
                 failureBytesCharged[0] += subBytes;
+                // Release render bytes for already-queued slots — their sources are freed by fillRemainingWithCbe.
+                for (int slot : searchSlots) {
+                    circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                    renderBytesCharged[0] -= renderBytesPerItem[slot];
+                }
                 // Abort: all search slots queued so far cannot run — replace them with CBE.
                 fillRemainingWithCbe(items, searchSlots, 0, cbe);
                 searchSlots.clear();
@@ -228,9 +228,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 continue;
             }
 
-            items[i] = new MultiSearchTemplateResponse.Item(templateResp, null);
-            if (searchReq != null) {
-                multiSearchRequest.add(searchReq);
+            items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
+            if (searchRequest != null) {
+                multiSearchRequest.add(searchRequest);
                 searchSlots.add(i);
             }
         }
@@ -241,18 +241,13 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         }
 
         multiSearchRequest.setParentTask(client.getLocalNodeId(), task.getId());
-        // Non-wrapping listener for the same reason as safeListener: if finishResponse propagates an
-        // exception from a downstream listener (e.g., the REST layer throws inside respondAndRelease),
-        // ActionListener.wrap would catch it and route to safeListener.onFailure, decRefing items[]
-        // that respondAndRelease has already freed via closeInternal. A plain listener lets the
-        // exception propagate up the stack instead.
         client.multiSearch(multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResp) {
                 // NOTE: the inner _msearch still holds its own REQUEST-breaker reservation for these
                 // responses during this callback — its runAfter releases only after our listener
                 // returns. We therefore add our own charge for the same bytes we are about to incRef,
-                // causing a transient ~2× peak. This is accepted: after the callback the inner
+                // causing a transient ~2× peak. This is intentional: after the callback the inner
                 // release drops the duplicate, leaving only our charge until the outer listener
                 // completes. The alternative (handing off the inner reservation) would require
                 // coupling to TransportMultiSearchAction internals.
@@ -263,6 +258,8 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                         if (items[slot].getResponse() != null) {
                             items[slot].getResponse().decRef();
                         }
+                        circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                        renderBytesCharged[0] -= renderBytesPerItem[slot];
                         items[slot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
                         long failureBytes = TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
                         try {
@@ -270,10 +267,16 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                             failureBytesCharged[0] += failureBytes;
                         } catch (CircuitBreakingException cbe) {
                             items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
-                            long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
-                            circuitBreaker.addWithoutBreaking(subBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
-                            failureBytesCharged[0] += subBytes;
-                            fillRemainingWithCbe(items, searchSlots, i + 1, cbe);
+                            abortResponsePhase(
+                                items,
+                                searchSlots,
+                                i + 1,
+                                multiSearchResp.getResponses().length,
+                                renderBytesPerItem,
+                                renderBytesCharged,
+                                failureBytesCharged,
+                                cbe
+                            );
                             break;
                         }
                     } else {
@@ -284,16 +287,24 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                         } catch (CircuitBreakingException cbe) {
                             items[slot].getResponse().decRef();
                             items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
-                            long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
-                            circuitBreaker.addWithoutBreaking(subBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
-                            failureBytesCharged[0] += subBytes;
-                            fillRemainingWithCbe(items, searchSlots, i + 1, cbe);
+                            circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                            renderBytesCharged[0] -= renderBytesPerItem[slot];
+                            abortResponsePhase(
+                                items,
+                                searchSlots,
+                                i + 1,
+                                multiSearchResp.getResponses().length,
+                                renderBytesPerItem,
+                                renderBytesCharged,
+                                failureBytesCharged,
+                                cbe
+                            );
                             break;
                         }
                         responseBytesCharged[0] += responseBytes;
                         item.getResponse().incRef(); // incRef before storing so the reference is always reachable
                         items[slot].getResponse().setResponse(item.getResponse());
-                        items[slot].getResponse().setSource(null); // rendered JSON no longer needed after search
+                        // render bytes released by runAfter when the outer response is decRefed
                     }
                 }
                 finishResponse(items, startTimeNanos, safeListener);
@@ -323,13 +334,17 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
      *
      * @param counter a reusable {@link CountingStreamOutput}; reset before each use, never allocated
      */
-    private static long estimateRenderBytes(SearchTemplateResponse templateResp, SearchRequest searchReq, CountingStreamOutput counter) {
+    private static long estimateRenderBytes(
+        SearchTemplateResponse searchTemplateResponse,
+        SearchRequest searchRequest,
+        CountingStreamOutput counter
+    ) {
         long bytes = RENDER_BASE_OVERHEAD;
-        BytesReference source = templateResp.getSource();
+        BytesReference source = searchTemplateResponse.getSource();
         if (source != null) {
             bytes += source.length();
         }
-        SearchSourceBuilder ssb = searchReq != null ? searchReq.source() : null;
+        SearchSourceBuilder ssb = searchRequest != null ? searchRequest.source() : null;
         if (ssb != null) {
             bytes += RENDER_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(counter, ssb);
         } else if (source != null) {
@@ -357,7 +372,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
 
     /**
      * Fills remaining unprocessed search slots (from {@code fromSearchIdx} onward in {@code searchSlots})
-     * with the given {@link CircuitBreakingException}, decRefing any templateResp they hold.
+     * with the given {@link CircuitBreakingException}, decRefing any search template response they hold.
      */
     private static void fillRemainingWithCbe(
         MultiSearchTemplateResponse.Item[] items,
@@ -372,6 +387,35 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
             items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
         }
+    }
+
+    /**
+     * Aborts the response phase when a {@link CircuitBreakingException} is thrown while processing
+     * inner search results. Releases render-breaker bytes for unprocessed slots, charges a substitute
+     * CBE amount under the failure label, and fills those slots in {@code items[]} with the exception.
+     *
+     * @param fromSearchIdx index into {@code searchSlots} from which to operate (inclusive)
+     * @param totalItems    total number of inner search responses (i.e. {@code multiSearchResp.getResponses().length})
+     */
+    private void abortResponsePhase(
+        MultiSearchTemplateResponse.Item[] items,
+        List<Integer> searchSlots,
+        int fromSearchIdx,
+        int totalItems,
+        long[] renderBytesPerItem,
+        long[] renderBytesCharged,
+        long[] failureBytesCharged,
+        CircuitBreakingException cbe
+    ) {
+        for (int j = fromSearchIdx; j < totalItems; j++) {
+            int slot = searchSlots.get(j);
+            circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+            renderBytesCharged[0] -= renderBytesPerItem[slot];
+        }
+        long subBytes = TransportMultiSearchAction.estimateFailureBytes(cbe);
+        circuitBreaker.addWithoutBreaking(subBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
+        failureBytesCharged[0] += subBytes;
+        fillRemainingWithCbe(items, searchSlots, fromSearchIdx, cbe);
     }
 
     private static void finishResponse(

@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class AcoshSerializationTests extends AbstractUnaryScalarSerializationTests<Acosh> {
     @Override
     protected Acosh create(Source source, Expression child) {
-        return new Acosh(source, child);
+        return new Acosh(source, child, randomBoolean());
     }
 }

@@ -348,12 +348,6 @@ public final class PromqlFunctionDefinition {
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String DOMAIN_PLUS_MINUS_ONE_NOTE =
-        "For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that "
-            + "Prometheus returns.";
-    public static final String OVERFLOW_NOTE =
-        "On numeric overflow for large-magnitude inputs, {{es}} returns `null` and emits a warning, rather than the "
-            + "`±Inf` that Prometheus returns.";
     public static final String QUANTILE_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";

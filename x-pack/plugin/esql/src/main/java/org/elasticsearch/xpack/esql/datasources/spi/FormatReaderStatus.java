@@ -35,6 +35,14 @@ public interface FormatReaderStatus extends NamedWriteable, ToXContentFragment {
     /** Rows the reader emitted into the operator. */
     long rowsEmitted();
 
-    /** Cumulative producer-thread time spent inside the format reader (open, decode, decompress). */
+    /** Cumulative producer-thread wall time spent inside the format reader (open, decode, decompress). */
     long readNanos();
+
+    /**
+     * CPU time the reader spent on the producer thread (no IO wait), nanoseconds.
+     * Returns 0 if {@link java.lang.management.ThreadMXBean#isCurrentThreadCpuTimeSupported()} is false.
+     */
+    default long readCpuNanos() {
+        return 0;
+    }
 }

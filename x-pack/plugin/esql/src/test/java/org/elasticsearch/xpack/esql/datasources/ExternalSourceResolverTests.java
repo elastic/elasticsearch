@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -210,6 +211,44 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertThat("the type check fires first, not the format check", e.getMessage(), not(containsString("[format] on column")));
     }
 
+    /**
+     * {@code subobjects: true} is only meaningful where a dot is ambiguous, i.e. a hierarchical text format that can
+     * meet the same value spelled {@code {"a.b":1}} and {@code {"a":{"b":1}}}. A columnar footer name is already
+     * unambiguous, so declaring the setting against one is rejected rather than silently ignored: honouring it there is
+     * impossible, and ignoring it would surface as wrong column names instead of an error. Covered for both the overlay
+     * and the strict rail, because strict builds its schema from the declaration and never asks a factory for metadata.
+     */
+    public void testDeclaredSubobjectsEnabledRejectedForFormatThatReadsDotsLiterally() throws Exception {
+        for (DatasetMapping.Dynamic dynamic : List.of(DatasetMapping.Dynamic.TRUE, DatasetMapping.Dynamic.FALSE)) {
+            Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+            props.put("emp_no", new DatasetFieldMapping("integer", null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> resolveWithDeclaredMapping(
+                    List.of(attr("emp_no", DataType.INTEGER)),
+                    props,
+                    dynamic,
+                    DatasetMapping.Subobjects.ENABLED
+                )
+            );
+            assertThat(e.getMessage(), containsString("[subobjects: true]"));
+            assertThat("the message must name the format that cannot honour it", e.getMessage(), containsString("parquet"));
+        }
+    }
+
+    /** The default reading is accepted by every format, so the rejection above is scoped to the non-default value. */
+    public void testDeclaredSubobjectsDisabledResolvesForAnyFormat() throws Exception {
+        Map<String, DatasetFieldMapping> props = new LinkedHashMap<>();
+        props.put("emp_no", new DatasetFieldMapping("integer", null));
+        ExternalSourceResolution resolution = resolveWithDeclaredMapping(
+            List.of(attr("emp_no", DataType.INTEGER)),
+            props,
+            DatasetMapping.Dynamic.TRUE,
+            DatasetMapping.Subobjects.DISABLED
+        );
+        assertNotNull(resolution.resolvedSource(DECLARED_GLOB));
+    }
+
     private static final String DECLARED_GLOB = "s3://bucket/data/*.parquet";
 
     /** Resolves a one-file parquet glob under a declared mapping — the harness for the columnar declaration rejects. */
@@ -218,13 +257,22 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, DatasetFieldMapping> properties,
         DatasetMapping.Dynamic dynamic
     ) throws Exception {
+        return resolveWithDeclaredMapping(fileSchema, properties, dynamic, DatasetMapping.Subobjects.DISABLED);
+    }
+
+    private ExternalSourceResolution resolveWithDeclaredMapping(
+        List<Attribute> fileSchema,
+        Map<String, DatasetFieldMapping> properties,
+        DatasetMapping.Dynamic dynamic,
+        DatasetMapping.Subobjects subobjects
+    ) throws Exception {
         String file = "s3://bucket/data/file1.parquet";
         Map<String, List<Attribute>> schemasByPath = Map.of(file, fileSchema);
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         listingsByPrefix.put(StoragePath.of(DECLARED_GLOB).patternPrefix().toString(), List.of(entry(file, 100)));
 
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, subobjects, properties, null));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolver.resolve(
             List.of(DECLARED_GLOB),
@@ -1114,14 +1162,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an implicit-nulls (footer) format must not carry a row-count-only dataset aggregate",
-            resolver.datasetAggregateKey(parquetListing, Map.of())
+            resolver.datasetAggregateKey(parquetListing, Map.of(), Subobjects.DISABLED)
         );
 
         FileList textListing = GlobExpander.fileListOf(
             List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
             "s3://bucket/data/*.ndjson"
         );
-        assertNotNull("a text-format listing must qualify (positive control)", resolver.datasetAggregateKey(textListing, Map.of()));
+        assertNotNull(
+            "a text-format listing must qualify (positive control)",
+            resolver.datasetAggregateKey(textListing, Map.of(), Subobjects.DISABLED)
+        );
     }
 
     /**
@@ -1138,7 +1189,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "an unregistered extension must refuse the aggregate, not throw",
-            resolver.datasetAggregateKey(unknownListing, Map.of())
+            resolver.datasetAggregateKey(unknownListing, Map.of(), Subobjects.DISABLED)
         );
     }
 
@@ -1155,7 +1206,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         assertNull(
             "format=parquet must gate .ndjson-named files as parquet (config wins over extension)",
-            resolver.datasetAggregateKey(ndjsonNamed, Map.of("format", "parquet"))
+            resolver.datasetAggregateKey(ndjsonNamed, Map.of("format", "parquet"), Subobjects.DISABLED)
         );
     }
 
@@ -1173,7 +1224,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             String path = "s3://bucket/data/a.ndjson";
             FileList duplicated = GlobExpander.fileListOf(List.of(entry(path, 100), entry(path, 100)), path + "," + path);
-            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, Map.of());
+            SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, Map.of(), Subobjects.DISABLED);
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
                 new ExternalSourceResolver.DatasetAggregatePrefetch(duplicatedKey, null),
@@ -1189,7 +1240,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, Map.of(), Subobjects.DISABLED);
             resolver.applyDatasetAggregate(
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
                 aggregated,
@@ -1217,7 +1268,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of(), Subobjects.DISABLED);
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
@@ -1263,7 +1314,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 List.of(entry("s3://bucket/data/a.ndjson", 100), entry("s3://bucket/data/b.ndjson", 200)),
                 "s3://bucket/data/*.ndjson"
             );
-            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of());
+            SchemaCacheKey key = resolver.datasetAggregateKey(distinct, Map.of(), Subobjects.DISABLED);
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(

@@ -2963,6 +2963,18 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_EMPTY_STRING_NOT_NULL,
 
         /**
+         * External NDJSON reads a dotted field name the way the {@code subobjects} mapping setting prescribes, and
+         * defaults to {@code subobjects: false}: a nested object flattens into a dotted column name, so
+         * {@code {"a":{"b":1}}} and {@code {"a.b":1}} both populate the column {@code a.b}, and a scalar {@code a}
+         * alongside a dotted {@code a.b} yields two independent columns rather than a shape conflict. Duplicate
+         * spellings of one column within a record merge into a multivalue instead of the first non-null winning.
+         * <p>
+         * Gates the csv-spec tests that assert this, because it changes results for an ordinary NDJSON read with no
+         * declared mapping: a pre-change node in a mixed cluster resolves dotted names by a schema heuristic instead.
+         */
+        EXTERNAL_NDJSON_SUBOBJECTS,
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator

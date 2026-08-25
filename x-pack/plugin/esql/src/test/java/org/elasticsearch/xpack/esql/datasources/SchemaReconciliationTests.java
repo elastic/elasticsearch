@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -194,7 +195,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema), f2, meta(schema));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().size(), equalTo(2));
         assertThat(result.unifiedSchema().get(0).name(), equalTo("id"));
@@ -209,7 +210,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().size(), equalTo(3));
         assertThat(result.unifiedSchema().get(2).name(), equalTo("bonus"));
@@ -232,7 +233,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().size(), equalTo(3));
 
@@ -251,7 +252,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
 
@@ -267,7 +268,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
 
@@ -286,7 +287,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DATE_NANOS));
 
@@ -308,7 +309,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         // Both files contributed non-string types → both file mappings carry a KEYWORD cast.
@@ -329,7 +330,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).name(), equalTo("b"));
         assertThat(result.unifiedSchema().get(1).name(), equalTo("a"));
@@ -350,18 +351,20 @@ public class SchemaReconciliationTests extends ESTestCase {
         metadata.put(f2, meta(schema2));
         metadata.put(f3, meta(schema3));
 
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
     }
 
-    // === Cross-file scalar/object shape conflict tests (esql-planning#1050) ===
+    // === Cross-file scalar/object shape conflict tests ===
     //
-    // A field that is a scalar leaf in one file's schema and a dotted-prefix parent in another's
-    // (an NDJSON field that is a scalar in one file and an object in the other) must reconcile to
-    // a single shape under UNION_BY_NAME — mirroring the per-file single-shape rule from
-    // esql-planning#1028 (first shape wins). Before this fix, [user] and [user.id]/[user.tier]
-    // never collided by name, so the unified schema fabricated both shapes and the losing file's
-    // values vanished silently. See SchemaReconciliation#resolveShapeConflicts.
+    // Under subobjects: true a dot is a path separator, so a field that is a scalar leaf in one
+    // file's schema and a dotted-prefix parent in another's is one field in two shapes, and must
+    // reconcile to a single shape under UNION_BY_NAME (first shape wins) — mirroring the per-file
+    // single-shape rule. Otherwise [user] and [user.id]/[user.tier] never collide by name, the
+    // unified schema carries both shapes, and the losing file's values vanish silently. The whole
+    // pass is therefore conditional on subobjects: true; see
+    // testUnionByNameScalarAndDottedNameCoexistWhenSubobjectsDisabled for the default reading, and
+    // SchemaReconciliation#resolveShapeConflicts.
 
     public void testUnionByNameScalarVsObjectShapeConflictResolvesToScalar() {
         List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
@@ -374,7 +377,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(
             "expected exactly the first file's scalar [user] shape in the unified schema",
@@ -396,7 +399,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(objectFile, "ndjson"), b, meta(scalarFile, "ndjson"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(
             "expected exactly the first file's nested [user.*] shape in the unified schema",
@@ -424,7 +427,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         List<Attribute> losingReadSchema = result.perFileInfo().get(b).fileSchema().attributes();
         List<String> losingNames = losingReadSchema.stream().map(Attribute::name).toList();
@@ -447,7 +450,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.ndjson");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(objectFile, "ndjson"));
-        SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         List<String> warnings = drainWarningMessages();
         assertWarningMentionsAll(warnings, "user", "a.ndjson", "b.ndjson", "scalar", "object");
@@ -471,7 +474,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         metadata.put(b, meta(scalarFile, "ndjson"));
         metadata.put(c, meta(objectFile2, "ndjson"));
 
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(userFamily(result), equalTo(List.of("user.id")));
         assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(objectFile1));
@@ -485,12 +488,11 @@ public class SchemaReconciliationTests extends ESTestCase {
 
     /**
      * A file that carries <em>both</em> the bare name and an unrelated dotted child for the same
-     * root in one file (e.g. a literal flat {@code "user.tag"} key coexisting with scalar
-     * {@code "user"}) has its dotted column excluded from the family — that column is already
-     * disambiguated per-file as a flat key, not a nested child (see
-     * {@code NdJsonPageDecoder#hasDottedPrefixConflict}) — but its bare {@code user} leaf still
-     * fully participates in the cross-file vote like any other file's. Here it happens to *agree*
-     * with the (scalar) winner, so both its columns stay untouched. See
+     * root in one file (e.g. a flat {@code "user.tag"} column coexisting with scalar
+     * {@code "user"}) has its dotted column excluded from the family — a file that already
+     * resolved both spellings for itself is not in two minds about the shape — but its bare
+     * {@code user} leaf still fully participates in the cross-file vote like any other file's.
+     * Here it happens to *agree* with the (scalar) winner, so both its columns stay untouched. See
      * {@link #testUnionByNameShapeConflictFileWithBothShapesDisagreeingIsAlsoOverridden} for the
      * disagreeing case.
      */
@@ -515,7 +517,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         metadata.put(objectPath, meta(objectFile, "ndjson"));
         metadata.put(bothPath, meta(bothShapesFile, "ndjson"));
 
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(userFamily(result), equalTo(List.of("user", "user.tag")));
         assertThat(result.perFileInfo().get(bothPath).fileSchema().attributes(), equalTo(bothShapesFile));
@@ -531,8 +533,7 @@ public class SchemaReconciliationTests extends ESTestCase {
      * the both-shapes file's own bare {@code user} *disagrees* with the winning shape (here the
      * winner is the nested object, contributed by a different file), that leaf column is
      * overridden exactly like any other losing file's — only the file's unrelated dotted column
-     * ({@code user.tag}, a literal flat key per {@code NdJsonPageDecoder#hasDottedPrefixConflict})
-     * stays untouched. Guards the fix to {@code resolveFamily}: an earlier version exempted a
+     * ({@code user.tag}) stays untouched. Guards the fix to {@code resolveFamily}: an earlier version exempted a
      * both-shapes file from the win/loss vote entirely, which let its scalar {@code user} value
      * silently keep coexisting with the winning nested shape in the unified schema — reopening
      * the exact scalar/object ambiguity this pass exists to close.
@@ -558,7 +559,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         metadata.put(scalarPath, meta(scalarFile, "ndjson"));
         metadata.put(bothPath, meta(bothShapesFile, "ndjson"));
 
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         // The scalar [user] shape is now fully gone from the unified schema -- both of its
         // contributors (scalarFile and bothShapesFile) lost the vote -- while the unrelated
@@ -623,7 +624,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.csv");
         StoragePath b = path("s3://b/b.csv");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "csv"), b, meta(literalDottedFile, "csv"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(
             "both the literal [user] and [user.tag] columns must survive independently, not collapse to one shape",
@@ -662,7 +663,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.parquet");
         StoragePath b = path("s3://b/b.parquet");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "parquet"), b, meta(objectFile, "parquet"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier")));
         assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
@@ -687,11 +688,36 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath a = path("s3://b/a.ndjson");
         StoragePath b = path("s3://b/b.csv");
         Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(ndjsonFile, "ndjson"), b, meta(csvFile, "csv"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.ENABLED);
 
         assertThat(userFamily(result), equalTo(List.of("user.id", "user.tier", "user.tag")));
         assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(ndjsonFile));
         assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(csvFile));
+        assertNoResponseWarnings();
+    }
+
+    /**
+     * Under the default {@code subobjects: false} reading a dot is an ordinary character, so
+     * {@code user} and {@code user.id} are two independent columns even in NDJSON, exactly as they
+     * are for CSV. Both survive the union, NULL-filled in whichever file lacks them, and nothing
+     * warns: there is no shape to reconcile. This is the gate on the whole shape-conflict pass.
+     */
+    public void testUnionByNameScalarAndDottedNameCoexistWhenSubobjectsDisabled() {
+        List<Attribute> scalarFile = List.of(attr("event", DataType.INTEGER), attr("user", DataType.KEYWORD));
+        List<Attribute> dottedFile = List.of(
+            attr("event", DataType.INTEGER),
+            attr("user.id", DataType.KEYWORD),
+            attr("user.tier", DataType.KEYWORD)
+        );
+
+        StoragePath a = path("s3://b/a.ndjson");
+        StoragePath b = path("s3://b/b.ndjson");
+        Map<StoragePath, SourceMetadata> metadata = orderedMap(a, meta(scalarFile, "ndjson"), b, meta(dottedFile, "ndjson"));
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
+
+        assertThat(userFamily(result), equalTo(List.of("user", "user.id", "user.tier")));
+        assertThat(result.perFileInfo().get(a).fileSchema().attributes(), equalTo(scalarFile));
+        assertThat(result.perFileInfo().get(b).fileSchema().attributes(), equalTo(dottedFile));
         assertNoResponseWarnings();
     }
 
@@ -774,7 +800,7 @@ public class SchemaReconciliationTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> SchemaReconciliation.reconcileUnionByName(metadata)
+            () -> SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED)
         );
         assertThat(e.getMessage(), containsString("duplicate column name [id]"));
     }
@@ -800,7 +826,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         Map<StoragePath, SourceMetadata> metadata = new LinkedHashMap<>();
         metadata.put(f1, meta(schema));
 
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
         assertThat(result.unifiedSchema().size(), equalTo(2));
         assertThat(result.perFileInfo().get(f1).mapping().isIdentity(), equalTo(true));
     }
@@ -818,7 +844,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         // The INT file carries a stringify cast; the KEYWORD file is a no-op identity.
@@ -916,7 +942,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.csv");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         assertThat(
@@ -939,7 +965,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.csv");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         // The DATETIME file needs the cast (so castBlock can pick the date formatter); the
@@ -968,7 +994,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         metadata.put(f2, meta(schema2));
         metadata.put(f3, meta(schema3));
 
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
 
         List<String> warnings = drainWarningMessages();
@@ -982,7 +1008,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.csv");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema), f2, meta(schema));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         assertNoResponseWarnings();
@@ -998,7 +1024,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
         assertThat(result.unifiedSchema().get(1).dataType(), equalTo(DataType.DOUBLE));
@@ -1025,7 +1051,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         assertWarningMentionsAll(drainWarningMessages(), "v", "dense_vector", "integer");
@@ -1042,7 +1068,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.csv");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         DataType cast1 = result.perFileInfo().get(f1).mapping().cast(0);
         DataType cast2 = result.perFileInfo().get(f2).mapping().cast(0);
@@ -1065,7 +1091,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             StoragePath f2 = path("s3://b/f2." + sourceType);
 
             Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, sourceType), f2, meta(schema2, sourceType));
-            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
             assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
             // The numeric-inferred file is pinned to KEYWORD and carries no cast.
@@ -1090,7 +1116,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             StoragePath f2 = path("s3://b/f2." + sourceType);
 
             Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, sourceType), f2, meta(schema2, sourceType));
-            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
             assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
             assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
@@ -1111,7 +1137,7 @@ public class SchemaReconciliationTests extends ESTestCase {
             StoragePath f2 = path("s3://b/f2." + sourceType);
 
             Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, sourceType), f2, meta(schema2, sourceType));
-            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+            SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
             assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
             assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DOUBLE));
@@ -1130,7 +1156,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.csv");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.DATE_NANOS));
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.DATETIME));
@@ -1149,7 +1175,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1), f2, meta(schema2));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.KEYWORD));
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.INTEGER));
@@ -1174,7 +1200,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath f2 = path("s3://b/f2.csv");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(f1, meta(schema1, "csv"), f2, meta(schema2, "csv"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         // Only the widened column is retyped in the read schema; the non-widened column stays as inferred.
         assertThat(result.perFileInfo().get(f1).fileSchema().get(0).dataType(), equalTo(DataType.LONG));
@@ -1196,7 +1222,7 @@ public class SchemaReconciliationTests extends ESTestCase {
         StoragePath parquet = path("s3://b/b.parquet");
 
         Map<StoragePath, SourceMetadata> metadata = orderedMap(csv, meta(csvSchema, "csv"), parquet, meta(parquetSchema, "parquet"));
-        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata);
+        SchemaReconciliation.Result result = SchemaReconciliation.reconcileUnionByName(metadata, Subobjects.DISABLED);
 
         assertThat(result.unifiedSchema().get(0).dataType(), equalTo(DataType.LONG));
         // CSV file: pinned to LONG, no cast, carries the pre-pin snapshot.

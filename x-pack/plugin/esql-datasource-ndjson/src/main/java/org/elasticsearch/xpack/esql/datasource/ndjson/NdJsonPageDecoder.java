@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
@@ -63,6 +64,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -244,6 +246,15 @@ public class NdJsonPageDecoder implements Closeable {
     /** Informational warning sink for absent declared columns; {@code null} when no sink is wired. */
     @Nullable
     private Consumer<String> absentColumnWarningSink;
+    /**
+     * How a dotted field name is read. Decides only what a scalar-versus-object mismatch means: under
+     * {@link Subobjects#ENABLED} a name is either an object or a leaf, so the other shape contradicts the schema and
+     * takes {@link ErrorPolicy}; under {@link Subobjects#DISABLED} a nested object flattens into dotted names, so the
+     * mismatched shape simply addresses names this projection does not have and is skipped like an unprojected field.
+     * The decoder tree is the same either way (see {@link #prepareSchema}), so this is settable after construction, next
+     * to the other per-read settings the iterator applies.
+     */
+    private Subobjects subobjects = Subobjects.DISABLED;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
     private final NdJsonReaderCounters counters;
@@ -672,7 +683,6 @@ public class NdJsonPageDecoder implements Closeable {
             warningSink
         );
 
-        List<Attribute> fullSchema = attributes;
         // Three projection cases:
         // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
         // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
@@ -708,7 +718,7 @@ public class NdJsonPageDecoder implements Closeable {
             projectedAttributes = resolved;
         }
 
-        this.decoder = prepareSchema(projectedAttributes, fullSchema);
+        this.decoder = prepareSchema(projectedAttributes);
         this.batchSize = batchSize;
         this.blockFactory = blockFactory;
         this.projectedAttributes = projectedAttributes;
@@ -934,6 +944,11 @@ public class NdJsonPageDecoder implements Closeable {
      * nothing — see issue 965). The {@link InputStream} path has no such bound, so it always enforces
      * when a finite cap is configured.
      */
+    /** See {@link #subobjects}. */
+    void setSubobjects(Subobjects subobjects) {
+        this.subobjects = Objects.requireNonNull(subobjects, "subobjects must not be null");
+    }
+
     void setMaxRecordBytes(int maxRecordBytes) {
         Check.isTrue(maxRecordBytes > 0, "maxRecordBytes must be positive, got: {}", maxRecordBytes);
         this.maxRecordBytes = maxRecordBytes;
@@ -1069,7 +1084,7 @@ public class NdJsonPageDecoder implements Closeable {
             long recordOffset = trackOffset ? recordFileOffset(startSliceOffset) : 0L;
 
             try {
-                decoder.decodeObject(parser, false);
+                decoder.decodeObject(parser, ArrayEntry.NONE);
             } catch (JsonParseException | StreamConstraintsException e) {
                 onNdjsonLineParseError(e, totalRowCount, "decodeObject");
             }
@@ -1161,7 +1176,7 @@ public class NdJsonPageDecoder implements Closeable {
                 // path — to hold a single value. Multivalued cells grow the scratch on demand.
                 decoder.setupBuilders(rowScratch, 1);
                 try {
-                    decoder.decodeObject(parser, false);
+                    decoder.decodeObject(parser, ArrayEntry.NONE);
                 } catch (JsonParseException | StreamConstraintsException e) {
                     onNdjsonLineParseError(e, totalRowCount, "decodeObject");
                     recoverFromParseException(parser);
@@ -1313,8 +1328,18 @@ public class NdJsonPageDecoder implements Closeable {
         }
     }
 
-    // Prepare the tree of property decoders and return the root decoder.
-    private BlockDecoder prepareSchema(List<Attribute> projected, List<Attribute> fullSchema) {
+    /**
+     * Prepare the tree of property decoders and return the root decoder. A dotted column name is a path of segments
+     * ({@link NdJsonUtils#isFieldPath}), so one node serves both spellings of the column: the nested spelling walks
+     * the tree segment by segment and the flat spelling resolves the same path at read time
+     * ({@link BlockDecoder#resolveDottedPath}).
+     * <p>
+     * A node can be both a leaf and a prefix — a scalar column {@code a} beside a column {@code a.b} — which is what
+     * {@link Subobjects#DISABLED} means by a dot being an ordinary character in a column name. Nothing about the tree
+     * shape depends on the setting; only what a shape mismatch means at read time does (see
+     * {@link BlockDecoder#decodeValue}).
+     */
+    private BlockDecoder prepareSchema(List<Attribute> projected) {
         BlockDecoder root = new BlockDecoder();
         int idx = 0;
         for (var attribute : projected) {
@@ -1323,42 +1348,22 @@ public class NdJsonPageDecoder implements Closeable {
             // setAttribute keeps this physical attribute at channel idx; the block is relabeled to the logical name by
             // position downstream (ColumnMapping / queryDataSchema).
             String name = attribute.name();
-            BlockDecoder decoder;
-            if (hasDottedPrefixConflict(name, fullSchema)) {
-                // CSV-style flat keys such as "languages.long" are single JSON field names; they cannot be reached
-                // via a nested "languages" object when "languages" is also a scalar column.
-                if (root.children == null) {
-                    root.children = new HashMap<>();
+            BlockDecoder decoder = root;
+            if (NdJsonUtils.isFieldPath(name)) {
+                int start = 0;
+                int dot;
+                while ((dot = name.indexOf('.', start)) >= 0) {
+                    decoder = decoder.child(name.substring(start, dot));
+                    start = dot + 1;
                 }
-                decoder = root.children.computeIfAbsent(name, k -> new BlockDecoder());
+                decoder = decoder.child(name.substring(start));
             } else {
-                decoder = root;
-                var path = name.split("\\.");
-                for (var part : path) {
-                    if (decoder.children == null) {
-                        decoder.children = new HashMap<>();
-                    }
-                    decoder = decoder.children.computeIfAbsent(part, k -> new BlockDecoder());
-                }
+                decoder = decoder.child(name);
             }
             decoder.setAttribute(attribute, idx);
             idx++;
         }
         return root;
-    }
-
-    /**
-     * Whether {@code name} is a dotted field that shares a prefix with another attribute (e.g. {@code languages}
-     * vs {@code languages.long}). In that case the NDJSON uses a single field name equal to the full attribute name.
-     */
-    private static boolean hasDottedPrefixConflict(String name, List<Attribute> attributes) {
-        for (var other : attributes) {
-            String o = other.name();
-            if (name.equals(o) == false && name.startsWith(o + ".")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -1440,6 +1445,38 @@ public class NdJsonPageDecoder implements Closeable {
      */
     private final BlockDecoder unprojected = new BlockDecoder();
 
+    /**
+     * Sentinel returned by {@link BlockDecoder#lookupChild} for a dotted field name whose descent ran into a scalar
+     * column with path left to walk (key {@code "a.b"} where the schema has {@code a} as a scalar). The record is
+     * naming {@code a} as an object, so under {@link Subobjects#ENABLED} this is the same contradiction a scalar leaf
+     * receiving {@code START_OBJECT} is, only spelled flat; under {@link Subobjects#DISABLED} it is an ordinary
+     * unprojected name. Distinct from {@link #unprojected} so the identity cache keeps the two apart and the walk
+     * happens once per name, not once per occurrence.
+     */
+    private final BlockDecoder shadowedScalarPath = new BlockDecoder();
+
+    /**
+     * Which of a node's position entries the enclosing JSON array opened, and therefore what that node may append
+     * while one of the array's elements is decoded into it. An entry that is open must receive a value (an empty
+     * multivalue cannot be committed) and one that is not open cannot, so the element kinds a node accepts follow
+     * directly from this.
+     * <p>
+     * It travels down the recursion rather than living on the node because the answer depends on how the node was
+     * reached, not on the node: {@link BlockDecoder#beginPositionEntry} recurses into children as
+     * {@code (true, true)}, so a node inside an ancestor's array of objects has both its own and its children's
+     * entries open, while a node that opened an array itself has exactly one of the two.
+     */
+    private enum ArrayEntry {
+        /** Not inside an array. No entry is open, so this node may open its own. */
+        NONE,
+        /** An array of primitives on this node: its own entry is open, its children's are not. */
+        SELF,
+        /** An array of objects on this node: its children's entries are open, its own is not. */
+        CHILDREN,
+        /** An array of objects on an ancestor: this node's own entry and its children's are both open. */
+        BOTH
+    }
+
     // ---------------------------------------------------------------------------------------------
     // A tree of decoders. Avoids path reconstruction when traversing nested objects.
     private class BlockDecoder {
@@ -1468,6 +1505,14 @@ public class NdJsonPageDecoder implements Closeable {
          */
         @Nullable
         IdentityHashMap<String, BlockDecoder> identityCache;
+
+        /** The child decoder for one field-name segment, created on first use. */
+        BlockDecoder child(String segment) {
+            if (children == null) {
+                children = new HashMap<>();
+            }
+            return children.computeIfAbsent(segment, k -> new BlockDecoder());
+        }
 
         void setAttribute(Attribute attribute, int blockIdx) {
             this.dataType = attribute.dataType();
@@ -1525,16 +1570,22 @@ public class NdJsonPageDecoder implements Closeable {
             );
         }
 
-        private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
+        private void decodeObject(JsonParser parser, ArrayEntry entry) throws IOException {
             if (parser.currentToken() != JsonToken.START_OBJECT) {
                 throw new NdJsonParseException(parser, "Expected JSON object");
             }
+            // This object's members decode into the children of this node. When the object is an element of an
+            // enclosing array, beginPositionEntry recursed into those children as (true, true), so each of them has
+            // both its own entry and its children's open.
+            ArrayEntry childEntry = entry == ArrayEntry.NONE ? ArrayEntry.NONE : ArrayEntry.BOTH;
             String fieldName;
             boolean poisoned = false;
             while ((fieldName = parser.nextFieldName()) != null) {
                 var childDecoder = lookupChild(fieldName);
                 parser.nextToken();
-                if (childDecoder == unprojected || poisoned) {
+                if (childDecoder == shadowedScalarPath && poisoned == false && subobjects == Subobjects.ENABLED) {
+                    shadowedScalarConflict(parser, fieldName);
+                } else if (childDecoder == unprojected || childDecoder == shadowedScalarPath || poisoned) {
                     // Unknown/unprojected field: advance to its value then skip (no decode).
                     // For string values nextFieldName() uses _skipString() internally on the next
                     // call, so we avoid _finishString2 for non-projected string fields.
@@ -1542,7 +1593,7 @@ public class NdJsonPageDecoder implements Closeable {
                     parser.skipChildren();
                 } else {
                     try {
-                        childDecoder.decodeValue(parser, inArray);
+                        childDecoder.decodeValue(parser, childEntry);
                     } catch (PoisonedPositionException e) {
                         poisoned = true;
                         parser.skipChildren(); // drain current field's value, then loop drains the rest
@@ -1609,6 +1660,56 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
+         * Raise the shape conflict for a dotted key that names a scalar column as an object. Re-walks the path to
+         * recover the shadowed column for the message, which {@link #lookupChild} discards to keep one shared sentinel
+         * in the identity cache. The walk is affordable here because it runs only on a genuine conflict, which is
+         * either fatal ({@link ErrorPolicy#isStrict()}) or charged against the bounded error budget.
+         */
+        private void shadowedScalarConflict(JsonParser parser, String fieldName) throws IOException {
+            if (rowDroppedBySkipRow) {
+                // Already being dropped by an earlier skip_row error: consume the value without charging the budget a
+                // second time, so one bad record costs one budget unit however many ways it is bad.
+                parser.skipChildren();
+                return;
+            }
+            BlockDecoder node = this;
+            int start = 0;
+            // Repeats resolveDottedPath's descent and stops where it did. Every segment it consumed there had a
+            // following dot and a present child, or it would have resolved the name instead of shadowing it.
+            while (node.children != null) {
+                int dot = fieldName.indexOf('.', start);
+                assert dot >= 0 : "shadowed path [" + fieldName + "] ran out of segments before reaching a scalar column";
+                node = node.children.get(fieldName.substring(start, dot));
+                assert node != null : "shadowed path [" + fieldName + "] lost a segment that resolveDottedPath found";
+                start = dot + 1;
+            }
+            boolean skipRow = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW;
+            // Distinct from shapeConflict's wording because the contradiction is inside this one record rather than
+            // between records, and because the scalar spelling is decoded before this key is reached, so under
+            // null_field the column keeps that value instead of being nulled.
+            String message = "field ["
+                + node.name
+                + "] at line ["
+                + totalRowCount
+                + "]: key ["
+                + fieldName
+                + "] names ["
+                + node.name
+                + "] as an object, but ["
+                + node.name
+                + "] is scalar type ["
+                + node.dataType.typeName()
+                + "] — "
+                + (skipRow ? "this record is skipped" : "this record's [" + fieldName + "] is dropped")
+                + ". With [subobjects: true] a dot is a path separator, so one field cannot be both a scalar and an "
+                + "object; set [subobjects: false] to read ["
+                + fieldName
+                + "] as a field name of its own, or model the two as separate fields.";
+            parser.skipChildren();
+            applyShapeConflictPolicy(skipRow, message);
+        }
+
+        /**
          * Resolve a flat dotted field name (e.g. {@code "a.b"} or {@code "a.b.c"}) as a path through this
          * decoder's {@code children} subtree, splitting on {@code .} and descending one segment at a time.
          * The walk is relative to {@code this} node, so a caller on the {@code x} structural node resolves
@@ -1616,17 +1717,19 @@ public class NdJsonPageDecoder implements Closeable {
          * Returns the node the whole path lands on: a leaf decoder (the flat spelling of a dotted column) or a
          * structural prefix node (a flat prefix whose remainder is spelled nested, e.g. {@code {"a.b":{"c":1}}}
          * against schema {@code a.b.c}). The caller then decodes the value into that node exactly as it would
-         * for the nested spelling. Returns {@code null} when any segment is missing, or when the path continues
-         * past a leaf (a leaf has no children, so the next segment finds none, e.g. a flat {@code a.b.c} against a
-         * scalar schema leaf {@code a.b}): the field is unreachable and treated as unprojected, which null-fills
-         * the cell exactly as an unknown field does.
+         * for the nested spelling. Returns {@code null} when any segment is missing: the field is unreachable and
+         * treated as unprojected, which null-fills the cell exactly as an unknown field does.
+         * <p>
+         * When the path continues past a node that is a scalar column, that column is being named as an object, and the
+         * walk returns {@link #shadowedScalarPath} so the caller can raise the shape conflict. A structural node with no
+         * column of its own is not shadowing anything, so a missing segment under it is plain unprojected.
          */
         private BlockDecoder resolveDottedPath(String fieldName) {
             BlockDecoder node = this;
             int start = 0;
             while (true) {
                 if (node.children == null) {
-                    return null;
+                    return node.blockBuilder != null ? shadowedScalarPath : null;
                 }
                 int dot = fieldName.indexOf('.', start);
                 String segment = dot < 0 ? fieldName.substring(start) : fieldName.substring(start, dot);
@@ -1653,31 +1756,34 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         /**
+         * @param includeSelf     when {@code true}, begins an MV entry on this node's own column. Use this for an array
+         *        of primitives, whose elements land in this column. An array of objects contributes nothing to it, and
+         *        opening it would leave an empty multivalue that cannot be committed.
          * @param includeChildren when {@code true}, also begins MV entries on child decoders. Use this only for JSON
          *        arrays of objects (e.g. {@code [{"a":1},{"a":2}]}) where every child column shares one MV slot per
          *        element. For arrays of primitives (e.g. {@code salary_change} as doubles while {@code salary_change.int}
          *        is a separate top-level field), {@code false} so children are not opened for values they will never
          *        receive from this array.
          */
-        private void beginPositionEntry(boolean includeChildren) {
+        private void beginPositionEntry(boolean includeSelf, boolean includeChildren) {
             // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
-            if (blockBuilder != null && dataType != DataType.NULL) {
+            if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.beginPositionEntry();
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.beginPositionEntry(includeChildren);
+                    child.beginPositionEntry(true, true);
                 }
             }
         }
 
-        private void endPositionEntry(boolean includeChildren) {
-            if (blockBuilder != null && dataType != DataType.NULL) {
+        private void endPositionEntry(boolean includeSelf, boolean includeChildren) {
+            if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.endPositionEntry();
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.endPositionEntry(includeChildren);
+                    child.endPositionEntry(true, true);
                 }
             }
         }
@@ -1688,16 +1794,48 @@ public class NdJsonPageDecoder implements Closeable {
          * when a coercion failure poisoned an array: the whole position is nulled rather
          * than committed as a partial multivalue, matching the columnar reader contract.
          */
-        private void cancelAndNullPositionEntry(boolean includeChildren) {
-            if (blockBuilder != null && dataType != DataType.NULL) {
+        private void cancelAndNullPositionEntry(boolean includeSelf, boolean includeChildren) {
+            if (includeSelf && blockBuilder != null && dataType != DataType.NULL) {
                 ((AbstractBlockBuilder) blockBuilder).cancelPositionEntry();
                 blockTracker.set(blockIdx);
                 blockBuilder.appendNull();
             }
             if (includeChildren && children != null) {
                 for (var child : children.values()) {
-                    child.cancelAndNullPositionEntry(includeChildren);
+                    child.cancelAndNullPositionEntry(true, true);
                 }
+            }
+        }
+
+        /**
+         * Merges a further occurrence of this column in the same record into the cell the first occurrence committed,
+         * as a multivalue: {@code {"a":{"b":1},"a.b":2}} yields {@code [1, 2]}, the same values indexing that document
+         * would produce. The already-committed position is reopened and this occurrence decodes into it as if it were an
+         * array element, so a scalar contributes one value, an array contributes each of its elements, and a JSON null
+         * contributes none. Closing the reopened position always succeeds: it holds the first occurrence's value even
+         * when this one appends nothing.
+         *
+         * <p>A cell an error policy already nulled cannot be widened, so this occurrence is dropped: the policy has
+         * decided (and warned) that the column is null for this record. A failure in this occurrence nulls the whole
+         * cell, matching the array contract that a poisoned position is nulled rather than committed in part.
+         */
+        private void appendFurtherOccurrence(JsonParser parser) throws IOException {
+            if (parser.currentToken() == JsonToken.VALUE_NULL) {
+                // Contributes no value, so the cell is already final: return before reopening, which would otherwise
+                // build the multivalue index for a block that stays single-valued.
+                return;
+            }
+            if (((AbstractBlockBuilder) blockBuilder).reopenLastPositionEntry() == false) {
+                parser.skipChildren();
+                return;
+            }
+            // This occurrence fills this node's own reopened entry, so an object among its values has no open entry of
+            // its own and is dropped like a stray array element.
+            try {
+                decodeValue(parser, ArrayEntry.SELF);
+                blockBuilder.endPositionEntry();
+            } catch (PoisonedPositionException e) {
+                cancelAndNullPositionEntry(true, false);
             }
         }
 
@@ -1741,7 +1879,7 @@ public class NdJsonPageDecoder implements Closeable {
          * {@code NULL_FIELD} nulls the cell and warns. Core ES dynamic mapping treats the shape ambiguity as a hard
          * document-parsing conflict.
          */
-        private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
+        private void decodeValue(JsonParser parser, ArrayEntry entry) throws IOException {
             JsonToken token = parser.currentToken();
 
             if (dataType == DataType.NULL) {
@@ -1751,25 +1889,23 @@ public class NdJsonPageDecoder implements Closeable {
                 return;
             }
 
-            // First-non-null-wins for a dotted column reachable by both spellings. Once a flat "a.b" resolves to
-            // the same leaf as the nested {"a":{"b":...}} spelling, a record that spells one column both ways
-            // (e.g. {"a":{"b":1},"a.b":2}, either order, or a repeated key) dispatches this leaf more than once.
-            // The first occurrence to commit a cell this record (a value, or a policy null-fill on a bad value)
-            // sets blockTracker and claims the row's single position; drain any later occurrence so the column
-            // keeps exactly one position, aligned with its siblings. Only leaf decoders (blockBuilder != null)
-            // commit a cell; structural prefix nodes recurse and are guarded at their own leaves. Array elements
-            // (inArray) belong to one occurrence and must all append, so they are never drained here. A plain
-            // JSON null does not set blockTracker (see below), so it never blocks a later real value.
-            if (blockBuilder != null && inArray == false && blockTracker.get(blockIdx)) {
-                parser.skipChildren();
+            // A record can spell one column more than once: a flat "a.b" beside the nested {"a":{"b":...}} (either
+            // order), or a repeated key. Every occurrence contributes to the cell, as a multivalue, which is what the
+            // same document produces on ingest. The column keeps exactly one position either way, so it stays aligned
+            // with its siblings. Only leaf decoders (blockBuilder != null) commit a cell; structural prefix nodes
+            // recurse and are guarded at their own leaves. An array element belongs to one occurrence and appends
+            // into the entry that occurrence opened. A plain JSON null does not set blockTracker (see below),
+            // so it neither claims the cell nor merges into it.
+            if (blockBuilder != null && entry == ArrayEntry.NONE && blockTracker.get(blockIdx)) {
+                appendFurtherOccurrence(parser);
                 return;
             }
 
             if (token == JsonToken.START_ARRAY) {
                 // Start a multi-value entry on this decoder and all its children (nested arrays are flattened).
-                // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
+                // Note: the entry state is needed because blockBuilder.beginPositionEntry() is not idempotent.
                 // Calling it twice implicitly calls endPositionEntry().
-                if (!inArray) {
+                if (entry == ArrayEntry.NONE) {
                     // `includeChildren` gates opening the child MV entries and must reflect whether the array
                     // actually contains an object: otherwise later objects append into never-opened child builders,
                     // misaligning rows across columns. Skip leading elements that cannot open this node's MV entry:
@@ -1780,9 +1916,14 @@ public class NdJsonPageDecoder implements Closeable {
                     // call beginPositionEntry() and then never append a value before endPositionEntry(), which
                     // AbstractBlockBuilder#endPositionEntry() asserts against (see appendNullsForEmptyArray).
                     JsonToken first = parser.nextToken();
+                    // What this node can take from an array: scalars when it has a column of its own, objects when it
+                    // has columns underneath. A scalar column that also prefixes dotted columns can take both, and the
+                    // element kind that opens the position decides which one this array contributes to.
+                    boolean takesScalars = blockBuilder != null;
+                    boolean takesObjects = children != null;
                     while (first == JsonToken.VALUE_NULL
-                        || (blockBuilder == null && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)
-                        || (dataType != null && first == JsonToken.START_OBJECT)) {
+                        || (takesScalars == false && first != null && first != JsonToken.START_OBJECT && first != JsonToken.END_ARRAY)
+                        || (takesObjects == false && first == JsonToken.START_OBJECT)) {
                         if (first != JsonToken.VALUE_NULL && logger.isDebugEnabled()) {
                             if (blockBuilder == null) {
                                 logger.debug(
@@ -1808,24 +1949,29 @@ public class NdJsonPageDecoder implements Closeable {
                         return;
                     }
                     boolean includeChildren = first == JsonToken.START_OBJECT;
-                    beginPositionEntry(includeChildren);
+                    // Only the entries the array's element kind will actually fill are opened: an entry that is opened
+                    // and never appended to cannot be committed (endPositionEntry rejects an empty multivalue).
+                    boolean includeSelf = includeChildren == false;
+                    ArrayEntry elementEntry = includeChildren ? ArrayEntry.CHILDREN : ArrayEntry.SELF;
+                    beginPositionEntry(includeSelf, includeChildren);
                     try {
-                        decodeValue(parser, true);
+                        decodeValue(parser, elementEntry);
                         while (parser.nextToken() != JsonToken.END_ARRAY) {
-                            decodeValue(parser, true);
+                            decodeValue(parser, elementEntry);
                         }
-                        endPositionEntry(includeChildren);
+                        endPositionEntry(includeSelf, includeChildren);
                     } catch (PoisonedPositionException e) {
                         while (parser.nextToken() != JsonToken.END_ARRAY) {
                             parser.skipChildren();
                         }
-                        cancelAndNullPositionEntry(includeChildren);
+                        cancelAndNullPositionEntry(includeSelf, includeChildren);
                     }
                     return;
                 }
                 while (parser.nextToken() != JsonToken.END_ARRAY) {
                     try {
-                        decodeValue(parser, true);
+                        // A nested array flattens into the entry the enclosing one already opened.
+                        decodeValue(parser, entry);
                     } catch (PoisonedPositionException e) {
                         // Drain the rest of this nested array, then rethrow so the
                         // enclosing array handler can drain its own remaining elements
@@ -1840,8 +1986,16 @@ public class NdJsonPageDecoder implements Closeable {
             }
 
             if (token == JsonToken.START_OBJECT) {
+                if (children != null && entry != ArrayEntry.SELF) {
+                    // Descend, whether or not this node also carries a scalar column of its own. A node with both is
+                    // the flattened reading of a dot: the object's members reach the dotted columns underneath, and
+                    // this node's own cell takes no value from an object (the end-of-record fill nulls it). Refused
+                    // only for an array of primitives, whose elements have no child entry to append into.
+                    decodeObject(parser, entry);
+                    return;
+                }
                 if (dataType != null) {
-                    if (inArray) {
+                    if (entry != ArrayEntry.NONE) {
                         // A stray object among a heterogeneous array of scalars is a distinct, supported shape
                         // (mirrors the stray-scalar-among-objects case below), not the record-level scalar/object
                         // conflict this issue targets: the array's other scalar elements still decode and
@@ -1859,6 +2013,15 @@ public class NdJsonPageDecoder implements Closeable {
                         parser.skipChildren();
                         return;
                     }
+                    if (subobjects == Subobjects.DISABLED) {
+                        // The object's members address flattened names under this one (a.b, a.b.c), none of which is a
+                        // column here — this node has no children. They are unreachable exactly as an unprojected
+                        // field is, so they are skipped silently and this node's cell is left for the end-of-record
+                        // fill. The scalar this column resolved to is not contradicted by an object at the same name:
+                        // under a flattened reading the two never denote the same value.
+                        parser.skipChildren();
+                        return;
+                    }
                     // Scalar leaf receiving an object value outside an array: a genuine scalar/object schema
                     // conflict, not routine schema-on-read flattening. With
                     // single-shape schema inference (see NdJsonSchemaInferrer) this can only happen when
@@ -1868,16 +2031,17 @@ public class NdJsonPageDecoder implements Closeable {
                     shapeConflict(parser, name, "an object", "scalar type [" + dataType.typeName() + "]");
                     return;
                 }
-                decodeObject(parser, inArray);
+                decodeObject(parser, entry);
                 return;
             }
 
-            if (blockBuilder == null) {
-                // Structural (prefix) node with no scalar builder of its own: the schema only knows dotted leaf
-                // columns for this field (e.g. "address.city"/"address.zip"). A JSON null is the common,
-                // legitimate case (e.g. CloudTrail "responseElements": null) and stays silent either way.
+            if (blockBuilder == null || entry == ArrayEntry.CHILDREN) {
+                // No column here can take this scalar: either a structural (prefix) node with no scalar builder of its
+                // own, whose schema knows only dotted leaf columns for this field (e.g. "address.city"/"address.zip"),
+                // or a stray scalar in an array that was opened for objects, whose own entry is not open. A JSON null
+                // is the common, legitimate case (e.g. CloudTrail "responseElements": null) and stays silent either way.
                 if (token != JsonToken.VALUE_NULL) {
-                    if (inArray) {
+                    if (entry != ArrayEntry.NONE) {
                         // A stray scalar among a heterogeneous array of objects is a distinct, supported
                         // shape (see the array-handling block above), not the record-level scalar/object
                         // conflict this issue targets. Leave the leaf descendants untracked so the
@@ -1892,7 +2056,7 @@ public class NdJsonPageDecoder implements Closeable {
                                 parser.getTokenLocation()
                             );
                         }
-                    } else {
+                    } else if (subobjects == Subobjects.ENABLED) {
                         // Genuine scalar/object schema conflict: route
                         // through ErrorPolicy instead of silently null-filling. Structural nodes never
                         // receive setAttribute(), so `name` is null here; derive the JSON path (e.g.
@@ -1905,6 +2069,10 @@ public class NdJsonPageDecoder implements Closeable {
                         );
                         return;
                     }
+                    // Under Subobjects.DISABLED this node's name is a prefix of column names, never a column itself,
+                    // so a scalar spelled at it is an unprojected field rather than a contradiction of the columns
+                    // below: they are named a.b, and nothing names a. Skipped silently, and their cells are left for
+                    // the end-of-record fill.
                 }
                 parser.skipChildren();
                 return;
@@ -1913,13 +2081,15 @@ public class NdJsonPageDecoder implements Closeable {
             if (token == JsonToken.VALUE_NULL) {
                 // A JSON null contributes no value and does not claim the row: it neither appends a cell nor sets
                 // blockTracker. The end-of-record fill supplies the null when no spelling of this column provides
-                // a value, and a later spelling that does provide one wins (first-non-null-wins for a dotted
-                // column reachable by both the nested and the flat spelling). Nulls inside an array are
+                // a value, and a spelling that does provide one is not merged with the null. Nulls inside an array are
                 // unsupported and skipped either way, so this single return covers both cases.
                 return;
             }
             blockTracker.set(blockIdx);
 
+            // This node's own entry is open for every state that reaches here (CHILDREN returned above), so the leaf
+            // decoders only need to know whether they are appending into one.
+            boolean inArray = entry != ArrayEntry.NONE;
             switch (dataType) {
                 case BOOLEAN -> decodeBooleanValue(parser, token, inArray);
                 case INTEGER -> decodeIntValue(parser, token, inArray);
@@ -2332,6 +2502,15 @@ public class NdJsonPageDecoder implements Closeable {
                 + "records cannot be represented as one type; make the field's shape consistent, or "
                 + "model it as separate fields.";
             parser.skipChildren();
+            applyShapeConflictPolicy(skipRow, message);
+        }
+
+        /**
+         * The {@link ErrorPolicy} outcome shared by every scalar-versus-object conflict, whichever wording described it:
+         * fail the query, or warn and charge the budget, dropping the record when {@code skipRow}. The conflicting value
+         * must already have been consumed from {@code parser} by the caller.
+         */
+        private void applyShapeConflictPolicy(boolean skipRow, String message) {
             if (errorPolicy.isStrict()) {
                 // Client-class: a field that is a scalar in one record and an object in another is bad input.
                 throw new ParsingException(Source.EMPTY, "{}", message);

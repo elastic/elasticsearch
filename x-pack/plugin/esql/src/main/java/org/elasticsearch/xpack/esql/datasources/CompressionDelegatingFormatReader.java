@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -113,6 +114,20 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // file. Without this the interface default would return the wrapper and every compressed read would silently
         // fall back to positional binding — the very bug this flag exists to fix.
         FormatReader configured = inner.withDeclaredPathBinding(declaredPathBinding);
+        return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
+    }
+
+    @Override
+    public boolean supportsSubobjects() {
+        return inner.supportsSubobjects();
+    }
+
+    @Override
+    public FormatReader withSubobjects(Subobjects subobjects) {
+        // Delegate to the wrapped text reader: a compressed .ndjson.gz reads dotted names exactly like the plain file.
+        // Without this the interface default would return the wrapper and every compressed read would fall back to the
+        // reader's own default.
+        FormatReader configured = inner.withSubobjects(subobjects);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 

@@ -11,6 +11,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
@@ -1434,17 +1435,17 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testScalarObjectConflictSkipRowDropsRecord() throws IOException {
-        // A scalar column (here bound KEYWORD via the read schema) receiving an object shape cannot be represented.
-        // Under skip_row the whole record drops, consistent with a bad scalar value for the same column. error_mode
-        // governs this identically for a bound/declared or an inferred column; null_field keeps the record instead
-        // (see testScalarObjectConflictNullFieldKeepsRecordAndNulls).
+        // Under subobjects: true a dot is a path separator, so a scalar column (here bound KEYWORD via the read schema)
+        // receiving an object shape cannot be represented. Under skip_row the whole record drops, consistent with a bad
+        // scalar value for the same column. error_mode governs this identically for a bound/declared or an inferred
+        // column; null_field keeps the record instead (see testScalarObjectConflictNullFieldKeepsRecordAndNulls).
         String ndjson = """
             {"event": 1, "user": "alice"}
             {"event": 2, "user": {"id": 7}}
             {"event": 3, "user": "carol"}
             """;
         var object = new BytesStorageObject("file:///skiprow-shape.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "event", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
@@ -1481,7 +1482,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event": 3, "user": "carol"}
             """;
         var object = new BytesStorageObject("file:///nullfield-shape.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "event", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
@@ -1510,6 +1511,138 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertFalse(user.isNull(2));
         }
         assertFalse("null_field must warn about the nulled cell", drainWarnings().isEmpty());
+    }
+
+    /**
+     * The same declared scalar column meeting an object is not an error at all under the default DISABLED reading: the
+     * object flattens to {@code user.id}, which the read schema does not project, so {@code user} is simply absent for
+     * that record. Every record survives even under STRICT and nothing warns. An index with {@code subobjects: false}
+     * accepts the same document for the same reason, mapping {@code user.id} as its own field.
+     */
+    public void testScalarObjectIsNotAConflictWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"event": 1, "user": "alice"}
+            {"event": 2, "user": {"id": 7}}
+            {"event": 3, "user": "carol"}
+            """;
+        var object = new BytesStorageObject("file:///flat-shape.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "event", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
+        );
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("event", "user"))
+                    .batchSize(100)
+                    .errorPolicy(ErrorPolicy.STRICT)
+                    .readSchema(schema)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            LongBlock event = page.getBlock(0);
+            BytesRefBlock user = page.getBlock(1);
+            assertEquals(2L, event.getLong(event.getFirstValueIndex(1)));
+            assertTrue("the object went to the unprojected [user.id], so [user] is absent", user.isNull(1));
+            assertFalse(user.isNull(0));
+            assertFalse(user.isNull(2));
+        }
+        assertTrue("no conflict, so no warning", drainWarnings().isEmpty());
+    }
+
+    /**
+     * A record that names one field both ways at once ({@code {"a":1,"a.b":2}}) contradicts itself under
+     * {@code subobjects: true}, and core dynamic mapping rejects such a document outright. Under STRICT the read fails
+     * naming the column, the key that shadowed it, and the setting that made the two collide.
+     */
+    public void testKeyNamingAScalarColumnAsAnObjectStrictFailsWhenSubobjectsEnabled() throws IOException {
+        String ndjson = """
+            {"a":1,"a.b":2}
+            """;
+        var object = new BytesStorageObject("memory://shadowed-strict.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("the conflicting object shape loses inference, leaving the scalar column", List.of("a"), names(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.STRICT).build())) {
+            ParsingException e = expectThrows(ParsingException.class, iterator::next);
+            assertThat(e.getMessage(), Matchers.containsString("key [a.b] names [a] as an object"));
+            assertThat(e.getMessage(), Matchers.containsString("scalar type [integer]"));
+            assertThat(e.getMessage(), Matchers.containsString("subobjects: false"));
+        }
+    }
+
+    /** Under skip_row the self-contradicting record drops whole, which is the mode that matches ingest's rejection. */
+    public void testKeyNamingAScalarColumnAsAnObjectSkipRowDropsRecord() throws IOException {
+        String ndjson = """
+            {"id":1,"a":1}
+            {"id":2,"a":1,"a.b":2}
+            {"id":3,"a":3}
+            """;
+        var object = new BytesStorageObject("memory://shadowed-skiprow.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
+        List<Attribute> schema = reader.metadata(object).schema();
+        try (
+            var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(new ErrorPolicy(10, true)).build())
+        ) {
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock id = page.getBlock(indexOf(schema, "id"));
+            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
+            assertEquals(3, id.getInt(id.getFirstValueIndex(1)));
+        }
+        assertFalse("skip_row must warn about the dropped record", drainWarnings().isEmpty());
+    }
+
+    /**
+     * Under null_field the record is kept. The column keeps the value its scalar spelling supplied, since that value is
+     * decoded before the shadowing key is reached, and the warning says so rather than claiming the cell was nulled.
+     */
+    public void testKeyNamingAScalarColumnAsAnObjectNullFieldKeepsScalarValue() throws IOException {
+        String ndjson = """
+            {"id":1,"a":1,"a.b":2}
+            """;
+        var object = new BytesStorageObject("memory://shadowed-nullfield.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
+        List<Attribute> schema = reader.metadata(object).schema();
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.PERMISSIVE).build())) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock a = page.getBlock(indexOf(schema, "a"));
+            assertEquals(1, a.getInt(a.getFirstValueIndex(0)));
+        }
+        assertThat(drainWarnings().toString(), Matchers.containsString("this record's [a.b] is dropped"));
+    }
+
+    /**
+     * The same record is not a conflict under the default DISABLED reading: {@code a} and {@code a.b} are two
+     * independent columns, both inferred and both decoded, so a strict read succeeds and nothing warns. An index with
+     * {@code subobjects: false} accepts the same document for the same reason.
+     */
+    public void testKeyNamingAScalarColumnAsAnObjectIsTwoColumnsWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"a":1,"a.b":2}
+            """;
+        var object = new BytesStorageObject("memory://shadowed-flat.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(List.of("a", "a.b"), names(schema));
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.STRICT).build())) {
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock a = page.getBlock(indexOf(schema, "a"));
+            IntBlock ab = page.getBlock(indexOf(schema, "a.b"));
+            assertEquals(1, a.getInt(a.getFirstValueIndex(0)));
+            assertEquals(2, ab.getInt(ab.getFirstValueIndex(0)));
+        }
+    }
+
+    private static List<String> names(List<Attribute> schema) {
+        return schema.stream().map(Attribute::name).toList();
     }
 
     public void testSkipRowChargesErrorBudgetOncePerRecordNotPerField() throws IOException {
@@ -1561,7 +1694,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"a": "3", "user": "carol"}
             """;
         var object = new BytesStorageObject("file:///mixed.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         List<Attribute> schema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "a", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "user", DataType.KEYWORD)
@@ -1876,9 +2009,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     /**
-     * Reproduces the scalar/object shape-conflict repro: an NDJSON field ("user") that is a scalar in
-     * some sampled records and a JSON object in others must resolve to exactly one shape in the inferred schema
-     * -- never both a scalar "user" attribute and its nested "user.id"/"user.tier" children.
+     * Under {@link Subobjects#ENABLED} a dot is a path separator, so an NDJSON field ("user") that is a scalar in some
+     * sampled records and a JSON object in others is one field disagreeing about its shape. It must resolve to exactly
+     * one shape in the inferred schema, never both a scalar "user" attribute and its nested "user.id"/"user.tier"
+     * children.
      */
     public void testScalarThenObjectConflictSchemaIsSingleShape() throws IOException {
         String ndjson = """
@@ -1887,10 +2021,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":"carol"}
             """;
         var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         List<Attribute> schema = reader.metadata(object).schema();
-        List<String> userFamily = schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
-        assertEquals("expected exactly one scalar [user] shape, got: " + userFamily, List.of("user"), userFamily);
+        assertEquals("expected exactly one scalar [user] shape", List.of("user"), userFamily(schema));
         assertEquals(DataType.KEYWORD, schema.get(indexOf(schema, "user")).dataType());
     }
 
@@ -1902,10 +2035,88 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":{"id":"carol","tier":"silver"}}
             """;
         var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals("expected exactly the nested [user.*] shape", List.of("user.id", "user.tier"), userFamily(schema));
+    }
+
+    /**
+     * The default reading is {@link Subobjects#DISABLED}, where a dot is a literal character: the object records
+     * flatten into "user.id"/"user.tier" and coexist with the scalar "user", so the same file yields three columns and
+     * no conflict. This is what an index with {@code subobjects: false} maps for the same documents.
+     */
+    public void testScalarAndObjectCoexistInSchemaWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"event":1,"user":"alice"}
+            {"event":2,"user":{"id":"bob","tier":"gold"}}
+            {"event":3,"user":"carol"}
+            """;
+        var object = new BytesStorageObject("memory://scalar-then-object-flat.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         List<Attribute> schema = reader.metadata(object).schema();
-        List<String> userFamily = schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
-        assertEquals("expected exactly the nested [user.*] shape, got: " + userFamily, List.of("user.id", "user.tier"), userFamily);
+        assertEquals(List.of("user", "user.id", "user.tier"), userFamily(schema));
+    }
+
+    /** Mirror of {@link #testScalarAndObjectCoexistInSchemaWhenSubobjectsDisabled}: object shape observed first. */
+    public void testObjectAndScalarCoexistInSchemaWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"event":1,"user":{"id":"bob","tier":"gold"}}
+            {"event":2,"user":"alice"}
+            {"event":3,"user":{"id":"carol","tier":"silver"}}
+            """;
+        var object = new BytesStorageObject("memory://object-then-scalar-flat.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(List.of("user", "user.id", "user.tier"), userFamily(schema));
+    }
+
+    /**
+     * Under DISABLED both spellings of one column reach that column, so a file mixing {@code {"a":{"b":1}}} with
+     * {@code {"a.b":2}} yields a single {@code a.b} column carrying both values. This is the auto-flattening half of
+     * the setting, and it makes a dotted key and a nested object interchangeable in the file.
+     */
+    public void testNestedObjectFlattensOntoDottedColumnWhenSubobjectsDisabled() throws IOException {
+        String ndjson = """
+            {"a":{"b":1},"id":1}
+            {"a.b":2,"id":2}
+            """;
+        var object = new BytesStorageObject("memory://flatten.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        List<Attribute> schema = reader.metadata(object).schema();
+        assertEquals(List.of("a.b", "id"), schema.stream().map(Attribute::name).toList());
+        try (var iterator = reader.read(object, FormatReadContext.builder().batchSize(100).build())) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock ab = page.getBlock(indexOf(schema, "a.b"));
+            assertEquals(1, ab.getInt(ab.getFirstValueIndex(0)));
+            assertEquals(2, ab.getInt(ab.getFirstValueIndex(1)));
+        }
+    }
+
+    /**
+     * A column that is both a leaf and a prefix ({@code x.a} beside {@code x.a.b}) is reached once through its own
+     * array of objects and once through its parent's. Two records are required: the second decodes correctly on its
+     * own, and it is the first record's array on {@code x.a} that decides which of that node's entries are open.
+     */
+    public void testObjectArrayInOneRecordDoesNotDropTheNextRecordsScalar() throws IOException {
+        String ndjson = """
+            {"x":{"a":[{"b":1}]}}
+            {"x":[{"a":3,"a.b":4}]}
+            """;
+        var object = new BytesStorageObject("memory://leaf-and-prefix.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        try (var iterator = reader.read(object, List.of("x.a", "x.a.b"), 100)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            IntBlock xa = page.getBlock(0);
+            IntBlock xab = page.getBlock(1);
+            assertTrue(xa.isNull(0));
+            assertEquals(1, xab.getInt(xab.getFirstValueIndex(0)));
+            assertEquals(3, xa.getInt(xa.getFirstValueIndex(1)));
+            assertEquals(4, xab.getInt(xab.getFirstValueIndex(1)));
+        }
     }
 
     /**
@@ -1920,7 +2131,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":"carol"}
             """;
         var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         var ctx = FormatReadContext.builder().batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
@@ -1940,7 +2151,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":{"id":"carol","tier":"silver"}}
             """;
         var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         var ctx = FormatReadContext.builder().batchSize(1).errorPolicy(ErrorPolicy.STRICT).build();
         try (var iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
@@ -1964,7 +2175,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":"carol"}
             """;
         var object = new BytesStorageObject("memory://scalar-then-object.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         var schema = reader.metadata(object).schema();
         var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
         try (var iterator = reader.read(object, ctx)) {
@@ -1993,7 +2204,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":{"id":"carol","tier":"silver"}}
             """;
         var object = new BytesStorageObject("memory://object-then-scalar.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         var schema = reader.metadata(object).schema();
         var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).build();
         try (var iterator = reader.read(object, ctx)) {
@@ -2030,7 +2241,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"event":3,"user":"carol"}
             """;
         var object = new BytesStorageObject("memory://scalar-then-object-sink.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(null, blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory).withSubobjects(Subobjects.ENABLED);
         List<String> sunk = new ArrayList<>();
         var ctx = FormatReadContext.builder().batchSize(100).errorPolicy(ErrorPolicy.LENIENT).informationalWarningSink(sunk::add).build();
         try (var iterator = reader.read(object, ctx)) {
@@ -2040,6 +2251,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertFalse("expected a warning for the shape conflict routed through the sink", sunk.isEmpty());
         assertTrue("warning should name the conflicting field, got: " + sunk, sunk.stream().anyMatch(w -> w.contains("user")));
         assertTrue("no message should reach the thread-local response headers", drainWarnings().isEmpty());
+    }
+
+    /** The {@code user} family of a schema: the bare name plus every dotted descendant, in schema order. */
+    private static List<String> userFamily(List<Attribute> schema) {
+        return schema.stream().map(Attribute::name).filter(n -> n.equals("user") || n.startsWith("user.")).toList();
     }
 
     private static int indexOf(List<Attribute> schema, String name) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
@@ -388,13 +389,12 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A record spelling one dotted column both ways ({@code {"a":{"b":1},"a.b":2}}, either order, a repeated
-     * nested key, or a repeated flat key) must produce exactly one row: the first occurrence to commit a value
-     * wins and later spellings are dropped, keeping the column aligned with its siblings. ES ingest instead keeps
-     * both values as a multivalue; for this pathological same-record case the reader keeps a single value
-     * (first-non-null-wins).
+     * A record spelling one dotted column more than once ({@code {"a":{"b":1},"a.b":2}}, either order, a repeated
+     * nested key, or a repeated flat key) contributes every occurrence to one cell as a multivalue, which is the
+     * value list indexing that same document produces. The column still occupies exactly one position, so it stays
+     * aligned with its siblings; a sibling {@code id} column pins that.
      */
-    public void testSameRecordDuplicateSpellingsKeepFirstValue() throws IOException {
+    public void testSameRecordDuplicateSpellingsMergeIntoMultivalue() throws IOException {
         String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n"
             + "{\"a.b\":3,\"a\":{\"b\":4},\"id\":20}\n"
             + "{\"a\":{\"b\":5},\"a\":{\"b\":6},\"id\":30}\n"
@@ -405,17 +405,44 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(4, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
             LongBlock id = page.getBlock(1);
+            long[][] expected = { { 1L, 2L }, { 3L, 4L }, { 5L, 6L }, { 7L, 8L } };
             for (int p = 0; p < 4; p++) {
-                assertEquals("exactly one value at row " + p, 1, ab.getValueCount(p));
+                assertEquals("value count at row " + p, 2, ab.getValueCount(p));
+                int first = ab.getFirstValueIndex(p);
+                assertEquals("first value at row " + p, expected[p][0], ab.getLong(first));
+                assertEquals("second value at row " + p, expected[p][1], ab.getLong(first + 1));
             }
-            assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
-            assertEquals(3L, ab.getLong(ab.getFirstValueIndex(1)));
-            assertEquals(5L, ab.getLong(ab.getFirstValueIndex(2)));
-            assertEquals(7L, ab.getLong(ab.getFirstValueIndex(3)));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
             assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
             assertEquals(30L, id.getLong(id.getFirstValueIndex(2)));
             assertEquals(40L, id.getLong(id.getFirstValueIndex(3)));
+        }
+    }
+
+    /**
+     * An array occurrence contributes each of its elements to the merged cell rather than one nested value, so a
+     * scalar spelling beside an array spelling flattens exactly as two arrays would.
+     */
+    public void testSameRecordDuplicateSpellingsFlattenArrayOccurrence() throws IOException {
+        String ndjson = "{\"a\":{\"b\":1},\"a.b\":[2,3],\"id\":10}\n" + "{\"a.b\":[4,5],\"a\":{\"b\":6},\"id\":20}\n";
+
+        try (Page page = decodePage(ndjson, List.of(attribute("a.b", DataType.LONG), attribute("id", DataType.LONG)))) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            LongBlock ab = page.getBlock(0);
+            LongBlock id = page.getBlock(1);
+            assertEquals(3, ab.getValueCount(0));
+            int first = ab.getFirstValueIndex(0);
+            assertEquals(1L, ab.getLong(first));
+            assertEquals(2L, ab.getLong(first + 1));
+            assertEquals(3L, ab.getLong(first + 2));
+            assertEquals(3, ab.getValueCount(1));
+            int second = ab.getFirstValueIndex(1);
+            assertEquals(4L, ab.getLong(second));
+            assertEquals(5L, ab.getLong(second + 1));
+            assertEquals(6L, ab.getLong(second + 2));
+            assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
+            assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
         }
     }
 
@@ -446,7 +473,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     /**
      * The same-record duplicate resolves silently under {@link ErrorPolicy#STRICT}: two spellings of one dotted
      * column are legitimate names for the same field (the shape indexes cleanly), so the query must not fail. A
-     * sibling {@code id} column pins that the drained second spelling did not skew the row under fail-fast.
+     * sibling {@code id} column pins that the merge did not skew the row under fail-fast.
      */
     public void testSameRecordDuplicateSpellingsDoesNotFailStrict() throws IOException {
         String ndjson = "{\"a\":{\"b\":1},\"a.b\":2,\"id\":10}\n";
@@ -456,8 +483,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
             LongBlock id = page.getBlock(1);
-            assertEquals(1, ab.getValueCount(0));
+            assertEquals(2, ab.getValueCount(0));
             assertEquals(1L, ab.getLong(ab.getFirstValueIndex(0)));
+            assertEquals(2L, ab.getLong(ab.getFirstValueIndex(0) + 1));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
         }
     }
@@ -484,12 +512,13 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * A policy null-fill on a bad first value commits a null cell and claims the row: under a lenient policy the
-     * bad first spelling nulls the cell and a later good spelling of the same dotted column is drained. Reversed,
-     * a good value committed first wins and the later bad spelling is drained before coercion is even attempted,
-     * so it raises no value error. A sibling {@code id} column pins alignment.
+     * A bad value in any occurrence nulls the whole merged cell under a lenient policy, in either order: a cell the
+     * policy already nulled cannot be widened by a later good spelling, and a later bad spelling poisons the
+     * position the good one had opened. The all-or-nothing outcome matches the array contract, where one
+     * unrepresentable element nulls the entry rather than committing it in part. A sibling {@code id} column pins
+     * that neither direction skewed the row.
      */
-    public void testSameRecordDuplicateCoercionNullClaimsRow() throws IOException {
+    public void testSameRecordDuplicateCoercionFailureNullsWholeCell() throws IOException {
         String ndjson = "{\"a.b\":\"bad\",\"a\":{\"b\":2},\"id\":10}\n" + "{\"a\":{\"b\":3},\"a.b\":\"bad\",\"id\":20}\n";
 
         try (
@@ -499,8 +528,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             LongBlock ab = page.getBlock(0);
             LongBlock id = page.getBlock(1);
-            assertTrue("bad first value null-fills and claims the row -> null", ab.isNull(0));
-            assertEquals("value committed before the bad spelling wins", 3L, ab.getLong(ab.getFirstValueIndex(1)));
+            assertTrue("bad value first -> null", ab.isNull(0));
+            assertTrue("bad value second -> null", ab.isNull(1));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
             assertEquals(20L, id.getLong(id.getFirstValueIndex(1)));
         }
@@ -533,11 +562,11 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     /**
-     * An exact duplicate JSON key on a plain (non-dotted) column ({@code {"b":1,"b":2}}) also keeps exactly one
-     * value and one aligned position: NDJSON parsing does not enable strict duplicate detection, so both keys are
-     * emitted, and the first-committed-value guard keeps the column from advancing past its siblings.
+     * An exact duplicate JSON key on a plain (non-dotted) column ({@code {"b":1,"b":2}}) merges the same way: NDJSON
+     * parsing does not enable strict duplicate detection, so both keys are emitted, and both values land in one
+     * aligned position.
      */
-    public void testExactDuplicateKeyKeepsFirstValueAndAligns() throws IOException {
+    public void testExactDuplicateKeyMergesIntoMultivalueAndAligns() throws IOException {
         String ndjson = "{\"b\":1,\"b\":2,\"id\":10}\n";
 
         try (Page page = decodePage(ndjson, List.of(attribute("b", DataType.LONG), attribute("id", DataType.LONG)))) {
@@ -545,8 +574,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             LongBlock b = page.getBlock(0);
             LongBlock id = page.getBlock(1);
-            assertEquals(1, b.getValueCount(0));
+            assertEquals(2, b.getValueCount(0));
             assertEquals(1L, b.getLong(b.getFirstValueIndex(0)));
+            assertEquals(2L, b.getLong(b.getFirstValueIndex(0) + 1));
             assertEquals(10L, id.getLong(id.getFirstValueIndex(0)));
         }
     }
@@ -568,12 +598,51 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             () -> decodePage(
                 ndjson,
                 List.of(attribute("address.city", DataType.KEYWORD), attribute("address.zip", DataType.KEYWORD)),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                Subobjects.ENABLED
             )
         );
         assertThat(ex.getMessage(), Matchers.containsString("address"));
         assertThat(ex.getMessage(), Matchers.containsString("a string"));
         assertThat(ex.getMessage(), Matchers.containsString("an object"));
+    }
+
+    /**
+     * The same records are not a conflict at all under DISABLED, where a dot is a literal character: the schema knows
+     * no column named {@code address}, so the scalar names nothing projected and null-fills the row's dotted columns
+     * exactly as an unknown field does. Not even STRICT fails, because nothing unrepresentable was asked for. An index
+     * with {@code subobjects: false} reaches the same place: it maps {@code address} and {@code address.city} as
+     * separate fields, and this read simply does not project the former.
+     */
+    public void testScalarWhereNestedObjectExpectedIsNotAConflictWhenSubobjectsDisabled() throws IOException {
+        String ndjson = "{\"address\": {\"city\": \"NYC\", \"zip\": \"10001\"}, \"id\": 1}\n"
+            + "{\"address\": \"unstructured\", \"id\": 2}\n";
+
+        try (
+            Page page = decodePage(
+                ndjson,
+                List.of(
+                    attribute("address.city", DataType.KEYWORD),
+                    attribute("address.zip", DataType.KEYWORD),
+                    attribute("id", DataType.INTEGER)
+                ),
+                ErrorPolicy.STRICT,
+                Subobjects.DISABLED
+            )
+        ) {
+            assertNotNull(page);
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock city = page.getBlock(0);
+            BytesRefBlock zip = page.getBlock(1);
+            IntBlock id = page.getBlock(2);
+            BytesRef scratch = new BytesRef();
+            assertEquals(new BytesRef("NYC"), BytesRef.deepCopyOf(city.getBytesRef(0, scratch)));
+            assertTrue(city.isNull(1));
+            assertTrue(zip.isNull(1));
+            assertEquals(1, id.getInt(id.getFirstValueIndex(0)));
+            assertEquals(2, id.getInt(id.getFirstValueIndex(1)));
+        }
+        assertTrue("no shape conflict, so no warning", drainWarnings().isEmpty());
     }
 
     /**
@@ -595,7 +664,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                     attribute("address.zip", DataType.KEYWORD),
                     attribute("id", DataType.INTEGER)
                 ),
-                ErrorPolicy.LENIENT
+                ErrorPolicy.LENIENT,
+                Subobjects.ENABLED
             )
         ) {
             assertNotNull(page);
@@ -639,6 +709,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 sunk::add
             )
         ) {
+            decoder.setSubobjects(Subobjects.ENABLED);
             try (Page page = decoder.decodePage()) {
                 assertNotNull(page);
             }
@@ -768,6 +839,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     private Page decodePage(String ndjson, List<Attribute> attributes, ErrorPolicy errorPolicy) throws IOException {
+        return decodePage(ndjson, attributes, errorPolicy, Subobjects.DISABLED);
+    }
+
+    private Page decodePage(String ndjson, List<Attribute> attributes, ErrorPolicy errorPolicy, Subobjects subobjects) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
@@ -781,6 +856,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 new NdJsonReaderCounters()
             )
         ) {
+            decoder.setSubobjects(subobjects);
             return decoder.decodePage();
         }
     }
@@ -1009,6 +1085,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
     }
 
     private Page decodeOneColumn(String ndjson, DataType type, ErrorPolicy policy) throws IOException {
+        return decodeOneColumn(ndjson, type, policy, Subobjects.DISABLED);
+    }
+
+    private Page decodeOneColumn(String ndjson, DataType type, ErrorPolicy policy, Subobjects subobjects) throws IOException {
         try (
             NdJsonPageDecoder decoder = new NdJsonPageDecoder(
                 new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
@@ -1022,6 +1102,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 new NdJsonReaderCounters()
             )
         ) {
+            decoder.setSubobjects(subobjects);
             return decoder.decodePage();
         }
     }
@@ -1465,7 +1546,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         assertEquals(
             "scalar-versus-object shape conflict",
             RestStatus.BAD_REQUEST,
-            expectThrows(ParsingException.class, () -> decodeOneColumn(shapeConflict, DataType.LONG, ErrorPolicy.STRICT)).status()
+            expectThrows(
+                ParsingException.class,
+                () -> decodeOneColumn(shapeConflict, DataType.LONG, ErrorPolicy.STRICT, Subobjects.ENABLED)
+            ).status()
         );
         assertEquals(
             "error budget exhausted",

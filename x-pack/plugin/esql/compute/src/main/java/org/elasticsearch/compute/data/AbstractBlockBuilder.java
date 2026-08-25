@@ -111,6 +111,36 @@ public abstract class AbstractBlockBuilder implements Block.Builder {
         return this;
     }
 
+    /**
+     * Reopens the last committed position so that values appended next join it as a multivalue, then
+     * {@link #endPositionEntry()} commits the widened position. Lets a caller that discovers a second value for a cell
+     * only after having appended the first one (e.g. a columnar decoder reading a format where one cell can be spelled
+     * more than once in a record) merge them without buffering every cell on the chance a second value arrives.
+     *
+     * <p>Returns {@code false} when the last position is null, which cannot gain values: a null is a property of the
+     * whole position, not a member of its value list. The caller must then leave the position as it is.
+     *
+     * <p>Unlike {@link #beginPositionEntry()} this keeps the values already written, so the reopened position is never
+     * empty and the following {@link #endPositionEntry()} always satisfies its non-empty assertion. Subclasses that
+     * delegate to inner builders cannot express the reopen and must override it to throw.
+     */
+    public boolean reopenLastPositionEntry() {
+        assert positionEntryIsOpen == false : "reopenLastPositionEntry called with a position entry already open";
+        assert positionCount > 0 : "reopenLastPositionEntry called before any position was committed";
+        if (nullsMask != null && nullsMask.get(positionCount - 1)) {
+            return false;
+        }
+        if (firstValueIndexes == null) {
+            // Every committed position holds exactly one value slot while this array is absent (appendNull writes a
+            // placeholder value too), so position i starts at value i.
+            firstValueIndexes = new int[positionCount + 1];
+            IntStream.range(0, positionCount).forEach(i -> firstValueIndexes[i] = i);
+        }
+        positionCount--;
+        positionEntryIsOpen = true;
+        return true;
+    }
+
     protected final boolean isDense() {
         return nullsMask == null;
     }

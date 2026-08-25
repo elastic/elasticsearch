@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -216,7 +217,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long statsStripeSize,
         boolean statsFileFinal,
         StripeColumnScope statsColumnScope,
-        @Nullable Consumer<String> warningSink
+        @Nullable Consumer<String> warningSink,
+        Subobjects subobjects
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
@@ -335,6 +337,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // _rowPosition / _file.record_ref substrate: file-global per-record start offset.
         this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
         this.pageDecoder.setMaxRecordBytes(maxRecordBytes);
+        this.pageDecoder.setSubobjects(subobjects);
         if (this.statsStripeSize > 0) {
             // Tell the decoder to record each record's own file-global start offset into a per-page array,
             // so the iterator can attribute the page's rows to canonical stripes by the byte-range cover

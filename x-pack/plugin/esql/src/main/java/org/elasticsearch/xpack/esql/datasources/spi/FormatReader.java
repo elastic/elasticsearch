@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -290,6 +291,38 @@ public interface FormatReader extends Closeable {
      * @return a new reader honoring the declared-type set, or {@code this} when none apply
      */
     default FormatReader withDeclaredTypeColumns(Set<String> physicalDeclaredColumns) {
+        return this;
+    }
+
+    /**
+     * Whether this format reads a dotted field name as a path, and so has a choice to make about it at all. The
+     * question only arises for a hierarchical text format read schema-on-read: it alone can meet the same value spelled
+     * as {@code {"a.b":1}} or as {@code {"a":{"b":1}}} and has to decide which name that is. A delimited format has no
+     * hierarchy (a dotted header cell is a literal column name and can only ever be one), and a self-describing
+     * columnar format states in its footer whether a name is a group or a flat leaf, so neither has anything to choose.
+     * <p>
+     * Only the formats that answer {@code true} consume {@link #withSubobjects}. A dataset that asks for
+     * {@link Subobjects#ENABLED} against a format that answers {@code false} is rejected at query resolution rather
+     * than silently read as though the setting had been {@link Subobjects#DISABLED}.
+     */
+    default boolean supportsSubobjects() {
+        return false;
+    }
+
+    /**
+     * Returns a format reader that reads a dotted field name as {@code subobjects} prescribes: under
+     * {@link Subobjects#ENABLED} a dot separates a path, under {@link Subobjects#DISABLED} a nested object flattens
+     * into a dotted name. Both spellings of a column reach the same value either way; the setting chooses which name is
+     * canonical, exactly as the identically-named Elasticsearch mapping setting does for an indexed document.
+     * <p>
+     * Only formats that answer {@code true} to {@link #supportsSubobjects} override this. The setting has to reach the
+     * reader before it infers a schema, not just before it decodes: it decides whether a scalar and an object at one
+     * name are a conflict or two columns, which is a question about the schema.
+     *
+     * @param subobjects how a dotted field name is read
+     * @return a new reader reading dotted names accordingly, or {@code this} when the setting does not apply
+     */
+    default FormatReader withSubobjects(Subobjects subobjects) {
         return this;
     }
 

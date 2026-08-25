@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.DatasetMapping.Subobjects;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -294,19 +295,25 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+        return resolveMetadata(location, config, Subobjects.DISABLED);
+    }
+
+    @Override
+    public SourceMetadata resolveMetadata(String location, Map<String, Object> config, Subobjects subobjects) {
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
-            FormatReader reader;
             if (config != null && config.isEmpty() == false) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             }
+            // withSubobjects BEFORE withConfig: the reader pins its node-stable config fingerprint while consuming the
+            // config, and that fingerprint has to include the dotted-name reading (see NdJsonFormatReader).
+            FormatReader reader = readerWithSubobjects(resolveFormatReader(storagePath.objectName(), config), subobjects, location)
+                .withConfig(config);
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
@@ -322,6 +329,29 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     /**
+     * Hands the dataset's dotted-field-name reading to the reader. {@code ExternalSourceResolver} already rejects
+     * {@link Subobjects#ENABLED} against a format that reads a dot as a literal name, and covers the strict rail this
+     * method never sees; the same rejection is repeated here so a factory reached by any other caller cannot silently
+     * read a declaration flat while it looks honoured.
+     */
+    private static FormatReader readerWithSubobjects(FormatReader reader, Subobjects subobjects, String location) {
+        if (subobjects != Subobjects.ENABLED) {
+            return reader;
+        }
+        if (reader.supportsSubobjects() == false) {
+            throw new IllegalArgumentException(
+                "["
+                    + location
+                    + "] is read as ["
+                    + reader.formatName()
+                    + "], which reads a dotted field name as a literal name; [subobjects: true] is only supported for "
+                    + "formats that read a dot as a path separator"
+            );
+        }
+        return reader.withSubobjects(subobjects);
+    }
+
+    /**
      * Async metadata resolution. When {@code hint} is non-null the length/mtime came from a directory
      * listing: the storage object is built with those values (so {@code length()} serves the cached
      * value without I/O) and the existence probe is skipped, so no synchronous HEAD/range round-trip
@@ -333,6 +363,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         String location,
         @Nullable ListingHint hint,
         Map<String, Object> config,
+        Subobjects subobjects,
         Executor executor,
         ActionListener<SourceMetadata> listener
     ) {
@@ -352,10 +383,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     settings,
                     ExternalSourceResolver.storageConfig(config)
                 ).value();
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
+                reader = readerWithSubobjects(resolveFormatReader(storagePath.objectName(), config), subobjects, location)
+                    .withConfigTrackingConsumedKeys(config)
+                    .value();
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+                reader = readerWithSubobjects(resolveFormatReader(storagePath.objectName(), config), subobjects, location).withConfig(
+                    config
+                );
             }
 
             if (hint != null) {
@@ -413,7 +448,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+            FormatReader format = readerWithSubobjects(
+                resolveFormatReader(path.objectName(), config),
+                context.declaredReadSpec().subobjects(),
+                path.toString()
+            ).withConfig(config)
                 .withPushedFilter(context.pushedFilter())
                 .withSchema(context.attributes())
                 // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical

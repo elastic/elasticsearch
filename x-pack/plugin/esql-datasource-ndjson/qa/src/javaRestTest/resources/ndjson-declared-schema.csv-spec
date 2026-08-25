@@ -5,11 +5,9 @@
 // directive and why `required_capability: dataset_declared_schema` must never appear.
 //
 // employees_no_mv.ndjson is generated from the typed-header CSV, so each record's keys are the CSV column names
-// and the values carry JSON types: emp_no a number, first_name a string, salary a number.
-//
-// Every declared `path` here names an UNDOTTED key deliberately. A dotted declared path is currently broken on
-// this format — `prepareSchema` turns it into nested traversal because `hasDottedPrefixConflict` consults only
-// the declaration and never the file — so dotted binding gets a case once that is fixed, not before.
+// and the values carry JSON types: emp_no a number, first_name a string, salary a number. The generated keys include
+// the sibling pair `languages` and `languages.long`, both literal flat keys, which is what the dotted-binding cases
+// below read.
 
 // Overlay (`dynamic: true`): the declaration retypes one key and inference supplies every other key. `salary` is
 // declared without a `path`, so it binds to the key of the same name — the declaration's only effect is the type.
@@ -28,19 +26,10 @@ emp_no:integer | first_name:keyword | salary:double
 10003          | "Parto"            | 61805.0
 ;
 
-// Binding a dotted physical key, and the condition under which it works. NdJsonPageDecoder.prepareSchema asks
-// hasDottedPrefixConflict whether some OTHER column in the schema is the dotted name's prefix: if so the name is
-// read as a literal flat key, otherwise it is split on "." and read as nested traversal. The check consults the
-// SCHEMA, never the file -- and under a strict declaration the schema IS the declaration. This fixture carries
-// "languages" and "languages.long" as sibling literal flat keys, so declaring both makes the conflict fire and the
-// dotted key binds literally.
-//
-// Declaring the dotted column WITHOUT its prefix is the failing shape, tracked as esql-planning#1467: no conflict
-// is found, traversal into a "languages" object begins, and the read fails with a parsing_exception blaming the
-// data ("value is a number, but [/languages] resolved to an object") when the file is in fact well formed. That
-// case is deliberately not written here -- it would be a red test for a known defect. Add it, and promote the
-// dotted case in parquet-declared-binding.csv-spec into the shared spec, when #1467 is fixed.
-strictDeclaredSchemaBindsDottedKeyWhenPrefixAlsoDeclaredOnNdjson
+// Binding a dotted physical key. Under the default `subobjects: false` a dot is an ordinary character in a key name,
+// so a declared path of "languages.long" binds to the key spelled exactly that way, and the sibling "languages" key
+// binds independently. Nothing about one column's declaration changes how the other resolves.
+strictDeclaredSchemaBindsDottedKeyAlongsideItsPrefixOnNdjson
 required_capability: dataset_in_from_command
 dataset: employees_declared_dotted_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "languages": {"type": "long"}, "langs": {"type": "long", "path": "languages.long"}}}}
 
@@ -53,3 +42,29 @@ id:long | languages:long | langs:long
 10002   | 5              | 5
 10003   | 4              | 4
 ;
+
+// The same dotted key bound WITHOUT declaring its prefix. This is the case that made a dotted declared path unusable
+// on this format: the declared name was split on "." and read as traversal into a "languages" object, so the read
+// failed with a parsing_exception blaming well-formed data. Under `subobjects: false` the key is read literally and
+// binding a dotted key no longer depends on what else the declaration happens to contain.
+strictDeclaredSchemaBindsDottedKeyWithoutItsPrefixOnNdjson
+required_capability: dataset_in_from_command
+required_capability: external_ndjson_subobjects
+dataset: employees_declared_dotted_only_nd: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "langs": {"type": "long", "path": "languages.long"}}}}
+
+FROM employees_declared_dotted_only_nd
+| SORT id
+| LIMIT 3;
+
+id:long | langs:long
+10001   | 2
+10002   | 5
+10003   | 4
+;
+
+// Declaring `subobjects: true` restores the reading where a dot is a path separator, under which "languages.long" names
+// the leaf `long` inside a `languages` object. Against this fixture, whose "languages" key is a number, that makes the
+// record contradict the declaration, and a strict read rejects it the way core dynamic mapping rejects the same
+// document. The reading and its failure mode are pinned in NdJsonIngestParityTests and NdJsonPageIteratorTests, which
+// can assert the exception; what belongs here is that the declaration reaches the reader at all, and the successful
+// default-mode cases above already prove the dotted path binds literally.

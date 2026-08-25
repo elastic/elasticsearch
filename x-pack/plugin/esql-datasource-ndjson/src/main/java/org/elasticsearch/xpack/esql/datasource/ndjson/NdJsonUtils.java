@@ -66,6 +66,27 @@ class NdJsonUtils {
         .build();
 
     /**
+     * Whether {@code name} addresses a path of nested field names rather than one literal name, i.e. whether it holds a
+     * dot with a non-empty segment on either side of every dot it contains. {@link NdJsonSchemaInferrer} and
+     * {@link NdJsonPageDecoder} must agree on this: a name the inferrer records as one literal column has to be the
+     * same name the decoder resolves as one literal field, or the column would be inferred and then never filled.
+     *
+     * <p>A name with an empty segment ({@code "a."}, {@code ".a"}, {@code "a..b"}) is a literal leaf name. It cannot be
+     * a path, since no field name is empty, and treating it as one would silently drop a segment: splitting
+     * {@code "a."} yields the single segment {@code "a"}, which is a different column.
+     */
+    static boolean isFieldPath(String name) {
+        int dot = name.indexOf('.');
+        if (dot < 0) {
+            return false;
+        }
+        if (dot == 0 || name.charAt(name.length() - 1) == '.') {
+            return false;
+        }
+        return name.contains("..") == false;
+    }
+
+    /**
      * Given a parser and the stream it reads from, restart parsing at the next line.
      * @param parser the JSON parser
      * @param input the stream the parser reads from

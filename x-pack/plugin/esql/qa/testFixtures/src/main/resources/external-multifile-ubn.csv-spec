@@ -12,6 +12,13 @@
 // format-dependent. What IS format-independent is the union itself and the null-fill, which is the
 // property this layout exists to prove. Widening lives in external-multifile-ubn-widening.csv-spec.
 
+// Note on the warning below. Reading a column absent from some files emits
+// "declared column [city] is not present in some source files and reads null there" -- but not on
+// every backend and serve: it was observed missing on ORC/LOCAL and CSV/S3 while present on the
+// others, for the same query over the same rows. Because presence is not invariant, it is asserted
+// with warningRegex, which PERMITS the warning without requiring it. That is deliberately weaker
+// than the exact form, and the inconsistency is worth someone's attention: a warning that appears
+// on four backends and not the fifth is either a warm-serve path that skips it or a real gap.
 ubnUnionNullFillsAbsentColumn
 required_capability: dataset_in_from_command
 required_capability: external_source_read_schema
@@ -23,6 +30,7 @@ FROM ubn_union
 | SORT name ASC
 | LIMIT 10
 ;
+warningRegex:declared column \[city\] is not present in some source files and reads null there
 
 name:keyword | city:keyword
 alice        | null
@@ -59,6 +67,7 @@ FROM ubn_union
 | KEEP name
 | SORT name ASC
 ;
+warningRegex:declared column \[city\] is not present in some source files and reads null there
 
 name:keyword
 alice

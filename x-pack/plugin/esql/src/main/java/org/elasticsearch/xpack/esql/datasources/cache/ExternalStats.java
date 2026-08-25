@@ -35,6 +35,18 @@ public final class ExternalStats {
     public static final String CONFIG_FINGERPRINT_KEY = "_stats.config_fingerprint";
 
     /**
+     * Node-stable fingerprint of the READ SHAPE this contribution was harvested under (see
+     * {@link ReadShapeFingerprint}) — how the file's bytes were interpreted, as opposed to which file it is or which
+     * options were asked for. A statistic is a measurement over the rows a read produced, so two reads whose shapes
+     * differ measured different things and must not enrich or serve each other's entry.
+     * <p>
+     * {@link ReadShapeFingerprint#UNKNOWN} (absent, or empty) means the producing path had no coordinator-minted read
+     * schema to describe. That is a legitimate state, not an error, and it must never compare equal to a known shape:
+     * an unknown shape safe-misses rather than sharing on the strength of not knowing.
+     */
+    public static final String READ_SHAPE_FINGERPRINT_KEY = "_stats.read_shape_fingerprint";
+
+    /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
      * opposed to a whole-file read). {@code SourceStatsContribution.classify} routes a partial to the
      * stripe-fragment path: a stripe-addressed partial (carries {@link #STRIPE_SIZE_KEY} etc.) folds

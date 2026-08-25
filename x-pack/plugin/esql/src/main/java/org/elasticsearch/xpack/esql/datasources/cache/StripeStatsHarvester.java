@@ -185,6 +185,7 @@ public final class StripeStatsHarvester {
         long chunkBytes,
         long pinnedMtimeMillis,
         String fingerprint,
+        String readShape,
         List<Attribute> schema
     ) {
         if (chunkBytes <= 0) {
@@ -211,6 +212,12 @@ public final class StripeStatsHarvester {
             Map<String, Object> base = new HashMap<>();
             base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            // Absent means UNKNOWN — the producing path had no coordinator-minted read schema. Stamping the empty
+            // string instead would be indistinguishable, so leave the key off and let the comparators treat absence
+            // as "shape unknown, do not share".
+            if (readShape != null && readShape.isEmpty() == false) {
+                base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+            }
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             base.put(ExternalStats.STRIPE_SIZE_KEY, stripeSize);
             base.put(ExternalStats.STRIPE_ORDINAL_KEY, ordinal);

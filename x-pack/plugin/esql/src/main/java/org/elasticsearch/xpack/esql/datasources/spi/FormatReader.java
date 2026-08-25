@@ -312,6 +312,22 @@ public interface FormatReader extends Closeable {
      * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
      */
+    /**
+     * Returns a reader that stamps {@code readShape} onto the statistics it harvests — the caller-computed identity of
+     * how THIS file is being read (see {@code ReadShapeFingerprint}). Opaque to the reader, exactly like the canonical
+     * config string it sits beside: the reader carries it through onto its contributions and never interprets it.
+     * <p>
+     * The value is per FILE, not per query, so it is applied at the per-file seam rather than at configuration time.
+     * Computed by the caller because the inputs (the file's coordinator-minted read schema and the declared read spec)
+     * live above the reader — and because a reader deriving it from the schema IT was handed would derive a different
+     * value on each side: readers see physicalized, projection-merged schemas, not the file's own.
+     * <p>
+     * Default no-op: a format that harvests no statistics has nothing to stamp.
+     */
+    default FormatReader withReadShape(String readShape) {
+        return this;
+    }
+
     default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
         return this;
     }

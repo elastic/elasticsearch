@@ -462,6 +462,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final String canonicalConfig;
     /**
+     * Identity of how the file currently being read is interpreted (see {@code ReadShapeFingerprint}), or empty when
+     * the producing path had no coordinator-minted read schema. Per FILE, so it is set at the per-file seam via
+     * {@link #withReadShape} rather than at config time like {@link #canonicalConfig}. Opaque here.
+     */
+    private final String readShape;
+    /**
      * Per-column declared date parse-patterns, keyed by <b>physical</b> (file) column name (the caller applied any
      * {@code path} rename). Set via {@link #withDeclaredDateFormats}; empty when no column declares a {@code format}.
      * A {@link CsvBatchIterator} turns this into a per-projected-column {@link DateFormatter} array and parses those
@@ -495,6 +501,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
             ErrorPolicy.STRICT,
             "",
+            "",
             true,
             Map.of(),
             false
@@ -510,6 +517,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
             ErrorPolicy.STRICT,
+            "",
             "",
             true,
             Map.of(),
@@ -527,6 +535,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
             ErrorPolicy.STRICT,
             "",
+            "",
             true,
             Map.of(),
             false
@@ -542,6 +551,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int schemaSampleSize,
         ErrorPolicy effectivePolicy,
         String canonicalConfig,
+        String readShape,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean declaredPathBinding
@@ -554,6 +564,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
         this.canonicalConfig = canonicalConfig;
+        this.readShape = readShape == null ? "" : readShape;
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredPathBinding = declaredPathBinding;
@@ -578,6 +589,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
+            readShape,
             enabled,
             declaredDateFormats,
             declaredPathBinding
@@ -873,6 +885,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
+            readShape,
             directBlockEnabled,
             declaredDateFormats,
             declaredPathBinding
@@ -890,6 +903,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
+            readShape,
             directBlockEnabled,
             declaredDateFormats,
             declaredPathBinding
@@ -910,6 +924,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
+            readShape,
             directBlockEnabled,
             declaredDateFormats,
             binding
@@ -1039,8 +1054,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
+            readShape,
             directBlockEnabled,
             physicalNameToPattern,
+            declaredPathBinding
+        );
+    }
+
+    @Override
+    public CsvFormatReader withReadShape(String newReadShape) {
+        if (newReadShape == null || newReadShape.equals(readShape)) {
+            return this;
+        }
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            newReadShape,
+            directBlockEnabled,
+            declaredDateFormats,
             declaredPathBinding
         );
     }
@@ -1068,6 +1105,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             newSampleSize,
             resolvedPolicy,
             canon,
+            result.readShape,
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredPathBinding
@@ -3431,7 +3469,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 stripeCaptureDisabled = true;
                 return;
             }
-            stripeHarvester.emit(sourceLocation, splitStartByte, chunkBytes, pinnedMtimeMillis, computeConfigFingerprint(), schema);
+            stripeHarvester.emit(
+                sourceLocation,
+                splitStartByte,
+                chunkBytes,
+                pinnedMtimeMillis,
+                computeConfigFingerprint(),
+                readShape,
+                schema
+            );
         }
 
         /**
@@ -3556,6 +3602,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             Map<String, Object> base = new HashMap<>();
             base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            // Absent means UNKNOWN — see ExternalStats#READ_SHAPE_FINGERPRINT_KEY. Never stamp an empty string:
+            // absence and "" would then be indistinguishable to a comparator.
+            if (readShape.isEmpty() == false) {
+                base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+            }
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             }

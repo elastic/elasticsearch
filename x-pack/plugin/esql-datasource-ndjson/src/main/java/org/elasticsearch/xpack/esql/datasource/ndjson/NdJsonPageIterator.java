@@ -89,6 +89,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final long pinnedMtimeMillis;
     /** Computes the cache fingerprint from the FULL file schema at close time — must match {@code metadata()}'s input. */
     private final Function<List<Attribute>, String> fingerprinter;
+    /** Identity of how THIS file is read; stamped beside the config fingerprint. Empty when unknown. */
+    private final String readShape;
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
@@ -206,6 +208,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         StorageObject cacheableObject,
         long pinnedMtimeMillis,
         Function<List<Attribute>, String> fingerprinter,
+        String readShape,
         boolean chunkMode,
         NdJsonReaderCounters counters,
         long splitStartByte,
@@ -223,6 +226,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.cacheableObject = cacheableObject;
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
+        this.readShape = readShape == null ? "" : readShape;
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         this.chunkMode = chunkMode;
@@ -696,6 +700,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 chunkBytes,
                                 pinnedMtimeMillis,
                                 fingerprinter.apply(fullSchema),
+                                readShape,
                                 fullSchema
                             );
                         }
@@ -728,6 +733,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Map<String, Object> base = new HashMap<>();
         base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
         base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+        if (readShape.isEmpty() == false) {
+            base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        }
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
         }

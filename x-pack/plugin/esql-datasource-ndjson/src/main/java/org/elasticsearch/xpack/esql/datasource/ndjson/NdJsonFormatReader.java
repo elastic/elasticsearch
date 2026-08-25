@@ -112,12 +112,19 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * contribution matches the coordinator's cache entry across JVMs. Empty until {@link #withConfig}.
      */
     private final String canonicalConfig;
+    /**
+     * Identity of how the file currently being read is interpreted (see {@code ReadShapeFingerprint}), or empty when
+     * the producing path had no coordinator-minted read schema. Per FILE, so it is set at the per-file seam via
+     * {@link #withReadShape}, not at config time like {@link #canonicalConfig}. Opaque here: carried onto harvested
+     * contributions, never interpreted.
+     */
+    private final String readShape;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of());
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of(), "");
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -132,7 +139,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         long segmentSizeBytes,
         DateFormatter datetimeFormatter,
         String canonicalConfig,
-        Map<String, String> declaredDateFormats
+        Map<String, String> declaredDateFormats,
+        String readShape
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -142,6 +150,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.datetimeFormatter = datetimeFormatter;
         this.canonicalConfig = canonicalConfig;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
+        this.readShape = readShape == null ? "" : readShape;
     }
 
     @Override
@@ -154,7 +163,26 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            declaredDateFormats
+            declaredDateFormats,
+            readShape
+        );
+    }
+
+    @Override
+    public NdJsonFormatReader withReadShape(String newReadShape) {
+        if (newReadShape == null || newReadShape.equals(readShape)) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            newReadShape
         );
     }
 
@@ -171,7 +199,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             segmentSizeBytes,
             datetimeFormatter,
             canonicalConfig,
-            physicalNameToPattern
+            physicalNameToPattern,
+            readShape
         );
     }
 
@@ -196,7 +225,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newSegmentSize,
             newDatetimeFormatter,
             canon,
-            declaredDateFormats
+            declaredDateFormats,
+            readShape
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -530,6 +560,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             pinnedMtimeMillis,
             // The fingerprint is the node-stable canonical config; the iterator's schema arg is ignored.
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
+            readShape,
             chunkMode,
             counters,
             context.splitStartByte(),

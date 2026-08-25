@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -754,14 +755,15 @@ public class UpdateRequest extends UntypedActionRequest
 
     /**
      * Set the split shard count summary
+     * <p>
+     * See also {@link TransportUpdateAction#shards(ProjectState, UpdateRequest)}
      * @param projectMetadata the project metadata
      * @param index the concrete index name
      */
     public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
         final var indexMetadata = projectMetadata.index(index);
         final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
-        final var shardId = indexRouting.getShard(id(), routing());
-        // forIndexing matches IndexRouting.updateShard used by the TransportUpdateAction.shards() iterator
+        final var shardId = indexRouting.updateShard(id(), routing());
         this.splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId);
     }
 

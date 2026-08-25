@@ -205,7 +205,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All read-only operations related to managing and executing enrich policies.
 
 `monitor_esql` {applies_to}`stack: ga 9.1`
-:   All read-only operations related to ES|QL queries.
+:   All read-only operations for listing and inspecting currently running ES|QL queries (`GET /_query/queries` and `GET /_query/queries/{id}`). This privilege does not grant the ability to run ES|QL queries or retrieve async query results. To run a query, you need the index `read` privilege on the queried indices.
 
 `monitor_inference`
 :   All read-only operations related to {{infer}}.
@@ -376,7 +376,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All actions that are required for monitoring (recovery, segments info, index stats and status).
 
 `read`
-:   Read-only access to actions (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv).
+:   Read-only access to actions (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv, ES|QL query, async ES|QL get, and async ES|QL stop).
 
 `read_cross_cluster` {applies_to}`serverless: unavailable`
 :   Read-only access to the search action from a [remote cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).

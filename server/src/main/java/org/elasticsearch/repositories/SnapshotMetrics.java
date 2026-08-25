@@ -81,7 +81,7 @@ public record SnapshotMetrics(
     }
 
     public void createSnapshotShardsInProgressMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsInProgressObserver) {
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             SNAPSHOT_SHARDS_IN_PROGRESS,
             "shard snapshots in progress",
             "unit",
@@ -90,11 +90,16 @@ public record SnapshotMetrics(
     }
 
     public void createSnapshotShardsByStateMetric(Supplier<Collection<LongWithAttributes>> shardSnapshotsByStatusObserver) {
-        meterRegistry.registerLongsGauge(SNAPSHOT_SHARDS_BY_STATE, "snapshotting shards by state", "unit", shardSnapshotsByStatusObserver);
+        meterRegistry.registerLongsAsyncGauge(
+            SNAPSHOT_SHARDS_BY_STATE,
+            "snapshotting shards by state",
+            "unit",
+            shardSnapshotsByStatusObserver
+        );
     }
 
     public void createSnapshotsByStateMetric(Supplier<Collection<LongWithAttributes>> snapshotsByStatusObserver) {
-        meterRegistry.registerLongsGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
+        meterRegistry.registerLongsAsyncGauge(SNAPSHOTS_BY_STATE, "snapshots by state", "unit", snapshotsByStatusObserver);
     }
 
     @FixForMultiProject(description = "When multi-project arrives we should add project ID to the labels")

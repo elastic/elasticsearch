@@ -19,11 +19,17 @@ import java.util.List;
  */
 class SkippedClustersException extends RuntimeException {
 
+    private final ResourceNotFoundException resourceNotFoundException;
     private final List<LinkedClusterState> linkedClusterStates;
 
     SkippedClustersException(ResourceNotFoundException cause, List<LinkedClusterState> linkedClusterStates) {
         super(cause.getMessage(), cause);
+        this.resourceNotFoundException = cause;
         this.linkedClusterStates = List.copyOf(linkedClusterStates);
+    }
+
+    ResourceNotFoundException getResourceNotFoundException() {
+        return resourceNotFoundException;
     }
 
     List<LinkedClusterState> getLinkedClusterStates() {

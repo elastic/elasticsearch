@@ -136,7 +136,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
             );
             // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
             // see the same type and HTTP status as before this wrapper was introduced.
-            throw (ResourceNotFoundException) e.getCause();
+            throw e.getResourceNotFoundException();
         }
         try {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
@@ -250,7 +250,16 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(
             DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext)
         );
-        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        SearchResponse searchResponse;
+        try {
+            searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

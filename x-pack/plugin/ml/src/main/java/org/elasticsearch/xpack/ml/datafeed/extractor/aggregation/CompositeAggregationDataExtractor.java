@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -171,7 +170,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             );
             // Re-throw the original ResourceNotFoundException so callers and exception unwrappers
             // see the same type and HTTP status as before this wrapper was introduced.
-            throw (ResourceNotFoundException) e.getCause();
+            throw e.getResourceNotFoundException();
         }
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
@@ -271,11 +270,16 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             client,
             context.queryContext
         );
-        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(
-            client,
-            context.queryContext,
-            searchRequestBuilder
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        } catch (SkippedClustersException e) {
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                e.getLinkedClusterStates()
+            );
+            throw e.getResourceNotFoundException();
+        }
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

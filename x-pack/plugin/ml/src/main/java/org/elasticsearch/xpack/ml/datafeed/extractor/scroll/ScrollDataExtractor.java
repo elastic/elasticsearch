@@ -186,13 +186,14 @@ class ScrollDataExtractor implements DataExtractor {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);
             success = true;
         } catch (ResourceNotFoundException e) {
-            clearScrollLoggingExceptions(searchResponse.getScrollId());
-            // Capture cluster states before the response is released so that CrossClusterSearchStats
-            // can be updated even though extraction is about to fail.
+            // Update lastLinkedClusterStates FIRST so that clearScrollLoggingExceptions() can
+            // correctly classify the scroll as CCS even on the first failure cycle (when
+            // lastLinkedClusterStates would otherwise still be empty).
             lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
                 lastLinkedClusterStates,
                 DataExtractorUtils.extractLinkedClusterStates(searchResponse)
             );
+            clearScrollLoggingExceptions(searchResponse.getScrollId());
             throw e;
         } finally {
             if (success == false) {

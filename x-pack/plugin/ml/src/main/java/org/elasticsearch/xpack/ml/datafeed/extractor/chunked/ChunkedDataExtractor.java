@@ -147,7 +147,18 @@ public class ChunkedDataExtractor implements DataExtractor {
                 isNewSearch = true;
             }
 
-            Result result = currentExtractor.next();
+            Result result;
+            try {
+                result = currentExtractor.next();
+            } catch (IOException | RuntimeException e) {
+                // Capture states from the inner extractor before rethrowing so that
+                // getLinkedClusterStates() gives accurate data to DatafeedJob's catch block.
+                List<LinkedClusterState> innerStates = currentExtractor.getLinkedClusterStates();
+                if (innerStates.isEmpty() == false) {
+                    lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
+                }
+                throw e;
+            }
             lastSearchInterval = result.searchInterval();
             if (result.linkedClusterStates().isEmpty() == false) {
                 lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
@@ -223,12 +234,6 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     @Override
     public List<LinkedClusterState> getLinkedClusterStates() {
-        if (currentExtractor != null) {
-            List<LinkedClusterState> innerStates = currentExtractor.getLinkedClusterStates();
-            if (innerStates.isEmpty() == false) {
-                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(lastLinkedClusterStates, innerStates);
-            }
-        }
         return lastLinkedClusterStates;
     }
 

@@ -493,13 +493,13 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
         final var uploadedInfoRef = new AtomicReference<StatelessCommitService.UploadedBccInfo>();
         commitService.addConsumerForNewUploadedBcc(shardId, info -> uploadedInfoRef.compareAndSet(null, info));
 
-        // Block the uploaded notification on the search node so it never responds; the 100ms timeout must fire the cleanup instead.
+        // Block the uploaded notification so the 100ms timeout fires the cleanup before the notification is acknowledged.
+        final var goAheadLatch = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 final var req = (NewCommitNotificationRequest) request;
                 if (req.isUploaded()) {
-                    // Drop the request — no response sent; the timeout fires the after-notification cleanup.
-                    return;
+                    safeAwait(goAheadLatch);
                 }
                 handler.messageReceived(request, channel, task);
             });
@@ -527,6 +527,9 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 () -> commitService.readVirtualBatchedCompoundCommitChunk(request, new BytesStreamOutput())
             );
         });
+
+        // Release the blocked notification so it can be acknowledged and the request does not leak at cluster teardown.
+        goAheadLatch.countDown();
 
         flushThread.join(30_000);
         assertFalse(flushThread.isAlive());

@@ -15,25 +15,21 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 
 /**
- * Thread-local pool of {@link SimdJsonBatchParser} and {@link SimdJsonDirectWalker} instances,
+ * Thread-local pool of {@link SimdJsonParser} and {@link SimdJsonDirectWalker} instances,
  * backed by a shared {@link FrozenFieldNameTable} for cross-thread field name canonicalization.
  *
- * <p>Use {@link #getDefault()} for the standard 256 KiB batch capacity, or
- * {@link #create(int)} for custom sizing. Both return {@code null} when simdjson is not
- * supported on this platform.
+ * <p>{@link #getDefault()} returns {@code null} when simdjson is not supported on this platform.
  *
  * <h2>Usage</h2>
  * <pre>{@code
  *   SimdJsonParserPool pool = SimdJsonParserPool.getDefault();
  *   if (pool != null) {
- *       SimdJsonBatchParser parser = pool.batchParser();
+ *       SimdJsonParser parser = pool.parser();
  *       SimdJsonDirectWalker walker = pool.directWalker();
- *       parser.beginBatch(buffer, totalLen);
- *       for (int i = 0; i < docCount; i++) {
- *           parser.prepareDocumentWindowChunked(offsets[i], lens[i]);
- *           walker.walkDocument(buffer, lens[i], parser, handler);
- *       }
- *       pool.releaseNames();
+ *       parser.stage1(buffer, offset, docLen);
+ *       parser.prepareDocumentWindow(offset, docLen);
+ *       walker.walkDocument(buffer, docLen, parser, handler);
+ *       pool.releaseNames(); // after a partition or other merge boundary
  *   }
  * }</pre>
  *
@@ -45,44 +41,31 @@ public final class SimdJsonParserPool {
 
     private static final Logger logger = LogManager.getLogger(SimdJsonParserPool.class);
 
-    /** Default batch capacity: 256 KiB. */
-    private static final int DEFAULT_BATCH_CAPACITY = 256 * 1024;
+    /**
+     * Maximum document size the thread-local parser is sized for. Matches the ESCF single-doc
+     * limit ({@code 16 KiB}); documents larger than this must use another parser path.
+     */
+    static final int PARSER_CAPACITY = 16 * 1024;
 
-    private static final SimdJsonParserPool DEFAULT = create(DEFAULT_BATCH_CAPACITY);
+    private static final SimdJsonParserPool DEFAULT = SimdJsonSupport.isSupported() ? new SimdJsonParserPool() : null;
 
     private final FrozenFieldNameTable nameTable = new FrozenFieldNameTable();
 
-    private final ThreadLocal<SimdJsonBatchParser> parsers;
+    private final ThreadLocal<SimdJsonParser> parsers;
     private final ThreadLocal<SimdJsonDirectWalker> walkers;
 
     /**
-     * Returns the default pool with 256 KiB batch capacity, or {@code null} if simdjson
-     * is not supported on this platform.
+     * Returns the default pool, or {@code null} if simdjson is not supported on this platform.
      */
     @Nullable
     public static SimdJsonParserPool getDefault() {
         return DEFAULT;
     }
 
-    /**
-     * Creates a pool with the specified batch capacity, or returns {@code null} if simdjson
-     * is not supported on this platform.
-     *
-     * @param batchCapacity maximum total batch size in bytes for each thread-local parser
-     */
-    @Nullable
-    public static SimdJsonParserPool create(int batchCapacity) {
-        if (SimdJsonSupport.isSupported() == false) {
-            return null;
-        }
-        return new SimdJsonParserPool(batchCapacity);
-    }
-
-    private SimdJsonParserPool(int batchCapacity) {
-        this.batchCapacity = batchCapacity;
+    private SimdJsonParserPool() {
         this.parsers = ThreadLocal.withInitial(() -> {
-            logger.debug("Thread [{}] creating simdjson batch parser (capacity={})", Thread.currentThread().getName(), batchCapacity);
-            return new SimdJsonBatchParser(batchCapacity);
+            logger.debug("Thread [{}] creating simdjson parser (capacity={})", Thread.currentThread().getName(), PARSER_CAPACITY);
+            return new SimdJsonParser(PARSER_CAPACITY);
         });
         this.walkers = ThreadLocal.withInitial(() -> new SimdJsonDirectWalker(nameTable.makeChild()));
     }
@@ -90,7 +73,7 @@ public final class SimdJsonParserPool {
     /**
      * Returns the thread-local batch parser.
      */
-    public SimdJsonBatchParser batchParser() {
+    public SimdJsonParser parser() {
         return parsers.get();
     }
 
@@ -103,7 +86,8 @@ public final class SimdJsonParserPool {
 
     /**
      * Merges any newly discovered field names from the current thread's walker back to the
-     * shared name table. Should be called after processing a batch of documents.
+     * shared name table. Call at partition or batch boundaries so other threads can reuse
+     * discovered field names.
      */
     public void releaseNames() {
         walkers.get().releaseNames();

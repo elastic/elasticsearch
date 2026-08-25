@@ -9,7 +9,7 @@
 
 package org.elasticsearch.escf;
 
-import org.elasticsearch.simdjson.SimdJsonBatchParser;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
 import org.elasticsearch.simdjson.SimdJsonParserPool;
 
@@ -47,9 +47,9 @@ final class SimdJsonPool {
         return SCRATCH.get();
     }
 
-    /** Returns the thread-local batch parser. Only call when {@link #AVAILABLE} is true. */
-    static SimdJsonBatchParser batchParser() {
-        return POOL.batchParser();
+    /** Returns the thread-local parser. Only call when {@link #AVAILABLE} is true. */
+    static SimdJsonParser parser() {
+        return POOL.parser();
     }
 
     /** Returns the thread-local direct walker. Only call when {@link #AVAILABLE} is true. */

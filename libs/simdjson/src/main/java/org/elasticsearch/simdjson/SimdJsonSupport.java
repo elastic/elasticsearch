@@ -79,7 +79,7 @@ public final class SimdJsonSupport {
     /**
      * Returns {@code true} if simdjson is fully operational: the native C++ library is
      * loaded and the incubating vector API is available. This is the single availability
-     * check that callers should use before constructing a {@link SimdJsonBatchParser}.
+     * check that callers should use before constructing a {@link SimdJsonParser}.
      */
     public static boolean isSupported() {
         return LIB != null && BYTE_SPECIES != null;

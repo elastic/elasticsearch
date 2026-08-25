@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.simdjson.SimdJsonBatchParser;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
@@ -82,7 +82,7 @@ public class EscfDocumentHandlerTests extends ESTestCase {
         EscfRowBuffer row = backend.beginRow();
         EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, LeafSink.NO_OP, false);
 
-        SimdJsonBatchParser parser = SimdJsonPool.batchParser();
+        SimdJsonParser parser = SimdJsonPool.parser();
         SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
         parser.stage1(bytes, 0, bytes.length);
         parser.prepareDocumentWindow(0, bytes.length);

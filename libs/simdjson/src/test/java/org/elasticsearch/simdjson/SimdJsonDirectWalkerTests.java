@@ -215,7 +215,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
         byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
         int len = buffer.length;
 
-        SimdJsonBatchParser parser = newParser(len);
+        SimdJsonParser parser = newParser(len);
 
         FrozenFieldNameTable parent = new FrozenFieldNameTable();
         FrozenFieldNameTable.Child child = parent.makeChild();
@@ -377,7 +377,7 @@ public class SimdJsonDirectWalkerTests extends ESTestCase {
         int len = jsonBytes.length;
         byte[] buffer = Arrays.copyOf(jsonBytes, len + paddingBytes);
 
-        SimdJsonBatchParser parser = new SimdJsonBatchParser(buffer.length, SimdJsonTestSupport::scalarStage1);
+        SimdJsonParser parser = new SimdJsonParser(buffer.length, SimdJsonTestSupport::scalarStage1);
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
 

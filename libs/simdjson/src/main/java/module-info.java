@@ -21,17 +21,16 @@
  *   <li>Check {@link org.elasticsearch.simdjson.SimdJsonSupport#isSupported()} to
  *       confirm the native library is loaded and the vector API is available.</li>
  *   <li>Obtain a {@link org.elasticsearch.simdjson.SimdJsonParserPool} via
- *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#getDefault()} or
- *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#create(int)}.</li>
- *   <li>For each batch: call {@code beginBatch} on the thread-local
- *       {@link org.elasticsearch.simdjson.SimdJsonBatchParser}, then for each document call
- *       {@code prepareDocumentWindowChunked} followed by
- *       {@code directWalker().walkDocument(buffer, docLen, batchParser, handler)}.</li>
- *   <li>After each batch, call {@link org.elasticsearch.simdjson.SimdJsonParserPool#releaseNames()}
- *       to merge newly discovered field names back to the shared cache.</li>
+ *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#getDefault()}.</li>
+ *   <li>For each document: call {@code stage1} and {@code prepareDocumentWindow} on the
+ *       thread-local {@link org.elasticsearch.simdjson.SimdJsonParser}, then
+ *       {@code directWalker().walkDocument(buffer, docLen, parser, handler)}.</li>
+ *   <li>At partition or batch boundaries, call
+ *       {@link org.elasticsearch.simdjson.SimdJsonParserPool#releaseNames()} to merge newly
+ *       discovered field names back to the shared cache.</li>
  * </ol>
  *
- * @see org.elasticsearch.simdjson.SimdJsonBatchParser
+ * @see org.elasticsearch.simdjson.SimdJsonParser
  * @see org.elasticsearch.simdjson.SimdJsonDirectWalker
  * @see org.elasticsearch.simdjson.JsonDocumentHandler
  */

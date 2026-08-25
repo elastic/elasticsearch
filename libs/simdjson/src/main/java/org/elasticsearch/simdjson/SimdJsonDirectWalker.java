@@ -26,7 +26,7 @@ import static org.elasticsearch.simdjson.internal.CharacterUtils.isStructuralOrW
 
 /**
  * Fused stage-2 + token-walk that reads structural indices produced by
- * {@link SimdJsonBatchParser} and emits events to a {@link JsonDocumentHandler}, without
+ * {@link SimdJsonParser} and emits events to a {@link JsonDocumentHandler}, without
  * building an intermediate representation.
  *
  * <p>Strings go from the source buffer directly into the name cache or as raw byte slices
@@ -42,7 +42,7 @@ import static org.elasticsearch.simdjson.internal.CharacterUtils.isStructuralOrW
  * <ol>
  *   <li>Create one walker per thread via {@link SimdJsonParserPool#directWalker()}, which
  *       wires a thread-confined field name cache automatically.</li>
- *   <li>For each document, call {@link #walkDocument(byte[], int, SimdJsonBatchParser,
+ *   <li>For each document, call {@link #walkDocument(byte[], int, SimdJsonParser,
  *       JsonDocumentHandler)}. The batch parser must have its document window prepared first.</li>
  *   <li>After processing a batch, call {@link #releaseNames()} to merge newly discovered
  *       field names back to the shared parent table. Omitting this call is safe but means
@@ -76,8 +76,8 @@ public final class SimdJsonDirectWalker {
     /**
      * Walks a single JSON object document using the structural indices from the given batch
      * parser. The parser's read window must already be set to cover this document (via
-     * {@link SimdJsonBatchParser#prepareDocumentWindow} or
-     * {@link SimdJsonBatchParser#prepareDocumentWindowChunked}).
+     * {@link SimdJsonParser#prepareDocumentWindow} or
+     * {@link SimdJsonParser#prepareDocumentWindowChunked}).
      *
      * <p>The {@code docLen} parameter is used only for validation; actual byte positions come
      * from the structural indices in the batch parser, which are absolute offsets into
@@ -89,7 +89,7 @@ public final class SimdJsonDirectWalker {
      * @param handler receives parsed JSON events
      * @throws JsonParsingException if the JSON is malformed or nesting exceeds {@code maxDepth}
      */
-    public void walkDocument(byte[] buffer, int docLen, SimdJsonBatchParser parser, JsonDocumentHandler handler) {
+    public void walkDocument(byte[] buffer, int docLen, SimdJsonParser parser, JsonDocumentHandler handler) {
         walkDocument(buffer, docLen, parser.bitIndexes(), handler);
     }
 

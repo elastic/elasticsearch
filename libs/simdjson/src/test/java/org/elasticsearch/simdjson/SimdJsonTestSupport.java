@@ -226,7 +226,7 @@ public final class SimdJsonTestSupport {
         byte[] buffer = json.getBytes(StandardCharsets.UTF_8);
         int len = buffer.length;
 
-        SimdJsonBatchParser parser = newParser(len);
+        SimdJsonParser parser = newParser(len);
         parser.stage1(buffer, len);
         parser.prepareDocumentWindow(0, len);
 
@@ -241,8 +241,8 @@ public final class SimdJsonTestSupport {
 
     // ---- Parser factory ----
 
-    static SimdJsonBatchParser newParser(int capacity) {
-        return new SimdJsonBatchParser(capacity, SimdJsonTestSupport::scalarStage1);
+    static SimdJsonParser newParser(int capacity) {
+        return new SimdJsonParser(capacity, SimdJsonTestSupport::scalarStage1);
     }
 
     // ---- Buffer helpers ----

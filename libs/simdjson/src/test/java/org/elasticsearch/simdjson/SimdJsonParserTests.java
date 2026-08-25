@@ -22,10 +22,10 @@ import static org.elasticsearch.simdjson.SimdJsonTestSupport.totalLen;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Tests for {@link SimdJsonBatchParser}: stage 1 runs once over a contiguous buffer and
- * {@link SimdJsonBatchParser#prepareDocumentWindow} provides per-document {@link BitIndexes} windows.
+ * Tests for {@link SimdJsonParser}: stage 1 runs once over a contiguous buffer and
+ * {@link SimdJsonParser#prepareDocumentWindow} provides per-document {@link BitIndexes} windows.
  */
-public class SimdJsonBatchParserTests extends ESTestCase {
+public class SimdJsonParserTests extends ESTestCase {
 
     private static final int CAPACITY = 64 * 1024;
 
@@ -38,7 +38,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] offsets = computeOffsets(doc1, doc2);
         int[] lengths = computeLengths(doc1, doc2);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.stage1(buffer, totalLen(lengths));
 
         batch.prepareDocumentWindow(offsets[0], lengths[0]);
@@ -61,7 +61,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] offsets = computeOffsets(doc1, doc2);
         int[] lengths = computeLengths(doc1, doc2);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.stage1(buffer, totalLen(lengths));
 
         batch.prepareDocumentWindow(offsets[0], lengths[0]);
@@ -96,7 +96,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] offsets = computeOffsets(docs);
         int[] lengths = computeLengths(docs);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.stage1(buffer, totalLen(lengths));
 
         for (int d = 0; d < docs.length; d++) {
@@ -111,14 +111,14 @@ public class SimdJsonBatchParserTests extends ESTestCase {
     // -- stage1 must be called first -----------------------------------------
 
     public void testPrepareDocumentWindowBeforeStage1Throws() {
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         expectThrows(IllegalStateException.class, () -> batch.prepareDocumentWindow(0, 10));
     }
 
     // -- batch reuse (stage1 called again) -----------------------------------
 
     public void testBatchReuse() {
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
 
         String[] docs1 = { "{\"a\":1}", "{\"b\":2}" };
         byte[] buffer1 = buildBatchBuffer(docs1);
@@ -152,7 +152,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         byte[] buffer = new byte[offset + raw.length];
         System.arraycopy(raw, 0, buffer, offset, raw.length);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.stage1(buffer, offset, raw.length);
 
         batch.prepareDocumentWindow(offset, raw.length);
@@ -166,8 +166,8 @@ public class SimdJsonBatchParserTests extends ESTestCase {
     // -- docLen exceeding chunk limit is rejected ------------------------------
 
     public void testChunkedRejectsDocLargerThanChunkLimit() {
-        int oversized = SimdJsonBatchParser.CHUNK_BYTE_LIMIT + 1;
-        SimdJsonBatchParser batch = newParser(oversized);
+        int oversized = SimdJsonParser.CHUNK_BYTE_LIMIT + 1;
+        SimdJsonParser batch = newParser(oversized);
         byte[] buffer = new byte[oversized];
         batch.beginBatch(buffer, oversized);
         var e = expectThrows(IllegalArgumentException.class, () -> batch.prepareDocumentWindowChunked(0, oversized));
@@ -185,9 +185,9 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] offsets = computeOffsets(docs);
         int[] lengths = computeLengths(docs);
         int total = totalLen(lengths);
-        assertTrue("batch must fit in single chunk", total < SimdJsonBatchParser.CHUNK_BYTE_LIMIT);
+        assertTrue("batch must fit in single chunk", total < SimdJsonParser.CHUNK_BYTE_LIMIT);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, total);
 
         for (int d = 0; d < docs.length; d++) {
@@ -203,7 +203,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
     public void testPrepareDocumentWindowChunkedMultipleChunks() {
         String doc = "{\"i\":0}";
         int docLen = doc.getBytes(StandardCharsets.UTF_8).length;
-        int docsNeeded = (SimdJsonBatchParser.CHUNK_BYTE_LIMIT / docLen) + 100;
+        int docsNeeded = (SimdJsonParser.CHUNK_BYTE_LIMIT / docLen) + 100;
         String[] docs = new String[docsNeeded];
         for (int i = 0; i < docsNeeded; i++) {
             docs[i] = "{\"i\":" + i + "}";
@@ -212,9 +212,9 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] offsets = computeOffsets(docs);
         int[] lengths = computeLengths(docs);
         int total = totalLen(lengths);
-        assertTrue("batch must exceed CHUNK_BYTE_LIMIT", total > SimdJsonBatchParser.CHUNK_BYTE_LIMIT);
+        assertTrue("batch must exceed CHUNK_BYTE_LIMIT", total > SimdJsonParser.CHUNK_BYTE_LIMIT);
 
-        SimdJsonBatchParser batch = new SimdJsonBatchParser(total, SimdJsonTestSupport::scalarStage1);
+        SimdJsonParser batch = new SimdJsonParser(total, SimdJsonTestSupport::scalarStage1);
         batch.beginBatch(buffer, total);
 
         for (int d = 0; d < docs.length; d++) {
@@ -228,7 +228,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
     // -- chunked doc at exact chunk boundary ----------------------------------
 
     public void testPrepareDocumentWindowChunkedDocAtExactChunkBoundary() {
-        int chunkLimit = SimdJsonBatchParser.CHUNK_BYTE_LIMIT;
+        int chunkLimit = SimdJsonParser.CHUNK_BYTE_LIMIT;
         String smallDoc = "{\"x\":1}";
         int smallDocLen = smallDoc.getBytes(StandardCharsets.UTF_8).length;
         int docsInFirstChunk = chunkLimit / smallDocLen;
@@ -247,7 +247,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
 
         assertEquals("doc at boundary starts at first chunk size", firstChunkActualSize, offsets[docsInFirstChunk]);
 
-        SimdJsonBatchParser batch = new SimdJsonBatchParser(total, SimdJsonTestSupport::scalarStage1);
+        SimdJsonParser batch = new SimdJsonParser(total, SimdJsonTestSupport::scalarStage1);
         batch.beginBatch(buffer, total);
 
         batch.prepareDocumentWindowChunked(offsets[docsInFirstChunk], lengths[docsInFirstChunk]);
@@ -269,7 +269,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] lengths = computeLengths(docs);
         int total = totalLen(lengths);
 
-        SimdJsonBatchParser batch = new SimdJsonBatchParser(total, SimdJsonTestSupport::scalarStage1);
+        SimdJsonParser batch = new SimdJsonParser(total, SimdJsonTestSupport::scalarStage1);
         batch.beginBatch(buffer, total);
 
         for (int d = 0; d < docCount; d++) {
@@ -289,7 +289,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         byte[] buffer = new byte[offset + raw.length];
         System.arraycopy(raw, 0, buffer, offset, raw.length);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, offset, raw.length);
         batch.prepareDocumentWindowChunked(offset, raw.length);
 
@@ -307,7 +307,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         byte[] buffer = buildBatchBuffer(doc);
         int total = doc.getBytes(StandardCharsets.UTF_8).length;
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, total);
         batch.prepareDocumentWindowChunked(0, total);
 
@@ -323,7 +323,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         byte[] buffer = buildBatchBuffer(doc);
         int total = doc.getBytes(StandardCharsets.UTF_8).length;
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, total);
         batch.prepareDocumentWindowChunked(0, total);
 
@@ -335,7 +335,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
     // -- chunked batch reuse --------------------------------------------------
 
     public void testChunkedBatchReuse() {
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
 
         String[] docs1 = { "{\"a\":1}", "{\"b\":2}" };
         byte[] buffer1 = buildBatchBuffer(docs1);
@@ -376,7 +376,7 @@ public class SimdJsonBatchParserTests extends ESTestCase {
         int[] lengths = computeLengths(docs);
         int total = totalLen(lengths);
 
-        SimdJsonBatchParser batch = newParser(CAPACITY);
+        SimdJsonParser batch = newParser(CAPACITY);
         batch.beginBatch(buffer, total);
 
         for (int d = 0; d < 5; d++) {

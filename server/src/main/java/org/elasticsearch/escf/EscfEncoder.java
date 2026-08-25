@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdjson.JsonParsingException;
-import org.elasticsearch.simdjson.SimdJsonBatchParser;
+import org.elasticsearch.simdjson.SimdJsonParser;
 import org.elasticsearch.simdjson.SimdJsonDirectWalker;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
@@ -99,7 +99,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
             return false;
         }
 
-        SimdJsonBatchParser batchParser = SimdJsonPool.batchParser();
+        SimdJsonParser parser = SimdJsonPool.parser();
         SimdJsonDirectWalker walker = SimdJsonPool.directWalker();
 
         byte[] buf;
@@ -118,13 +118,13 @@ public final class EscfEncoder implements SourceBatchEncoder {
         int len = source.length();
 
         try {
-            batchParser.stage1(buf, offset, len);
-            batchParser.prepareDocumentWindow(offset, len);
+            parser.stage1(buf, offset, len);
+            parser.prepareDocumentWindow(offset, len);
 
             EscfRowBuffer row = backend.beginRow();
             boolean rawTextMode = sink != LeafSink.NO_OP && sink.passRawText();
             EscfDocumentHandler handler = new EscfDocumentHandler(row, backend, sink, rawTextMode);
-            walker.walkDocument(buf, len, batchParser, handler);
+            walker.walkDocument(buf, len, parser, handler);
             row.finishRow();
             return true;
         } catch (JsonParsingException e) {

@@ -13,38 +13,41 @@ import org.elasticsearch.simdjson.internal.BitIndexes;
 import org.elasticsearch.simdjson.internal.StructuralIndexer;
 
 /**
- * Batch-aware JSON parser that runs native stage 1 (structural indexing + UTF-8 validation)
- * over a contiguous buffer containing multiple JSON documents, then provides per-document
- * structural index windows for direct walking by {@link SimdJsonDirectWalker}.
+ * JSON parser that runs native stage 1 (structural indexing + UTF-8 validation), then
+ * provides per-document structural index windows for direct walking by
+ * {@link SimdJsonDirectWalker}.
  *
- * <p>Stage 1 is run in chunks of at most {@link #CHUNK_BYTE_LIMIT} bytes to keep the
- * structural index working set in L2 cache. When the caller processes documents in offset
- * order, chunks are materialized lazily — stage 1 is re-run only when a document falls
- * outside the currently-indexed byte range.
+ * <p>The primary path indexes a single document via {@link #stage1(byte[], int, int)} followed
+ * by {@link #prepareDocumentWindow(int, int)}. For contiguous multi-document buffers,
+ * {@link #beginBatch(byte[], int)} and {@link #prepareDocumentWindowChunked(int, int)} run
+ * stage 1 lazily in chunks of at most {@link #CHUNK_BYTE_LIMIT} bytes.
  *
  * <p>Each instance owns a {@link StructuralIndexer} that delegates stage 1 to the native
  * simdjson C++ library. The indexer is created at construction time and released when this
  * parser is {@linkplain #close() closed}.
  *
- * <p><strong>Usage (chunked — preferred for large batches):</strong>
+ * <p><strong>Usage (single document):</strong>
  * <pre>{@code
- *   try (SimdJsonBatchParser batch = new SimdJsonBatchParser(256 * 1024)) {
+ *   try (SimdJsonParser parser = new SimdJsonParser(capacity)) {
  *       SimdJsonDirectWalker walker = new SimdJsonDirectWalker(nameTable.makeChild());
- *       batch.beginBatch(buffer, totalLen);
- *       for (int i = 0; i < docCount; i++) {
- *           batch.prepareDocumentWindowChunked(docOffsets[i], docLens[i]);
- *           walker.walkDocument(buffer, docLens[i], batch, handler);
- *       }
+ *       parser.stage1(buffer, offset, len);
+ *       parser.prepareDocumentWindow(offset, len);
+ *       walker.walkDocument(buffer, len, parser, handler);
  *       walker.releaseNames();
  *   }
  * }</pre>
  *
- * <p><strong>Usage (explicit stage 1 — for single-doc or pre-indexed bodies):</strong>
+ * <p><strong>Usage (multi-document batch, optional):</strong>
  * <pre>{@code
- *   batch.stage1(buffer, offset, len);
- *   batch.prepareDocumentWindow(0, len);
- *   walker.walkDocument(buffer, len, batch, handler);
- *   walker.releaseNames();
+ *   try (SimdJsonParser parser = new SimdJsonParser(capacity)) {
+ *       SimdJsonDirectWalker walker = new SimdJsonDirectWalker(nameTable.makeChild());
+ *       parser.beginBatch(buffer, totalLen);
+ *       for (int i = 0; i < docCount; i++) {
+ *           parser.prepareDocumentWindowChunked(docOffsets[i], docLens[i]);
+ *           walker.walkDocument(buffer, docLens[i], parser, handler);
+ *       }
+ *       walker.releaseNames();
+ *   }
  * }</pre>
  *
  * <p><strong>No trailing padding required.</strong> All code paths — native stage 1, the string
@@ -53,7 +56,7 @@ import org.elasticsearch.simdjson.internal.StructuralIndexer;
  *
  * <p><strong>Not thread-safe.</strong> Each thread must own its own instance.
  */
-public class SimdJsonBatchParser implements AutoCloseable {
+public class SimdJsonParser implements AutoCloseable {
 
     /**
      * Maximum number of bytes to index in a single stage 1 pass. Smaller values keep the
@@ -83,11 +86,11 @@ public class SimdJsonBatchParser implements AutoCloseable {
     private int indexedRangeEnd;
 
     /**
-     * Creates a batch parser backed by a native {@link StructuralIndexer}.
+     * Creates a parser backed by a native {@link StructuralIndexer}.
      *
-     * @param capacity maximum total batch size in bytes (sum of all documents)
+     * @param capacity maximum bytes this parser can index in a single stage 1 pass
      */
-    public SimdJsonBatchParser(int capacity) {
+    public SimdJsonParser(int capacity) {
         SimdJsonSupport.isSupported();
         int indexCapacity = Math.max(capacity / 4, 1024);
         bitIndexes = new BitIndexes(indexCapacity);
@@ -99,7 +102,7 @@ public class SimdJsonBatchParser implements AutoCloseable {
      * Package-private constructor for testing with a custom stage 1 implementation
      * (e.g. a scalar fallback that doesn't require the native library).
      */
-    SimdJsonBatchParser(int capacity, Stage1Function stage1Function) {
+    SimdJsonParser(int capacity, Stage1Function stage1Function) {
         int indexCapacity = Math.max(capacity / 4, 1024);
         bitIndexes = new BitIndexes(indexCapacity);
         this.indexer = null;

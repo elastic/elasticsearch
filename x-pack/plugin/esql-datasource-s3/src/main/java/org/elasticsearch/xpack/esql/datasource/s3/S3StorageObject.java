@@ -431,7 +431,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             return;
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single direct ByteBuffer; ranges larger than 2 GiB
+            // The async path materializes the response into a single ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
@@ -444,7 +444,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
-        // copied straight into a pre-sized direct ByteBuffer (single chunk-to-destination copy),
+        // copied straight into a pre-sized destination ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
         long startNanos = System.nanoTime();

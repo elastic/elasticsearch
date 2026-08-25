@@ -24,9 +24,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link AsyncResponseTransformer} that accumulates the response body into a single, pre-sized
- * direct {@link ByteBuffer}, eliminating the redundant per-chunk allocations and copies performed
+ * destination {@link ByteBuffer}, eliminating the redundant per-chunk allocations and copies performed
  * by the SDK's default {@link AsyncResponseTransformer#toBytes()} and avoiding a subsequent
- * heap-to-direct promotion in {@code S3StorageObject.readBytesAsync}.
+ * extra copy in {@code S3StorageObject.readBytesAsync}.
  *
  * <p>The default {@code toBytes()} uses {@code ByteArrayAsyncResponseTransformer$BaosSubscriber},
  * which on every {@code onNext(ByteBuffer)} call:
@@ -45,9 +45,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>This transformer takes the expected payload length up front (which we always know for
  * range-read requests, and which the S3 service confirms in {@code Content-Length}), allocates
- * one direct destination buffer of exactly that size in {@link #prepare()}, and copies each
- * {@code onNext(ByteBuffer)} chunk directly into the destination at the running offset. That
- * collapses three SDK-internal copies into a single chunk-to-direct-buffer copy.
+ * one destination buffer of exactly that size in {@link #prepare()}, and copies each
+ * {@code onNext(ByteBuffer)} chunk into the destination at the running offset. That
+ * collapses three SDK-internal copies into a single chunk-to-destination copy.
  *
  * <p><b>Synchronization:</b> Reactive Streams serializes the {@link Subscriber}'s own signals, but
  * {@link #exceptionOccurred} is a transformer-level callback outside that ordering and can race the
@@ -140,7 +140,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     }
 
     /**
-     * Copies each incoming {@link ByteBuffer} chunk directly into a pre-sized direct destination,
+     * Copies each incoming {@link ByteBuffer} chunk into a pre-sized destination,
      * tracking the running offset. Fails fast if the cumulative size of received chunks would
      * exceed the expected length (a mismatch between the requested range and the server's
      * response body) or falls short of it on completion.

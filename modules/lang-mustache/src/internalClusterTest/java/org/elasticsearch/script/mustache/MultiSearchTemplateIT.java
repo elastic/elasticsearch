@@ -13,8 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
@@ -180,6 +182,68 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             assertNull(response5.getResponse());
             assertThat(response5.getFailure(), instanceOf(XContentParseException.class));
         });
+    }
+
+    /**
+     * Regression test: a large msearch/template request must not cause OOM on the coordinator.
+     * <p>
+     * The action charges the REQUEST circuit breaker for each rendered template source held in
+     * memory before the inner searches execute. With a tight breaker, the first large render
+     * trips it and all remaining slots receive {@link CircuitBreakingException} item failures
+     * rather than silently accumulating until the node runs out of heap.
+     * <p>
+     * Render estimate = {@code 512 + source.length() + 2 × serialised(SearchSourceBuilder)}.
+     * The ~16 KB template body produces a serialised builder of comparable size, so the total
+     * estimate is well above the 10 KB breaker limit. The first render therefore trips; every
+     * subsequent slot is filled via the {@code renderCbe} fast-path without issuing any searches.
+     */
+    public void testLargeMsearchTemplateDoesNotOom() throws Exception {
+        createIndex("large-msearch");
+
+        // Build a ~16 KB rendered source (2 000 stored_fields entries, no template variables).
+        // stored_fields is a plain string array that SearchSourceBuilder accepts without any
+        // named-XContent extensions, so it round-trips cleanly through render → parse → execute.
+        StringBuilder sb = new StringBuilder("{\"size\":0,\"stored_fields\":[");
+        for (int j = 0; j < 2_000; j++) {
+            if (j > 0) sb.append(",");
+            sb.append("\"f").append(j).append("\"");
+        }
+        sb.append("]}");
+        String largeTemplate = sb.toString();
+
+        // Tighten the REQUEST breaker to 10 KB. The render estimate for the first item (~32 KB)
+        // already exceeds this limit, so the breaker trips immediately and every slot is a CBE.
+        updateClusterSettings(
+            Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10kb")
+        );
+        try {
+            int numRequests = 20;
+            MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
+            for (int i = 0; i < numRequests; i++) {
+                SearchTemplateRequest req = new SearchTemplateRequest();
+                req.setRequest(new SearchRequest("large-msearch"));
+                req.setScriptType(ScriptType.INLINE);
+                req.setScript(largeTemplate);
+                multiRequest.add(req);
+            }
+
+            assertResponse(client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest), response -> {
+                assertThat(response.getResponses().length, equalTo(numRequests));
+                // Once the first render trips the breaker, fillRemainingWithCbe fills every
+                // subsequent slot via the renderCbe fast-path. All slots must be CBE failures —
+                // a weaker "cbeCount > 0" check would miss a regression where only the first
+                // slot is a CBE and the rest execute as real searches.
+                for (Item item : response.getResponses()) {
+                    assertNotNull("every slot must be populated", item);
+                    assertTrue("every slot must be a CBE failure", item.isFailure());
+                    assertThat(item.getFailure(), instanceOf(CircuitBreakingException.class));
+                }
+            });
+        } finally {
+            updateClusterSettings(
+                Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+            );
+        }
     }
 
     /**

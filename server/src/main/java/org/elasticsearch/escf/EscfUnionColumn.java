@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -41,7 +42,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.UNION;
     }
 
@@ -60,6 +61,20 @@ final class EscfUnionColumn extends EscfColumn {
             return false;
         }
         throw new IllegalStateException("Doc " + row + " is not boolean, type=" + SourceValueType.name(t));
+    }
+
+    @Override
+    int getIntValue(int row) {
+        // INT values are stored as 4 bytes in the UNION column, so this reads directly rather than
+        // narrowing getLongValue() as the base class does. Caller must have checked typeByteForPresent.
+        return data.getIntLE(intAt(offsets, row));
+    }
+
+    @Override
+    float getFloatValue(int row) {
+        // FLOAT values are stored as 4 raw bytes (bit-identical IEEE 754), not as a narrowed double.
+        // Caller must have checked typeByteForPresent.
+        return Float.intBitsToFloat(data.getIntLE(intAt(offsets, row)));
     }
 
     @Override
@@ -98,6 +113,15 @@ final class EscfUnionColumn extends EscfColumn {
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);
     }
 
+    // TODO: Union pretty much is a var column with a type byte vector. Refactor to make this extend var column.
+    @Override
+    public ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
+        return new AbstractVarColumn.BytesRefTupleCursor(
+            presentDocs(),
+            new AbstractVarColumn.DenseBytesRefValuesCursor(docCount, offsets, data, retainValues)
+        );
+    }
+
     /** The contiguous bytes for document {@code row}'s value, sliced from the payload (zero-copy when contiguous). */
     private BytesRef value(int row) {
         int off0 = intAt(offsets, row);
@@ -121,4 +145,5 @@ final class EscfUnionColumn extends EscfColumn {
         int[] newOffsets = rebasedOffsets(offsets, docCount);
         return EscfColumnData.ofUnion(docCount, validity, typeVec, newOffsets, newData);
     }
+
 }

@@ -297,6 +297,48 @@ public final class PainlessLookup {
         return lookupPainlessObject(originalTargetClass, objectLookup);
     }
 
+    /**
+     * True if {@code targetClass} has any method (instance or static, any arity) named {@code methodName} carrying an
+     * {@code @allocates} estimator. Used at compile time to decide whether a {@code def} method reference — whose exact
+     * arity is unknown until the functional interface resolves at runtime — should capture the script for a possible
+     * per-invocation charge (see the semantic function-reference lowering and {@code Def.lookupReferenceInternal}).
+     */
+    public boolean hasAllocationEstimatorMethod(Class<?> targetClass, String methodName) {
+        Objects.requireNonNull(targetClass);
+        Objects.requireNonNull(methodName);
+
+        if (classesToPainlessClasses.containsKey(targetClass) == false) {
+            return false;
+        }
+
+        // Constructor references (X::new) resolve against the target class's constructors, which do not inherit.
+        if ("new".equals(methodName)) {
+            for (PainlessConstructor painlessConstructor : classesToPainlessClasses.get(targetClass).constructors.values()) {
+                if (painlessConstructor.allocationEstimator() != null) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        String prefix = methodName + "/";
+        Function<PainlessClass, Boolean> objectLookup = targetPainlessClass -> {
+            for (Map.Entry<String, PainlessMethod> entry : targetPainlessClass.methods.entrySet()) {
+                if (entry.getKey().startsWith(prefix) && entry.getValue().allocationEstimator() != null) {
+                    return Boolean.TRUE;
+                }
+            }
+            for (Map.Entry<String, PainlessMethod> entry : targetPainlessClass.staticMethods.entrySet()) {
+                if (entry.getKey().startsWith(prefix) && entry.getValue().allocationEstimator() != null) {
+                    return Boolean.TRUE;
+                }
+            }
+            return null;
+        };
+
+        return lookupPainlessObject(targetClass, objectLookup) != null;
+    }
+
     /** Statically-typed counterpart of {@link #lookupRuntimeAllocationEstimator}: walks {@code methods}/{@code staticMethods}. */
     public Method lookupAllocationEstimator(Class<?> targetClass, boolean isStatic, String methodName, int methodArity) {
         Objects.requireNonNull(targetClass);

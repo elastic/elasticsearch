@@ -1,6 +1,6 @@
 env:
-  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-26}"
-  EXTRA_GRADLE_ARGS: "--continue"
+  JAVA_EA_VERSION: "${JAVA_EA_VERSION:-27}"
+  EXTRA_GRADLE_ARGS: "${EXTRA_GRADLE_ARGS:---continue}"
 
 steps:
   - group: bwc

@@ -35,9 +35,26 @@ final class EscfArrayColumn extends EscfColumn {
         this.rowOffsets = rowOffsets;
     }
 
+    EscfColumn child() {
+        return child;
+    }
+
+    IntsRef rowOffsets() {
+        return rowOffsets;
+    }
+
     @Override
-    byte kind() {
+    public byte kind() {
         return EscfColumnKind.ARRAY;
+    }
+
+    /**
+     * Returns the element (child) column kind, so callers can decide whether the array values are
+     * directly usable as byte-strings (kind == {@link EscfColumnKind#STRING}) without iterating.
+     */
+    @Override
+    public byte leafValueKind() {
+        return child.kind();
     }
 
     @Override
@@ -63,29 +80,45 @@ final class EscfArrayColumn extends EscfColumn {
     // TODO: this cursor is what we need for Lucene integration. At the mapper level we will eventually need a cursor which maintains empty
     // arrays. Add that when needed.
     @Override
-    LongTupleCursor longCursor() {
+    public LongTupleCursor longCursor() {
         if (!(child instanceof EscfLongColumn longChild)) {
             throw new UnsupportedOperationException("longCursor() requires a long child column, got: " + EscfColumnKind.name(child.kind()));
         }
         final int numRows = docCount;
-        final int startElem = intAt(rowOffsets, 0);
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        final AbstractFixed64Column.DenseLongValuesCursor values = longChild.longValuesCursor();
+        final int startElem = offs[base];
+        if (numRows > 0 && startElem > 0) {
+            values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced
+        }
         return new LongTupleCursor() {
-            private int elemPos = startElem - 1;
-            private int currentDoc = 0;
+            private int currentDoc = -1;
+            private int rowEnd = startElem;  // element index one past the last element of the current row
+            private int remainingInRow;
+            private long currentValue;
 
             @Override
             public int nextDoc() {
-                elemPos++;
-                // Advance past all rows whose element range ends at or before the current element
-                while (currentDoc < numRows && intAt(rowOffsets, currentDoc + 1) <= elemPos) {
+                // Advance past rows with no elements (empty arrays and absent rows are both zero-width).
+                while (remainingInRow == 0) {
+                    if (currentDoc + 1 >= numRows) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
                     currentDoc++;
+                    // Rows are contiguous: one offset read per row, zero per mid-row element.
+                    int nextEnd = offs[base + currentDoc + 1];
+                    remainingInRow = nextEnd - rowEnd;
+                    rowEnd = nextEnd;
                 }
-                return currentDoc < numRows ? currentDoc : DocIdSetIterator.NO_MORE_DOCS;
+                remainingInRow--;
+                currentValue = values.nextLong();
+                return currentDoc;
             }
 
             @Override
             public long longValue() {
-                return longChild.getLongValue(elemPos);
+                return currentValue;
             }
         };
     }
@@ -97,35 +130,56 @@ final class EscfArrayColumn extends EscfColumn {
      *
      * <p>For multi-valued rows the same row-id is returned once per element. Empty rows (zero-width
      * offset range) and absent rows (no elements) are skipped automatically.
+     *
+     * @param retainValues {@code false} to reuse a single {@link BytesRef} across the whole scan (valid
+     *                     only until the next {@link ObjectTupleCursor#nextDoc()}, and allocation-free);
+     *                     {@code true} to hand back a fresh {@link BytesRef} per element, which matters for
+     *                     multi-valued rows whose elements are all held live at once
      */
     // TODO: this cursor is what we need for Lucene integration. At the mapper level we will eventually need a cursor which maintains empty
     // arrays. Add that when needed.
     @Override
-    ObjectTupleCursor<BytesRef> bytesRefCursor() {
+    public ObjectTupleCursor<BytesRef> bytesRefCursor(boolean retainValues) {
         if (!(child instanceof AbstractVarColumn varChild)) {
             throw new UnsupportedOperationException(
                 "bytesRefCursor() requires a var-width child column, got: " + EscfColumnKind.name(child.kind())
             );
         }
         final int numRows = docCount;
-        final int startElem = intAt(rowOffsets, 0);
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        final AbstractVarColumn.DenseBytesRefValuesCursor values = varChild.bytesRefValuesCursor(retainValues);
+        final int startElem = offs[base];
+        if (numRows > 0 && startElem > 0) {
+            values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced
+        }
         return new ObjectTupleCursor<>() {
-            private int elemPos = startElem - 1;
-            private int currentDoc = 0;
+            private int currentDoc = -1;
+            private int rowEnd = startElem;  // element index one past the last element of the current row
+            private int remainingInRow;
+            private BytesRef currentValue;
 
             @Override
             public int nextDoc() {
-                elemPos++;
-                // Advance past all rows whose element range ends at or before the current element
-                while (currentDoc < numRows && intAt(rowOffsets, currentDoc + 1) <= elemPos) {
+                // Advance past rows with no elements (empty arrays and absent rows are both zero-width).
+                while (remainingInRow == 0) {
+                    if (currentDoc + 1 >= numRows) {
+                        return DocIdSetIterator.NO_MORE_DOCS;
+                    }
                     currentDoc++;
+                    // Rows are contiguous: one offset read per row, zero per mid-row element.
+                    int nextEnd = offs[base + currentDoc + 1];
+                    remainingInRow = nextEnd - rowEnd;
+                    rowEnd = nextEnd;
                 }
-                return currentDoc < numRows ? currentDoc : DocIdSetIterator.NO_MORE_DOCS;
+                remainingInRow--;
+                currentValue = values.nextValue();
+                return currentDoc;
             }
 
             @Override
             public BytesRef value() {
-                return varChild.getBinaryValue(elemPos);
+                return currentValue;
             }
         };
     }

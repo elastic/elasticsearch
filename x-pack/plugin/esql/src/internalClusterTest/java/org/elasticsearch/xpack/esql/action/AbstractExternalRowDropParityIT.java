@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
  *       is not singled out.</li>
  * </ul>
  *
- * <p>A small stripe grid ({@code esql.source.cache.stripe.size=64kb}) over a &gt;1MB uncompressed file forces many
+ * <p>A small stripe grid ({@code esql.external.cache.stripe.size=64kb}) over a &gt;1MB uncompressed file forces many
  * stripes split across parallel chunk boundaries -- the layout where the offset/row-alignment invariant bites.
  *
  * <p>Datasource/dataset registration, the SPI-extension wiring, the feature-flag gate and the local-path
@@ -70,12 +70,15 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractExternalDa
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("esql.source.cache.stripe.size", "64kb").build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("esql.external.cache.stripe.size", "64kb")
+            .build();
     }
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put("parsing_parallelism", 4).build());
+        return new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 4).build());
     }
 
     @Before

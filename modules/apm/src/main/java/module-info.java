@@ -8,6 +8,7 @@
  */
 
 module org.elasticsearch.telemetry.apm {
+    requires java.management;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;

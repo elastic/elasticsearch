@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * A mock repository for stateless testing. It supports manipulating calls to the blob store: logic can be injected, via a
@@ -190,15 +191,17 @@ public class StatelessMockRepository extends FsRepository {
                 String blobName,
                 long blobSize,
                 BlobMultiPartInputStreamProvider provider,
-                boolean failIfAlreadyExists
+                boolean failIfAlreadyExists,
+                Executor executor
             ) throws IOException {
                 getStrategy().blobContainerWriteBlobAtomic(
-                    () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists),
+                    () -> super.writeBlobAtomic(purpose, blobName, blobSize, provider, failIfAlreadyExists, executor),
                     purpose,
                     blobName,
                     blobSize,
                     provider,
-                    failIfAlreadyExists
+                    failIfAlreadyExists,
+                    executor
                 );
             }
 

@@ -177,7 +177,11 @@ public class LlamaService extends SenderService<LlamaModel> {
 
         for (var request : batchedRequests) {
             var action = llamaModel.accept(actionCreator);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

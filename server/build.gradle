@@ -42,6 +42,8 @@ dependencies {
   api project(':libs:ip-location-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
+  testImplementation project(":libs:columnar")
+  implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
@@ -94,6 +96,7 @@ dependencies {
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
+  internalClusterTestImplementation(project(':test:external-modules:test-multi-project'))
 }
 
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former

@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -61,7 +62,9 @@ public class Systemd {
         }
         RuntimeException error = null;
         try {
-            var sockAddr = libc.newUnixSockAddr(socketPath);
+            var sockAddr = libc.newSockAddr();
+            sockAddr.sa_family(PosixCLibrary.AF_UNIX);
+            sockAddr.sun_path(socketPath);
             if (libc.connect(sockfd, sockAddr) != 0) {
                 throwOrLog("Could not connect to systemd socket: " + libc.strerror(libc.errno()), warnOnError);
                 return;
@@ -73,7 +76,7 @@ public class Systemd {
                 buffer.buffer().clear();
                 buffer.buffer().put(0, bytes);
                 buffer.buffer().limit(bytes.length);
-                bytesSent = libc.send(sockfd, buffer, 0);
+                bytesSent = libc.send(sockfd, MemorySegment.ofBuffer(buffer.buffer()), bytes.length, 0);
             }
 
             if (bytesSent == -1) {

@@ -1038,6 +1038,66 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(sliceQueue, factory.sliceQueue());
     }
 
+    /**
+     * A whole-file split reaches the reader marked as its file's last, so the reader keeps a final record with
+     * no trailing terminator. Splits built before the position keys existed carry no markers at all, and this
+     * is the path that recognises them — on the factory that production actually uses.
+     */
+    public void testLegacyUnstampedWholeFileSplitReachesTheReaderAsFileFinal() throws Exception {
+        FileSplit split = new FileSplit(
+            "test",
+            StoragePath.of("s3://bucket/whole.ndjson"),
+            0,
+            1024,
+            "ndjson",
+            Map.of(), // no position keys — as produced before they were stamped
+            Map.of()
+        );
+
+        List<StorageObject> capturedObjects = new ArrayList<>();
+        List<Boolean> capturedSkipFirstLine = new ArrayList<>();
+        SplitCapturingFormatReader formatReader = new SplitCapturingFormatReader(capturedObjects, capturedSkipFirstLine);
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            StoragePath.of("s3://bucket/whole.ndjson"),
+            List.of(
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "value",
+                    new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                )
+            ),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).sliceQueue(new ExternalSliceQueue(List.of(split))).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+
+        assertEquals(1, formatReader.capturedLastSplit().size());
+        assertTrue(
+            "a split covering the whole file owns its trailing bytes, so the reader must be told it is the file's last",
+            formatReader.capturedLastSplit().get(0)
+        );
+        // Same fact, second consumer: it closes the file's trailing stats stripe. Derived from one place so the
+        // two cannot disagree — they used to, and a mid-file stripe was closed as if it were the file's last.
+        assertTrue("a whole-file read closes the file's final stats stripe", formatReader.capturedStatsFileFinal().get(0));
+    }
+
     public void testSliceQueueWithNonZeroOffsetWrapsWithRangeStorageObject() throws Exception {
         long splitOffset = 500;
         long splitLength = 300;
@@ -2700,6 +2760,75 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
     }
 
+    /**
+     * Regression guard: if {@code parallelRead} construction fails after the decompressing wrapper
+     * is created (e.g. the streaming iterator constructor throws), the wrapper must be
+     * closed to release codec-specific native handles (e.g. the {@code PanamaZstdInputStream}'s
+     * native {@code ZSTD_DStream} and {@code Arena.ofShared()} — resources with no JDK Cleaner
+     * fallback, unlike gzip's {@code Inflater}) and the raw stream must be aborted without a drain.
+     */
+    public void testOpenWithParallelismDecompressorReleasedOnParallelReadFailure() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            dummyFormatReaderForOpenParallelismTests(),
+            Runnable::run
+        );
+        // Force StreamingParallelIterator constructor to fail after the codec has successfully
+        // opened the decompressing stream — simulating an unexpected error mid-construction.
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        when(inner.minimumSegmentSize()).thenThrow(new RuntimeException("simulated parallelRead construction failure"));
+
+        // Codec that passes bytes through but tracks whether close() was called on its stream.
+        // The close-tracking stream is what DecompressingStorageObject.abortStream() must close
+        // first (before aborting raw) — this is the layer holding any codec-specific native handle.
+        AtomicBoolean wrapperClosed = new AtomicBoolean(false);
+        DecompressionCodec trackingPassThroughCodec = new DecompressionCodec() {
+            @Override
+            public String name() {
+                return "test-pass-through";
+            }
+
+            @Override
+            public List<String> extensions() {
+                return List.of(".gz");
+            }
+
+            @Override
+            public InputStream decompress(InputStream raw) {
+                return new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        return raw.read();
+                    }
+
+                    @Override
+                    public int read(byte[] buf, int off, int len) throws IOException {
+                        return raw.read(buf, off, len);
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        wrapperClosed.set(true);
+                        raw.close();
+                    }
+                };
+            }
+        };
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, trackingPassThroughCodec);
+
+        byte[] payload = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
+
+        RuntimeException thrown = expectThrows(
+            RuntimeException.class,
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, true, null, 0L, null, null, null)
+        );
+        assertEquals("simulated parallelRead construction failure", thrown.getMessage());
+        assertTrue("decompressor wrapper must be closed to release codec-specific native handles (e.g. zstd Arena)", wrapperClosed.get());
+        assertTrue("raw stream must be aborted when parallelRead fails", tracking.aborted.get());
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+    }
+
     public void testOpenWithParallelismBareSegmentableReturnsIterator() throws IOException {
         ExecutorService exec = Executors.newFixedThreadPool(8);
         try {
@@ -3389,10 +3518,20 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
+        private final List<Boolean> capturedLastSplit = new ArrayList<>();
+        private final List<Boolean> capturedStatsFileFinal = new ArrayList<>();
 
         SplitCapturingFormatReader(List<StorageObject> capturedObjects, List<Boolean> capturedSkipFirstLine) {
             this.capturedObjects = capturedObjects;
             this.capturedSkipFirstLine = capturedSkipFirstLine;
+        }
+
+        List<Boolean> capturedLastSplit() {
+            return capturedLastSplit;
+        }
+
+        List<Boolean> capturedStatsFileFinal() {
+            return capturedStatsFileFinal;
         }
 
         @Override
@@ -3404,6 +3543,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             capturedObjects.add(object);
             capturedSkipFirstLine.add(context.firstSplit() == false);
+            capturedLastSplit.add(context.lastSplit());
+            capturedStatsFileFinal.add(context.statsFileFinal());
             return singlePageIterator();
         }
 

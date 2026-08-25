@@ -34,9 +34,9 @@ Each is its own Gradle subproject; run only the relevant one (these are expensiv
 | `common` | (library, not run directly) | provides `TransformCommonRestTestCase` base class for the others |
 | `single-node-tests` | `./gradlew :x-pack:plugin:transform:qa:single-node-tests:javaRestTest` | 1 node |
 | `multi-node-tests` | `./gradlew :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest` | multi-node; includes continuous-transform tests |
-| `multi-cluster-tests-with-security` | `./gradlew :x-pack:plugin:transform:qa:multi-cluster-tests-with-security:integTest` | 2 clusters + TLS, cross-cluster search |
-
 YAML REST specs live in `src/yamlRestTest/resources/rest-api-spec/test/transform/` (CRUD, stats, continuous, latest, preview, reset, update, upgrade, unattended, CAT).
+
+Multi-cluster (cross-cluster search) tests live in `src/yamlRestTest/resources/rest-api-spec/test/multi_cluster/` and `remote_cluster/`, and are run by `MultiClusterWithSecurityYamlTestSuiteIT` (via `./gradlew :x-pack:plugin:transform:yamlRestTest`).
 
 ## Plugin entry point
 

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -86,7 +87,8 @@ public class TopSnippets extends EsqlScalarFunction
     implements
         OptionalArgument,
         PostAnalysisVerificationAware,
-        PostOptimizationVerificationAware {
+        PostOptimizationVerificationAware,
+        AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -612,6 +614,7 @@ public class TopSnippets extends EsqlScalarFunction
         return new CustomUnifiedHighlighter(
             builder,
             UnifiedHighlighter.OffsetSource.POSTINGS,
+            false,
             null,
             "",
             MemoryIndexChunkScorer.CONTENT_FIELD,

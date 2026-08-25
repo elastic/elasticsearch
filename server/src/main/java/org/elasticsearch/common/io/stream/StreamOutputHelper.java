@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -89,6 +90,38 @@ public enum StreamOutputHelper {
         }
         outputStream.write(buffer, 0, offset);
         return total + offset;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given string with no length prefix, using the default thread-local scratch buffer. Unpaired
+     * surrogates are encoded as the replacement character U+FFFD, exactly as {@link UnicodeUtil#UTF16toUTF8} does, so the result is always
+     * {@link UnicodeUtil#calcUTF16toUTF8Length} bytes long, which is what {@link StreamOutput#writeText} writes as its length prefix.
+     *
+     * @param str string to write
+     * @param outputStream the stream to which to write the data.
+     * @return number of bytes written.
+     * @throws IOException on failure
+     */
+    public static int writeUtf8Chars(String str, OutputStream outputStream) throws IOException {
+        final byte[] buffer = getThreadLocalScratchBuffer();
+        // three bytes per char is the bound even though a code point may need four, because such a code point spends them on two chars
+        final int maxCharsPerChunk = buffer.length / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR;
+        assert maxCharsPerChunk > 0 : buffer.length + " is too short to hold a single char";
+        final int charCount = str.length();
+        int written = 0;
+        int charOffset = 0;
+        while (charOffset < charCount) {
+            int chunkChars = Math.min(maxCharsPerChunk, charCount - charOffset);
+            if (charOffset + chunkChars < charCount && Character.isHighSurrogate(str.charAt(charOffset + chunkChars - 1))) {
+                // leave the whole surrogate pair for the next chunk, otherwise each half would be encoded as the replacement character
+                chunkChars -= 1;
+            }
+            final int chunkBytes = UnicodeUtil.UTF16toUTF8(str, charOffset, chunkChars, buffer, 0);
+            outputStream.write(buffer, 0, chunkBytes);
+            written += chunkBytes;
+            charOffset += chunkChars;
+        }
+        return written;
     }
 
     /**

@@ -1,6 +1,6 @@
-area: Search
+area: Distributed
 issues:
  - 157213
 pr: 157460
-summary: Bound `StreamOutput.writeText` thread-local spare capacity
+summary: Fix heap retention when serializing large `Text` values
 type: bug

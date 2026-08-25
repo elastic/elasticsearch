@@ -11,7 +11,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -21,7 +20,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CharArrays;
@@ -406,51 +404,22 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final ThreadLocal<BytesRefBuilder> spareBytesRefBuilder = ThreadLocal.withInitial(BytesRefBuilder::new);
-
     /**
-     * Max UTF-8 spare retained per thread after {@link #writeText(Text)}.
-     * Larger values use a throwaway buffer. {@code copyChars} oversizes, so a string that passes
-     * the 3x pre-check can still grow the spare past this cap and is dropped in that case.
+     * Write a {@link Text}: its length in bytes (NB not Unicode code units) written using {@link #writeInt} followed by its UTF-8 encoding.
      */
-    // visible for testing
-    static final int MAX_RETAINED_SPARE_CAPACITY = 8 * 1024 * 1024;
-
     public void writeText(Text text) throws IOException {
         if (text.hasBytes()) {
             var encoded = text.bytes();
             BytesReference bytes = new BytesArray(encoded.bytes(), encoded.offset(), encoded.length());
             writeInt(bytes.length());
             bytes.writeTo(this);
-            return;
+        } else {
+            final String string = text.string();
+            final int byteLength = UnicodeUtil.calcUTF16toUTF8Length(string, 0, string.length());
+            writeInt(byteLength);
+            final int written = StreamOutputHelper.writeUtf8Chars(string, this);
+            assert written == byteLength : written + " bytes written but expected " + byteLength;
         }
-        final String string = text.string();
-        if (UnicodeUtil.maxUTF8Length(string.length()) > MAX_RETAINED_SPARE_CAPACITY) {
-            BytesRef utf8 = BytesRefs.toExactSizedBytesRef(string);
-            writeInt(utf8.length);
-            write(utf8.bytes, utf8.offset, utf8.length);
-            return;
-        }
-        BytesRefBuilder spare = spareBytesRefBuilder.get();
-        try {
-            spare.copyChars(string);
-            writeInt(spare.length());
-            write(spare.bytes(), 0, spare.length());
-        } finally {
-            if (spare.bytes().length > MAX_RETAINED_SPARE_CAPACITY) {
-                spareBytesRefBuilder.remove();
-            }
-        }
-    }
-
-    // visible for testing
-    static int textSpareCapacity() {
-        return spareBytesRefBuilder.get().bytes().length;
-    }
-
-    // visible for testing
-    static void clearTextSpare() {
-        spareBytesRefBuilder.remove();
     }
 
     /**

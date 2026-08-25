@@ -10,24 +10,26 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetTime;
@@ -54,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -757,107 +758,90 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteTextRoundTrip() throws IOException {
-        StreamOutput.clearTextSpare();
-        try {
-            String string = randomBoolean() ? randomRealisticUnicodeOfCodepointLengthBetween(0, 256) : randomAlphaOfLengthBetween(0, 256);
-            Text fromString = new Text(string);
-            Text fromBytes = new Text(new XContentString.UTF8Bytes(string.getBytes(StandardCharsets.UTF_8)));
-            try (TestStreamOutput output = new TestStreamOutput()) {
-                output.writeText(fromString);
-                output.writeText(fromBytes);
-                output.writeOptionalText(null);
-                output.writeOptionalText(fromString);
-                try (StreamInput in = output.bytes().streamInput()) {
-                    assertEquals(string, in.readText().string());
-                    assertEquals(string, in.readText().string());
-                    assertNull(in.readOptionalText());
-                    assertEquals(string, in.readOptionalText().string());
-                }
+        String string = randomBoolean() ? randomRealisticUnicodeOfCodepointLengthBetween(0, 256) : randomAlphaOfLengthBetween(0, 256);
+        Text fromString = new Text(string);
+        Text fromBytes = new Text(new XContentString.UTF8Bytes(string.getBytes(StandardCharsets.UTF_8)));
+        try (TestStreamOutput output = new TestStreamOutput()) {
+            output.writeText(fromString);
+            output.writeText(fromBytes);
+            output.writeOptionalText(null);
+            output.writeOptionalText(fromString);
+            try (StreamInput in = output.bytes().streamInput()) {
+                assertEquals(string, in.readText().string());
+                assertEquals(string, in.readText().string());
+                assertNull(in.readOptionalText());
+                assertEquals(string, in.readOptionalText().string());
             }
-        } finally {
-            StreamOutput.clearTextSpare();
         }
     }
 
-    public void testWriteTextReusesSpareAcrossSmallWrites() throws IOException {
-        StreamOutput.clearTextSpare();
-        try {
-            try (TestStreamOutput output = new TestStreamOutput()) {
-                output.writeText(new Text("x".repeat(1024)));
-                int afterFirst = StreamOutput.textSpareCapacity();
-                output.writeText(new Text("a"));
-                assertThat(StreamOutput.textSpareCapacity(), equalTo(afterFirst));
-                try (StreamInput in = output.bytes().streamInput()) {
-                    assertEquals("x".repeat(1024), in.readText().string());
-                    assertEquals("a", in.readText().string());
-                }
-            }
-        } finally {
-            StreamOutput.clearTextSpare();
+    public void testWriteTextEncoding() throws IOException {
+        for (String string : List.of(
+            "",
+            "hello",
+            "sk\u00E5l", // two-byte chars
+            "\u65E5\u672C\u8A9E", // three-byte chars
+            "\uD83D\uDE00", // supplementary code point, four bytes
+            "\uD800", // unpaired high surrogate
+            "\uDC00", // unpaired low surrogate
+            "\uD800a", // high surrogate followed by something other than a low surrogate
+            "a".repeat(100_000), // many times longer than the scratch buffer
+            "\uD83D\uDE00".repeat(50_000)
+        )) {
+            assertWriteTextEncoding(string);
+        }
+        assertWriteTextEncoding(randomRealisticUnicodeOfCodepointLengthBetween(1, 50_000));
+    }
+
+    public void testWriteTextEncodesSurrogatePairAcrossBufferBoundaries() throws IOException {
+        // the encoder must not split a surrogate pair across two chunks, wherever the boundary falls
+        for (int prefixLength = 0; prefixLength <= 1024; prefixLength++) {
+            assertWriteTextEncoding("a".repeat(prefixLength) + "\uD83D\uDE00" + "a");
         }
     }
 
-    public void testWriteTextDoesNotRetainSpareGrownPastCap() throws IOException {
-        StreamOutput.clearTextSpare();
-        try {
-            // maxUTF8Length == 3 * chars sits on the spare path; copyChars then oversizes past the cap
-            int chars = StreamOutput.MAX_RETAINED_SPARE_CAPACITY / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR;
-            String string = "x".repeat(chars);
-            assertThat(UnicodeUtil.maxUTF8Length(string.length()), lessThanOrEqualTo(StreamOutput.MAX_RETAINED_SPARE_CAPACITY));
-            try (TestStreamOutput output = new TestStreamOutput()) {
-                output.writeText(new Text(string));
-                try (StreamInput in = output.bytes().streamInput()) {
-                    assertEquals(string, in.readText().string());
-                }
-            }
-            assertThat(StreamOutput.textSpareCapacity(), lessThanOrEqualTo(StreamOutput.MAX_RETAINED_SPARE_CAPACITY));
-        } finally {
-            StreamOutput.clearTextSpare();
+    public void testWriteTextFlushesChunksToDelegate() throws IOException {
+        // the encoding fits neither the stream's own buffer nor the scratch buffer, so it reaches the delegate in chunks
+        final String string = randomAlphaOfLength(20_000) + "\uD83D\uDE00".repeat(20_000) + "\u65E5".repeat(20_000);
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (BufferedStreamOutput output = new BufferedStreamOutput(bytes, new BytesRef(new byte[8]))) {
+            output.writeText(new Text(string));
         }
+        assertArrayEquals(expectedTextBytes(string), bytes.toByteArray());
     }
 
-    public void testWriteTextSkipsSpareForLargeString() throws IOException {
-        StreamOutput.clearTextSpare();
-        try {
-            try (TestStreamOutput warmup = new TestStreamOutput()) {
-                warmup.writeText(new Text("hello"));
-            }
-            int spareAfterSmall = StreamOutput.textSpareCapacity();
-            // ASCII prefix takes the throwaway path; a supplementary pair plus an unpaired high
-            // surrogate cover the 4-byte and replacement branches of UTF16toUTF8.
-            int chars = StreamOutput.MAX_RETAINED_SPARE_CAPACITY / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR + 1;
-            String string = "x".repeat(chars - 3) + "\uD801\uDC00" + "\uD800";
-            assertThat(UnicodeUtil.maxUTF8Length(string.length()) > StreamOutput.MAX_RETAINED_SPARE_CAPACITY, is(true));
-            try (TestStreamOutput output = new TestStreamOutput()) {
-                output.writeText(new Text(string));
-                try (StreamInput in = output.bytes().streamInput()) {
-                    assertEquals("x".repeat(chars - 3) + "\uD801\uDC00" + "\uFFFD", in.readText().string());
-                }
-            }
-            assertThat(StreamOutput.textSpareCapacity(), equalTo(spareAfterSmall));
-        } finally {
-            StreamOutput.clearTextSpare();
+    private static void assertWriteTextEncoding(String string) throws IOException {
+        final Text text = new Text(string);
+        final byte[] expected = expectedTextBytes(string);
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.writeText(text);
+            assertArrayEquals(expected, BytesReference.toBytes(output.bytes()));
         }
+
+        // the transport path, and the only implementation whose writeBytes has to span recycled pages
+        try (RecyclerBytesStreamOutput output = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+            output.writeText(text);
+            assertArrayEquals(expected, BytesReference.toBytes(output.bytes()));
+        }
+
+        // the counting stream feeds serialized-size estimates, so its count must agree with the bytes the other implementations write
+        final CountingStreamOutput counting = new CountingStreamOutput();
+        counting.writeText(text);
+        assertThat(counting.position(), equalTo((long) expected.length));
     }
 
-    public void testWriteTextReleasesSpareWhenWriteFails() throws IOException {
-        StreamOutput.clearTextSpare();
-        try {
-            int chars = StreamOutput.MAX_RETAINED_SPARE_CAPACITY / UnicodeUtil.MAX_UTF8_BYTES_PER_CHAR;
-            String string = "x".repeat(chars);
-            try (StreamOutput out = new OutputStreamStreamOutput(new OutputStream() {
-                @Override
-                public void write(int b) throws IOException {
-                    throw new IOException("boom");
-                }
-            })) {
-                IOException e = expectThrows(IOException.class, () -> out.writeText(new Text(string)));
-                assertThat(e.getMessage(), equalTo("boom"));
-            }
-            assertThat(StreamOutput.textSpareCapacity(), lessThanOrEqualTo(StreamOutput.MAX_RETAINED_SPARE_CAPACITY));
-        } finally {
-            StreamOutput.clearTextSpare();
-        }
+    /**
+     * The bytes {@link StreamOutput#writeText} has always written: the length in bytes, followed by the encoding produced by
+     * {@link BytesRefBuilder#copyChars}, which is how it used to build them.
+     */
+    private static byte[] expectedTextBytes(String string) {
+        final BytesRefBuilder utf8 = new BytesRefBuilder();
+        utf8.copyChars(string);
+        final byte[] expected = new byte[Integer.BYTES + utf8.length()];
+        ByteUtils.writeIntBE(utf8.length(), expected, 0);
+        System.arraycopy(utf8.bytes(), 0, expected, Integer.BYTES, utf8.length());
+        return expected;
     }
 
     public void testReadTooLargeArraySize() throws IOException {

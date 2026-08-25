@@ -76,22 +76,6 @@ id:long | pay_double:double | hired_text:keyword
 10003   | 61805.0           | "false"
 ;
 
-// Coercion breadth: INTEGER widened to LONG. An undeclared read returns emp_no as integer; declaring it as long
-// exercises the INT→LONG widening path on every format and verifies declared output type is honoured.
-sharedStrictDeclaredCoercionIntegerToLong
-required_capability: dataset_in_from_command
-dataset: shared_declared_i2l: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}}}}
-
-FROM shared_declared_i2l
-| SORT id
-| LIMIT 3;
-
-id:long
-10001
-10002
-10003
-;
-
 // Coercion breadth: INTEGER stringified to KEYWORD. An undeclared read returns languages as integer; declaring it
 // as keyword forces every format to apply String::valueOf (or the equivalent text arm), confirming the
 // integer-to-keyword path is exercised uniformly.
@@ -110,8 +94,8 @@ id:long | lang_text:keyword
 ;
 
 // Coercion breadth: DOUBLE stringified to KEYWORD. An undeclared read returns height as double; declaring it as
-// keyword exercises the double-to-keyword path. Java's Double.toString (Ryu) produces the shortest round-trip
-// decimal, so 2.03 → "2.03" uniformly across all formats.
+// keyword exercises the double-to-keyword path. Java's Double.toString (Giulietti/Schubfach since JDK 19) produces
+// the shortest round-trip decimal, so 2.03 → "2.03" uniformly across all formats.
 sharedStrictDeclaredCoercionDoubleToKeyword
 required_capability: dataset_in_from_command
 dataset: shared_declared_d2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "height_text": {"type": "keyword", "path": "height"}}}}

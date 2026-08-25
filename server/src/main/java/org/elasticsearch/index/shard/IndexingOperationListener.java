@@ -45,7 +45,7 @@ public interface IndexingOperationListener {
      * Batch variant of {@link #preIndex}. The default delegates to {@link #preIndex} per operation.
      */
     default IndexOperationBatch preIndexBatch(ShardId shardId, IndexOperationBatch batch) {
-        for (Engine.Index operation : batch.listenerOps()) {
+        for (Engine.Index operation : batch.materializeIndexOps()) {
             preIndex(shardId, operation);
         }
         return batch;
@@ -57,7 +57,7 @@ public interface IndexingOperationListener {
      * engine level failures.
      */
     default void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
-        final List<Engine.Index> operations = batch.listenerOps();
+        final List<Engine.Index> operations = batch.materializeIndexOps();
         for (int i = 0; i < results.size(); i++) {
             postIndex(shardId, operations.get(i), results.get(i));
         }
@@ -68,7 +68,7 @@ public interface IndexingOperationListener {
      * See {@link #postIndexBatch(ShardId, IndexOperationBatch, List)} for document related failures.
      */
     default void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
-        for (Engine.Index operation : batch.listenerOps()) {
+        for (Engine.Index operation : batch.materializeIndexOps()) {
             postIndex(shardId, operation, ex);
         }
     }

@@ -565,23 +565,6 @@ public final class IndexOperationBatch {
         return List.of(ops);
     }
 
-    /**
-     * Keep a copy of listener ops for {@link org.elasticsearch.index.shard.IndexingOperationListener}
-     */
-    private List<Engine.Index> listenerOps;
-
-    /**
-     * Return the {@link #listenerOps} for {@link org.elasticsearch.index.shard.IndexingOperationListener}
-     * batch callbacks: pre and post hooks see the same (pre-seqNo-stamping) ops.
-     * Engine must keep using {@link #materializeIndexOps()} since this returns a pre-index memo
-     */
-    public List<Engine.Index> listenerOps() {
-        if (listenerOps == null) {
-            listenerOps = materializeIndexOps();
-        }
-        return listenerOps;
-    }
-
     private int abs(int i) {
         Objects.checkIndex(i, docCount);
         return offset + i;

@@ -38,11 +38,11 @@ public final class MvLastDoubleEvaluator extends AbstractMultivalueFunction.Abst
     int positionCount = v.getPositionCount();
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         double result = MvLast.process(v, first, end);

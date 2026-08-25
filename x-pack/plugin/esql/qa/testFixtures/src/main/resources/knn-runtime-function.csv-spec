@@ -21,7 +21,7 @@
 // has cosine similarity 1.0 with the query [64,0,0], so it passes the filter.
 knnRuntimeOnRow
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 ROW emb_hex = "400000"
 | EVAL dv = to_dense_vector(emb_hex)
@@ -38,7 +38,7 @@ dv:dense_vector
 // are sorted by id for a deterministic output.
 knnRuntimeNoScore
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
@@ -62,7 +62,7 @@ id:integer | label:keyword
 // be generated based on cosine similarity.
 knnRuntimeWithScore
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors metadata _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -87,7 +87,7 @@ id:integer | _score:double
 // scoring rows.
 knnRuntimeWithSortOnScore
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors metadata _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -105,7 +105,7 @@ id:integer
 // Test 5: KNN on runtime field dense_vector field with similarity threshold option
 knnRuntimeWithSimThreshold
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors
 | EVAL dv = to_dense_vector(emb_hex)
@@ -124,7 +124,7 @@ id:integer
 // Test 6: KNN on runtime field dense_vector field with boost option
 knnRuntimeWithBoost
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)
@@ -146,7 +146,7 @@ id:integer | _score:double
 // Test 7: KNN on runtime field dense_vector field: combined filtering and scoring
 knnRuntimeCombinedFilter
 required_capability: knn_runtime_field
-pragma: runtime_knn_search=true
+pragma: knn_runtime_field=true
 
 FROM knn_hex_vectors METADATA _score
 | EVAL dv = to_dense_vector(emb_hex)

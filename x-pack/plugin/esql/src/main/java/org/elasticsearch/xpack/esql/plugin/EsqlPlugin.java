@@ -180,6 +180,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     /**
+     * EWMA alpha for the {@code esql_worker} pool's per-task execution-time tracking.
+     */
+    static final double ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA = 0.1;
+
+    /**
      * Name of the dedicated thread pool backing all external blob-store access: metadata discovery (glob expansion,
      * footer reads, and schema reconciliation performed by
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}) as well as the blocking data reads and
@@ -190,7 +195,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
      * This is a separate pool from {@link #computePool()} on purpose. These tasks block their thread on network I/O
      * (a sequential decompressed stream read pulls compressed bytes from the object store) and on the parser's bounded
      * hand-off queues; the compute {@code Driver} that consumes the parsed pages runs on {@link #computePool()}. If the
-     * two shared a fixed pool, the segmentator plus {@code parsing_parallelism} parser tasks would occupy every slot
+     * two shared a fixed pool, the segmentator plus {@code external_parsing_parallelism} parser tasks would occupy every slot
      * and starve their own consumer, deadlocking the query (observed as a stalled heap-attack external query). Keeping
      * them apart also prevents a single heavy external query from starving compute. In-flight cloud API calls are still
      * bounded by the per-scheme permit semaphore in {@code StorageProviderRegistry}; the permits and this pool solve
@@ -794,7 +799,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 poolSize,
                 queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
-                EsExecutors.TaskTrackingConfig.DEFAULT
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept
             // separate from esql_worker so the segmentator/parser tasks cannot starve the compute drivers that

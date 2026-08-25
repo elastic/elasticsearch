@@ -24,7 +24,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -37,8 +36,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContextTestUtils;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
@@ -57,6 +56,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
@@ -89,7 +89,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     private static ModelRegistry modelRegistry;
 
     protected static final String SPARSE_INFERENCE_ID = "sparse-inference-id";
-    protected static final MinimalServiceSettings SPARSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState SPARSE_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.SPARSE_EMBEDDING,
         null,
@@ -98,7 +98,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     );
 
     protected static final String DENSE_INFERENCE_ID = "dense-inference-id";
-    protected static final MinimalServiceSettings DENSE_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState DENSE_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.TEXT_EMBEDDING,
         256,
@@ -107,7 +107,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     );
 
     protected static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
-    protected static final MinimalServiceSettings EMBEDDING_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+    protected static final EndpointClusterState EMBEDDING_INFERENCE_ID_SETTINGS = new EndpointClusterState(
         null,
         TaskType.EMBEDDING,
         256,
@@ -115,7 +115,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DenseVectorFieldMapper.ElementType.FLOAT
     );
 
-    private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
+    private static final Map<String, EndpointClusterState> INFERENCE_ENDPOINT_MAP = Map.of(
         SPARSE_INFERENCE_ID,
         SPARSE_INFERENCE_ID_SETTINGS,
         DENSE_INFERENCE_ID,
@@ -206,7 +206,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected void ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType taskType, String queryName) throws Exception {
         final String inferenceId;
-        final MinimalServiceSettings serviceSettings;
+        final EndpointClusterState serviceSettings;
         switch (taskType) {
             case SPARSE_EMBEDDING:
                 inferenceId = SPARSE_INFERENCE_ID;
@@ -266,19 +266,34 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             false,
             Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
         );
+        String unsupportedRemote = "One or more remote clusters do not support "
+            + queryName
+            + " against a [semantic_text] field in cross-cluster search. Please update all clusters to at least "
+            + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
+            + ".";
+
         assertRewriteAndSerializeOnInferenceField(
             inferenceFieldQuery,
             preCcsRemoteClusterContext,
-            new IllegalArgumentException(
-                "One or more remote clusters do not support "
-                    + queryName
-                    + " query cross-cluster search when"
-                    + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
-            ),
+            // A search request can turn the setting back on, so it is offered the alternative.
+            new IllegalArgumentException(unsupportedRemote + " Alternatively, set [ccs_minimize_roundtrips] to true."),
             null
         );
         assertRewriteAndSerializeOnNonInferenceField(nonInferenceFieldQuery, preCcsRemoteClusterContext);
+
+        // A caller that leaves the setting unset - ES|QL - has no such alternative and is not offered one.
+        QueryRewriteContext esqlStyleContext = createQueryRewriteContext(
+            localIndexInferenceFields,
+            TransportVersion.current(),
+            null,
+            Map.of(preCcsRemoteClusterAlias, preCcsRemoteClusterConfig)
+        );
+        assertRewriteAndSerializeOnInferenceField(
+            inferenceFieldQuery,
+            esqlStyleContext,
+            new IllegalArgumentException(unsupportedRemote),
+            null
+        );
     }
 
     public void testCcsBwCSerialization() throws Exception {
@@ -573,7 +588,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             for (var entry : semanticFields.entrySet()) {
                 String fieldName = entry.getKey();
                 String inferenceId = entry.getValue();
-                MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+                EndpointClusterState modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
                 if (modelSettings == null) {
                     throw new IllegalArgumentException("No model settings for inference ID [" + inferenceId + "]");
                 }
@@ -746,7 +761,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ModelRegistry modelRegistry = spy(new ModelRegistry(clusterService, new NoOpClient(threadPool), new FeatureService(List.of())));
+        ModelRegistry modelRegistry = spy(
+            new ModelRegistry(clusterService, new NoOpClient(threadPool), Utils.noopInferenceIndexMappingManager())
+        );
         modelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
             @Override
             public boolean localNodeMaster() {
@@ -756,12 +773,12 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         doAnswer(i -> {
             String inferenceId = i.getArgument(0);
-            MinimalServiceSettings settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+            EndpointClusterState settings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
             if (settings == null) {
                 throw new ResourceNotFoundException(inferenceId + " does not exist");
             }
             return settings;
-        }).when(modelRegistry).getMinimalServiceSettings(anyString());
+        }).when(modelRegistry).getEndpointClusterState(anyString());
 
         return modelRegistry;
     }

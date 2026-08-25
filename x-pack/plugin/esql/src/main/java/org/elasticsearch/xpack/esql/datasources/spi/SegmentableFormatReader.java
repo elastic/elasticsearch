@@ -23,7 +23,7 @@ public interface SegmentableFormatReader extends FormatReader {
     /**
      * Default cap on the bytes a single record may occupy; the streaming splitter fails the query rather
      * than buffering past this when a scanner cannot find a boundary. Overridable via the
-     * {@code max_record_size} pragma.
+     * {@code external_max_record_size} pragma.
      */
     int DEFAULT_MAX_RECORD_BYTES = 64 * 1024 * 1024;
 

@@ -30,58 +30,86 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onRecoveryCancelledBeforeQueuing(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryCancelledBeforeQueuing(type, role);
+            listener.onRecoveryCancelledBeforeQueuingOnTarget(type);
         }
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryQueuedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryQueued(type, role);
+            listener.onRecoveryQueuedOnTarget(type, priorityGroup);
         }
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+    public void onPeerRecoveryQueuedOnSource() {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryDiscarded(type, role);
+            listener.onPeerRecoveryQueuedOnSource();
         }
     }
 
     @Override
-    public void onQueuedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryCancelled(type, role);
+            listener.onQueuedRecoveryDiscardedOnTarget(type, priorityGroup);
         }
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedPeerRecoveryDiscardedOnSource() {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryStarted(type, role);
+            listener.onQueuedPeerRecoveryDiscardedOnSource();
         }
     }
 
     @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryDequeuedAndStarted(type, role);
+            listener.onQueuedRecoveryCancelledOnTarget(type, priorityGroup);
         }
     }
 
     @Override
-    public void onStartedRecoveryCancelled(RecoverySource.Type type, RecoveryRole role) {
+    public void onPeerRecoveryStartedOnSource() {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onStartedRecoveryCancelled(type, role);
+            listener.onPeerRecoveryStartedOnSource();
         }
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryCompleted(type, role);
+            listener.onRecoveryDequeuedAndStartedOnTarget(type, priorityGroup);
+        }
+    }
+
+    @Override
+    public void onPeerRecoveryDequeuedAndStartedOnSource() {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onPeerRecoveryDequeuedAndStartedOnSource();
+        }
+    }
+
+    @Override
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onStartedRecoveryCancelledOnTarget(type);
+        }
+    }
+
+    @Override
+    public void onRecoveryCompletedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveryCompletedOnTarget(type, priorityGroup);
+        }
+    }
+
+    @Override
+    public void onPeerRecoveryCompletedOnSource() {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onPeerRecoveryCompletedOnSource();
         }
     }
 

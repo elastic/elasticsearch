@@ -89,11 +89,11 @@ import java.util.function.Consumer;
  * decoding and utility helpers via {@link ParquetColumnDecoding}. The baseline remains
  * the stable fallback when {@code optimized_reader=false} is explicitly set via config.
  *
- * <p><b>Memory:</b> Prefetched bytes are accounted on the REQUEST circuit breaker (via
- * {@link BlockFactory#breaker()}) by the Arrow allocator that backs the per-range
- * {@code ArrowBuf}s; the bytes are returned when the chunks' {@link Releasable} is closed at
- * row-group rollover. If the allocator's breaker check fails during a prefetch, the future
- * fails, prefetch is skipped, and the query falls back to synchronous I/O for that row group.
+ * <p><b>Memory:</b> Prefetched bytes live on the heap and are charged to the REQUEST circuit
+ * breaker via {@link BlockFactory#breaker()}; the charge is released when the chunks'
+ * {@link Releasable} is closed at row-group rollover. If the breaker check fails during a
+ * prefetch, the future fails, prefetch is skipped, and the query falls back to synchronous
+ * I/O for that row group.
  *
  * <p><b>Trivially-passes guard:</b> when late materialization is enabled and row-group
  * statistics prove every row satisfies the pushed filter ({@link TriviallyPassesChecker}),
@@ -198,6 +198,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      */
     private final boolean sortColumnAnnotationScales;
     /**
+     * Whether the sort column's ESQL type is {@code UNSIGNED_LONG} — i.e. the scan sign-flip-encodes every value it
+     * reads (see {@code PageColumnReader#readLongColumn}, keyed on the ESQL type rather than the physical
+     * annotation). For a physical {@code UINT_64}, a raw footer/page-index bound must go through the identical
+     * {@link ParquetColumnDecoding#encodeUnsignedLong} transform before it is compared against the threshold, which
+     * is published from already-encoded blocks; otherwise any value at or above 2^63 sign-wraps to a domain the
+     * comparison never accounts for. A plain signed {@code INT64} declared as
+     * {@code UNSIGNED_LONG} also sets this flag, but its statistics use signed ordering and therefore cannot be
+     * transformed safely; {@link #unsignedLongStat(long)} declines threshold pruning for that shape. A column
+     * explicitly declared as signed {@code LONG} over a physical UINT64 keeps {@code sortType == LONG}, so this stays
+     * {@code false} for it and the raw pass-through below is unaffected — that declaration's block values are never
+     * sign-flipped either.
+     */
+    private final boolean sortColumnIsUnsignedLong;
+    /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
      * The factory installs the id between {@link #createColumnExtractor(Consumer)} and the first call to
@@ -226,11 +240,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private int consecutiveNoStalls;
     private final ArrayDeque<PendingPrefetch> pendingPrefetches = new ArrayDeque<>();
     /**
-     * Allocator-backed memory holding the chunks currently in use by {@link #rowGroup}. Released
-     * at row-group rollover so the direct memory is freed eagerly rather than waiting for the
-     * JVM {@code Cleaner}. Closing the releasable decrements the underlying {@code ArrowBuf}
-     * reference counts, which in turn returns the bytes to the circuit breaker via
-     * {@link org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener}.
+     * Breaker-accounted heap buffers holding the chunks currently in use by {@link #rowGroup}.
+     * Released at row-group rollover so the charge returns immediately rather than waiting for
+     * GC. Closing the releasable releases the {@code DirectReadBuffer} charge via
+     * {@code DirectReadBuffer.close()}.
      */
     private Releasable currentChunksReleasable;
 
@@ -397,6 +410,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.sortColumnAnnotationScales = sortColumnPrimitiveType != null
             && sortColumnPrimitiveType.getLogicalTypeAnnotation() != null
             && ParquetColumnDecoding.integralDecodeScalesRelativeToRawStats(sortColumnPrimitiveType.getLogicalTypeAnnotation());
+        this.sortColumnIsUnsignedLong = sortType == DataType.UNSIGNED_LONG;
         this.sortDecodeRelation = resolveSortDecodeRelation(sortColumnPrimitiveType, sortType, sortInfo);
         this.codecFactory = codecFactory;
         this.counters = counters;
@@ -448,10 +462,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Fills the prefetch queue up to {@link #prefetchDepth} entries, starting from ordinal
      * {@code fromOrdinal}. Stops early when no more surviving row groups remain. Breaker
-     * accounting for the prefetched bytes happens implicitly inside the backend's
-     * {@code readBytesAsync} via the Arrow allocator; if a prefetch trips the breaker it
-     * surfaces as a failed future and {@link #takePendingPrefetch} falls back to sync I/O
-     * for that row group.
+     * accounting for the prefetched bytes happens inside {@code readBytesAsync} via
+     * {@code DirectBufferFactory.forBreaker}; if a prefetch trips the breaker it surfaces as
+     * a failed future and {@link #takePendingPrefetch} falls back to sync I/O for that row
+     * group.
      */
     private void fillPrefetchQueue(int fromOrdinal) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -501,10 +515,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         preloadedMetadata,
                         nextOrdinal,
                         nextBlock.getRowCount(),
-                        blockFactory.arrowAllocator()
+                        breaker
                     );
                 } else {
-                    future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, phaseColumns, blockFactory.arrowAllocator());
+                    future = ColumnChunkPrefetcher.prefetchAsync(storageObject, nextBlock, phaseColumns, breaker);
                 }
                 pendingPrefetches.addLast(new PendingPrefetch(nextOrdinal, future));
             } catch (Exception e) {
@@ -633,6 +647,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     yield null;
                 }
                 long raw = ((Number) value).longValue();
+                // An unsigned_long sort column's blocks are sign-flip-encoded (ESQL's canonical representation).
+                // Transform only UINT_64 stats, whose unsigned ordering is preserved by that encoding; a plain
+                // signed INT64 declared unsigned_long has signed-ordered stats and must decline.
+                if (sortColumnIsUnsignedLong) {
+                    yield unsignedLongStat(raw);
+                }
                 // A plain long sort column has no relation and its raw value is its decoded value. A rescaled temporal
                 // one must be mapped into the decoded domain the threshold bound lives in, or the comparison skips the
                 // wrong groups. A null relation on a temporal column (TIME/DECIMAL/unsigned) declines the skip — safe.
@@ -676,6 +696,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     yield null;
                 }
                 long raw = ordered.getLong();
+                // Same mapping and physical-ordering gate as rawValueFromStats.
+                if (sortColumnIsUnsignedLong) {
+                    yield unsignedLongStat(raw);
+                }
                 // Same mapping as rawValueFromStats: a rescaled temporal column's page bound must reach the decoded
                 // domain the threshold lives in; a plain long is the identity; a temporal column with no exact
                 // relation declines the page skip.
@@ -703,6 +727,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 : null;
             default -> null;
         };
+    }
+
+    /**
+     * Maps a raw {@code UINT_64} statistic into the sign-flip-encoded domain used by ESQL blocks and the TopN
+     * threshold. A plain signed {@code INT64} declared as {@code UNSIGNED_LONG} cannot use this mapping: its min/max
+     * were selected under signed ordering, so a range spanning both sign halves would have its endpoints reversed
+     * after the sign flip and could make threshold pruning discard competitive rows.
+     */
+    private Long unsignedLongStat(long raw) {
+        return ParquetColumnDecoding.isUnsignedInt64(sortColumnPrimitiveType) ? ParquetColumnDecoding.encodeUnsignedLong(raw) : null;
     }
 
     private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
@@ -981,9 +1015,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         try {
             return advanceRowGroup();
         } catch (IOException e) {
-            throw new IllegalArgumentException(
-                "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
-                e
+            throw ParquetReadFailures.wrap(
+                e,
+                "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
             );
         }
     }
@@ -1117,7 +1151,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                         chunks,
                         storageObject,
                         codecFactory,
-                        blockFactory.arrowAllocator()
+                        breaker
                     );
                     rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
                     triggerNextRowGroupPrefetch();
@@ -1291,7 +1325,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             phase1Chunks,
             storageObject,
             codecFactory,
-            blockFactory.arrowAllocator()
+            breaker
         );
         rowGroup = predicateStore;
         initPredicateColumnReaders();
@@ -1498,24 +1532,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     ) {
         ColumnChunkPrefetcher.PrefetchedChunks phase2Result;
         try {
-            phase2Result = ColumnChunkPrefetcher.prefetchAsync(
-                storageObject,
-                block,
-                projectionOnlyColumnPaths,
-                blockFactory.arrowAllocator()
-            ).join();
+            phase2Result = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker).join();
         } catch (Exception e) {
-            // No manual breaker accounting here: the Arrow allocator that backs the
-            // prefetch's direct memory automatically releases the reservation when the
-            // failed future is drained by the caller's cleanup path.
-            throw new IllegalArgumentException(
-                "Trivially-passes Phase-2 fetch failed for row group ["
-                    + rowGroupOrdinal
-                    + "] in ["
-                    + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+            // No manual breaker accounting here: the DirectReadBuffer closer releases the
+            // reservation when the failed future is drained by the caller's cleanup path.
+            throw ParquetReadFailures.wrap(
+                e,
+                "Trivially-passes Phase-2 fetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]"
             );
         }
         // Merge the two chunk maps. Both phases prefetched disjoint columns (predicate vs.
@@ -1530,7 +1553,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         // Compose the Phase-1 (still live in currentChunksReleasable) and Phase-2 releasables so
         // both sets of chunks are freed together at the next row-group rollover. Breaker
-        // accounting for both phases is tracked by the allocator-backed ArrowBufs they hold.
+        // accounting for both phases is tracked by the DirectReadBuffers they hold.
         Releasable phase1Releasable = currentChunksReleasable;
         Releasable phase2Releasable = phase2Result != null ? phase2Result.release() : () -> {};
         currentChunksReleasable = () -> Releasables.close(phase1Releasable, phase2Releasable);
@@ -1544,7 +1567,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             merged,
             storageObject,
             codecFactory,
-            blockFactory.arrowAllocator()
+            breaker
         );
         rowsRemainingInGroup = rowGroup.getRowCount();
         initColumnReaders(null);
@@ -1553,7 +1576,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Synchronously fetches the Phase-2 (projection-only) chunks for the current row group and
      * builds the projection {@link PrefetchedPageReadStore}. Breaker accounting for the fetched
-     * bytes is tracked by the allocator-backed {@code ArrowBuf}s inside the returned releasable.
+     * bytes is tracked by the DirectReadBuffers inside the returned releasable.
      *
      * @param block metadata for the row group
      * @param survivorRanges row ranges of survivors as produced by {@link WordMaskRowRangesConverter}
@@ -1573,21 +1596,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     preloadedMetadata,
                     rowGroupOrdinal,
                     block.getRowCount(),
-                    blockFactory.arrowAllocator()
+                    breaker
                 )
-                : ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, blockFactory.arrowAllocator());
+                : ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projectionOnlyColumnPaths, breaker);
             result = future.join();
         } catch (Exception e) {
-            // No manual breaker accounting here: the Arrow allocator that backs the
-            // prefetch's direct memory automatically releases the reservation when the
-            // failed future is drained by the caller's cleanup path.
-            throw new IllegalArgumentException(
-                "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]: " + e.getMessage(),
-                e
-            );
+            // No manual breaker accounting here: the DirectReadBuffer closer releases the
+            // reservation when the failed future is drained by the caller's cleanup path.
+            throw ParquetReadFailures.wrap(e, "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]");
         }
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = result != null ? result.chunks() : null;
-        // The Phase-2 chunks' allocator-backed memory is the sole breaker accounting for this row
+        // The Phase-2 chunks' breaker-accounted memory is the sole I/O accounting for this row
         // group's projection columns; closing currentChunksReleasable returns those bytes. The
         // Phase-1 chunks were already released by the caller after predicate decode — assert that
         // here so any future refactor that breaks the precondition surfaces as a test failure
@@ -1604,7 +1623,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             chunks,
             storageObject,
             codecFactory,
-            blockFactory.arrowAllocator()
+            breaker
         );
     }
 
@@ -1691,15 +1710,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /**
      * Dequeues the head of the prefetch queue if it matches {@code expectedOrdinal}, joining its
      * future and returning the prefetched chunks. Entries whose ordinals don't match (because
-     * the stats filter skipped intermediate row groups) are cancelled and any direct memory they
-     * had already produced is drained. Returns {@code null} when there is no usable prefetch
-     * (queue empty, empty result, or the prefetch failed — e.g. allocator tripped the breaker —
+     * the stats filter skipped intermediate row groups) are cancelled and any heap buffers they
+     * had already produced are drained. Returns {@code null} when there is no usable prefetch
+     * (queue empty, empty result, or the prefetch failed — e.g. the breaker tripped —
      * in which case the caller falls back to sync I/O for the requested row group).
      *
      * <p>On success the chunks' {@link Releasable} is handed off to
      * {@link #currentChunksReleasable} and released by {@link #releaseCurrentReservation} at
-     * row-group rollover. The releasable owns the allocator-backed {@code ArrowBuf}s, which is
-     * how the breaker accounting for the prefetched bytes is tracked.
+     * row-group rollover. The releasable owns the {@code DirectReadBuffer}s, which is how the
+     * breaker accounting for the prefetched bytes is tracked.
      */
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> takePendingPrefetch(int expectedOrdinal) {
         releaseCurrentReservation();
@@ -1731,9 +1750,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 return data;
             }
             if (result != null) {
-                // Empty result still owns the breaker-tracked direct memory until released; any
-                // exception from release().close() (e.g. double-decrement of the underlying
-                // ArrowBuf) is a real bug we want to surface rather than silently swallow.
+                // Empty result still owns the breaker-tracked heap buffers until released; any
+                // exception from release().close() is a real bug we want to surface rather than
+                // silently swallow.
                 result.release().close();
             }
             return null;
@@ -1806,9 +1825,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Cancels all pending prefetches and drains their results so any direct memory the prefetch
-     * may already have produced is released back to the breaker via the allocator. Called when
-     * the iterator is exhausted or closed.
+     * Cancels all pending prefetches and drains their results so any heap buffers the prefetch
+     * may already have produced release their breaker charge. Called when the iterator is
+     * exhausted or closed.
      */
     private void cancelPendingPrefetch() {
         while (pendingPrefetches.isEmpty() == false) {
@@ -1819,10 +1838,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Frees the allocator-backed direct memory holding the chunks currently in use by the row
+     * Frees the breaker-accounted heap buffers holding the chunks currently in use by the row
      * group. Called when those chunks are about to be replaced (next advance) or dropped (close).
-     * Closing the releasable returns the bytes to the breaker via the Arrow allocator listener.
-     * Idempotent.
+     * Closing the releasable releases the {@code DirectReadBuffer} charge. Idempotent.
      */
     private void releaseCurrentReservation() {
         if (currentChunksReleasable != null) {
@@ -2025,16 +2043,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } catch (RuntimeException e) {
             Releasables.closeExpectNoException(blocks);
             Releasables.closeExpectNoException(predicateBlocks);
-            throw new IllegalArgumentException(
+            throw ParquetReadFailures.wrap(
+                e,
                 "Failed to emit two-phase Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] batch ["
                     + state.nextBatchIndex()
                     + "] in file ["
                     + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+                    + "]"
             );
         }
 
@@ -2124,26 +2141,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } catch (CircuitBreakingException e) {
                     // Let breaker exceptions flow through unwrapped: callers (and tests) match
                     // on the exact type to distinguish memory-pressure failures from data errors.
-                    Releasables.closeExpectNoException(blocks);
                     throw e;
                 } catch (Exception e) {
-                    Releasables.closeExpectNoException(blocks);
-                    Attribute attr = attributes.get(col);
-                    throw new IllegalArgumentException(
-                        "Failed to read Parquet column ["
-                            + attr.name()
-                            + "] (type "
-                            + attr.dataType()
-                            + ") at row group ["
-                            + (rowGroupOrdinal + 1)
-                            + "] page batch ["
-                            + pageBatchIndexInRowGroup
-                            + "] in file ["
-                            + fileLocation
-                            + "]: "
-                            + e.getMessage(),
-                        e
-                    );
+                    throw wrapColumnReadException(col, e);
                 }
             }
             if (producedRows < 0) {
@@ -2154,20 +2154,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
             }
-        } catch (IllegalArgumentException | CircuitBreakingException e) {
+        } catch (CircuitBreakingException e) {
+            Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new IllegalArgumentException(
+            throw ParquetReadFailures.wrap(
+                e,
                 "Failed to create Page batch at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
                     + pageBatchIndexInRowGroup
                     + "] in file ["
                     + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+                    + "]"
             );
         }
         counters.addRowsEmitted(rowsToRead);
@@ -2260,21 +2260,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
-        } catch (IllegalArgumentException | CircuitBreakingException e) {
+        } catch (CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new IllegalArgumentException(
+            throw ParquetReadFailures.wrap(
+                e,
                 "Failed to create late-materialized Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
                     + pageBatchIndexInRowGroup
                     + "] in file ["
                     + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
+                    + "]"
             );
         }
     }
@@ -2333,9 +2332,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private IllegalArgumentException wrapColumnReadException(int colIndex, Exception e) {
+    private RuntimeException wrapColumnReadException(int colIndex, Exception e) {
         Attribute attr = attributes.get(colIndex);
-        return new IllegalArgumentException(
+        return ParquetReadFailures.wrap(
+            e,
             "Failed to read Parquet column ["
                 + attr.name()
                 + "] (type "
@@ -2346,9 +2346,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 + pageBatchIndexInRowGroup
                 + "] in file ["
                 + fileLocation
-                + "]: "
-                + e.getMessage(),
-            e
+                + "]"
         );
     }
 
@@ -2482,8 +2480,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Wraps an in-flight prefetch future.
      *
      * <p>The {@link #future} resolves to a {@link ColumnChunkPrefetcher.PrefetchedChunks} whose
-     * {@link ColumnChunkPrefetcher.PrefetchedChunks#release()} owns the underlying direct memory
-     * (and, transitively, the circuit-breaker accounting via the Arrow allocator listener).
+     * {@link ColumnChunkPrefetcher.PrefetchedChunks#release()} owns the underlying heap buffers
+     * (and, transitively, the circuit-breaker charge via {@code DirectReadBuffer.close()}).
      * If the prefetch is dequeued for use, that {@link Releasable} is handed off to
      * {@link #currentChunksReleasable}. If it is skipped or cancelled, {@link #release()} drains
      * any already-produced chunks so the breaker bytes return immediately.
@@ -2491,18 +2489,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private record PendingPrefetch(int ordinal, CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future) {
 
         void release() {
-            // Drain the future so the direct memory the prefetch may have already produced is
-            // released. We use getNow() to avoid a wait if the I/O is still in flight; in that
-            // case FutureUtils.cancel() (called by the queue-management code before us) will
-            // either complete the future exceptionally (no chunks to release) or propagate the
-            // cancellation up to the storage backend.
+            // Drain the future so the heap buffers the prefetch may have already produced
+            // release their breaker charge. We use getNow() to avoid a wait if the I/O is still
+            // in flight; in that case FutureUtils.cancel() (called by the queue-management code
+            // before us) will either complete the future exceptionally (no chunks to release) or
+            // propagate the cancellation up to the storage backend.
             ColumnChunkPrefetcher.PrefetchedChunks chunks;
             try {
                 chunks = future.getNow(null);
             } catch (CompletionException | CancellationException ignored) {
                 // Future completed exceptionally (or was cancelled) — no chunks were ever produced
                 // so there is nothing for us to release. Narrowing the catch keeps real bugs in
-                // release().close() (e.g. ArrowBuf double-decrement) visible to the caller.
+                // release().close() visible to the caller.
                 return;
             }
             if (chunks != null) {

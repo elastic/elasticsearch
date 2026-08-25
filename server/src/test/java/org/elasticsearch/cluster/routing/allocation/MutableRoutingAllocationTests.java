@@ -61,14 +61,14 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
         RoutingNode node = allocation.routingNodes().node(sourceNodeId);
 
         // prime cache with only shard0 started
-        assertThat(allocation.nodeMaxShardWriteLoadProportion(node), closeTo(1.0, 1e-9));
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(1.0, 1e-9));
 
         // startShard updates the routing node AND fires the cache-invalidation observer
         ShardRouting initializingShard = node.getByShardId(initializingShardId);
         allocation.routingNodes().startShard(initializingShard, allocation.changes(), 0L);
 
         // cache was invalidated; recomputed with both shards started → 0.7
-        assertThat(allocation.nodeMaxShardWriteLoadProportion(node), closeTo(0.7, 1e-9));
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(0.7, 1e-9));
     }
 
     /**
@@ -99,7 +99,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
         RoutingNode node = allocation.routingNodes().node(sourceNodeId);
 
         // prime cache with both shards started
-        assertThat(allocation.nodeMaxShardWriteLoadProportion(node), closeTo(0.7, 1e-9));
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(0.7, 1e-9));
 
         // relocateShard moves shard0 to RELOCATING on sourceNode and fires the cache-invalidation observer
         ShardRouting relocating = node.getByShardId(relocatingShardId);
@@ -114,7 +114,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
             );
 
         // cache was invalidated; recomputed with only shard1 started → 1.0
-        assertThat(allocation.nodeMaxShardWriteLoadProportion(node), closeTo(1.0, 1e-9));
+        assertThat(allocation.maxShardWriteLoadProportionForNode(node), closeTo(1.0, 1e-9));
     }
 
     private static MutableRoutingAllocation newAllocation(ClusterState clusterState, ClusterInfo clusterInfo) {

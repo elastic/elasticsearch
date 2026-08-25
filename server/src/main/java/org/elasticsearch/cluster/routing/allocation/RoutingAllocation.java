@@ -199,7 +199,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      * The result is cached per node per allocation pass; {@link MutableRoutingAllocation} invalidates entries as shard
      * state changes.
      */
-    public double nodeMaxShardWriteLoadProportion(RoutingNode node) {
+    public double maxShardWriteLoadProportionForNode(RoutingNode node) {
         final String nodeId = node.nodeId();
         final Double cached = nodeMaxShardWriteLoadProportionCache.get(nodeId);
         if (cached != null) {

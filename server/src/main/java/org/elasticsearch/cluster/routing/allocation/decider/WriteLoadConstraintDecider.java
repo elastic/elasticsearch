@@ -214,7 +214,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             // check that the threshold comparison is enabled (not 0.0) before computing the maxShardWriteLoadProportion
             final double maxShardWriteLoadProportionCalculated = maxShardWriteLoadThreshold == 0.0
                 ? Double.NaN
-                : allocation.nodeMaxShardWriteLoadProportion(node);
+                : allocation.maxShardWriteLoadProportionForNode(node);
             if (maxShardWriteLoadThreshold == 0.0
                 || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {

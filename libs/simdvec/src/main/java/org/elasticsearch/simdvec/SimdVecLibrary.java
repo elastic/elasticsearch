@@ -142,19 +142,10 @@ public abstract class SimdVecLibrary {
 
     /** Whether the host CPU/OS/JDK combination can run the native vector library. */
     public static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 22 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
-    }
-
-    /** Returns true iff the OS is Linux and the architecture is amd64 (the OS we currently support for x64). */
-    private static boolean isLinuxAmd64() {
-        String name = System.getProperty("os.name");
-        return name.startsWith("Linux") && System.getProperty("os.arch").equals("amd64");
-    }
-
-    /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
-    private static boolean isMacOrLinuxAarch64() {
-        String name = System.getProperty("os.name");
-        return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
+        var supportedPlatform = Platform.current().equals(Platform.DARWIN_AARCH64)
+            || Platform.current().equals(Platform.LINUX_AARCH64)
+            || Platform.current().equals(Platform.LINUX_X64);
+        return Runtime.version().feature() >= 22 && supportedPlatform && checkEnableSystemProperty();
     }
 
     @SuppressForbidden(

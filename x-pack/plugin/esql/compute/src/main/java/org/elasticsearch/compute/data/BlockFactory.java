@@ -91,6 +91,16 @@ public class BlockFactory {
         return breaker;
     }
 
+    /**
+     * Returns the Arrow {@link BufferAllocator} bound to this factory. One root allocator per
+     * top-level factory; child factories share it. There is no per-query close hook
+     * ({@code BlockFactory} is not {@link org.elasticsearch.core.Releasable}).
+     *
+     * @deprecated Do not allocate storage-read buffers here. Those paths use heap {@code byte[]}
+     *             charged to {@link #breaker()}. This allocator remains for wrapping Arrow vectors
+     *             (compute ArrowBuf blocks, parquet-rs, Flight).
+     */
+    @Deprecated
     public BufferAllocator arrowAllocator() {
         // There's one root Arrow allocator per top-level block factory.
         // Ideally, we should have one child allocator per ESQL query to check buffer leaks at the end of each query, but there's no

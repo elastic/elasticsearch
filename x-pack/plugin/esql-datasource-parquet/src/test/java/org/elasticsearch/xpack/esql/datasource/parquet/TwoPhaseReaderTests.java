@@ -1360,7 +1360,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storage, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1387,7 +1387,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storage, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override

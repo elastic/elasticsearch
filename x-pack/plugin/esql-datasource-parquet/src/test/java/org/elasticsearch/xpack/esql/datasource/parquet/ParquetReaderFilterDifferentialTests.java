@@ -1006,7 +1006,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
         FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
         GroupReaderBuilder builder = new GroupReaderBuilder(
-            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), blockFactory.arrowAllocator())
+            new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes), blockFactory.breaker())
         );
         if (filterPredicate != null) {
             builder.withFilter(FilterCompat.get(filterPredicate));

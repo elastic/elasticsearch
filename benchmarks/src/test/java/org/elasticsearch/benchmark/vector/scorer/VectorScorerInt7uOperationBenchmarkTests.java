@@ -15,8 +15,8 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.AssumptionViolatedException;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
-import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
+import static org.elasticsearch.simdvec.ScalarOperations.dotProduct;
+import static org.elasticsearch.simdvec.ScalarOperations.squareDistance;
 
 public class VectorScorerInt7uOperationBenchmarkTests extends BenchmarkTest {
 

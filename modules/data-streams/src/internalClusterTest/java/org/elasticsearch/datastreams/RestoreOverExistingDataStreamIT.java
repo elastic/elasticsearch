@@ -346,7 +346,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
-     * {@code indicesToRestore} must exactly match the backing/failure-store indices that the target's own snapshot data stream
+     * {@code snapshotIndices} must exactly match the backing/failure-store indices that the target's own snapshot data stream
      * references: a caller that resolved too few (or too many) index entries has made a mistake that must be rejected up front, rather
      * than silently restoring an incomplete data stream or leaving orphaned indices behind.
      */
@@ -366,7 +366,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
                 restoreTarget.snapshotInfo(),
                 TEST_REQUEST_TIMEOUT,
                 UUIDs.randomBase64UUID(),
-                List.of(restoreTarget.withIndicesToRestore(Map.of()).target()),
+                List.of(restoreTarget.withSnapshotIndices(Map.of()).target()),
                 restoreTarget.snapshotDataStreamAliases(),
                 future
             )
@@ -377,7 +377,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
-     * Every {@code indicesToRestore} entry's key must match the name carried by its own {@link IndexId} and {@link IndexMetadata}: a
+     * Every {@code snapshotIndices} entry's key must match the name carried by its own {@link IndexId} and {@link IndexMetadata}: a
      * mismatch means the caller mixed up which repository identity and metadata belong to which index name, which must be rejected
      * rather than silently restoring the wrong index content under a given name.
      */
@@ -389,7 +389,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final RestoreTarget restoreTarget = resolveRestoreTarget();
 
         final Map.Entry<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> onlyEntry = restoreTarget.target()
-            .indicesToRestore()
+            .snapshotIndices()
             .entrySet()
             .iterator()
             .next();
@@ -408,7 +408,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
                 restoreTarget.snapshotInfo(),
                 TEST_REQUEST_TIMEOUT,
                 UUIDs.randomBase64UUID(),
-                List.of(restoreTarget.withIndicesToRestore(Map.of(onlyEntry.getKey(), mismatchedValue)).target()),
+                List.of(restoreTarget.withSnapshotIndices(Map.of(onlyEntry.getKey(), mismatchedValue)).target()),
                 restoreTarget.snapshotDataStreamAliases(),
                 future
             )
@@ -530,16 +530,16 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             return new RestoreTarget(
                 snapshot,
                 snapshotInfo,
-                new RestoreService.DataStreamRestoreTarget(destination, target.snapshotDataStream(), target.indicesToRestore()),
+                new RestoreService.DataStreamRestoreTarget(destination, target.snapshotDataStream(), target.snapshotIndices()),
                 snapshotDataStreamAliases
             );
         }
 
-        RestoreTarget withIndicesToRestore(Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> indicesToRestore) {
+        RestoreTarget withSnapshotIndices(Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> snapshotIndices) {
             return new RestoreTarget(
                 snapshot,
                 snapshotInfo,
-                new RestoreService.DataStreamRestoreTarget(target.destinationDataStream(), target.snapshotDataStream(), indicesToRestore),
+                new RestoreService.DataStreamRestoreTarget(target.destinationDataStream(), target.snapshotDataStream(), snapshotIndices),
                 snapshotDataStreamAliases
             );
         }
@@ -553,11 +553,11 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final Metadata snapshotGlobalMetadata = repository.getSnapshotGlobalMetadata(snapshotInfo.snapshotId(), false);
         final DataStream snapshotDataStream = snapshotGlobalMetadata.getProject(ProjectId.DEFAULT).dataStreams().get(DATA_STREAM_NAME);
 
-        final Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> indicesToRestore = new HashMap<>();
+        final Map<String, RestoreService.DataStreamRestoreTarget.SnapshotIndex> snapshotIndices = new HashMap<>();
         for (Index index : Stream.concat(snapshotDataStream.getIndices().stream(), snapshotDataStream.getFailureIndices().stream())
             .toList()) {
             final IndexId indexId = repositoryData.resolveIndexId(index.getName());
-            indicesToRestore.put(
+            snapshotIndices.put(
                 index.getName(),
                 new RestoreService.DataStreamRestoreTarget.SnapshotIndex(
                     indexId,
@@ -569,7 +569,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final RestoreService.DataStreamRestoreTarget target = new RestoreService.DataStreamRestoreTarget(
             currentDataStream(),
             snapshotDataStream,
-            indicesToRestore
+            snapshotIndices
         );
         return new RestoreTarget(snapshot, snapshotInfo, target, snapshotGlobalMetadata.getProject(ProjectId.DEFAULT).dataStreamAliases());
     }

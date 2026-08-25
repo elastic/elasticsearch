@@ -581,12 +581,12 @@ public final class RestoreService implements ClusterStateApplier {
      *                              stream to delete and restore over, resolved by the caller before submitting the guarded restore, so
      *                              that a data stream deleted and recreated under the same name is never silently adopted
      * @param snapshotDataStream    the data stream as recorded in the snapshot, to be restored under the same name
-     * @param indicesToRestore      every backing/failure-store index referenced by {@code snapshotDataStream}, keyed by name
+     * @param snapshotIndices       every backing/failure-store index referenced by {@code snapshotDataStream}, keyed by name
      */
     public record DataStreamRestoreTarget(
         DataStream destinationDataStream,
         DataStream snapshotDataStream,
-        Map<String, SnapshotIndex> indicesToRestore
+        Map<String, SnapshotIndex> snapshotIndices
     ) {
         /**
          * The repository-side identity and metadata of a single index within a snapshot, neither of which is derivable from the
@@ -644,7 +644,7 @@ public final class RestoreService implements ClusterStateApplier {
         for (DataStreamRestoreTarget target : targets) {
             guardedDataStreamTargets.put(target.destinationDataStream().getName(), target);
             dataStreamsToRestore.add(target.snapshotDataStream());
-            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.indicesToRestore().entrySet()) {
+            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.snapshotIndices().entrySet()) {
                 indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
                 // mirrors the equivalent step in #restoreSnapshot, right after reading each IndexMetadata from the repository
                 snapshotProjectBuilder.put(indexMetadataRestoreTransformer.updateIndexMetadata(entry.getValue().metadata()), false);
@@ -725,7 +725,7 @@ public final class RestoreService implements ClusterStateApplier {
                 target.snapshotDataStream().getIndices().stream(),
                 target.snapshotDataStream().getFailureIndices().stream()
             ).map(Index::getName).collect(Collectors.toSet());
-            if (target.indicesToRestore().keySet().equals(expectedIndexNames) == false) {
+            if (target.snapshotIndices().keySet().equals(expectedIndexNames) == false) {
                 throw new SnapshotRestoreException(
                     snapshot,
                     "cannot restore data stream ["
@@ -733,7 +733,7 @@ public final class RestoreService implements ClusterStateApplier {
                         + "] because the supplied indices to restore do not exactly match its backing and failure-store indices"
                 );
             }
-            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.indicesToRestore().entrySet()) {
+            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.snapshotIndices().entrySet()) {
                 final DataStreamRestoreTarget.SnapshotIndex snapshotIndex = entry.getValue();
                 if (entry.getKey().equals(snapshotIndex.indexId().getName()) == false
                     || entry.getKey().equals(snapshotIndex.metadata().getIndex().getName()) == false) {

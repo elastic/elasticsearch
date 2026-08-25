@@ -68,6 +68,53 @@ setup:
   - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
 
 ---
+"Restore over an open index with restore_over_open_index":
+
+  - requires:
+      cluster_features: ["indices.recovery.restore_over_open_index_recreates_index_service"]
+      reason: "restoring over an open index requires every node to support recreating the index service for the transition"
+
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      snapshot.create:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot_open
+        wait_for_completion: true
+        body:
+          indices: "test_index"
+          feature_states: ["none"]
+
+  - match: { snapshot.snapshot: test_snapshot_open }
+  - match: { snapshot.state : SUCCESS }
+
+  # note: unlike the other scenarios in this file, test_index is deliberately left open here
+  - do:
+      snapshot.restore:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot_open
+        wait_for_completion: true
+        body:
+          indices: "test_index"
+          restore_over_open_index: true
+
+  - do:
+      indices.recovery:
+        index: test_index
+
+  - match: { test_index.shards.0.type: SNAPSHOT }
+  - match: { test_index.shards.0.stage: DONE }
+
+  # the index was never closed, so it must still accept ordinary requests once the restore completes
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            match_all: {}
+
+---
 "Create a snapshot and then restore single index from it":
 
   - skip:

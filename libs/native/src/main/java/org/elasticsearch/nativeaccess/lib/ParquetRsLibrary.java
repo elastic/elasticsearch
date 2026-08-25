@@ -9,13 +9,43 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
+import org.elasticsearch.foreign.Function;
+import org.elasticsearch.foreign.LibrarySpecification;
+import org.elasticsearch.foreign.Platform;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
+
 /**
  * Low-level FFI interface to the Rust es_parquet_rs shared library for Parquet operations.
  */
-public interface ParquetRsLibrary {
+@LibrarySpecification(name = "es_parquet_rs", unavailableOn = { Platform.WINDOWS_X64, Platform.DARWIN_X64 })
+public abstract class ParquetRsLibrary {
+
+    private static final int ERROR_BUF_SIZE = 4096;
+
+    /** Raw binding for pqrs_last_error; use {@link #lastError()} instead. */
+    @Function("pqrs_last_error")
+    protected abstract int lastError(MemorySegment buf, int size);
 
     /** Returns the last error message from the native library, or null if none. */
-    String lastError();
+    public String lastError() {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buf = arena.allocate(ERROR_BUF_SIZE);
+            int len = lastError(buf, ERROR_BUF_SIZE);
+            if (len <= 0) {
+                return null;
+            }
+            return MemorySegmentAdapter.getString(buf, 0);
+        }
+    }
+
+    /** Raw binding for pqrs_get_statistics; use {@link #getStatistics(String, String)} instead. */
+    @Function("pqrs_get_statistics")
+    protected abstract int getStatistics(String path, String configJson, MemorySegment outRows, MemorySegment outBytes);
 
     /**
      * Reads Parquet file statistics.
@@ -23,7 +53,17 @@ public interface ParquetRsLibrary {
      * @param configJson optional JSON storage configuration, or null
      * @return a two-element array: [totalRows, totalBytes], or null on error
      */
-    long[] getStatistics(String path, String configJson);
+    public long[] getStatistics(String path, String configJson) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment outRows = arena.allocate(JAVA_LONG);
+            MemorySegment outBytes = arena.allocate(JAVA_LONG);
+            int rc = getStatistics(path, configJson, outRows, outBytes);
+            if (rc != 0) {
+                return null;
+            }
+            return new long[] { outRows.get(JAVA_LONG, 0), outBytes.get(JAVA_LONG, 0) };
+        }
+    }
 
     /**
      * Exports the Parquet file's Arrow schema via the Arrow C Data Interface.
@@ -33,5 +73,6 @@ public interface ParquetRsLibrary {
      * @param schemaAddr memory address of a pre-allocated ArrowSchema FFI struct
      * @return 0 on success, -1 on error (check {@link #lastError()})
      */
-    int getSchemaFFI(String path, String configJson, long schemaAddr);
+    @Function("pqrs_get_schema_ffi")
+    public abstract int getSchemaFFI(String path, String configJson, long schemaAddr);
 }

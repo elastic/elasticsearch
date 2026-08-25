@@ -11,28 +11,48 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assume.assumeTrue;
 
 public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
@@ -104,6 +124,57 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 
         DatafeedConfig retrievedDatafeed = getResponseHolder.get().build();
         assertThat(retrievedDatafeed.getProjectRouting(), equalTo(expectedProjectRouting));
+    }
+
+    public void testStartWithoutCredentialShouldProcessOriginData() throws Exception {
+        String jobId = "job_no_credential";
+        String datafeedId = "datafeed_no_credential";
+
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
+
+        client().execute(
+            PutJobAction.INSTANCE,
+            new PutJobAction.Request(
+                new Job.Builder().setId(jobId)
+                    .setAnalysisLimits(new AnalysisLimits(ByteSizeValue.ofMb(2).getMb(), null))
+                    .setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("count", null).build())))
+                    .setDataDescription(new DataDescription.Builder().setTimeFormat(DataDescription.EPOCH_MS))
+            )
+        ).actionGet();
+
+        DatafeedConfig config = BaseMlIntegTestCase.createDatafeed(datafeedId, jobId, Collections.singletonList("data"));
+        client().execute(PutDatafeedAction.INSTANCE, new PutDatafeedAction.Request(config)).actionGet();
+
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(jobId)).actionGet();
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
+                .actionGet();
+            assertThat(statsResponse.getResponse().results().get(0).getState(), equalTo(JobState.OPENED));
+        });
+
+        long now = System.currentTimeMillis();
+        long weekAgo = now - 604800000L;
+        BaseMlIntegTestCase.indexDocs(client(), logger, "data", 100, weekAgo, now);
+
+        client().execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedId, 0L)).actionGet();
+
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Response statsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                new GetDatafeedsStatsAction.Request(datafeedId)
+            ).actionGet();
+            assertThat(statsResponse.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STARTED));
+        }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
+                .actionGet();
+            assertThat(statsResponse.getResponse().results().get(0).getDataCounts().getInputRecordCount(), greaterThan(0L));
+        });
+
+        client().execute(StopDatafeedAction.INSTANCE, new StopDatafeedAction.Request(datafeedId)).actionGet();
+        client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).actionGet();
     }
 
     private Map<String, String> createSecurityHeader() {

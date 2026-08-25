@@ -62,6 +62,16 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         trackGroupId(groupId);
     }
 
+    /** Returns the raw backing array for use by partitioned-split infrastructure. */
+    LongArray rawValues() {
+        return values;
+    }
+
+    /** Resets all accumulated state to initial values. */
+    void clear() {
+        values.clear();
+    }
+
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {

@@ -24,6 +24,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -90,6 +91,10 @@ import java.util.List;
  * keep encoding consistent across all data pages of a column chunk), the partial ordinal
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
+ *
+ * <p>PLAIN BINARY values alias {@code PrefetchedPageReader}'s reused decompress dest, so
+ * KEYWORD/TEXT/UUID copy into the ESQL block via {@code appendBytesRef} before the next
+ * {@code ensurePage()}.
  */
 final class PageColumnReader implements Releasable {
 
@@ -1229,82 +1234,149 @@ final class PageColumnReader implements Releasable {
             return readBytesBatchAsOrdinals(maxRows, blockFactory);
         }
         if (maxDefLevel == 0) {
-            BytesRef[] allValues = new BytesRef[maxRows];
-            int produced = 0;
-            int remaining = maxRows;
+            return readRequiredBytesBatch(maxRows, blockFactory, isUuid);
+        }
+        return readOptionalBytesBatch(maxRows, blockFactory, isUuid);
+    }
+
+    private Block readRequiredBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        BytesRefBlock.Builder builder = null;
+        BytesRef constant = null;
+        int produced = 0;
+        int remaining = maxRows;
+        long firstPageBytes = -1L;
+        try {
             while (remaining > 0 && ensurePage()) {
                 int fromPage = Math.min(remaining, availableInPage());
                 BytesRef[] vals = readBinaryValues(fromPage);
-                for (int i = 0; i < fromPage; i++) {
-                    allValues[produced + i] = isUuid
-                        ? new BytesRef(ParquetColumnDecoding.formatUuid(vals[i].bytes, vals[i].offset, vals[i].length))
-                        : Utf8Sanitizer.sanitize(vals[i]);
+                materializeBinaries(vals, fromPage, isUuid);
+                if (fromPage > 0 && firstPageBytes < 0) {
+                    firstPageBytes = totalBytes(vals, fromPage);
+                }
+                if (builder != null) {
+                    appendAll(builder, vals, fromPage);
+                } else if (fromPage > 0) {
+                    if (constant == null) {
+                        if (allEqualTo(vals, fromPage, vals[0])) {
+                            constant = BytesRef.deepCopyOf(vals[0]);
+                        } else {
+                            builder = blockFactory.newBytesRefBlockBuilder(maxRows, firstPageBytes);
+                            appendAll(builder, vals, fromPage);
+                        }
+                    } else if (allEqualTo(vals, fromPage, constant) == false) {
+                        builder = blockFactory.newBytesRefBlockBuilder(
+                            maxRows,
+                            (long) produced * constant.length + totalBytes(vals, fromPage)
+                        );
+                        appendConstant(builder, constant, produced);
+                        appendAll(builder, vals, fromPage);
+                        constant = null;
+                    }
                 }
                 advancePosition(fromPage);
                 produced += fromPage;
                 remaining -= fromPage;
             }
-            Block constant = ConstantBlockDetection.tryConstantBytesRef(allValues, produced, blockFactory);
-            if (constant != null) {
-                return constant;
+            if (builder != null) {
+                return builder.build();
             }
-            return buildBytesRefBlock(allValues, null, produced, blockFactory);
+            return blockFactory.newConstantBytesRefBlockWith(constant == null ? new BytesRef() : constant, produced);
+        } finally {
+            Releasables.closeExpectNoException(builder);
         }
-        BytesRef[] allValues = new BytesRef[maxRows];
-        WordMask allNulls = buffers.nullsMask(maxRows);
-        int produced = 0;
-        int remaining = maxRows;
-        while (remaining > 0 && ensurePage()) {
-            int fromPage = Math.min(remaining, availableInPage());
-            WordMask pageNulls = buffers.valueSelection(fromPage);
-            int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
-            BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
-            int valIdx = 0;
-            for (int i = 0; i < fromPage; i++) {
-                if (pageNulls.get(i)) {
-                    allNulls.set(produced + i);
-                } else if (isUuid) {
-                    BytesRef uuidRef = vals[valIdx++];
-                    allValues[produced + i] = new BytesRef(ParquetColumnDecoding.formatUuid(uuidRef.bytes, uuidRef.offset, uuidRef.length));
-                } else {
-                    allValues[produced + i] = Utf8Sanitizer.sanitize(vals[valIdx++]);
-                }
-            }
-            advancePosition(fromPage);
-            produced += fromPage;
-            remaining -= fromPage;
-        }
-        if (allNulls.isEmpty() == false) {
-            Block allNull = ConstantBlockDetection.tryAllNull(allNulls.toBitSet(), produced, blockFactory);
-            if (allNull != null) {
-                return allNull;
-            }
-        }
-        return buildBytesRefBlock(allValues, allNulls, produced, blockFactory);
     }
 
-    /**
-     * Builds a {@code BytesRefBlock} from already-materialized values, pre-sizing the byte storage to
-     * the exact total byte size so the backing {@code BytesRefArray} does not regrow as values are
-     * appended. {@code nulls} may be {@code null} when no position is null; otherwise a set bit marks a
-     * null position that is skipped when sizing and appended as null.
-     */
-    private static Block buildBytesRefBlock(BytesRef[] values, WordMask nulls, int count, BlockFactory blockFactory) {
-        long byteHint = 0;
+    private Block readOptionalBytesBatch(int maxRows, BlockFactory blockFactory, boolean isUuid) {
+        BytesRefBlock.Builder builder = null;
+        int produced = 0;
+        int remaining = maxRows;
+        long firstPageBytes = -1L;
+        try {
+            while (remaining > 0 && ensurePage()) {
+                int fromPage = Math.min(remaining, availableInPage());
+                WordMask pageNulls = buffers.valueSelection(fromPage);
+                int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                if (vals != null) {
+                    materializeBinaries(vals, nonNull, isUuid);
+                }
+                if (firstPageBytes < 0 && nonNull > 0) {
+                    firstPageBytes = totalBytes(vals, nonNull);
+                }
+                if (builder != null) {
+                    appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                } else if (nonNull > 0) {
+                    builder = blockFactory.newBytesRefBlockBuilder(maxRows, firstPageBytes);
+                    for (int i = 0; i < produced; i++) {
+                        builder.appendNull();
+                    }
+                    appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                }
+                advancePosition(fromPage);
+                produced += fromPage;
+                remaining -= fromPage;
+            }
+            if (builder == null && produced > 0) {
+                return blockFactory.newConstantNullBlock(produced);
+            }
+            if (builder != null) {
+                return builder.build();
+            }
+            try (var empty = blockFactory.newBytesRefBlockBuilder(produced)) {
+                return empty.build();
+            }
+        } finally {
+            Releasables.closeExpectNoException(builder);
+        }
+    }
+
+    private static BytesRef materializeBinary(BytesRef raw, boolean isUuid) {
+        return isUuid ? new BytesRef(ParquetColumnDecoding.formatUuid(raw.bytes, raw.offset, raw.length)) : Utf8Sanitizer.sanitize(raw);
+    }
+
+    private static void materializeBinaries(BytesRef[] vals, int count, boolean isUuid) {
         for (int i = 0; i < count; i++) {
-            if (nulls == null || nulls.get(i) == false) {
-                byteHint += values[i].length;
+            vals[i] = materializeBinary(vals[i], isUuid);
+        }
+    }
+
+    private static long totalBytes(BytesRef[] vals, int count) {
+        long n = 0;
+        for (int i = 0; i < count; i++) {
+            n += vals[i].length;
+        }
+        return n;
+    }
+
+    private static boolean allEqualTo(BytesRef[] vals, int count, BytesRef expected) {
+        for (int i = 0; i < count; i++) {
+            if (expected.bytesEquals(vals[i]) == false) {
+                return false;
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(count, byteHint)) {
-            for (int i = 0; i < count; i++) {
-                if (nulls != null && nulls.get(i)) {
-                    builder.appendNull();
-                } else {
-                    builder.appendBytesRef(values[i]);
-                }
+        return true;
+    }
+
+    private static void appendAll(BytesRefBlock.Builder builder, BytesRef[] vals, int count) {
+        for (int i = 0; i < count; i++) {
+            builder.appendBytesRef(vals[i]);
+        }
+    }
+
+    private static void appendConstant(BytesRefBlock.Builder builder, BytesRef value, int times) {
+        for (int i = 0; i < times; i++) {
+            builder.appendBytesRef(value);
+        }
+    }
+
+    private static void appendNullableBinaries(BytesRefBlock.Builder builder, BytesRef[] vals, WordMask pageNulls, int fromPage) {
+        int valIdx = 0;
+        for (int i = 0; i < fromPage; i++) {
+            if (pageNulls.get(i)) {
+                builder.appendNull();
+            } else {
+                builder.appendBytesRef(vals[valIdx++]);
             }
-            return builder.build();
         }
     }
 
@@ -1470,53 +1542,89 @@ final class PageColumnReader implements Releasable {
     private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {
         BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
         int total = produced + remaining;
-        BytesRef[] all = new BytesRef[total];
         WordMask combinedNulls = nulls;
-        for (int i = 0; i < produced; i++) {
-            if (combinedNulls != null && combinedNulls.get(i)) {
-                continue;
-            }
-            all[i] = dict[ordinals[i]];
-        }
-        int filled = produced;
-        while (remaining > 0 && ensurePage()) {
-            int fromPage = Math.min(remaining, availableInPage());
-            if (combinedNulls == null) {
-                BytesRef[] vals = readBinaryValues(fromPage);
-                System.arraycopy(vals, 0, all, filled, fromPage);
-            } else {
-                WordMask pageNulls = buffers.valueSelection(fromPage);
-                int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
-                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
-                int valIdx = 0;
-                for (int i = 0; i < fromPage; i++) {
-                    if (pageNulls.get(i)) {
-                        combinedNulls.set(filled + i);
-                    } else {
-                        all[filled + i] = vals[valIdx++];
+        BytesRefBlock.Builder builder = null;
+        try {
+            boolean prefixHasValue = false;
+            if (produced > 0) {
+                if (combinedNulls == null) {
+                    prefixHasValue = true;
+                } else {
+                    for (int i = 0; i < produced; i++) {
+                        if (combinedNulls.get(i) == false) {
+                            prefixHasValue = true;
+                            break;
+                        }
                     }
                 }
             }
-            advancePosition(fromPage);
-            filled += fromPage;
-            remaining -= fromPage;
+            if (prefixHasValue) {
+                builder = blockFactory.newBytesRefBlockBuilder(total);
+                appendDictPrefix(builder, dict, ordinals, combinedNulls, produced);
+            }
+            int filled = produced;
+            while (remaining > 0 && ensurePage()) {
+                int fromPage = Math.min(remaining, availableInPage());
+                if (combinedNulls == null) {
+                    BytesRef[] vals = readBinaryValues(fromPage);
+                    materializeBinaries(vals, fromPage, false);
+                    if (builder == null) {
+                        builder = blockFactory.newBytesRefBlockBuilder(total, totalBytes(vals, fromPage));
+                    }
+                    appendAll(builder, vals, fromPage);
+                } else {
+                    WordMask pageNulls = buffers.valueSelection(fromPage);
+                    int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+                    BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                    if (vals != null) {
+                        materializeBinaries(vals, nonNull, false);
+                    }
+                    for (int i = 0; i < fromPage; i++) {
+                        if (pageNulls.get(i)) {
+                            combinedNulls.set(filled + i);
+                        }
+                    }
+                    if (builder == null) {
+                        if (nonNull > 0) {
+                            builder = blockFactory.newBytesRefBlockBuilder(total, totalBytes(vals, nonNull));
+                            for (int i = 0; i < filled; i++) {
+                                builder.appendNull();
+                            }
+                            appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                        }
+                    } else {
+                        appendNullableBinaries(builder, vals, pageNulls, fromPage);
+                    }
+                }
+                advancePosition(fromPage);
+                filled += fromPage;
+                remaining -= fromPage;
+            }
+            if (combinedNulls != null && combinedNulls.isEmpty() == false) {
+                Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
+                if (allNull != null) {
+                    return allNull;
+                }
+            }
+            if (builder != null) {
+                return builder.build();
+            }
+            try (var empty = blockFactory.newBytesRefBlockBuilder(filled)) {
+                return empty.build();
+            }
+        } finally {
+            Releasables.closeExpectNoException(builder);
         }
-        if (combinedNulls != null && combinedNulls.isEmpty() == false) {
-            Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
-            if (allNull != null) {
-                return allNull;
+    }
+
+    private static void appendDictPrefix(BytesRefBlock.Builder builder, BytesRef[] dict, int[] ordinals, WordMask nulls, int produced) {
+        for (int i = 0; i < produced; i++) {
+            if (nulls != null && nulls.get(i)) {
+                builder.appendNull();
+            } else {
+                builder.appendBytesRef(Utf8Sanitizer.sanitize(dict[ordinals[i]]));
             }
         }
-        // KEYWORD materialized fallback: {@code all} mixes raw dictionary entries with scalar values read
-        // after the chunk fell off dictionary encoding (this path is never taken for UUID, see readBytesBatch),
-        // so sanitize each position once before building. sanitize returns the input unchanged when it is
-        // already well-formed, so shared dictionary entries are not copied or mutated.
-        for (int i = 0; i < filled; i++) {
-            if (combinedNulls == null || combinedNulls.get(i) == false) {
-                all[i] = Utf8Sanitizer.sanitize(all[i]);
-            }
-        }
-        return buildBytesRefBlock(all, combinedNulls, filled, blockFactory);
     }
 
     // --- Datetime ---

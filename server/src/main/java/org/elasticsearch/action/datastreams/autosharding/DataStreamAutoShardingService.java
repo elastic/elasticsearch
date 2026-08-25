@@ -14,9 +14,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -387,7 +389,7 @@ public class DataStreamAutoShardingService {
             return NOT_APPLICABLE_RESULT;
         }
 
-        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+        if (isLookupIndexMode(state.metadata(), dataStream)) {
             logger.debug("Data stream [{}] has indexing mode LOOKUP; auto-sharding is not applicable.", dataStream.getName());
             return NOT_APPLICABLE_RESULT;
         }
@@ -423,6 +425,29 @@ public class DataStreamAutoShardingService {
         Decision decision = innerCalculate(state.metadata(), dataStream, inputs);
         decisionLogger.accept(decision);
         return decision.result();
+    }
+
+    /**
+     * Returns true when the effective index mode for the data stream is LOOKUP, consulting the matching composable
+     * index template when the stored {@code indexMode} field is stale or null.
+     *
+     * When no matching v2 template exists (e.g. system data streams, or a data stream restored from a snapshot
+     * without its template), the method falls back exclusively to the stored field.
+     */
+    private static boolean isLookupIndexMode(ProjectMetadata project, DataStream dataStream) {
+        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+            return true;
+        }
+        String templateName = MetadataIndexTemplateService.findV2Template(project, dataStream.getName(), false);
+        if (templateName == null) {
+            return false;
+        }
+        ComposableIndexTemplate template = project.templatesV2().get(templateName);
+        if (template == null) {
+            return false;
+        }
+        ComposableIndexTemplate templateWithSettings = template.mergeSettings(dataStream.getSettings());
+        return project.retrieveIndexModeFromTemplate(templateWithSettings) == IndexMode.LOOKUP;
     }
 
     private static double sumLoadMetrics(IndexStats stats, Function<IndexingStats.Stats, Double> loadMetric) {

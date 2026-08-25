@@ -1058,14 +1058,103 @@ Disconnected
 limitByCategorizeOnNull
 required_capability: categorize_in_limit_by
 
-// When the CATEGORIZE field is null, all rows are assigned NULL_ORD=0 (the same group).
-// LIMIT 2 BY the single null group keeps 2 of the 7 rows.
+// When the CATEGORIZE field is null, all rows are assigned NULL_ORD=0 (the same group).                                                                                                                              
+// LIMIT 2 BY the single null group keeps 2 of the 7 rows.  
 FROM sample_data
-  | EVAL x = null
+  | EVAL x = null::keyword
   | LIMIT 2 BY CATEGORIZE(x)
   | STATS count = COUNT()
 ;
 
 count:long
 2
+;
+
+limitByCategorizeMultipleGroupings
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// Two CATEGORIZE groupings on the same underlying text produce the same three category groups.
+// LIMIT 1 keeps one row per (cat1, cat2) pair — three pairs total.
+FROM sample_data
+  | EVAL msg2 = message
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(message), CATEGORIZE(msg2)
+  | STATS count = COUNT()
+;
+
+count:long
+3
+;
+
+sortLimitByCategorizeMultipleGroupings
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// LIMIT 2 with DESC sort keeps the two most-recent rows per (cat1, cat2) pair.
+// sample_data: 3 "Connected to X" rows → 2 kept; 3 "Connection error" → 2 kept; 1 "Disconnected" → 1 kept.
+FROM sample_data
+  | EVAL msg2 = message
+  | SORT @timestamp DESC
+  | LIMIT 1000
+  | LIMIT 2 BY CATEGORIZE(message), CATEGORIZE(msg2)
+  | STATS count = COUNT()
+;
+
+count:long
+5
+;
+
+limitByCategorizeMultipleGroupingsDifferentFields
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// Two CATEGORIZE groupings on genuinely independent text fields.
+// CATEGORIZE(message): 3 categories — Connected/Error/Disconnected.
+// CATEGORIZE(source) is derived from client_ip and produces 3 categories:
+//   172.21.3.15 (4 rows: 1 Connected + 3 Error)   → "Primary datacenter node failure"
+//   172.21.0.5  (1 row:  Disconnected)             → "Secondary datacenter node status"
+//   172.21.2.113 + 172.21.2.162 (2 rows: Connected) → "Remote branch office connection"
+// Cross-product: (Connected+Primary), (Error+Primary), (Disconnected+Secondary), (Connected+Remote) → 4 groups.
+// LIMIT 1 ASC keeps 1 row per group → count=4.
+FROM sample_data
+  | EVAL source = CASE(
+      client_ip == "172.21.3.15", "Primary datacenter node failure",
+      client_ip == "172.21.0.5", "Secondary datacenter node status",
+      "Remote branch office connection"
+    )
+  | SORT @timestamp ASC
+  | LIMIT 1000
+  | LIMIT 1 BY CATEGORIZE(message), CATEGORIZE(source)
+  | STATS count = COUNT()
+;
+
+count:long
+4
+;
+
+sortLimitByCategorizeMultipleGroupingsDifferentFields
+skip_flattened_rewrite: categorize_on_flattened_unsupported
+required_capability: categorize_in_limit_by
+
+// Same cross-product as above but LIMIT 2 DESC:
+//   (Connected+Primary):   1 row → keep 1
+//   (Error+Primary):       3 rows → keep 2
+//   (Disconnected+Secondary): 1 row → keep 1
+//   (Connected+Remote):    2 rows → keep 2
+// Total: 1+2+1+2 = 6.
+FROM sample_data
+  | EVAL source = CASE(
+      client_ip == "172.21.3.15", "Primary datacenter node failure",
+      client_ip == "172.21.0.5", "Secondary datacenter node status",
+      "Remote branch office connection"
+    )
+  | SORT @timestamp DESC
+  | LIMIT 2 BY CATEGORIZE(message), CATEGORIZE(source)
+  | STATS count = COUNT()
+;
+
+count:long
+6
 ;

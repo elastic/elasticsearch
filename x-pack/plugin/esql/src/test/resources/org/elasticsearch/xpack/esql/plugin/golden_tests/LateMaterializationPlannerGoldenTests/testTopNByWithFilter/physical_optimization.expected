@@ -1,6 +1,6 @@
 ProjectExec[[hire_date{f}#0, salary{f}#1, languages{f}#2, emp_no{f}#3]]
 \_LimitExec[1000[INTEGER],null]
-  \_TopNByExec[[Order[hire_date{f}#0,ASC,LAST]],5[INTEGER],[languages{f}#2],null]
+  \_TopNByExec[[Order[hire_date{f}#0,ASC,LAST]],5[INTEGER],[languages{f}#2],null,SINGLE]
     \_ExchangeExec[[emp_no{f}#3, hire_date{f}#0, languages{f}#2, salary{f}#1],false]
       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
 Project[[emp_no{f}#3, hire_date{f}#0, languages{f}#2, salary{f}#1]]

@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
@@ -69,12 +68,7 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
 
         @Override
         public CategorizeStateMergeOperator get(DriverContext driverContext) {
-            return new CategorizeStateMergeOperator(
-                catIdChannel,
-                stateChannel,
-                categorizeDef,
-                driverContext.blockFactory()
-            );
+            return new CategorizeStateMergeOperator(catIdChannel, stateChannel, categorizeDef, driverContext.blockFactory());
         }
 
         @Override
@@ -90,12 +84,7 @@ public class CategorizeStateMergeOperator extends AbstractPageMappingOperator {
     private final TokenListCategorizer.CloseableTokenListCategorizer globalCategorizer;
     private final BlockFactory blockFactory;
 
-    private CategorizeStateMergeOperator(
-        int catIdChannel,
-        int stateChannel,
-        CategorizeDef categorizeDef,
-        BlockFactory blockFactory
-    ) {
+    private CategorizeStateMergeOperator(int catIdChannel, int stateChannel, CategorizeDef categorizeDef, BlockFactory blockFactory) {
         this.catIdChannel = catIdChannel;
         this.stateChannel = stateChannel;
         this.blockFactory = blockFactory;

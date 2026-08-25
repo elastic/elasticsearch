@@ -1276,11 +1276,13 @@ public class LocalExecutionPlanner {
     /**
      * FINAL mode (coordinator): merge per-shard states, remap cat IDs, apply global TOP-N BY limit.
      * <p>
-     * Data nodes append cat_id and state channels beyond the base exchange output, one pair per
-     * CATEGORIZE grouping. These extra channels are NOT declared in the exchange output (they are
-     * physical-only), so the layout only tracks the base channels. Channel positions are therefore
-     * computed positionally: after each merge the state channel is dropped, so the k-th pair
-     * (0-indexed) is at channels (channelsBefore + k) and (channelsBefore + k + 1).
+     * Data nodes append extra channels beyond the base exchange output in this order:
+     * {@code [base | catId0 .. catId(N-1) | state0 .. state(N-1)]}
+     * All catId channels come first, then all state channels — NOT interleaved. These extra channels
+     * are NOT declared in the exchange output (they are physical-only), so the layout only tracks
+     * the base channels. For pair k (0-indexed): catIdChannel = channelsBefore + k; stateChannel =
+     * channelsBefore + N (constant — after each merge drops its state, the next state shifts down
+     * to the same fixed position).
      */
     private PhysicalOperation planTopNByFinal(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNByExec.estimatedRowSize();
@@ -1289,24 +1291,24 @@ public class LocalExecutionPlanner {
         // Base channels only in the layout; cat_id/state are extra runtime-only channels.
         int channelsBefore = source.layout.numberOfChannels();
 
+        // INITIAL emits [base | catId0..catId(N-1) | state0..state(N-1)], NOT interleaved.
+        // All catIds come first, then all states. After each merge drops its state channel,
+        // the next state shifts down by one but always lands at channelsBefore + numCatPairs.
+        int numCatPairs = (int) topNByExec.groupings().stream().filter(g -> Alias.unwrap(g) instanceof Categorize).count();
+
         List<Integer> groupKeys = new ArrayList<>(topNByExec.groupings().size());
         int catPairIndex = 0;
         for (Expression grouping : topNByExec.groupings()) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                // After (catPairIndex) prior merges have each dropped a state channel,
-                // the current pair sits at channelsBefore + catPairIndex (cat_id)
-                // and channelsBefore + catPairIndex + 1 (state).
                 int catIdChannel = channelsBefore + catPairIndex;
-                int stateChannel = catIdChannel + 1;
+                // States follow all catIds; after catPairIndex merges each dropped one state,
+                // the next state is always at channelsBefore + numCatPairs.
+                int stateChannel = channelsBefore + numCatPairs;
 
                 // After merge: state dropped, cat_id stays → extend layout by one cat_id channel.
                 Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
                 source = source.with(
-                    new CategorizeStateMergeOperator.Factory(
-                        catIdChannel,
-                        stateChannel,
-                        categorize.categorizeDef()
-                    ),
+                    new CategorizeStateMergeOperator.Factory(catIdChannel, stateChannel, categorize.categorizeDef()),
                     mergedLayout
                 );
                 groupKeys.add(catIdChannel);
@@ -2490,11 +2492,13 @@ public class LocalExecutionPlanner {
     /**
      * FINAL mode (coordinator): merge per-shard states, remap cat IDs, apply global LIMIT BY.
      * <p>
-     * Data nodes append cat_id and state channels beyond the base exchange output, one pair per
-     * CATEGORIZE grouping. These extra channels are NOT declared in the exchange output (they are
-     * physical-only), so the layout only tracks the base channels. Channel positions are therefore
-     * computed positionally: after each merge the state channel is dropped, so the k-th pair
-     * (0-indexed) is at channels (channelsBefore + k) and (channelsBefore + k + 1).
+     * Data nodes append extra channels beyond the base exchange output in this order:
+     * {@code [base | catId0 .. catId(N-1) | state0 .. state(N-1)]}
+     * All catId channels come first, then all state channels — NOT interleaved. These extra channels
+     * are NOT declared in the exchange output (they are physical-only), so the layout only tracks
+     * the base channels. For pair k (0-indexed): catIdChannel = channelsBefore + k; stateChannel =
+     * channelsBefore + N (constant — after each merge drops its state, the next state shifts down
+     * to the same fixed position).
      */
     private PhysicalOperation planLimitByFinal(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitBy.child(), context);
@@ -2503,24 +2507,24 @@ public class LocalExecutionPlanner {
         // Base channels only in the layout; cat_id/state are extra runtime-only channels.
         int channelsBefore = source.layout.numberOfChannels();
 
+        // INITIAL emits [base | catId0..catId(N-1) | state0..state(N-1)], NOT interleaved.
+        // All catIds come first, then all states. After each merge drops its state channel,
+        // the next state shifts down by one but always lands at channelsBefore + numCatPairs.
+        int numCatPairs = (int) limitBy.groupings().stream().filter(g -> Alias.unwrap(g) instanceof Categorize).count();
+
         List<Integer> groupKeys = new ArrayList<>(limitBy.groupings().size());
         int catPairIndex = 0;
         for (Expression grouping : limitBy.groupings()) {
             if (Alias.unwrap(grouping) instanceof Categorize categorize) {
-                // After (catPairIndex) prior merges have each dropped a state channel,
-                // the current pair sits at channelsBefore + catPairIndex (cat_id)
-                // and channelsBefore + catPairIndex + 1 (state).
                 int catIdChannel = channelsBefore + catPairIndex;
-                int stateChannel = catIdChannel + 1;
+                // States follow all catIds; after catPairIndex merges each dropped one state,
+                // the next state is always at channelsBefore + numCatPairs.
+                int stateChannel = channelsBefore + numCatPairs;
 
                 // After merge: state dropped, cat_id stays → extend layout by one cat_id channel.
                 Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
                 source = source.with(
-                    new CategorizeStateMergeOperator.Factory(
-                        catIdChannel,
-                        stateChannel,
-                        categorize.categorizeDef()
-                    ),
+                    new CategorizeStateMergeOperator.Factory(catIdChannel, stateChannel, categorize.categorizeDef()),
                     mergedLayout
                 );
                 groupKeys.add(catIdChannel);

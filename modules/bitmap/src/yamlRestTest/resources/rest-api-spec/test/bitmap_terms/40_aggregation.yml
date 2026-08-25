@@ -1,5 +1,5 @@
 ---
-"roaring_bitmap aggregation returns a portable bitmap and normal total hits":
+"roaring_bitmap aggregation on an integer field returns a portable bitmap and normal total hits":
 
   - do:
       indices.create:
@@ -35,7 +35,140 @@
 
   - match: { hits.total.value: 3 }
   - match: { hits.total.relation: "eq" }
-  # The YAML test runner decodes JSON binary values back to bytes. The unit test verifies those bytes
-  # are the standard portable 32-bit Roaring serialization for the distinct set {5, 10}.
-  - is_true: aggregations.ids.value
+  # portable 32-bit Roaring serialization of the distinct set {5, 10}
+  - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUACgA=" }
   - is_false: aggregations.ids.cardinality
+
+---
+"roaring_bitmap aggregation on a long field returns a portable bitmap":
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_long
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_long
+        body:
+          - '{"index": {}}'
+          - '{"id": 1}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776}'
+          - '{"index": {}}'
+          - '{"id": 9223372036854775807}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776}'
+
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_long
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.total.relation: "eq" }
+  # portable 64-bit Roaring serialization of the distinct set {1, 2^40, Long.MAX_VALUE}
+  - match: { aggregations.ids.value: "AwAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEAAAEAADowAAABAAAAAAAAABAAAAAAAP///386MAAAAQAAAP//AAAQAAAA//8=" }
+
+---
+"roaring_bitmap aggregation on an integer field only sees documents matching a filter":
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          - '{"index": {}}'
+          - '{"id": 5, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 10, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 15, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 20, "category": "even"}'
+
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            term:
+              category: "odd"
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  # portable 32-bit Roaring serialization of the distinct set {5, 15} -- only the "odd" docs
+  - match: { aggregations.ids.value: "OjAAAAEAAAAAAAEAEAAAAAUADwA=" }
+
+---
+"roaring_bitmap aggregation on a long field only sees documents matching a filter":
+
+  - do:
+      indices.create:
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              category:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          - '{"index": {}}'
+          - '{"id": 1, "category": "odd"}'
+          - '{"index": {}}'
+          - '{"id": 1099511627776, "category": "even"}'
+          - '{"index": {}}'
+          - '{"id": 9223372036854775807, "category": "odd"}'
+
+  - do:
+      search:
+        index: test_roaring_bitmap_aggregation_long_filtered
+        body:
+          size: 0
+          track_total_hits: true
+          query:
+            term:
+              category: "odd"
+          aggs:
+            ids:
+              roaring_bitmap:
+                field: id
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: "eq" }
+  # portable 64-bit Roaring serialization of the distinct set {1, Long.MAX_VALUE} -- only the "odd" docs
+  - match: { aggregations.ids.value: "AgAAAAAAAAAAAAAAOjAAAAEAAAAAAAAAEAAAAAEA////fzowAAABAAAA//8AABAAAAD//w==" }

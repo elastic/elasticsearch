@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -224,6 +225,43 @@ public interface GroupingAggregatorFunction extends Releasable {
     default IntVector selectTopN(IntVector selected, int limit, boolean asc) {
         selected.incRef();
         return selected;
+    }
+
+    /**
+     * Returns {@code true} if this aggregator supports the partitioned split protocol used by
+     * {@code SinglePassPartitionedAggregatorV2}. When {@code false}, calls to {@link #clear()},
+     * {@link #newSplitter()}, and {@link #combinePartition} throw {@link UnsupportedOperationException}.
+     */
+    default boolean supportsPartitionedSplit() {
+        return false;
+    }
+
+    /**
+     * Resets all accumulated state to the initial values, as if no rows had been added.
+     * Only valid when {@link #supportsPartitionedSplit()} returns {@code true}.
+     */
+    default void clear() {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support clear");
+    }
+
+    /**
+     * Creates a new {@link PartitionedHashTable.AggSplitter} that scatters this aggregator's
+     * state into per-partition arrays when {@link PartitionedHashTable#partition} is called.
+     * Only valid when {@link #supportsPartitionedSplit()} returns {@code true}.
+     */
+    default PartitionedHashTable.AggSplitter newSplitter() {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support partitioned split");
+    }
+
+    /**
+     * Merges a single partition of {@code source} into this aggregator's state. The
+     * {@code dstIds[offset..offset+length)} entries are the canonical group IDs in this
+     * aggregator corresponding positionally to the source partition's entries (as returned by
+     * {@link PartitionedHashTable#mergeKeys}).
+     * Only valid when {@link #supportsPartitionedSplit()} returns {@code true}.
+     */
+    default void combinePartition(PartitionedHashTable.PartitionedAgg source, int partition, int[] dstIds, int offset, int length) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support partitioned combine");
     }
 
     /** The number of blocks used by intermediate state. */

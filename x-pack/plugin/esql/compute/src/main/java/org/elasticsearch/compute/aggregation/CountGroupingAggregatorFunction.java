@@ -378,14 +378,22 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return sb.toString();
     }
 
+    @Override
+    public boolean supportsPartitionedSplit() {
+        return true;
+    }
+
+    @Override
     public void clear() {
         counts.clear();
     }
 
+    @Override
     public PartitionedHashTable.AggSplitter newSplitter() {
         return new CountAggSplitter();
     }
 
+    @Override
     public void combinePartition(PartitionedHashTable.PartitionedAgg source, int partition, int[] dstIds, int offset, int length) {
         final long[] sourceCounts = ((CountPartitionedAgg) source).subs[partition];
         int end = offset + length;

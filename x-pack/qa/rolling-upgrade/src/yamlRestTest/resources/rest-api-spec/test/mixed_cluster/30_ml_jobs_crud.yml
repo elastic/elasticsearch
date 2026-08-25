@@ -92,6 +92,10 @@
   - skip:
       features: allowed_warnings
 
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable ML job state — must run exactly once"
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-job

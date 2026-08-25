@@ -5144,7 +5144,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings()
-            // Test framework randomly sets thixs to 0, but we rely on retries to handle target shards still being in recovery
+            // Test framework randomly sets this to 0, but we rely on retries to handle target shards still being in recovery
             // when we start re-splitting bulk requests.
             .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.

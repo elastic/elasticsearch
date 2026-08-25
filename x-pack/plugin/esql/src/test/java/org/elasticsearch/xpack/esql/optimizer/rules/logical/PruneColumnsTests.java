@@ -3091,15 +3091,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     private static EsRelation timeSeriesRelation(List<Attribute> attributes) {
-        return new EsRelation(
-            EMPTY,
-            "k8s",
-            IndexMode.TIME_SERIES,
-            Map.of(),
-            Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
-            attributes
-        );
+        return new EsRelation(EMPTY, "k8s", IndexMode.TIME_SERIES, Map.of(), Map.of(), Map.of("k8s", IndexMode.TIME_SERIES), attributes);
     }
 
     private static FieldAttribute timestampField() {

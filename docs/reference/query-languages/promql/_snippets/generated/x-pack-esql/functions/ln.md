@@ -21,7 +21,3 @@
 ```
 ln(memory_usage_bytes)
 ```
-
-**Differences from Prometheus**
-
-For an input of zero or a negative number, {{es}} returns `null` and emits a warning, rather than the `-Inf` (for zero) or `NaN` (for negatives) that Prometheus returns.

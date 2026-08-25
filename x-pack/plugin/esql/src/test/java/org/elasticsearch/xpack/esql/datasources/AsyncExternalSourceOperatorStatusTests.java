@@ -331,13 +331,13 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             8,
             9L,
             10L,
-            0L,
-            new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 0L),
+            3L,
+            new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 34_567L),
             Map.of(),
             true
         );
         AsyncExternalSourceOperator.Status copy = copyInstance(original);
-        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 0L)));
+        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L, 34_567L)));
         assertThat(copy.partial(), equalTo(true));
     }
 }

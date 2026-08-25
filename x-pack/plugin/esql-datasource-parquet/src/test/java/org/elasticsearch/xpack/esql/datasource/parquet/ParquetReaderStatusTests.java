@@ -117,7 +117,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             false,
             List.of("host"),
             150L,
-            0L,
+            42L,
             Map.of("host", new PerColumnStatus(PerColumnStatus.MATERIALIZATION_LATE))
         );
         assertThat(
@@ -128,7 +128,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
                     + "\"row_groups_in_file\":3,\"row_groups_total\":4,\"row_groups_kept\":2,"
                     + "\"page_index_used\":false,\"rows_in_kept_row_groups\":10,\"rows_after_page_index\":8,"
                     + "\"late_materialization_enabled\":false,\"late_materialization_used\":false,"
-                    + "\"predicate_columns\":[\"host\"],\"read_nanos\":150,\"read_cpu_nanos\":0,"
+                    + "\"predicate_columns\":[\"host\"],\"read_nanos\":150,\"read_cpu_nanos\":42,"
                     + "\"columns\":{\"host\":{\"materialization\":\"late\"}}}"
             )
         );

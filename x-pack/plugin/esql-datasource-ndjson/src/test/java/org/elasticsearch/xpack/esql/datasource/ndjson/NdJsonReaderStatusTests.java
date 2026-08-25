@@ -41,11 +41,8 @@ public class NdJsonReaderStatusTests extends AbstractWireSerializingTestCase<NdJ
     }
 
     public void testToXContent() throws IOException {
-        NdJsonReaderStatus status = new NdJsonReaderStatus(100L, 3L, 150L, 0L);
-        assertThat(
-            toJson(status),
-            equalTo("{\"format\":\"ndjson\",\"rows_emitted\":100,\"parse_errors\":3,\"read_nanos\":150,\"read_cpu_nanos\":0}")
-        );
+        NdJsonReaderStatus status = new NdJsonReaderStatus(100L, 3L, 150L, 42L);
+        assertThat(toJson(status), equalTo("{\"format\":\"ndjson\",\"rows_emitted\":100,\"parse_errors\":3,\"read_nanos\":150,\"read_cpu_nanos\":42}"));
     }
 
     private static String toJson(NdJsonReaderStatus status) throws IOException {

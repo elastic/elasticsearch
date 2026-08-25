@@ -57,13 +57,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
+import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.DIAGNOSIS_WAIT_FOR_INITIALIZATION;
 import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.xpack.stateless.health.StatelessShardsAvailabilityHealthIndicatorService.ALL_REPLICAS_UNASSIGNED_IMPACT_ID;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -118,10 +121,15 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         int startedReplicas = 0;
         int creatingPrimaries = 0;
         int creatingReplicas = 0;
+        int initializingPrimaries = 0;
+        int initializingReplicas = 0;
         int restartingPrimaries = 0;
         int restartingReplicas = 0;
         int unassignedPrimaries = 0;
         Set<String> diagnosedIndices = new TreeSet<>();
+        Set<String> initializingDiagnosedIndices = new TreeSet<>();
+        Set<String> provisionallyUnavailablePrimaries = new TreeSet<>();
+        Set<String> provisionallyUnavailableReplicas = new TreeSet<>();
 
         Set<ProjectId> projectIds = new HashSet<>();
         while (projectIds.size() < projectCount) {
@@ -147,20 +155,33 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     }
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
-                // The primary (and maybe replica) shards are still initialising
+                // The primary (and maybe replica) shards are either unassigned or initialising. A replica cannot
+                // be initialising while the primary is inactive, so replicas stay unassigned.
                 case INITIALIZING_SHARDS -> {
                     int replicaCount = randomBoolean() ? 1 : 0;
+                    var primaryState = randomFrom(UNASSIGNED, INITIALIZING);
+                    projectCases.set(projectCases.size() - 1, projectId + "=" + greenCase + "/" + primaryState);
                     var metadata = indexMetadata(randomIndexName(), 1, replicaCount);
                     var shardId = new ShardId(metadata.getIndex(), 0);
                     var created = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                     var builder = IndexRoutingTable.builder(metadata.getIndex())
-                        .addShard(shardRouting(shardId, true, UNASSIGNED, RecoverySource.EmptyStoreRecoverySource.INSTANCE, created));
-                    creatingPrimaries++;
+                        .addShard(
+                            shardRouting(shardId, true, primaryState, RecoverySource.EmptyStoreRecoverySource.INSTANCE, created)
+                        );
+                    if (primaryState == UNASSIGNED) {
+                        creatingPrimaries++;
+                        diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                    } else {
+                        initializingPrimaries++;
+                        initializingDiagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                    }
                     if (replicaCount == 1) {
                         builder.addShard(shardRouting(shardId, false, UNASSIGNED, RecoverySource.PeerRecoverySource.INSTANCE, created));
                         creatingReplicas++;
+                        diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                        provisionallyUnavailableReplicas.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                     }
-                    diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                    provisionallyUnavailablePrimaries.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
                 // The primary is started, but the replica is still unassigned. As long as this is within the
@@ -195,6 +216,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     startedPrimaries++;
                     creatingReplicas++;
                     diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                    provisionallyUnavailableReplicas.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                 }
                 // The primary (and maybe replica) is unassigned because its node is restarting.
                 case RESTARTING_NODE -> {
@@ -295,6 +317,8 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     creatingPrimaries++;
                     creatingReplicas++;
                     diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                    provisionallyUnavailablePrimaries.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
+                    provisionallyUnavailableReplicas.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                 }
             }
             projects.put(projectId, indices);
@@ -314,23 +338,36 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         assertThat(
             assignment,
             result.symptom(),
-            equalTo(expectedSymptom(unassignedPrimaries, restartingPrimaries, creatingPrimaries, restartingReplicas, creatingReplicas))
+            equalTo(
+                expectedSymptom(
+                    unassignedPrimaries,
+                    restartingPrimaries,
+                    creatingPrimaries,
+                    restartingReplicas,
+                    creatingReplicas,
+                    initializingPrimaries,
+                    initializingReplicas
+                )
+            )
         );
-        if (diagnosedIndices.isEmpty()) {
-            assertThat(assignment, result.diagnosisList(), empty());
-        } else {
-            assertThat(
-                assignment,
-                result.diagnosisList(),
-                equalTo(
-                    List.of(
-                        new Diagnosis(
-                            ACTION_CHECK_ALLOCATION_EXPLAIN_API,
-                            List.of(new Diagnosis.Resource(INDEX, List.copyOf(diagnosedIndices)))
-                        )
-                    )
+        List<Diagnosis> expectedDiagnoses = new ArrayList<>();
+        if (diagnosedIndices.isEmpty() == false) {
+            expectedDiagnoses.add(
+                new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.copyOf(diagnosedIndices))))
+            );
+        }
+        if (initializingDiagnosedIndices.isEmpty() == false) {
+            expectedDiagnoses.add(
+                new Diagnosis(
+                    DIAGNOSIS_WAIT_FOR_INITIALIZATION,
+                    List.of(new Diagnosis.Resource(INDEX, List.copyOf(initializingDiagnosedIndices)))
                 )
             );
+        }
+        if (expectedDiagnoses.isEmpty()) {
+            assertThat(assignment, result.diagnosisList(), empty());
+        } else {
+            assertThat(assignment, result.diagnosisList(), containsInAnyOrder(expectedDiagnoses.toArray(Diagnosis[]::new)));
         }
 
         assertThat(assignment, result.status(), equalTo(GREEN));
@@ -353,8 +390,20 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         assertThat(assignment, details.get("restarting_replicas"), equalTo(restartingReplicas));
         assertThat(assignment, details.get("unassigned_primaries"), equalTo(unassignedPrimaries));
         assertThat(assignment, details.get("unassigned_replicas"), equalTo(0));
+        assertThat(assignment, details.get("initializing_primaries"), equalTo(initializingPrimaries));
+        assertThat(assignment, details.get("initializing_replicas"), equalTo(initializingReplicas));
         assertThat(assignment, details.get("indices_with_unavailable_primaries"), nullValue());
         assertThat(assignment, details.get("indices_with_unavailable_replicas"), nullValue());
+        assertThat(
+            assignment,
+            details.get("indices_with_provisionally_unavailable_primaries"),
+            equalTo(truncatedIndexList(provisionallyUnavailablePrimaries))
+        );
+        assertThat(
+            assignment,
+            details.get("indices_with_provisionally_unavailable_replicas"),
+            equalTo(truncatedIndexList(provisionallyUnavailableReplicas))
+        );
     }
 
     private enum GreenCase {
@@ -409,6 +458,9 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             return routing;
         }
         routing = routing.initialize(randomNodeId(), null, 0);
+        if (state == INITIALIZING) {
+            return routing;
+        }
         routing = routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         if (state == RELOCATING) {
             return routing.relocate(
@@ -520,17 +572,23 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         return projectId.id() + "/" + indexName;
     }
 
+    private static String truncatedIndexList(Set<String> indices) {
+        return indices.isEmpty() ? null : String.join(", ", indices);
+    }
+
     /**
      * Mirrors {@code ShardAllocationStatus#getSymptom}. The mounted-snapshot extra sentence is only
      * appended when there are unassigned searchable-snapshot primaries and no provisionally unavailable
-     * primaries ({@code creating_primaries}); mixed creating indices suppress that sentence.
+     * primaries.
      */
     private static String expectedSymptom(
         int unassignedPrimaries,
         int restartingPrimaries,
         int creatingPrimaries,
         int restartingReplicas,
-        int creatingReplicas
+        int creatingReplicas,
+        int initializingPrimaries,
+        int initializingReplicas
     ) {
         String parts = Stream.of(
             shardPhrase(unassignedPrimaries, "unavailable primary shard", "unavailable primary shards"),
@@ -539,8 +597,8 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             shardPhrase(0, "unavailable replica shard", "unavailable replica shards"),
             shardPhrase(restartingReplicas, "restarting replica shard", "restarting replica shards"),
             shardPhrase(creatingReplicas, "creating replica shard", "creating replica shards"),
-            shardPhrase(0, "initializing primary shard", "initializing primary shards"),
-            shardPhrase(0, "initializing replica shard", "initializing replica shards")
+            shardPhrase(initializingPrimaries, "initializing primary shard", "initializing primary shards"),
+            shardPhrase(initializingReplicas, "initializing replica shard", "initializing replica shards")
         ).flatMap(Function.identity()).collect(Collectors.joining(", "));
         var builder = new StringBuilder("This cluster has ");
         if (parts.isEmpty()) {
@@ -548,7 +606,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         } else {
             builder.append(parts).append(".");
         }
-        if (unassignedPrimaries > 0 && creatingPrimaries == 0) {
+        if (unassignedPrimaries > 0 && creatingPrimaries == 0 && initializingPrimaries == 0) {
             if (unassignedPrimaries == 1) {
                 builder.append(" This is a mounted shard and the original shard is available, so there are no data availability problems.");
             } else {

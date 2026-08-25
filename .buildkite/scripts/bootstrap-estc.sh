@@ -104,7 +104,7 @@ if [[ ! -x "${ESTC_BIN}" ]]; then
   # Pre-set TAG so build-release.sh doesn't try `git rev-parse` — the
   # extracted source tarball has no .git directory.
   ( cd "${ESTC_SRC}" && TAG="$(date +%Y%m%d)-${ESTC_SHA_SHORT}" bash scripts/build-release.sh --local )
-  install -m 0755 "${ESTC_SRC}/dist/linux-amd64/estc" "${ESTC_BIN}"
+  install -m 0755 "${ESTC_SRC}/dist/platform/linux_amd64/bin/estc" "${ESTC_BIN}"
   rm -rf "${ESTC_SRC}"
 fi
 

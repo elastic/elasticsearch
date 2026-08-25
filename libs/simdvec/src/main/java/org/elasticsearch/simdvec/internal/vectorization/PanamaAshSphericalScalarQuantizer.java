@@ -9,15 +9,25 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
+import jdk.incubator.vector.Vector;
 import jdk.incubator.vector.VectorMask;
+import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.elasticsearch.simdvec.AshSphericalScalarQuantizer;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
+import static jdk.incubator.vector.VectorOperators.D2F;
+import static jdk.incubator.vector.VectorOperators.D2L;
+import static jdk.incubator.vector.VectorOperators.F2D;
 import static jdk.incubator.vector.VectorOperators.GE;
+import static jdk.incubator.vector.VectorOperators.GT;
+import static jdk.incubator.vector.VectorOperators.L2D;
+import static jdk.incubator.vector.VectorOperators.LE;
+import static jdk.incubator.vector.VectorOperators.LT;
 
 public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQuantizer {
 
@@ -93,6 +103,74 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
             // Math.copySign(Math.abs(v) >= threshold ? 1.5f : 0.5f, v);
             VectorMask<Integer> nextLevel = vec.abs().compare(GE, threshold).cast(INTEGER_SPECIES);
             IntVector result = halfConst.reinterpretAsInts().blend(oneHalfConst, nextLevel).or(vec.reinterpretAsInts().and(signBit));
+            result.reinterpretAsFloats().intoArray(out, outOffset + i, mask);
+        }
+    }
+
+    private static final VectorSpecies<Double> DOUBLE_SPECIES = PanamaVectorConstants.PREFERRED_DOUBLE_SPECIES;
+    private static final VectorSpecies<Float> HALF_FLOAT_SPECIES;
+    private static final VectorSpecies<Integer> HALF_INTEGER_SPECIES;
+
+    static {
+        VectorSpecies<Float> halfFloat;
+        VectorSpecies<Integer> halfInteger;
+        try {
+            VectorShape halfDoubleBits = VectorShape.forBitSize(DOUBLE_SPECIES.vectorBitSize() / 2);
+            halfFloat = VectorSpecies.of(float.class, halfDoubleBits);
+            halfInteger = VectorSpecies.of(int.class, halfDoubleBits);
+        } catch (IllegalArgumentException e) {
+            halfFloat = null;
+            halfInteger = null;
+        }
+        HALF_FLOAT_SPECIES = halfFloat;
+        HALF_INTEGER_SPECIES = halfInteger;
+    }
+
+    protected void setGeneralOutput(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps, int bestStep, double bestMag) {
+        if (HALF_FLOAT_SPECIES == null) {
+            super.setGeneralOutput(z, zOffset, out, outOffset, d, nSteps, bestStep, bestMag);
+        }
+
+        /*
+         * Calcs need to be done at double precision, so pull a half-vector of floats
+         * each iteration and expand up to doubles
+         */
+
+        final int limit = HALF_FLOAT_SPECIES.loopBound(d);
+        FloatVector halfConst = FloatVector.broadcast(HALF_FLOAT_SPECIES, 0.5f);
+        IntVector signBit = IntVector.broadcast(HALF_INTEGER_SPECIES, 0x80000000);
+        DoubleVector nStepsVec = DoubleVector.broadcast(DOUBLE_SPECIES, (double) nSteps);
+        DoubleVector bestStepVec = DoubleVector.broadcast(DOUBLE_SPECIES, (double) bestStep);
+        DoubleVector bestMagVec = DoubleVector.broadcast(DOUBLE_SPECIES, bestMag);
+
+        int i = 0;
+        for (; i < limit; i += HALF_FLOAT_SPECIES.length()) {
+            FloatVector vec = FloatVector.fromArray(HALF_FLOAT_SPECIES, z, zOffset + i);
+            Vector<Double> scaled = vec.abs().convertShape(F2D, DOUBLE_SPECIES, 0).mul(bestStepVec);
+            DoubleVector levels = (DoubleVector) scaled.div(bestMagVec).min(nStepsVec).convert(D2L, 0).convert(L2D, 0);
+
+            var posMask = levels.compare(LT, nSteps).and(levels.add(1).mul(bestMagVec).compare(LE, scaled));
+            var negMask = levels.compare(GT, 0).and(levels.mul(bestMagVec).compare(GT, scaled));
+            levels = levels.add(1, posMask);
+            levels = levels.add(-1, negMask.andNot(posMask));
+
+            IntVector result = levels.convertShape(D2F, HALF_FLOAT_SPECIES, 0).add(halfConst)
+                .reinterpretAsInts().or(vec.reinterpretAsInts().and(signBit));
+            result.reinterpretAsFloats().intoArray(out, outOffset + i);
+        }
+        if (i < d) {
+            var mask = HALF_FLOAT_SPECIES.indexInRange(i, d);
+            FloatVector vec = FloatVector.fromArray(HALF_FLOAT_SPECIES, z, zOffset + i, mask);
+            Vector<Double> scaled = vec.abs().convertShape(F2D, DOUBLE_SPECIES, 0).mul(bestStepVec);
+            DoubleVector levels = (DoubleVector) scaled.div(bestMagVec).min(nStepsVec).convert(D2L, 0).convert(L2D, 0);
+
+            var posMask = levels.compare(LT, nSteps).and(levels.add(1).mul(bestMagVec).compare(LE, scaled));
+            var negMask = levels.compare(GT, 0).and(levels.mul(bestMagVec).compare(GT, scaled));
+            levels = levels.add(1, posMask);
+            levels = levels.add(-1, negMask.andNot(posMask));
+
+            IntVector result = levels.convertShape(D2F, HALF_FLOAT_SPECIES, 0).add(halfConst)
+                .reinterpretAsInts().or(vec.reinterpretAsInts().and(signBit));
             result.reinterpretAsFloats().intoArray(out, outOffset + i, mask);
         }
     }

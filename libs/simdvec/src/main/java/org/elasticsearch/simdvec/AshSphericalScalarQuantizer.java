@@ -208,6 +208,27 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
         return (float) Math.sqrt(bestNormSq);
     }
 
+    protected void setGeneralOutput(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps, int bestStep, double bestMag) {
+        // Every event up to the winning one was consumed, so dimension j holds each step s whose
+        // critical time s / |z_j| is at or below the threshold bestStep / bestMag. The tie rule
+        // only ever settles on the last event of a run of equal critical times, so the
+        // threshold picks out exactly the consumed events.
+        for (int j = 0; j < d; j++) {
+            float v = z[zOffset + j];
+            double scaled = bestStep * (double) Math.abs(v);
+            int levels = (int) Math.min(scaled / bestMag, nSteps);
+            // That division is the only inexact step, and it is correctly rounded, so the truncated
+            // quotient sits either side of the exact level by at most one. Both comparisons below
+            // are exact, so a single correction in one direction settles it.
+            if (levels < nSteps && (levels + 1) * bestMag <= scaled) {
+                levels++;
+            } else if (levels > 0 && levels * bestMag > scaled) {
+                levels--;
+            }
+            out[outOffset + j] = Math.copySign(0.5f + levels, v);
+        }
+    }
+
     /**
      * General quantization path for bitsPerDim > 2 (nSteps > 1).
      * <p>
@@ -220,15 +241,8 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      * which is why only magnitudes need sorting and not the dimension indices alongside them.
      */
     protected float quantizeExactGeneral(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps) {
-        // Base level: all dims at 0.5 -> dot = sum(0.5 * |z_j|), normSq = 0.25 * d
-        // use doubles here, as small differences between steps can be significant
         int[] absZF = new int[d];
-        double baseDot = 0;
-        for (int j = 0; j < d; j++) {
-            float a = Math.abs(z[zOffset + j]);
-            absZF[j] = Float.floatToRawIntBits(a);
-            baseDot = Math.fma(0.5, a, baseDot);
-        }
+        double baseDot = calculateBaseLevel(z, zOffset, absZF);
 
         // Sorted ascending; the iteration is then done backwards
         // sort as ints - see use in 2bit method
@@ -290,24 +304,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
             return quantizeExact1Bit(z, zOffset, out, outOffset, d);
         }
 
-        // Every event up to the winning one was consumed, so dimension j holds each step s whose
-        // critical time s / |z_j| is at or below the threshold bestStep / bestMag. The tie rule
-        // above only ever settles on the last event of a run of equal critical times, so the
-        // threshold picks out exactly the consumed events.
-        for (int j = 0; j < d; j++) {
-            float v = z[zOffset + j];
-            double scaled = bestStep * (double) Math.abs(v);
-            int levels = (int) Math.min(scaled / bestMag, nSteps);
-            // That division is the only inexact step, and it is correctly rounded, so the truncated
-            // quotient sits either side of the exact level by at most one. Both comparisons below
-            // are exact, so a single correction in one direction settles it.
-            if (levels < nSteps && (levels + 1) * bestMag <= scaled) {
-                levels++;
-            } else if (levels > 0 && levels * bestMag > scaled) {
-                levels--;
-            }
-            out[outOffset + j] = Math.copySign(0.5f + levels, v);
-        }
+        setGeneralOutput(z, zOffset, out, outOffset, d, nSteps, bestStep, bestMag);
 
         // Each event contributed 2 * step to normSq, and summing that over steps 1..m gives
         // exactly (0.5 + m)^2 - 0.25, so the tracked value is the code's squared norm

@@ -30,6 +30,31 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
     private static final String EVAL_TIME = "2026-01-01T00:08:00Z";
     private static final double EVAL_TIMESTAMP = 1767226080.0; // = 2026-01-01T00:08:00Z
 
+    public void testMetricTimesPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " * Inf", "+Inf");
+    }
+
+    public void testMetricTimesNegativeInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " * -Inf", "-Inf");
+    }
+
+    public void testMetricTimesNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " * NaN", "NaN");
+    }
+
+    public void testDivisionByZeroIsPositiveInfinity() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " / 0", "+Inf");
+    }
+
+    public void testModuloByZeroIsNaN() throws Exception {
+        ingestTestData("test_gauge_nf");
+        assertSingleValue(METRIC + " % 0", "NaN");
+    }
+
     public void testSqrtOfNegativeIsNaN() throws Exception {
         ingestTestData("test_gauge_nf");
         assertSingleValue("sqrt(" + METRIC + " * -1)", "NaN");

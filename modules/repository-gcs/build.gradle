@@ -73,14 +73,17 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:gcs-fixture')
 }
 
-// See the Guava note in the dependencies block. Guava is added to javac's classpath only, via this detached
-// configuration, so the @NonNull type annotations on google-cloud-storage method signatures resolve during
-// compilation. It stays off the compile-classpath configuration, so it is invisible to IntelliJ and remains
-// covered by the forbidden-dependencies compile-classpath ban, while our code must not use Guava directly.
+// See the Guava note in the dependencies block. Guava is added to the javac and javadoc classpath only, via this
+// detached configuration, so the @NonNull type annotations on google-cloud-storage method signatures resolve during
+// compilation and doc generation. It stays off the compile-classpath configuration, so it is invisible to IntelliJ
+// and remains covered by the forbidden-dependencies compile-classpath ban, while our code must not use Guava directly.
 def guavaAnnotations = configurations.detachedConfiguration(
   dependencies.create("com.google.guava:guava:${guavaVersion}")
 )
 tasks.withType(JavaCompile).configureEach {
+  classpath += guavaAnnotations
+}
+tasks.withType(Javadoc).configureEach {
   classpath += guavaAnnotations
 }
 

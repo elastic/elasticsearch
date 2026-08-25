@@ -106,6 +106,17 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         assertThat(preCacheUsageCopy.getHostedShardsPartitionSizeByNodeId(), equalTo(Map.of()));
     }
 
+    public void testSearchLaneRequirementsAreTransportVersionGated() throws Exception {
+        final var clusterInfo = ClusterInfo.builder().shardSearchLaneRequirements(randomShardSearchLaneRequirements()).build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getShardSearchLaneRequirements(), equalTo(clusterInfo.getShardSearchLaneRequirements()));
+
+        final var preLaneVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO);
+        final var preLaneCopy = copyInstance(clusterInfo, preLaneVersion);
+        assertThat(preLaneCopy.getShardSearchLaneRequirements(), equalTo(Map.of()));
+    }
+
     private static double randomWriteLoadProportion() {
         return randomDoubleBetween(0.0, 1.0, true);
     }
@@ -142,8 +153,18 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomNodeIdsWriteLoadHotspottingSet(),
             randomNodeCacheSizeAndCommitmentsMap(),
             randomShardCacheRequirements(),
-            randomHostedShardsPartitionSizes()
+            randomHostedShardsPartitionSizes(),
+            randomShardSearchLaneRequirements()
         );
+    }
+
+    private static Map<ShardId, Double> randomShardSearchLaneRequirements() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ShardId, Double> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(randomShardId(), randomDouble());
+        }
+        return builder;
     }
 
     private static Map<String, NodeCacheSizeAndCommitments> randomNodeCacheSizeAndCommitmentsMap() {

@@ -483,7 +483,7 @@ public class FileSplitProvider implements SplitProvider {
         // below never fires — the read-side reader would then hit a chunk with no header line to bind against.
         FormatReader configuredReader = resolveConfiguredReader(task.filePath(), task.config());
         if (configuredReader != null && task.declaredReadSpec().provenance() == SchemaProvenance.DECLARED) {
-            configuredReader = configuredReader.withDeclaredPathBinding(true);
+            configuredReader = configuredReader.withDeclaredProvenanceBinding(true);
         }
 
         // Quoted or escaped CSV/TSV cannot be probed at arbitrary offsets (an in-quote newline, or a

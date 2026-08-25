@@ -167,6 +167,7 @@ dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"sch
 FROM employees_multifile_ubn_union
 | KEEP name, city
 | SORT name ASC;
+warningRegex:declared column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 alice        | null
@@ -225,6 +226,7 @@ FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | age:integer | score:double
 alice        | 30          | 85.5
@@ -258,6 +260,7 @@ FROM employees_multifile_ubn_ffw
 | SORT name ASC;
 warningRegex:Column \[age\] in file \[.*parquet_ubn_b\.parquet\] has type \[LONG\] incompatible with planner type \[INTEGER\]; returning nulls for this column
 warningRegex:Parquet file \[.*parquet_ubn_b\.parquet\] has columns whose on-disk type is incompatible with the planner type; they are returned as null
+warningRegex:declared column \[score\] is not present in some source files
 
 name:keyword | score:double
 alice        | 85.5

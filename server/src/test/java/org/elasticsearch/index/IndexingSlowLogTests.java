@@ -43,12 +43,14 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.index.SearchSlowLogTests.mockLogFieldProvider;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -174,19 +176,28 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
-        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata("index1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
         IndexingSlowLog log1 = new IndexingSlowLog(index1Settings, mockLogFieldProvider());
 
-        int numberOfLoggersBefore = context.getLoggers().size();
+        int numberOfLoggersBefore = numberOfLoggers();
 
         IndexSettings index2Settings = new IndexSettings(createIndexMetadata("index2", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
         IndexingSlowLog log2 = new IndexingSlowLog(index2Settings, mockLogFieldProvider());
-        context = (LoggerContext) LogManager.getContext(false);
 
-        int numberOfLoggersAfter = context.getLoggers().size();
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
+        int numberOfLoggersAfter = numberOfLoggers();
+        assertThat(
+            numberOfLoggersAfter,
+            anyOf(
+                equalTo(numberOfLoggersBefore),
+                // number of loggers here might be smaller: log4j logger registry expunges stale entries on every getLoggers() call
+                lessThan(numberOfLoggersBefore)
+            )
+        );
+    }
+
+    private static int numberOfLoggers() {
+        var context = (LoggerContext) LogManager.getContext(false);
+        return context.getLoggers().size();
     }
 
     private IndexMetadata createIndexMetadata(String index, Settings build) {

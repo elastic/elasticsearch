@@ -158,7 +158,6 @@ import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
-import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -516,7 +515,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             transportService().getThreadPool(),
                             indicesService,
                             testStatelessPlugin.hollowShardsService,
-                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            testStatelessPlugin.statelessCommitService,
                             mock(IndexShardCacheWarmer.class),
                             HollowShardsMetrics.NOOP
                         ),
@@ -524,12 +523,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                             clusterService(),
                             transportService().getThreadPool(),
                             indicesService,
-                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            testStatelessPlugin.statelessCommitService,
                             mock(IndexShardCacheWarmer.class),
-                            new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                            StatelessPrimaryRelocationMetricsCollector.NOOP
                         ),
                         peerRecoveryTargetService,
-                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                        StatelessPrimaryRelocationMetricsCollector.NOOP
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(

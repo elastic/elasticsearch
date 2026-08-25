@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 
 import java.io.IOException;
 import java.util.Map;
@@ -84,7 +84,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndicesService indicesService;
     private final PeerRecoveryTargetService peerRecoveryTargetService;
     private final Executor recoveryExecutor;
-    private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
+    private final StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -95,13 +95,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         StatelessPrimaryRelocationSourceService primaryRelocationSourceService,
         StatelessPrimaryRelocationTargetService primaryRelocationTargetService,
         PeerRecoveryTargetService peerRecoveryTargetService,
-        StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider
+        StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;
-        this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
+        this.relocationMetricsCollector = relocationMetricsCollector;
         this.recoveryExecutor = transportService.getThreadPool().generic();
 
         primaryRelocationSourceService.registerRecoverySchedulingListeners(recoverySchedulingListeners);
@@ -177,7 +177,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     // the metrics agent stops emitting metrics and we lose all that information
                     RelocationSourceMetrics relocationSourceMetrics = response.getRelocationSourceMetrics();
                     if (relocationSourceMetrics != null) {
-                        relocationMetricsCollectorProvider.get().recordRelocationSourceMetrics(relocationSourceMetrics);
+                        relocationMetricsCollector.recordRelocationSourceMetrics(relocationSourceMetrics);
                     }
                     return ActionResponse.Empty.INSTANCE;
                 }), StartRelocationResponse::new, recoveryExecutor)

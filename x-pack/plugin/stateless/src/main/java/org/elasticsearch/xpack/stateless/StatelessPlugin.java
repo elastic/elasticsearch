@@ -235,7 +235,6 @@ import org.elasticsearch.xpack.stateless.snapshots.TransportGetShardSnapshotComm
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
-import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMInfoTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyILMUsageTransportAction;
 import org.elasticsearch.xpack.stateless.xpack.DummyMonitoringInfoTransportAction;
@@ -654,47 +653,52 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public List<ActionHandler> getActions() {
-        return List.of(
-            new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, DummyILMInfoTransportAction.class),
-            new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, DummyILMUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),
-            new ActionHandler(XPackUsageFeatureAction.MONITORING, DummyMonitoringUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.ROLLUP, DummyRollupInfoTransportAction.class),
-            new ActionHandler(XPackUsageFeatureAction.ROLLUP, DummyRollupUsageTransportAction.class),
-            new ActionHandler(GetRollupIndexCapsAction.INSTANCE, DummyTransportGetRollupIndexCapsAction.class),
-            new ActionHandler(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
-            new ActionHandler(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),
-            new ActionHandler(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
-            new ActionHandler(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
+        final List<ActionHandler> actions = new ArrayList<>(
+            List.of(
+                new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, DummyILMInfoTransportAction.class),
+                new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, DummyILMUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.MONITORING, DummyMonitoringInfoTransportAction.class),
+                new ActionHandler(XPackUsageFeatureAction.MONITORING, DummyMonitoringUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.ROLLUP, DummyRollupInfoTransportAction.class),
+                new ActionHandler(XPackUsageFeatureAction.ROLLUP, DummyRollupUsageTransportAction.class),
+                new ActionHandler(GetRollupIndexCapsAction.INSTANCE, DummyTransportGetRollupIndexCapsAction.class),
+                new ActionHandler(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsInfoTransportAction.class),
+                new ActionHandler(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, DummySearchableSnapshotsUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.WATCHER, DummyWatcherInfoTransportAction.class),
+                new ActionHandler(XPackUsageFeatureAction.WATCHER, DummyWatcherUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.VOTING_ONLY, DummyVotingOnlyInfoTransportAction.class),
+                new ActionHandler(XPackUsageFeatureAction.VOTING_ONLY, DummyVotingOnlyUsageTransportAction.class),
 
-            new ActionHandler(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
-            new ActionHandler(TransportFetchShardCommitsInUseAction.TYPE, TransportFetchShardCommitsInUseAction.class),
-            new ActionHandler(
-                TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
-                TransportGetVirtualBatchedCompoundCommitChunkAction.class
-            ),
+                new ActionHandler(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
+                new ActionHandler(TransportFetchShardCommitsInUseAction.TYPE, TransportFetchShardCommitsInUseAction.class),
+                new ActionHandler(
+                    TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
+                    TransportGetVirtualBatchedCompoundCommitChunkAction.class
+                ),
 
-            new ActionHandler(EnsureDocsSearchableAction.TYPE, TransportEnsureDocsSearchableAction.class),
-            new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
-            new ActionHandler(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
-            new ActionHandler(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
-            new ActionHandler(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
-            new ActionHandler(TransportUpdateSplitTargetShardStateAction.TYPE, TransportUpdateSplitTargetShardStateAction.class),
-            new ActionHandler(TransportUpdateSplitSourceShardStateAction.TYPE, TransportUpdateSplitSourceShardStateAction.class),
-            new ActionHandler(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
-            new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
-            new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
-            new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
-            new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
-            new ActionHandler(
-                TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
-                TransportPublishIndexingOperationsHeapMemoryRequirements.class
-            ),
-            new ActionHandler(TransportPublishMergeMemoryEstimate.INSTANCE, TransportPublishMergeMemoryEstimate.class),
-            new ActionHandler(TransportGetShardSnapshotCommitInfoAction.TYPE, TransportGetShardSnapshotCommitInfoAction.class)
+                new ActionHandler(EnsureDocsSearchableAction.TYPE, TransportEnsureDocsSearchableAction.class),
+                new ActionHandler(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
+                new ActionHandler(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
+                new ActionHandler(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
+                new ActionHandler(TransportUpdateSplitTargetShardStateAction.TYPE, TransportUpdateSplitTargetShardStateAction.class),
+                new ActionHandler(TransportUpdateSplitSourceShardStateAction.TYPE, TransportUpdateSplitSourceShardStateAction.class),
+                new ActionHandler(TransportReshardSplitAction.TYPE, TransportReshardSplitAction.class),
+                new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
+                new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
+                new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+                new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
+                new ActionHandler(
+                    TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
+                    TransportPublishIndexingOperationsHeapMemoryRequirements.class
+                ),
+                new ActionHandler(TransportPublishMergeMemoryEstimate.INSTANCE, TransportPublishMergeMemoryEstimate.class),
+                new ActionHandler(TransportGetShardSnapshotCommitInfoAction.TYPE, TransportGetShardSnapshotCommitInfoAction.class)
+            )
         );
+        if (hasIndexRole) {
+            actions.add(new ActionHandler(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class));
+        }
+        return List.copyOf(actions);
     }
 
     @Override
@@ -933,9 +937,8 @@ public class StatelessPlugin extends Plugin
             new PluginComponentBinding<>(SearchShardSizeCollector.class, setAndGet(this.searchShardSizeCollector, searchShardSizeCollector))
         );
 
-        // HollowShardsService is passed to StatelessPrimaryRelocationSourceService, which is injected into
-        // TransportStatelessPrimaryRelocationAction via DI. That's why it's constructed on all nodes, despite being useful
-        // only on indexing nodes.
+        // HollowShardsService is constructed on all nodes because ShardsMappingSizeCollector is also
+        // constructed on all nodes and requires it. All other functional uses are gated on hasIndexRole.
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
             createHollowShardsService(
@@ -1017,35 +1020,38 @@ public class StatelessPlugin extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        final StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector = createRelocationMetricsCollector(meterRegistry);
-        final var relocationMetricsCollectorProvider = new StatelessPrimaryRelocationMetricsCollectorProvider(relocationMetricsCollector);
-        components.add(relocationMetricsCollectorProvider);
+        if (hasIndexRole) {
+            final var relocationMetricsCollector = setAndGet(
+                this.relocationMetricsCollector,
+                new StatelessPrimaryRelocationMetricsCollector(meterRegistry)
+            );
+            components.add(relocationMetricsCollector);
 
-        final StatelessCommitServiceProvider commitServiceProvider = new StatelessCommitServiceProvider(commitService);
-        final StatelessPrimaryRelocationSourceService primaryRelocationSourceService = setAndGet(
-            this.primaryRelocationSourceService,
-            new StatelessPrimaryRelocationSourceService(
-                clusterService,
-                threadPool,
-                indicesService,
-                hollowShardsService,
-                commitServiceProvider,
-                indexShardCacheWarmer,
-                hollowShardMetrics.get()
-            )
-        );
-        components.add(primaryRelocationSourceService);
+            final StatelessPrimaryRelocationSourceService primaryRelocationSourceService = setAndGet(
+                this.primaryRelocationSourceService,
+                new StatelessPrimaryRelocationSourceService(
+                    clusterService,
+                    threadPool,
+                    indicesService,
+                    hollowShardsService,
+                    commitService,
+                    indexShardCacheWarmer,
+                    hollowShardMetrics.get()
+                )
+            );
+            components.add(primaryRelocationSourceService);
 
-        components.add(
-            new StatelessPrimaryRelocationTargetService(
-                clusterService,
-                threadPool,
-                indicesService,
-                commitServiceProvider,
-                indexShardCacheWarmer,
-                relocationMetricsCollectorProvider
-            )
-        );
+            components.add(
+                new StatelessPrimaryRelocationTargetService(
+                    clusterService,
+                    threadPool,
+                    indicesService,
+                    commitService,
+                    indexShardCacheWarmer,
+                    relocationMetricsCollector
+                )
+            );
+        }
 
         setAndGet(this.recoveryMetricsCollector, createRecoveryMetricsCollector(meterRegistry));
 
@@ -1140,13 +1146,6 @@ public class StatelessPlugin extends Plugin
         }
 
         return components;
-    }
-
-    private StatelessPrimaryRelocationMetricsCollector createRelocationMetricsCollector(final MeterRegistry meterRegistry) {
-        if (hasIndexRole) {
-            return setAndGet(this.relocationMetricsCollector, new StatelessPrimaryRelocationMetricsCollector(meterRegistry));
-        }
-        return null;
     }
 
     private StatelessRecoveryMetricsCollector createRecoveryMetricsCollector(final MeterRegistry meterRegistry) {

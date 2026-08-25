@@ -23,8 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
-import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
-import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 
 import java.util.HashMap;
 import java.util.Set;
@@ -41,9 +40,9 @@ public class StatelessPrimaryRelocationTargetService {
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final StatelessCommitServiceProvider statelessCommitServiceProvider;
+    private final StatelessCommitService statelessCommitService;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
-    private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
+    private final StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector;
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowRelocationWarningThreshold;
@@ -52,16 +51,16 @@ public class StatelessPrimaryRelocationTargetService {
         ClusterService clusterService,
         ThreadPool threadPool,
         IndicesService indicesService,
-        StatelessCommitServiceProvider statelessCommitServiceProvider,
+        StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
-        StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider
+        StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indicesService = indicesService;
-        this.statelessCommitServiceProvider = statelessCommitServiceProvider;
+        this.statelessCommitService = statelessCommitService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
-        this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
+        this.relocationMetricsCollector = relocationMetricsCollector;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -93,7 +92,6 @@ public class StatelessPrimaryRelocationTargetService {
 
     void handlePrimaryContextHandoff(PrimaryContextHandoffRequest request, ActionListener<Void> listener) {
         logger.debug("[{}] received primary context handoff request", request.shardId());
-        final var statelessCommitService = statelessCommitServiceProvider.get();
         final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final var indexShard = indexService.getShard(request.shardId().id());
         statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), request.searchNodesPerCommit());
@@ -130,7 +128,7 @@ public class StatelessPrimaryRelocationTargetService {
             l -> indexShard.preRecovery(l.map(ignored -> {
                 final long preRecoveryEndMillis = threadPool.relativeTimeInMillis();
                 final long preRecoveryDuration = preRecoveryEndMillis - preRecoveryStartMillis;
-                relocationMetricsCollectorProvider.get().recordRelocationTargetPreRecoveryDuration(preRecoveryDuration);
+                relocationMetricsCollector.recordRelocationTargetPreRecoveryDuration(preRecoveryDuration);
 
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());
                 final var recoveryState = indexShard.recoveryState();
@@ -151,7 +149,7 @@ public class StatelessPrimaryRelocationTargetService {
                 indexShard.activateWithPrimaryContext(request.primaryContext());
 
                 final long openEngineDuration = threadPool.relativeTimeInMillis() - preRecoveryEndMillis;
-                relocationMetricsCollectorProvider.get().recordRelocationTargetOpenEngineDuration(openEngineDuration);
+                relocationMetricsCollector.recordRelocationTargetOpenEngineDuration(openEngineDuration);
 
                 threadDumpListener.onResponse(null);
 

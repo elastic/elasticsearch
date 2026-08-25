@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
-import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -95,7 +94,7 @@ public class StatelessPrimaryRelocationSourceService {
     private final ThreadContext threadContext;
     private final IndicesService indicesService;
     private final HollowShardsService hollowShardsService;
-    private final StatelessCommitServiceProvider statelessCommitServiceProvider;
+    private final StatelessCommitService statelessCommitService;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
     private volatile TargetPrewarmTrigger targetPrewarmTrigger;
@@ -110,7 +109,7 @@ public class StatelessPrimaryRelocationSourceService {
         ThreadPool threadPool,
         IndicesService indicesService,
         HollowShardsService hollowShardsService,
-        StatelessCommitServiceProvider statelessCommitServiceProvider,
+        StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsMetrics hollowShardsMetrics
     ) {
@@ -120,7 +119,7 @@ public class StatelessPrimaryRelocationSourceService {
         this.threadContext = threadPool.getThreadContext();
         this.indicesService = indicesService;
         this.hollowShardsService = hollowShardsService;
-        this.statelessCommitServiceProvider = statelessCommitServiceProvider;
+        this.statelessCommitService = statelessCommitService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
 
@@ -178,7 +177,6 @@ public class StatelessPrimaryRelocationSourceService {
     private void initiatePrewarm(Task task, StatelessPrimaryRelocationAction.Request request) {
         try {
             final ShardId shardId = request.shardId();
-            final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
             if (latestBcc == null) {
                 logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
@@ -346,7 +344,6 @@ public class StatelessPrimaryRelocationSourceService {
                 final var latestBccBlobLength = new AtomicLong(-1L);
                 final var otherBlobFilesCount = new AtomicLong(-1L);
                 final var markedShardAsRelocating = new SubscribableListener<Void>();
-                final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
                 ActionListener<Void> handoffCompleteListener = statelessCommitService.markRelocating(
                     indexShard.shardId(),
                     lastFlushedGeneration,

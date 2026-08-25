@@ -39,6 +39,9 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {
 
+    private static final double DOUBLE_TO_LONG_UPPER_BOUND = (double) Long.MAX_VALUE;
+    private static final double MAX_DOUBLE_CONVERTIBLE_TO_LONG = Math.nextDown(DOUBLE_TO_LONG_UPPER_BOUND);
+
     public void testSafeToUnsignedLongRejectsOversizedString() {
         // A numeric string long enough to be costly to parse is rejected before BigDecimal construction.
         String oversized = "9".repeat(Numbers.MAX_NUMERIC_STRING_LENGTH + 1);
@@ -75,12 +78,18 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
+            assertEquals(Long.MIN_VALUE, conversion.convert((double) Long.MIN_VALUE));
+            Exception belowLowerBound = expectThrows(
+                InvalidArgumentException.class,
+                () -> conversion.convert(Math.nextDown((double) Long.MIN_VALUE))
+            );
+            assertEquals("[" + Math.nextDown((double) Long.MIN_VALUE) + "] out of [long] range", belowLowerBound.getMessage());
             assertEquals(10L, conversion.convert(10.0));
             assertEquals(10L, conversion.convert(10.1));
             assertEquals(11L, conversion.convert(10.6));
-            assertEquals(Math.round(Math.nextDown(0x1.0p63)), conversion.convert(Math.nextDown(0x1.0p63)));
-            Exception boundary = expectThrows(InvalidArgumentException.class, () -> conversion.convert(0x1.0p63));
-            assertEquals("[" + 0x1.0p63 + "] out of [long] range", boundary.getMessage());
+            assertEquals(Math.round(MAX_DOUBLE_CONVERTIBLE_TO_LONG), conversion.convert(MAX_DOUBLE_CONVERTIBLE_TO_LONG));
+            Exception boundary = expectThrows(InvalidArgumentException.class, () -> conversion.convert(DOUBLE_TO_LONG_UPPER_BOUND));
+            assertEquals("[" + DOUBLE_TO_LONG_UPPER_BOUND + "] out of [long] range", boundary.getMessage());
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }

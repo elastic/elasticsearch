@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -35,7 +34,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -146,13 +144,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             }
         };
 
-        // The store reads the minimum node version from cluster state to stamp into the document it
-        // writes. Whether every node supports the feature is asked of FeatureService instead.
+        // Cluster state is only passed to FeatureService to decide whether every node supports
+        // creating accounts. The document version is a format number, not a release version.
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
         when(clusterService.state()).thenReturn(clusterState);
         featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(true);
@@ -296,7 +291,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final Map<String, Object> source = indexRequest.sourceAsMap();
         assertThat(source.get("doc_type"), equalTo(SERVICE_ACCOUNT_DOC_TYPE));
         assertThat(source.get("username"), equalTo(PRINCIPAL));
-        assertThat(source.get("version"), equalTo(Version.CURRENT.id));
+        assertThat(source.get("version"), equalTo(UserManagedServiceAccount.Version.CURRENT.id()));
         assertThat(source.get("enabled"), is(false));
         // Sorted and de-duplicated, so that the document does not depend on how the caller ordered the roles.
         assertThat(source.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
@@ -655,7 +650,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     private static Map<String, Object> accountDocument(String principal, List<String> roles, boolean enabled) {
         final Map<String, Object> source = new HashMap<>();
         source.put("doc_type", SERVICE_ACCOUNT_DOC_TYPE);
-        source.put("version", Version.CURRENT.id);
+        source.put("version", UserManagedServiceAccount.Version.CURRENT.id());
         source.put("username", principal);
         source.put("roles", roles);
         source.put("enabled", enabled);

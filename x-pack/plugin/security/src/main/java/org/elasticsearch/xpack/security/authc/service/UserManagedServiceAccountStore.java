@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -424,11 +423,10 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
     }
 
     private XContentBuilder newAccountDocument(ServiceAccountId accountId, List<String> roles, boolean enabled) throws IOException {
-        final Version version = clusterService.state().nodes().getMinNodeVersion();
         return XContentFactory.jsonBuilder()
             .startObject()
             .field("doc_type", SERVICE_ACCOUNT_DOC_TYPE)
-            .field("version", version.id)
+            .field("version", UserManagedServiceAccount.Version.CURRENT.id())
             .field("username", accountId.asPrincipal())
             .field("roles", roles)
             .field("enabled", enabled)

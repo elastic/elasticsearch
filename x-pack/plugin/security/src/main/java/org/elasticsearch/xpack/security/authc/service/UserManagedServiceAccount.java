@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -25,6 +26,20 @@ import java.util.Objects;
  * instead, so every instance must set it.
  */
 final class UserManagedServiceAccount implements ServiceAccount {
+
+    /**
+     * Schema version of the stored {@code service_account} document. Increment when the document
+     * format changes so readers can branch on how old a document is, independently of the
+     * Elasticsearch release that wrote it.
+     */
+    record Version(int version) implements VersionId<Version> {
+        static final Version CURRENT = new Version(1);
+
+        @Override
+        public int id() {
+            return version;
+        }
+    }
 
     private final ServiceAccountId id;
     private final List<String> roles;

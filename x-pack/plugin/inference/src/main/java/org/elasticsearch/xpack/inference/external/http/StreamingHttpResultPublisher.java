@@ -221,7 +221,16 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 backpressure.subtractBytesAndMaybeUnpause(nextBytes.length);
                 downstream.onNext(nextBytes);
             }
-            if (pendingRequests.get() > 0 && contentQueue.isEmpty() && completed) {
+            /*
+             * Read `completed` before inspecting the queue. If we check the queue first it could cause a bug where we let
+             * Apache enqueue a chunk and complete the stream in between the two reads, which would complete the subscriber while its
+             * data is still queued. This causes the response body to be truncated. `completed` is only set after Apache has handed
+             * us every chunk (consumeContent and close run on the same connection-bound I/O dispatcher and are never
+             * concurrent), so reading the volatile `completed == true` first establishes happens-before with every
+             * prior contentQueue.offer(), making the subsequent isEmpty() check reliable.
+             * See https://github.com/elastic/elasticsearch/issues/157575.
+             */
+            if (pendingRequests.get() > 0 && completed && contentQueue.isEmpty()) {
                 pendingRequests.decrementAndGet();
                 downstream.onComplete();
             }

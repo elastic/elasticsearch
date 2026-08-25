@@ -12,6 +12,8 @@ import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -941,6 +943,59 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
 
         assertThat("late subscriber must receive the abort error", subscriber.throwable, instanceOf(IllegalStateException.class));
         assertThat("circuitBreaker must stay at 0 after abort error delivery", circuitBreaker.getTracked(), equalTo(0L));
+    }
+
+    /**
+     * Probabilistic regression guard for the early-onComplete race described in
+     * <a href="https://github.com/elastic/elasticsearch/issues/157575">#157575</a>.
+     * <p>
+     * The window: {@code sendToSubscriber} reads {@code contentQueue.isEmpty()} then {@code completed}.
+     * In between those two reads, Apache's I/O thread can call {@code consumeContent} (enqueue the
+     * body bytes) and {@code close} (set {@code completed = true}), causing {@code DataPublisher#sendToSubscriber}
+     * to observe an empty queue with {@code completed = true} and prematurely call
+     * {@code downstream.onComplete()}, leaving the queued bytes orphaned — equivalent to a truncated
+     * response body.
+     * <p>
+     * This test reproduces the interleave: after {@code readFullResponse} dispatches the drain onto
+     * the utility pool, the calling thread immediately calls {@code consumeContent} + {@code close},
+     * creating the maximum race window.
+     */
+    public void testCompletionNeverRacesAheadOfQueuedContent() throws Exception {
+        var iterations = 5000;
+        var body = "error body content".getBytes(StandardCharsets.UTF_8);
+        var threadPool = createThreadPool(inferenceUtilityExecutors());
+        try {
+            for (int i = 0; i < iterations; i++) {
+                var listener = new AtomicReference<StreamingHttpResult>();
+                var testPublisher = new StreamingHttpResultPublisher(
+                    threadPool,
+                    settings,
+                    ActionListener.wrap(listener::set, e -> fail(e, "unexpected failure")),
+                    new TestCircuitBreaker(),
+                    INFERENCE_ENTITY_ID
+                );
+
+                testPublisher.responseReceived(mock(HttpResponse.class));
+
+                // readFullResponse subscribes and issues request(1), dispatching the drain onto the utility pool
+                var future = new TestPlainActionFuture<HttpResult>();
+                listener.get().readFullResponse(future);
+
+                // Stand in for Apache's I/O thread: enqueue body bytes then close the stream —
+                // these two calls race with the utility-pool drain dispatched above
+                testPublisher.consumeContent(contentDecoder(body), mock(IOControl.class));
+                testPublisher.close();
+
+                var result = future.actionGet(TEST_REQUEST_TIMEOUT);
+                assertArrayEquals(
+                    Strings.format("Iteration %d: body was truncated (readFullResponse completed before all bytes were queued)", i),
+                    body,
+                    result.body()
+                );
+            }
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     private static class TestCircuitBreakerWithTracking extends TestCircuitBreaker {

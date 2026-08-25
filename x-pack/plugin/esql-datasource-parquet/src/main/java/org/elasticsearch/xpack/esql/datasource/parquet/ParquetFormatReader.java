@@ -86,6 +86,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.DateTimeException;
@@ -123,6 +125,7 @@ import java.util.function.Consumer;
 public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware, DynamicThresholdAware {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
+    private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
 
     /**
      * JVM-wide cache of parsed Parquet footers. Singleton — every {@link ParquetFormatReader}
@@ -1276,6 +1279,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
         try {
             // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
             // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
@@ -1314,6 +1318,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // ParquetColumnIterator / OptimizedParquetColumnIterator), accumulating into the same
             // counter so read_nanos covers the reader's full producer-thread lifecycle.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+            }
         }
     }
 
@@ -1603,6 +1610,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     @Override
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
         long startNanos = System.nanoTime();
+        long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
         try {
             long rangeStart = context.rangeStart();
             long rangeEnd = context.rangeEnd();
@@ -1675,6 +1683,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             );
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+            }
         }
     }
 
@@ -3030,6 +3041,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         private boolean advanceRowGroup() throws IOException {
             long startNanos = System.nanoTime();
+            long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
             try {
                 if (rowGroup != null) {
                     rowGroup.close();
@@ -3101,6 +3113,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 return rowsRemainingInGroup > 0;
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                }
             }
         }
 
@@ -3110,6 +3125,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 throw new NoSuchElementException();
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
             try {
                 int effectiveBatch = batchSize;
                 if (rowBudget != FormatReader.NO_LIMIT) {
@@ -3192,6 +3208,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 return new Page(blocks);
             } finally {
                 counters.addTotalReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addTotalReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                }
             }
         }
 

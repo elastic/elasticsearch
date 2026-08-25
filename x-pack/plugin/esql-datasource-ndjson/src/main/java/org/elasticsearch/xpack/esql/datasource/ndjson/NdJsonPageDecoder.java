@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.time.DateTimeException;
@@ -74,6 +76,7 @@ import java.util.function.Consumer;
 public class NdJsonPageDecoder implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
+    private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
 
     /**
      * Floor for the per-{@code BlockDecoder} identity-cache bound (see
@@ -1015,6 +1018,7 @@ public class NdJsonPageDecoder implements Closeable {
             return null;
         }
         long startNanos = System.nanoTime();
+        long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
         long startTotalRowCount = totalRowCount;
         long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
@@ -1037,6 +1041,9 @@ public class NdJsonPageDecoder implements Closeable {
             counters.addRowsEmitted(deltaTotal - deltaErrors);
             counters.addParseErrors(deltaErrors);
             counters.addReadNanos(System.nanoTime() - startNanos);
+            if (startCpuNanos >= 0) {
+                counters.addReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+            }
         }
     }
 

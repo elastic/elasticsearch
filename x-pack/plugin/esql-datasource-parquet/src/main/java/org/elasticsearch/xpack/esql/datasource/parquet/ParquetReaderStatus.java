@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -44,8 +45,11 @@ public record ParquetReaderStatus(
     boolean lateMaterializationUsed,
     List<String> predicateColumns,
     long readNanos,
+    long readCpuNanos,
     Map<String, PerColumnStatus> columns
 ) implements FormatReaderStatus {
+
+    private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         FormatReaderStatus.class,
@@ -71,6 +75,7 @@ public record ParquetReaderStatus(
             in.readBoolean(),                // lateMaterializationUsed
             in.readStringCollectionAsList(), // predicateColumns
             in.readVLong(),                  // readNanos
+            in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L, // readCpuNanos
             in.readMap(PerColumnStatus::new) // columns
         );
     }
@@ -93,6 +98,9 @@ public record ParquetReaderStatus(
         out.writeBoolean(lateMaterializationUsed);
         out.writeStringCollection(predicateColumns);
         out.writeVLong(readNanos);
+        if (out.getTransportVersion().supports(ESQL_READ_CPU_NANOS)) {
+            out.writeVLong(readCpuNanos);
+        }
         out.writeMap(columns, StreamOutput::writeWriteable);
     }
 
@@ -109,6 +117,11 @@ public record ParquetReaderStatus(
     @Override
     public long readNanos() {
         return readNanos;
+    }
+
+    @Override
+    public long readCpuNanos() {
+        return readCpuNanos;
     }
 
     @Override
@@ -135,6 +148,7 @@ public record ParquetReaderStatus(
         builder.field("late_materialization_used", lateMaterializationUsed);
         builder.field("predicate_columns", predicateColumns);
         builder.field("read_nanos", readNanos);
+        builder.field("read_cpu_nanos", readCpuNanos);
         if (columns.isEmpty() == false) {
             builder.startObject("columns");
             // TreeMap for deterministic column ordering; readMap yields an unordered map on the wire.

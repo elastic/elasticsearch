@@ -83,6 +83,8 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -120,6 +122,7 @@ import java.util.function.Consumer;
 public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware {
 
     private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
+    private static final ThreadMXBean THREAD_MX = ManagementFactory.getThreadMXBean();
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
@@ -1455,6 +1458,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return true;
             }
             long startNanos = System.nanoTime();
+            long startCpuNanos = THREAD_MX.getCurrentThreadCpuTime();
             try {
                 while (true) {
                     if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
@@ -1483,6 +1487,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
                 counters.addReadNanos(System.nanoTime() - startNanos);
+                if (startCpuNanos >= 0) {
+                    counters.addReadCpuNanos(Math.max(0L, THREAD_MX.getCurrentThreadCpuTime() - startCpuNanos));
+                }
             }
         }
 

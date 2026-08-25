@@ -42,7 +42,5 @@ public interface FormatReaderStatus extends NamedWriteable, ToXContentFragment {
      * CPU time the reader spent on the producer thread (no IO wait), nanoseconds.
      * Returns 0 if {@link java.lang.management.ThreadMXBean#isCurrentThreadCpuTimeSupported()} is false.
      */
-    default long readCpuNanos() {
-        return 0;
-    }
+    long readCpuNanos();
 }

@@ -27,7 +27,7 @@ public class NdJsonReaderStatusTests extends AbstractWireSerializingTestCase<NdJ
 
     @Override
     protected NdJsonReaderStatus createTestInstance() {
-        return new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
@@ -35,13 +35,14 @@ public class NdJsonReaderStatusTests extends AbstractWireSerializingTestCase<NdJ
         return new NdJsonReaderStatus(
             instance.rowsEmitted(),
             instance.parseErrors(),
-            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong())
+            randomValueOtherThan(instance.readNanos(), () -> randomNonNegativeLong()),
+            instance.readCpuNanos()
         );
     }
 
     public void testToXContent() throws IOException {
-        NdJsonReaderStatus status = new NdJsonReaderStatus(100L, 3L, 150L);
-        assertThat(toJson(status), equalTo("{\"format\":\"ndjson\",\"rows_emitted\":100,\"parse_errors\":3,\"read_nanos\":150}"));
+        NdJsonReaderStatus status = new NdJsonReaderStatus(100L, 3L, 150L, 0L);
+        assertThat(toJson(status), equalTo("{\"format\":\"ndjson\",\"rows_emitted\":100,\"parse_errors\":3,\"read_nanos\":150,\"read_cpu_nanos\":0}"));
     }
 
     private static String toJson(NdJsonReaderStatus status) throws IOException {

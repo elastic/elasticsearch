@@ -44,15 +44,19 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
     private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
     private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
 
-    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean isPersistentParser) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
-            ignoreUnknownFields,
+            isPersistentParser,
             Builder::new
         );
         TencentCloudCommonServiceSettings.declareCommonFields(parser, TencentCloudCommonServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS);
         parser.declareString(Builder::setSimilarity, SimilarityMeasure::fromString, new ParseField(SIMILARITY));
-        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        // The Tencent Cloud embeddings API does not accept a `dimensions` parameter, so only parse it from the persistent parser where it
+        // configures the local index mapping rather than the outbound request.
+        if (isPersistentParser) {
+            parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
+        }
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         return parser;
     }
@@ -181,10 +185,12 @@ public class TencentCloudEmbeddingsServiceSettings extends TencentCloudCommonSer
         }
 
         public void setDimensions(Integer dimensions) {
+            validatePositiveInteger(dimensions, DIMENSIONS);
             this.dimensions = dimensions;
         }
 
         public void setMaxInputTokens(Integer maxInputTokens) {
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
             this.maxInputTokens = maxInputTokens;
         }
 

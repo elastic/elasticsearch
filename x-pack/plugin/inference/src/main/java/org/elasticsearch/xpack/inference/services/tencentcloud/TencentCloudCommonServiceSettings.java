@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.tencentcloud;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,7 +48,8 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
 
     private static final String REGION = "region";
 
-    // Default rate limit for TencentCloud AI Gateway (see docs).
+    // Default rate limit (20 rpm) for the TencentCloud AI Gateway. See the AI Gateway rate-limiting docs:
+    // https://cloud.tencent.cn/document/product/1364/131572
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(20);
 
     /**
@@ -60,11 +62,7 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
     ) {
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setRegion, new ParseField(REGION));
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultRateLimit).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
+        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, defaultRateLimit);
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
         // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
         parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
@@ -127,13 +125,7 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
      * rejects attempts to change them.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        StatefulValue.declareNullable(
-            parser,
-            (update, value) -> update.rateLimitSettings = value,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME),
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
+        RateLimitSettings.declareUpdatableRateLimitSettings(parser, CommonUpdate::setRateLimitSettings);
     }
 
     /**
@@ -143,6 +135,10 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
     public static class CommonUpdate {
 
         protected StatefulValue<RateLimitSettings> rateLimitSettings = StatefulValue.undefined();
+
+        private void setRateLimitSettings(StatefulValue<RateLimitSettings> rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
+        }
 
         /**
          * Resolves the rate limit settings to use after applying the update following the tri-state convention: an omitted field keeps
@@ -159,7 +155,7 @@ public abstract class TencentCloudCommonServiceSettings extends FilteredXContent
 
     protected TencentCloudCommonServiceSettings(String modelId, String region, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.region = region != null && region.isBlank() == false ? region : TencentCloudUtils.DEFAULT_REGION;
+        this.region = Strings.isNullOrBlank(region) ? TencentCloudUtils.DEFAULT_REGION : region;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

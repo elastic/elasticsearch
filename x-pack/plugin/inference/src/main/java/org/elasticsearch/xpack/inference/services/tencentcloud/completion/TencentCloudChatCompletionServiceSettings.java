@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.completion;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -31,7 +30,8 @@ import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.appl
 public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommonServiceSettings {
 
     public static final String NAME = "tencentcloud_chat_completion_service_settings";
-    // Chat completion default rate limit is 5 rpm per the AI Gateway docs.
+    // Chat completion default rate limit is 5 rpm per the AI Gateway rate-limiting docs:
+    // https://cloud.tencent.cn/document/product/1364/131572
     public static final RateLimitSettings DEFAULT_CHAT_COMPLETION_RATE_LIMIT = new RateLimitSettings(5);
 
     private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
@@ -72,11 +72,6 @@ public class TencentCloudChatCompletionServiceSettings extends TencentCloudCommo
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse TencentCloud chat completion service settings update", e);
         }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudChatCompletionServiceSettings> {

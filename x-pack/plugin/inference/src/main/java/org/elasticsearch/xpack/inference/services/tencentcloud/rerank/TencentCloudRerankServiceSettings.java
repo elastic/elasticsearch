@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.tencentcloud.rerank;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -68,11 +67,6 @@ public class TencentCloudRerankServiceSettings extends TencentCloudCommonService
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse TencentCloud rerank service settings update", e);
         }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 
     public static class Builder extends TencentCloudCommonServiceSettings.Builder<TencentCloudRerankServiceSettings> {

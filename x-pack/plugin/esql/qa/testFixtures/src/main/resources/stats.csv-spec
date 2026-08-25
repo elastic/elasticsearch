@@ -1890,7 +1890,7 @@ c:l
 ;
 
 countMV
-skip_columnar: COUNT of multi-value integer field counts documents instead of individual MV values in columnar mode
+skip_columnar: COUNT of a multi-value numeric field returns the document count (79) instead of the value count (183). Columnar disables point indexing, so SearchContextStats#detectSingleValue mis-detects numeric/date fields as single-valued and PushStatsToSource pushes COUNT down to a Lucene document count. The keyword branch has an indexType().hasTerms() guard for this; the numeric/date branch needs the hasPoints() equivalent.
 FROM employees
 | STATS vals = COUNT(salary_change.int)
 ;
@@ -2892,7 +2892,6 @@ c1:long
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
 required_capability: per_agg_filtering
 required_capability: keywords_mv_count_as_single_value_fix
-skip_columnar: COUNT of multi-value keyword field with per-agg WHERE filter produces different results in columnar mode
 from employees
 | stats c1 = count(job_positions) where emp_no <= 10003
 ;

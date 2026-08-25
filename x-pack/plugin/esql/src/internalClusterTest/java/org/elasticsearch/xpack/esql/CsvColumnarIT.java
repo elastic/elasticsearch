@@ -163,22 +163,6 @@ public class CsvColumnarIT extends CsvIT {
         // without an explicit "index: true", so full-text (:) queries return different results
         // between standard and columnar modes.
         "conv_from_keyword",
-        // dense_vector fields with a "similarity" attribute require the field to be indexed
-        // (index:true), but columnar mode rejects indexed dense_vector fields because they cannot
-        // be reconstructed from doc values — MapperParsingException: "Field [similarity] can only
-        // be specified for a field of type [dense_vector] when it is indexed".
-        "dense_vector",
-        "dense_vector_unmapped",
-        "dense_vector_text",
-        "dense_vector_coalesce",
-        "dense_vector_bfloat16",
-        "dense_vector_arithmetic",
-        // color datasets use dense_vector fields with similarity (rgb_vector field).
-        "colors",
-        "colors_with_slice",
-        "colors_unmapped",
-        // Uses dense_vector field with similarity for MMR re-ranking queries.
-        "mmr_text_vector_keyword",
         // Mappings that disable or exclude _source are rejected by columnar mode:
         // "Failed to parse mapping: _source can not be disabled in index using [columnar] index mode".
         // These datasets test _source-disabled / _source-excluded query behavior, which does not
@@ -629,8 +613,7 @@ public class CsvColumnarIT extends CsvIT {
 
         @Override
         public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException {
-            // Strict columnar modes reject mapping runtime fields.
-            return stripRuntimeFields(originalMapping);
+            return sanitizeMapping(originalMapping);
         }
 
         @Override
@@ -711,20 +694,64 @@ public class CsvColumnarIT extends CsvIT {
         }
 
         /**
-         * Removes the top-level {@code "runtime"} section from a mapping JSON string.
+         * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>{@code IndexMode.COLUMNAR.validateMapping} calls
-         * {@code validateNoMappingRuntimeFields}, which rejects any mapping that declares runtime
-         * fields. The csv-spec fixtures do not currently use mapping runtime fields, but removing
-         * the section defensively ensures this variant stays robust as the fixtures evolve.
+         * <p>Performs two adjustments in a single parse-serialize pass:
+         * <ol>
+         *   <li>Removes the top-level {@code "runtime"} section.
+         *       {@code IndexMode.COLUMNAR.validateMapping} calls
+         *       {@code validateNoMappingRuntimeFields}, which rejects any mapping that declares
+         *       runtime fields. The csv-spec fixtures do not currently use mapping runtime fields,
+         *       but removing the section defensively ensures this variant stays robust as the
+         *       fixtures evolve.</li>
+         *   <li>Injects {@code "index": true} into every {@code dense_vector} field that declares
+         *       {@code "similarity"} but omits {@code "index"}.
+         *       Columnar mode defaults {@code index.mapping.index_disabled_by_default} to
+         *       {@code true} (via {@code IndexSettings.java:1062} and
+         *       {@code IndexMode.isStrictColumnar()}), which flips the dense_vector
+         *       {@code "index"} default from {@code true} to {@code false}. A mapping that
+         *       explicitly declares {@code "similarity"} (which is only legal when the field is
+         *       indexed) then fails validation with "Field [similarity] can only be specified for
+         *       a field of type [dense_vector] when it is indexed".  Restoring the standard-mode
+         *       default explicitly keeps the mapping semantically equivalent to the one
+         *       {@link CsvIT} creates, so the csv-spec oracle results remain valid.</li>
+         * </ol>
          */
-        private static String stripRuntimeFields(String mapping) throws IOException {
+        private static String sanitizeMapping(String mapping) throws IOException {
             Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
-            // The runtime section lives at the top level of the mapping object.
             map.remove("runtime");
+            fixDenseVectorIndexDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(map);
                 return Strings.toString(builder);
+            }
+        }
+
+        /**
+         * Recursively walks the {@code "properties"} tree in a mapping object and injects
+         * {@code "index": true} into every {@code dense_vector} field that declares
+         * {@code "similarity"} without an explicit {@code "index"} key.
+         */
+        @SuppressWarnings("unchecked")
+        private static void fixDenseVectorIndexDefault(Map<String, Object> mappingObject) {
+            Object propertiesRaw = mappingObject.get("properties");
+            if (propertiesRaw instanceof Map<?, ?> == false) {
+                return;
+            }
+            Map<String, Object> properties = (Map<String, Object>) propertiesRaw;
+            for (Object fieldDefRaw : properties.values()) {
+                if (fieldDefRaw instanceof Map<?, ?> == false) {
+                    continue;
+                }
+                Map<String, Object> fieldDef = (Map<String, Object>) fieldDefRaw;
+                if ("dense_vector".equals(fieldDef.get("type"))
+                    && fieldDef.containsKey("similarity")
+                    && fieldDef.get("similarity") != null
+                    && fieldDef.containsKey("index") == false) {
+                    fieldDef.put("index", true);
+                }
+                // Recurse into object / nested fields.
+                fixDenseVectorIndexDefault(fieldDef);
             }
         }
     }

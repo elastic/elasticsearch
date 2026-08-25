@@ -10,6 +10,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -375,6 +377,26 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void writeGenericString(String value) throws IOException {
         writeByte((byte) 0);
         writeString(value);
+    }
+
+    // overridden the same way as writeString, to bypass StreamOutput's intermediary buffer
+    @Override
+    public void writeText(Text text) throws IOException {
+        if (text.hasBytes() == false) {
+            final String str = text.string();
+            final int charCount = str.length();
+            final int currentOffset = this.currentOffset;
+            // maximum serialized length is 3 bytes per char, plus 4 bytes for the length prefix
+            if (charCount * 3 + Integer.BYTES <= maxOffset - currentOffset) {
+                // encoding after the prefix lets us backfill the length, so we skip the pass StreamOutput needs to compute it up front
+                final byte[] currentBufferPool = this.currentBufferPool;
+                final int end = UnicodeUtil.UTF16toUTF8(str, 0, charCount, currentBufferPool, currentOffset + Integer.BYTES);
+                ByteUtils.writeIntBE(end - currentOffset - Integer.BYTES, currentBufferPool, currentOffset);
+                this.currentOffset = end;
+                return;
+            }
+        }
+        super.writeText(text);
     }
 
     @Override

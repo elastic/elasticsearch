@@ -11,11 +11,13 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FilterOutputStream;
@@ -124,6 +126,17 @@ public class StreamOutputToBytesTests extends ESTestCase {
             }, () -> {
                 final var value = randomUnicodeOfLengthBetween(0, 2000);
                 return s -> s.writeGenericString(value);
+            }, () -> {
+                final var value = randomUnicodeOfLengthBetween(0, 2000);
+                final var byteLength = UnicodeUtil.calcUTF16toUTF8Length(value, 0, value.length());
+                final var text = new Text(value);
+                return s -> {
+                    if (byteLength >= bufferLen) {
+                        isExpectedWriteSize.set(greaterThanOrEqualTo(bufferLen)); // large writes may bypass the buffer
+                    }
+                    s.writeText(text);
+                    isExpectedWriteSize.set(isFullBufferWrite);
+                };
             });
 
             while (countingStream.position() < targetSize) {

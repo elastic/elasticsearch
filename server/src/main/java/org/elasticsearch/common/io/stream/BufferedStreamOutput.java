@@ -11,7 +11,9 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -428,6 +430,24 @@ public class BufferedStreamOutput extends StreamOutput {
             }
             position = this.position;
         }
+    }
+
+    // overridden the same way as writeString, to bypass StreamOutput's intermediary buffer
+    @Override
+    public void writeText(Text text) throws IOException {
+        if (text.hasBytes() == false) {
+            final String str = text.string();
+            final int charCount = str.length();
+            final int position = this.position;
+            if (Integer.BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+                // encoding after the prefix lets us backfill the length, so we skip the pass StreamOutput needs to compute it up front
+                final int end = UnicodeUtil.UTF16toUTF8(str, 0, charCount, buffer, position + Integer.BYTES);
+                ByteUtils.writeIntBE(end - position - Integer.BYTES, buffer, position);
+                this.position = end;
+                return;
+            }
+        }
+        super.writeText(text);
     }
 
     private static int putCharUtf8(byte[] buffer, int c, int position) {

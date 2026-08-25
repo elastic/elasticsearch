@@ -146,11 +146,8 @@ public final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     /**
-     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} calls. Successes are
-     * aggregated without materializing per-operation {@link Engine.Index} instances; Failures delegate
-     * to {@link #postIndex(ShardId, Engine.Index, Exception)}, materializing just the failed operation.
-     * Engine level failures inherit the delegating default of
-     * {@link IndexingOperationListener#postIndexBatch(ShardId, IndexOperationBatch, Exception)}.
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Engine.IndexResult)} calls. Successes and Failures are
+     * aggregated without materializing per-operation {@link Engine.Index} instances.
      */
     @Override
     public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, List<Engine.IndexResult> results) {
@@ -158,17 +155,21 @@ public final class InternalIndexingStats implements IndexingOperationListener {
             return;
         }
         long tookTotal = 0;
-        long successes = 0;
-        for (int i = 0; i < results.size(); i++) {
-            Engine.IndexResult result = results.get(i);
+        long failed = 0;
+        long versionConflicts = 0;
+        for (Engine.IndexResult result : results) {
             switch (result.getResultType()) {
                 case SUCCESS -> {
                     long took = result.getTook();
                     tookTotal += took;
                     totalStats.indexMetric.inc(took);
-                    successes++;
                 }
-                case FAILURE -> postIndex(shardId, batch.toIndexOp(i), result.getFailure());
+                case FAILURE -> {
+                    failed++;
+                    if (ExceptionsHelper.unwrapCause(result.getFailure()) instanceof VersionConflictEngineException) {
+                        versionConflicts++;
+                    }
+                }
                 default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
             }
         }
@@ -176,8 +177,25 @@ public final class InternalIndexingStats implements IndexingOperationListener {
             totalStats.recentIndexMetric.addIncrement(tookTotal, relativeTimeInNanosSupplier.getAsLong());
             totalStats.totalExecutionTimeNanos.add(tookTotal);
         }
-        // failures decrement indexCurrent in the delegated postIndex, so only successes remain
-        totalStats.indexCurrent.dec(successes);
+        totalStats.indexCurrent.dec(results.size());
+        totalStats.indexFailed.inc(failed);
+        totalStats.indexFailedDueToVersionConflicts.inc(versionConflicts);
+    }
+
+    /**
+     * Batch equivalent of {@link #postIndex(ShardId, Engine.Index, Exception)}, the engine
+     * level exception fails the whole batch, so every operation counts as failed.
+     */
+    @Override
+    public void postIndexBatch(ShardId shardId, IndexOperationBatch batch, Exception ex) {
+        if (batch.origin().isRecovery() == false) {
+            final int docCount = batch.docCount();
+            totalStats.indexCurrent.dec(docCount);
+            totalStats.indexFailed.inc(docCount);
+            if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
+                totalStats.indexFailedDueToVersionConflicts.inc(docCount);
+            }
+        }
     }
 
     @Override

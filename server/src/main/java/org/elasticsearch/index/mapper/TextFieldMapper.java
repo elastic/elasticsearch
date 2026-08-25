@@ -2275,11 +2275,20 @@ public final class TextFieldMapper extends FieldMapper {
 
         /**
          * Returns whether the given keyword field supports synthetic source.
+         * <p>
+         * Note: {@link FieldMapper.MultiFields.Builder#hasSyntheticSourceCompatibleKeywordField()} uses its own copy of this predicate
+         * (without the {@code multiValue()} check) intentionally: the {@code store} default for the parent must not change just because
+         * the keyword sub-field has {@code multi_value: false}; the parent still uses its own fallback field in that case, and that is
+         * exactly what this method gates against.
          */
         private static boolean keywordFieldSupportsSyntheticSource(final KeywordFieldMapper keyword) {
             // the field must be stored in some way, whether that be via store or doc values
             return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
-                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
+                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored())
+                // A single-valued (multi_value=false) delegate cannot hold the parent's entire array: values it rejects are stored
+                // by the parent's own fallback field, so both copies would be emitted during synthetic-source reconstruction, producing
+                // duplicates on the first pass and exponential growth on each round-trip.
+                && keyword.docValuesParameters().multiValue();
         }
     }
 

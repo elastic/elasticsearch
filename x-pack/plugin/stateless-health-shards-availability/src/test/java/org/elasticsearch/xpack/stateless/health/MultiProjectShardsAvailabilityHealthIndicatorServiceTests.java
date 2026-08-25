@@ -141,6 +141,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             projectCases.add(projectId + "=" + greenCase);
             List<IndexSetup> indices = new ArrayList<>();
             switch (greenCase) {
+
                 // Both the primary (and maybe replica shards) are either started or relocating.
                 case ALL_SHARDS_STARTING_OR_RELOCATING -> {
                     int replicaCount = randomBoolean() ? 1 : 0;
@@ -155,6 +156,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     }
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
+
                 // The primary (and maybe replica) shards are either unassigned or initialising. A replica cannot
                 // be initialising while the primary is inactive, so replicas stay unassigned.
                 case INITIALIZING_SHARDS -> {
@@ -184,6 +186,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     provisionallyUnavailablePrimaries.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
+
                 // The primary is started, but the replica is still unassigned. As long as this is within the
                 // health.shards_availability.replica_unassigned_buffer_time then the indicator is green.
                 // When this grace period is exceeded, the indicator goes red since the shard has no remaining
@@ -218,6 +221,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                     provisionallyUnavailableReplicas.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                 }
+
                 // The primary (and maybe replica) is unassigned because its node is restarting.
                 case RESTARTING_NODE -> {
                     int replicaCount = randomBoolean() ? 1 : 0;
@@ -235,6 +239,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     }
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
+
                 /*
                  * The mounted / searchable-snapshot primary is unassigned, but the original index
                  * is still assigned in the same project. Searchable snapshots do not use
@@ -283,6 +288,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     unassignedPrimaries++;
                     diagnosedIndices.add(diagnosedIndex(projectId, mountedName));
                 }
+
                 // After resharding, shard 0 (the source) is fully started and still serves the data but
                 // shard 1 (the target) is unassigned with RESHARD_SPLIT recovery
                 case RESHARD -> {
@@ -335,6 +341,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         var details = ((SimpleHealthIndicatorDetails) result.details()).details();
         String assignment = "projects " + projectCases;
 
+        assertThat(assignment, result.status(), equalTo(GREEN));
         assertThat(
             assignment,
             result.symptom(),
@@ -350,6 +357,17 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                 )
             )
         );
+        if (restartingReplicas == 0) {
+            assertThat(assignment, result.impacts(), empty());
+        } else {
+            // Restarting replicas are unassigned, so stateless reports all_replicas_unassigned
+            // even though the indicator is green
+            assertThat(
+                assignment,
+                result.impacts().stream().map(HealthIndicatorImpact::id).toList(),
+                hasItem(ALL_REPLICAS_UNASSIGNED_IMPACT_ID)
+            );
+        }
         List<Diagnosis> expectedDiagnoses = new ArrayList<>();
         if (diagnosedIndices.isEmpty() == false) {
             expectedDiagnoses.add(
@@ -368,19 +386,6 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             assertThat(assignment, result.diagnosisList(), empty());
         } else {
             assertThat(assignment, result.diagnosisList(), containsInAnyOrder(expectedDiagnoses.toArray(Diagnosis[]::new)));
-        }
-
-        assertThat(assignment, result.status(), equalTo(GREEN));
-        if (restartingReplicas == 0) {
-            assertThat(assignment, result.impacts(), empty());
-        } else {
-            // Restarting replicas are unassigned, so stateless reports all_replicas_unassigned
-            // even though the indicator is green
-            assertThat(
-                assignment,
-                result.impacts().stream().map(HealthIndicatorImpact::id).toList(),
-                hasItem(ALL_REPLICAS_UNASSIGNED_IMPACT_ID)
-            );
         }
         assertThat(assignment, details.get("started_primaries"), equalTo(startedPrimaries));
         assertThat(assignment, details.get("started_replicas"), equalTo(startedReplicas));

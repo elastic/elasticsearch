@@ -426,7 +426,7 @@ public final class QueryPragmas implements Writeable {
     /**
      * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
      */
-    public boolean runtimeKnnSearch() {
+    public boolean knnRuntimeField() {
         return KNN_RUNTIME_FIELD.get(settings);
     }
 

@@ -254,7 +254,7 @@ public class Knn extends SingleFieldFullTextFunction
 
     @Override
     public boolean isRuntimeSearch() {
-        if (false == (Build.current().isSnapshot() && configuration.pragmas().runtimeKnnSearch())) {
+        if (false == (Build.current().isSnapshot() && configuration.pragmas().knnRuntimeField())) {
             return false;
         }
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();

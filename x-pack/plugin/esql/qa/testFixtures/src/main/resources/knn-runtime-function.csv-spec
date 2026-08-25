@@ -2,7 +2,7 @@
 //
 // All tests require:
 //   - knn_runtime_field capability (snapshot builds only)
-//   - runtime_knn_search pragma to enable the runtime execution path
+//   - knn_runtime_field pragma to enable the runtime execution path
 //
 // The knn_hex_vectors dataset stores vectors as hex strings which is converted at runtime into
 // dense_vector field. It does not matter how the runtime dense_vector field is created;

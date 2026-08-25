@@ -86,13 +86,13 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         assert store.hasReferences();
         try {
             final var existingBlobContainer = initializeBlobContainer(indexShard, store);
-            initializeSearchShardRecovery(indexShard, existingBlobContainer, listener);
+            beforeRecoveryOnSearchShard(indexShard, existingBlobContainer, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private void initializeSearchShardRecovery(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
+    private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer blobContainer, ActionListener<Void> listener)
         throws IOException {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert blobContainer != null : indexShard.routingEntry();

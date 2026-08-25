@@ -35,7 +35,7 @@ class TestPathLookup implements PathLookup {
         baseDirPaths.put(TEMP, List.of(tempDir));
         String nativeLibPath = System.getProperty("es.nativelibs.path");
         if (nativeLibPath != null) {
-            baseDirPaths.put(LIB, List.of(Paths.get(nativeLibPath)));
+            baseDirPaths.put(LIB, List.of(PathUtils.get(nativeLibPath)));
         }
     }
 

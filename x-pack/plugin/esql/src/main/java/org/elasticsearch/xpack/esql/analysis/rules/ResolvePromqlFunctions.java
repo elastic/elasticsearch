@@ -84,9 +84,8 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         List<Expression> extraParams = new ArrayList<>(Math.max(0, rawParams.size() - 1));
         List<PromqlFunctionDefinition.PromqlParamInfo> functionParams = metadata.params();
         for (int i = 0; i < rawParams.size(); i++) {
-            // A variadic function repeats its trailing parameter, so any argument beyond the declared list is matched against
-            // that last descriptor. For non-variadic functions the arity guard above (and the fixed-arity invariant enforced
-            // when a definition is built) guarantees the index stays within the declared parameters.
+            // Variadic functions reuse their final parameter descriptor for any additional arguments;
+            // arity checks above guarantee safe indexing for fixed-arity functions.
             PromqlFunctionDefinition.PromqlParamInfo expectedParam = i < functionParams.size()
                 ? functionParams.get(i)
                 : functionParams.getLast();

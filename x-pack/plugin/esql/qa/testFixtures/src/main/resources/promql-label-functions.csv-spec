@@ -1,4 +1,7 @@
-// PromQL label_replace / label_join over a Prometheus-style fixture (prom-metrics-name, which carries labels.__name__).
+// PromQL label_replace / label_join over three ingest-shaped fixtures:
+// - prom-metrics-name: Prometheus labels.* including labels.__name__
+// - prom-metrics: remote-write labels.* passthrough (cpu/state)
+// - otel-metrics: OTel attributes.* passthrough (cpu/state)
 //
 // This version supports label_replace/label_join only when the derived destination is consumed by an enclosing by(...)
 // aggregation. The destination may be a new label or may overwrite a stored label (a dimension or __name__): the derived
@@ -240,4 +243,104 @@ PROMQL index=prom-metrics-name step=1h result=(sum by (zone) (label_join(sum by 
 
 result:double | zone:keyword
 10.0          | podA
+;
+
+
+// Remote-write labels.* passthrough (prom-metrics): derive a new label from the short alias `state`.
+label_replace_remote_write_sum_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics step=1h result=(sum by (tier) (label_replace(metrics.cpu_time, "tier", "$1", "state", "(.+)")))
+| KEEP result, tier
+| SORT result;
+
+result:double | tier:keyword
+3.0           | idle
+15.0          | active
+;
+
+
+// Remote-write labels.*: join short-alias dimensions into a new label.
+label_join_remote_write_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics step=1h result=(sum by (combo) (label_join(metrics.cpu_time, "combo", "-", "cpu", "state")))
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:keyword
+1.0           | system-idle
+2.0           | user-idle
+5.0           | system-active
+10.0          | user-active
+;
+
+
+// Remote-write labels.*: overwrite a stored passthrough dimension; by(state) groups on the derived value.
+label_replace_remote_write_overwrites_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=prom-metrics step=1h result=(sum by (state) (label_replace(metrics.cpu_time, "state", "s-$1", "state", "(.+)")))
+| KEEP result, state
+| SORT result;
+
+result:double | state:keyword
+3.0           | s-idle
+15.0          | s-active
+;
+
+
+// OTel attributes.* passthrough (otel-metrics): derive a new label from the short alias `state`.
+label_replace_otel_sum_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(sum by (tier) (label_replace(metrics.cpu_time, "tier", "$1", "state", "(.+)")))
+| KEEP result, tier
+| SORT result;
+
+result:double | tier:keyword
+3.0           | idle
+15.0          | active
+;
+
+
+// OTel attributes.*: join short-alias dimensions into a new label.
+label_join_otel_by_derived_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(sum by (combo) (label_join(metrics.cpu_time, "combo", "-", "cpu", "state")))
+| KEEP result, combo
+| SORT result;
+
+result:double | combo:keyword
+1.0           | system-idle
+2.0           | user-idle
+5.0           | system-active
+10.0          | user-active
+;
+
+
+// OTel attributes.*: overwrite a stored passthrough dimension; by(state) groups on the derived value.
+label_replace_otel_overwrites_stored_label
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_label_functions
+PROMQL index=otel-metrics step=1h result=(sum by (state) (label_replace(metrics.cpu_time, "state", "s-$1", "state", "(.+)")))
+| KEEP result, state
+| SORT result;
+
+result:double | state:keyword
+3.0           | s-idle
+15.0          | s-active
 ;

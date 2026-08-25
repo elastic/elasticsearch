@@ -680,25 +680,21 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         private Expression labelJoinValue(Source source, MetadataManipulationFunction relabel, Header header) {
             List<Expression> params = relabel.parameters();
             Attribute destination = relabel.destination();
-            String separator = literalString(params.get(1));
-            List<Expression> sources = params.subList(2, params.size())
-                .stream()
-                .map(param -> sourceLabelValue(source, header, literalString(param), destination))
-                .toList();
-            if (sources.isEmpty()) {
-                return Literal.keyword(source, "");
-            }
-            if (sources.size() == 1) {
-                return sources.getFirst();
-            }
-            List<Expression> parts = new ArrayList<>(sources.size() * 2 - 1);
-            for (int i = 0; i < sources.size(); i++) {
-                if (i > 0) {
-                    parts.add(Literal.keyword(source, separator));
+            Literal separator = Literal.keyword(source, literalString(params.get(1)));
+
+            List<Expression> parts = new ArrayList<>(2 * params.size() + 1);
+            for (int i = 2; i < params.size(); i++) {
+                if (parts.isEmpty() == false) {
+                    parts.add(separator);
                 }
-                parts.add(sources.get(i));
+                parts.add(sourceLabelValue(source, header, literalString(params.get(i)), destination));
             }
-            return new Concat(source, parts.getFirst(), parts.subList(1, parts.size()));
+
+            return switch (parts.size()) {
+                case 0 -> Literal.keyword(source, "");
+                case 1 -> parts.getFirst();
+                default -> new Concat(source, parts.getFirst(), parts.subList(1, parts.size()));
+            };
         }
 
         /**

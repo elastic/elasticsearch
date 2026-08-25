@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 157572
+summary: Release reshard resources on index deletion
+type: bug

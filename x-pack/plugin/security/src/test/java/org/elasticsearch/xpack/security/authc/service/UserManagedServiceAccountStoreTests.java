@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -233,7 +234,6 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         corruptions.put("missing roles", source -> source.remove("roles"));
         corruptions.put("roles that is not a list", source -> source.put("roles", ROLE_A));
         corruptions.put("a role that is not a string", source -> source.put("roles", List.of(ROLE_A, 42)));
-        corruptions.put("a role name that is not valid", source -> source.put("roles", List.of(" leading space")));
         corruptions.put("missing enabled", source -> source.remove("enabled"));
         corruptions.put("enabled that is not a boolean", source -> source.put("enabled", "true"));
 
@@ -244,6 +244,13 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             store.invalidateAll();
             assertThat("document with " + description, getByPrincipal(PRINCIPAL), nullValue());
         });
+    }
+
+    public void testAStoredRoleNameThatWouldFailWriteValidationIsStillLoaded() {
+        final String storedRole = " leading space";
+        assertNotNull(NativeRealmValidationUtil.validateRoleName(storedRole, true));
+        respondToGetWith(accountDocument(PRINCIPAL, List.of(storedRole), true));
+        assertThat(getByPrincipal(PRINCIPAL).roles(), contains(storedRole));
     }
 
     public void testAReadThatRacedAnInvalidationDoesNotPopulateTheCache() throws Exception {

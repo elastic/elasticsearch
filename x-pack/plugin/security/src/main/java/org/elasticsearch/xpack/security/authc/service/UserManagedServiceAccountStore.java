@@ -467,12 +467,16 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
         return null;
     }
 
+    /**
+     * Accepts any list of strings. Role-name rules are enforced on write, not on read: a later tightening of those
+     * rules must not make an already-stored account unreadable.
+     */
     @Nullable
     private static List<String> parseRoles(String principal, @Nullable Object rolesValue) {
         if (rolesValue instanceof List<?> rolesList) {
             final List<String> roles = new ArrayList<>(rolesList.size());
             for (Object roleValue : rolesList) {
-                if (roleValue instanceof String role && NativeRealmValidationUtil.validateRoleName(role, true) == null) {
+                if (roleValue instanceof String role) {
                     roles.add(role);
                 } else {
                     logger.warn("service account document [{}] has an invalid role entry [{}]", principal, roleValue);

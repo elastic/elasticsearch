@@ -37,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -428,26 +429,17 @@ public class DataStreamAutoShardingService {
     }
 
     /**
-     * Returns true when the effective index mode for the data stream is LOOKUP, consulting the matching composable
-     * index template when the stored {@code indexMode} field is stale or null.
-     *
-     * When no matching v2 template exists (e.g. system data streams, or a data stream restored from a snapshot
-     * without its template), the method falls back exclusively to the stored field.
+     * Attempt to resolve the expected values after rollover or, if that's not possible,
+     * just use the current value from the datastream settings
      */
     private static boolean isLookupIndexMode(ProjectMetadata project, DataStream dataStream) {
-        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
-            return true;
-        }
-        String templateName = MetadataIndexTemplateService.findV2Template(project, dataStream.getName(), false);
-        if (templateName == null) {
-            return false;
-        }
-        ComposableIndexTemplate template = project.templatesV2().get(templateName);
-        if (template == null) {
-            return false;
-        }
-        ComposableIndexTemplate templateWithSettings = template.mergeSettings(dataStream.getSettings());
-        return project.retrieveIndexModeFromTemplate(templateWithSettings) == IndexMode.LOOKUP;
+        return Optional.ofNullable(MetadataIndexTemplateService.findV2Template(project, dataStream.getName(), false))
+            .map(templateName -> project.templatesV2().get(templateName))
+            .map(template -> {
+                ComposableIndexTemplate templateWithSettings = template.mergeSettings(dataStream.getSettings());
+                return project.retrieveIndexModeFromTemplate(templateWithSettings) == IndexMode.LOOKUP;
+            })
+            .orElse(dataStream.getIndexMode() == IndexMode.LOOKUP);
     }
 
     private static double sumLoadMetrics(IndexStats stats, Function<IndexingStats.Stats, Double> loadMetric) {

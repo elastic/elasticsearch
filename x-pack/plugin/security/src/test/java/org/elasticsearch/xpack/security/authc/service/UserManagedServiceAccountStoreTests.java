@@ -447,6 +447,49 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         );
     }
 
+    public void testListAccountsReturnsAccountsFromEveryNamespace() {
+        respondToSearchWith(
+            List.of(accountDocument(PRINCIPAL, List.of(ROLE_A), true), accountDocument("operations/pager-bot", List.of(ROLE_B), false))
+        );
+
+        final List<UserManagedServiceAccount> accounts = listAccounts(null, null);
+        assertThat(accounts, hasSize(2));
+        assertThat(accounts.get(0).id(), equalTo(ACCOUNT_ID));
+        assertThat(accounts.get(1).id(), equalTo(ServiceAccountId.fromPrincipal("operations/pager-bot")));
+
+        assertThat(
+            searchedQuery(),
+            equalTo(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)))
+        );
+    }
+
+    public void testListAccountsFindsNothingWhenTheServiceNameBelongsToAnotherNamespace() {
+        // Both set: the query is the exact principal, so operations/pager-bot is not a hit.
+        respondToSearchWith(List.of());
+
+        assertThat(listAccounts("engineering", "pager-bot"), empty());
+        assertThat(
+            searchedQuery(),
+            equalTo(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE))
+                    .filter(QueryBuilders.termQuery("username", "engineering/pager-bot"))
+            )
+        );
+    }
+
+    public void testListAccountsFindsNothingWhenNoAccountHasTheServiceName() {
+        respondToSearchWith(
+            List.of(accountDocument(PRINCIPAL, List.of(ROLE_A), true), accountDocument("operations/other_bot", List.of(ROLE_B), false))
+        );
+
+        assertThat(listAccounts(null, "pager-bot"), empty());
+        assertThat(
+            searchedQuery(),
+            equalTo(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_DOC_TYPE)))
+        );
+    }
+
     public void testAStoredDocumentCannotClaimTheReservedNamespace() {
         // Principals are re-validated on read, so a document written by hand cannot shadow a built-in account.
         respondToSearchWith(List.of(accountDocument(reservedNamespace() + "/fleet-server", List.of(ROLE_A), true)));

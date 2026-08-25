@@ -416,6 +416,8 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.mockito:mockito-subclass", ExcludeAllTransitivesRule.class);
 
         // JMH dependencies
+        // strip so jopt-simple and commons-math3 come from version.properties (aligned with the
+        // rest of the codebase) rather than from jmh-parent's own pins.
         components.withModule("org.openjdk.jmh:jmh-core", ExcludeAllTransitivesRule.class);
 
         // OpenSAML dependencies

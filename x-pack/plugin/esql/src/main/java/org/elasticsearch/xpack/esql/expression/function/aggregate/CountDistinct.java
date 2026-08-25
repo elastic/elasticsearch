@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -59,10 +58,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         "CountDistinct",
         CountDistinct::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
-        .binary(CountDistinct::new)
-        .capabilities("flattened", "precision_clamp")
-        .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
@@ -232,7 +227,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     private int precisionValue() {
-        return clampPrecisionThreshold(precision.dataType(), (Number) ((Literal) precision).value());
+        return clampPrecisionThreshold(precision.dataType(), (Number) precision.fold(FoldContext.small()));
     }
 
     /** Clamps a folded precision literal to {@code [0, {@link Integer#MAX_VALUE}]} without narrowing wraparound. */

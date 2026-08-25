@@ -93,7 +93,6 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
         }
 
         // "No rows" expects 0 here instead of null
-        suppliers = parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
         suppliers.add(
             makeSupplier(
                 manyInts("<long precision above integer range>"),
@@ -114,7 +113,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
                 )
             )
         );
-        return suppliers;
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
     private static TestCaseSupplier.TypedDataSupplier manyInts(String name) {

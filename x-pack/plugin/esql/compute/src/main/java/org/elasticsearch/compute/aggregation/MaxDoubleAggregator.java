@@ -16,7 +16,8 @@ import org.elasticsearch.compute.ann.IntermediateState;
 class MaxDoubleAggregator {
 
     public static double init() {
-        return -Double.MAX_VALUE;
+        // The identity element of max: any greater seed would win over a -Infinity observation and be reported as the result.
+        return Double.NEGATIVE_INFINITY;
     }
 
     public static double combine(double current, double v) {

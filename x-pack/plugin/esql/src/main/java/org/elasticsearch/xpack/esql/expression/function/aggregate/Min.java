@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MinDoubleLenientAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -48,15 +51,27 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
-public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Min extends AggregateFunction
+    implements
+        ToAggregator,
+        SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
+        NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Min.class).unary(Min::new).name("min");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Min::new)
+        // PromQL requires IEEE-754 semantics: NaN is skipped unless all inputs are NaN, and ±Inf are ordinary values.
+        .acrossSeries((source, field) -> new Min(source, field, true))
         .description("Returns the minimum value across the input vector.")
         .example("min(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("min");
+
+    /**
+     * When {@code true}, the {@code double} minimum uses Prometheus non-finite semantics (NaN skipped unless all inputs
+     * are NaN). Set only by the PromQL translation; native ES|QL {@code MIN} uses the default strict aggregator.
+     */
+    private final boolean allowNonFinite;
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MinBooleanAggregatorFunctionSupplier::new),
@@ -121,15 +136,36 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 "tdigest" }
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, false);
+    }
+
+    /**
+     * Builds a {@code Min} that uses Prometheus non-finite semantics when {@code allowNonFinite} is true. Used by the
+     * PromQL translation; native ES|QL {@code MIN} uses the strict form.
+     */
+    public Min(Source source, Expression field, boolean allowNonFinite) {
+        this(source, field, Literal.TRUE, NO_WINDOW, allowNonFinite);
     }
 
     public Min(Source source, Expression field, Expression filter, Expression window) {
+        this(source, field, filter, window, false);
+    }
+
+    public Min(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite) {
         super(source, field, filter, window, emptyList());
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Min(StreamInput in) throws IOException {
         super(in);
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
+        super.writeTo(out);
+        writeNonFinite(out);
     }
 
     @Override
@@ -138,18 +174,28 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Min(source(), field(), filter(), window(), false);
+    }
+
+    @Override
     protected NodeInfo<Min> info() {
-        return NodeInfo.create(this, Min::new, field(), filter(), window());
+        return NodeInfo.create(this, Min::new, field(), filter(), window(), allowNonFinite);
     }
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        return new Min(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Min(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite);
     }
 
     @Override
     public Min withFilter(Expression filter) {
-        return new Min(source(), field(), filter, window());
+        return new Min(source(), field(), filter, window(), allowNonFinite);
     }
 
     @Override
@@ -187,6 +233,10 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
+        // The PromQL value column is always a double, so only the double path has a lenient (non-finite) variant.
+        if (allowNonFinite && type == DataType.DOUBLE) {
+            return new MinDoubleLenientAggregatorFunctionSupplier();
+        }
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
@@ -201,11 +251,18 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 source(),
                 FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN),
                 filter(),
-                window()
+                window(),
+                allowNonFinite
             );
         }
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            return new Min(source(), ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN), filter(), window());
+            return new Min(
+                source(),
+                ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN),
+                filter(),
+                window(),
+                allowNonFinite
+            );
         }
         return field().foldable() ? new MvMin(source(), field()) : null;
     }

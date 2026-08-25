@@ -193,7 +193,17 @@ public final class NdJsonFixtureGenerator {
             case "long" -> b.field(name, asLong(v));
             case "double", "float", "half_float", "scaled_float" -> b.field(name, asDouble(v));
             case "boolean", "bool" -> b.field(name, asBoolean(v));
-            case "date", "datetime", "dt" -> b.field(name, formatDate(v));
+            case "date" -> b.field(name, formatDate(v));
+            case "date_nanos" -> b.field(name, formatDateNanos(v));
+            // Unsigned types have no JSON representation this generator can write faithfully, and the
+            // matrix declares them Parquet-only for that reason. Refuse rather than fall through to
+            // the string writer and throw a bare ClassCastException that names nothing.
+            case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
+                "column [" + name + "] declared [" + type + "]: unsigned types are not representable in NDJSON"
+            );
+            case "version" -> throw new IllegalArgumentException(
+                "column [" + name + "] declared [version]: JSON has no version type -- it would read back as a keyword"
+            );
             case "null", "n" -> {
                 /* omit */
             }
@@ -217,8 +227,8 @@ public final class NdJsonFixtureGenerator {
             return false;
         }
         return switch (type) {
-            case "integer", "short", "byte", "long", "double", "float", "half_float", "scaled_float", "boolean", "bool", "date", "datetime",
-                "dt" -> true;
+            case "integer", "short", "byte", "long", "double", "float", "half_float", "scaled_float", "boolean", "date",
+                "date_nanos" -> true;
             case "null", "n" -> false;
             default -> ((String) element).trim().isEmpty() == false;
         };
@@ -231,10 +241,25 @@ public final class NdJsonFixtureGenerator {
             case "long" -> b.value(asLong(v));
             case "double", "float", "half_float", "scaled_float" -> b.value(asDouble(v));
             case "boolean", "bool" -> b.value(asBoolean(v));
-            case "date", "datetime", "dt" -> b.value(formatDate(v));
+            case "date" -> b.value(formatDate(v));
+            case "date_nanos" -> b.value(formatDateNanos(v));
             case "null", "n" -> throw new IllegalStateException("Unexpected null-typed cell in list");
             default -> b.value(((String) v).trim());
         }
+    }
+
+    /**
+     * A {@code date_nanos} value as an ISO-8601 UTC string, preserving all nine fractional digits.
+     * <p>
+     * Deliberately not built from {@link #formatDate}: that goes through {@code Instant.ofEpochMilli}
+     * and would silently drop every sub-millisecond digit, which is the whole point of the type.
+     */
+    private static String formatDateNanos(Object v) {
+        if (v instanceof Number nanos) {
+            long n = nanos.longValue();
+            return Instant.ofEpochSecond(Math.floorDiv(n, 1_000_000_000L), Math.floorMod(n, 1_000_000_000L)).toString();
+        }
+        throw new IllegalArgumentException("Expected epoch nanos for date_nanos, got " + v);
     }
 
     private static String formatDate(Object v) {

@@ -102,15 +102,21 @@ csvToParquetFixtures.each { baseName ->
   generateParquetTasks.add(tasks.named(taskName))
 }
 
-// Every layout the matrix declares that this module does not already register itself. Today
-// that is `multifile`: it used to hold an unconsumed 3-way split of employees while every other
-// format held the authored anchor/other pair, so the layout meant two different things
-// depending on which format you read it in.
+// This module registers every layout itself, in the blocks above, so the shared registrar has
+// nothing to add for the layouts that exist today.
+//
+// `multifile` is absent from this module entirely: that pair is headerless, and Parquet names
+// every column, so the layout has no meaning here. It used to hold an unconsumed 3-way split of
+// employees, which meant the layout named two different things depending on the format.
 ext.fixtureLayoutFormat = 'parquet'
 ext.fixtureLayoutRoot = ext.parquetFixtureOutputDir
 ext.fixtureLayoutMainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
 ext.fixtureLayoutGenerator = 'parquetFixtureGenerator'
-ext.fixtureLayoutSkip = fixtureMatrix.authoredLayouts() + ['hive'] as Set
+// Named explicitly, NOT derived from the declaration: a derived skip set would silently absorb
+// any layout added later, which is the drift this whole change exists to remove. Listing them
+// means a new layout is NOT skipped here, so it either gets a task in this file or fails.
+ext.fixtureLayoutSkip = ['multifile', 'multifile_ubn', 'multifile_type_drift', 'multifile_temporal',
+                         'multifile_perm', 'multifile_split', 'hive'] as Set
 ext.fixtureLayoutTasks = ext.generateParquetTasks
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 

@@ -29,6 +29,15 @@ base {
   archivesName = 'x-pack-esql-fixture-common'
 }
 
+dependencies {
+  // Test-only. The main source set stays dependency-free: these never reach the generator
+  // classpaths, which deliberately isolate their Hadoop jars.
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit4}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation project(':test:framework')
+}
+
 tasks.named('forbiddenApisMain').configure {
   // Pure JDK, no Elasticsearch types -- it has to be loadable from every generator's
   // isolated classpath.

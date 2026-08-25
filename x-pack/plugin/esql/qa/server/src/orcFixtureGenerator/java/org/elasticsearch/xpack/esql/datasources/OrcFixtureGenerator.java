@@ -294,6 +294,14 @@ public final class OrcFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createList(TypeDescription.createDouble());
             case "boolean" -> TypeDescription.createList(TypeDescription.createBoolean());
             case "date" -> TypeDescription.createList(TypeDescription.createTimestampInstant());
+            case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
+                "declared [" + type + "]: ORC has no unsigned integer type -- the column would be written as a "
+                    + "signed value of the same width and read back with the wrong sign for large values"
+            );
+            case "date_nanos" -> throw new IllegalArgumentException(
+                "declared [date_nanos]: ORC cannot carry it, because OrcFormatReader maps TIMESTAMP to DATETIME "
+                    + "and has no DATE_NANOS mapping"
+            );
             case "text", "txt" -> TypeDescription.createList(TypeDescription.createString());
             default -> TypeDescription.createList(orcKeywordStringType());
         };
@@ -306,6 +314,17 @@ public final class OrcFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> TypeDescription.createDouble();
             case "boolean" -> TypeDescription.createBoolean();
             case "date" -> TypeDescription.createTimestampInstant();
+            case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
+                "declared [" + type + "]: ORC has no unsigned integer type -- the column would be written as a "
+                    + "signed value of the same width and read back with the wrong sign for large values"
+            );
+            case "date_nanos" -> throw new IllegalArgumentException(
+                "declared [date_nanos]: ORC cannot carry it, because OrcFormatReader maps TIMESTAMP to DATETIME "
+                    + "and has no DATE_NANOS mapping"
+            );
+            case "version" -> throw new IllegalArgumentException(
+                "declared [version]: ORC has no version type -- it would read back as a keyword"
+            );
             case "text", "txt" -> TypeDescription.createString();
             default -> orcKeywordStringType();
         };
@@ -425,7 +444,18 @@ public final class OrcFixtureGenerator {
                 default -> setString((BytesColumnVector) col, row, value.toString());
             }
         } catch (Exception e) {
-            setNull(col, row, false);
+            // Fail loudly rather than writing a null. Swallowing this turned a missing type arm into a
+            // column of nulls that no test can distinguish from genuinely absent data.
+            throw new IllegalArgumentException(
+                "cannot write column ["
+                    + spec.name()
+                    + "] declared ["
+                    + spec.type()
+                    + "] with value ["
+                    + value
+                    + "]",
+                e
+            );
         }
     }
 

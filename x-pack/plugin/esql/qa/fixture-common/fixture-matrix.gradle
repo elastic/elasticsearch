@@ -5,9 +5,10 @@
  *   apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-matrix.gradle')
  *   def datasets = fixtureMatrix.datasetsFor('parquet')
  *
- * The point is that the list is derived, not written down again. Five modules used to keep
- * their own hand-written copy and three of them had independently converged on the same four
- * datasets; a dataset added to one was invisible to the rest.
+ * The point is that the list is derived, not written down again. Seven lists across six build
+ * files used to be maintained by hand, and three had independently converged on the same four
+ * datasets; a dataset added to one was invisible to the rest. (An eighth list, in the iceberg
+ * module, is deliberately left alone: it feeds Iceberg TABLE fixtures, not one of these formats.)
  */
 
 def matrixFile = buildscript.sourceFile.parentFile.toPath()
@@ -55,6 +56,30 @@ props.stringPropertyNames()
     formats.each { datasetsByFormat[it] << name }
   }
 
+// A per-format override keyed on a format the axis does not declare is a typo, not a no-op: the
+// layout would silently fall back to its default sources and generate a plausible wrong fixture.
+props.stringPropertyNames().findAll { it.startsWith('layout.') && it.contains('.sources.') }.each { key ->
+  def suffix = key.substring(key.indexOf('.sources.') + '.sources.'.length())
+  if (suffix.endsWith('.reason')) {
+    suffix = suffix.substring(0, suffix.length() - '.reason'.length())
+  }
+  if (allFormats.contains(suffix) == false) {
+    throw new GradleException(
+      "'${key}' names format '${suffix}', which is not in the declared format axis ${allFormats}. " +
+      "A per-format source override keyed on an unknown format would be ignored silently."
+    )
+  }
+  // Same trap on the other coordinate: 'layout.multifile_ubnX.sources.parquet' has a valid format
+  // suffix, so the check above passes, and the layout half is never matched to anything.
+  def layoutName = key.substring('layout.'.length(), key.indexOf('.sources.'))
+  if (props.getProperty("layout.${layoutName}.dir") == null) {
+    throw new GradleException(
+      "'${key}' names layout '${layoutName}', which declares no 'layout.${layoutName}.dir'. " +
+      "A source override keyed on an unknown layout would be ignored silently."
+    )
+  }
+}
+
 ext.fixtureMatrix = [
   /** Datasets this format must materialise, in declaration order. */
   datasetsFor: { String format ->
@@ -81,6 +106,9 @@ ext.fixtureMatrix = [
   },
   /** A layout's source files for one format, falling back to the layout's default set. */
   layoutSources: { String layout, String format ->
+    if (allFormats.contains(format) == false) {
+      throw new GradleException("unknown fixture format '${format}'; declared formats are ${allFormats}.")
+    }
     def perFormatKey = "layout.${layout}.sources.${format}"
     def perFormat = props.getProperty(perFormatKey)
     def value = perFormat != null ? perFormat : props.getProperty("layout.${layout}.sources")

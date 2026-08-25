@@ -315,6 +315,22 @@ public final class ParquetFixtureGenerator {
                 .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
                 .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
                 .named(col.name());
+            case "date_nanos" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named(col.name());
+            case "uint32" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(32, false))
+                .named(col.name());
+            case "uint16" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT32)
+                .as(LogicalTypeAnnotation.intType(16, false))
+                .named(col.name());
+            case "uint64" -> Types.optionalList()
+                .optionalElement(PrimitiveType.PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.intType(64, false))
+                .named(col.name());
             case "text", "txt" -> Types.optionalList()
                 .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
                 .as(LogicalTypeAnnotation.stringType())
@@ -382,9 +398,14 @@ public final class ParquetFixtureGenerator {
         switch (type) {
             case "integer", "short", "byte" -> listElement.append("element", ((Number) elem).intValue());
             case "long" -> listElement.append("element", ((Number) elem).longValue());
-            case "double", "scaled_float", "float", "half_float" -> listElement.append("element", ((Number) elem).doubleValue());
+            case "double", "scaled_float" -> listElement.append("element", ((Number) elem).doubleValue());
+            // parquetListType maps these to a FLOAT column, so a double here is the wrong width.
+            case "float", "half_float" -> listElement.append("element", ((Number) elem).floatValue());
             case "boolean" -> listElement.append("element", Boolean.TRUE.equals(elem));
-            case "date" -> listElement.append("element", ((Number) elem).longValue());
+            case "date", "date_nanos" -> listElement.append("element", ((Number) elem).longValue());
+            case "uint32" -> listElement.append("element", ((Number) elem).longValue());
+            case "uint16" -> listElement.append("element", ((Number) elem).intValue());
+            case "uint64" -> listElement.append("element", ((Number) elem).longValue());
             default -> listElement.append("element", elem.toString());
         }
     }
@@ -404,11 +425,20 @@ public final class ParquetFixtureGenerator {
                 case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
                 case "date", "date_nanos" -> g.add(leafName, ((Number) value).longValue());
-                case "ip" -> g.add(leafName, value.toString());
+                case "version" -> throw new IllegalArgumentException(
+                "column [" + leafName + "] declared [version]: Parquet has no version type -- it would read back as a keyword"
+            );
+            case "ip" -> g.add(leafName, value.toString());
                 default -> g.add(leafName, value.toString());
             }
         } catch (Exception e) {
-            // Skip unparseable values
+            // Fail loudly. This catch used to swallow the exception and skip the value, which turned a
+            // missing type arm into a fixture that is silently short a column value at build time --
+            // indistinguishable from a legitimately null cell, and impossible to notice in a green suite.
+            throw new IllegalArgumentException(
+                "cannot write column [" + leafName + "] declared [" + type + "] with value [" + value + "]",
+                e
+            );
         }
     }
 

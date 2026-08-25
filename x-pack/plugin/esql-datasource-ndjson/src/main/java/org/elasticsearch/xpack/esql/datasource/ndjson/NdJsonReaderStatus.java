@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -30,8 +30,7 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors, long readNa
     );
 
     public NdJsonReaderStatus(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong(),
-            in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L);
+        this(in.readVLong(), in.readVLong(), in.readVLong(), in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L);
     }
 
     @Override

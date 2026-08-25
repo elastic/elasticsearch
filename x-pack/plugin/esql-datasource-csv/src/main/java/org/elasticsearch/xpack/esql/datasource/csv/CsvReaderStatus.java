@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
@@ -34,8 +34,14 @@ public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors,
     );
 
     public CsvReaderStatus(StreamInput in) throws IOException {
-        this(in.readString(), in.readVLong(), in.readVLong(), in.readBoolean(), in.readVLong(),
-            in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L);
+        this(
+            in.readString(),
+            in.readVLong(),
+            in.readVLong(),
+            in.readBoolean(),
+            in.readVLong(),
+            in.getTransportVersion().supports(ESQL_READ_CPU_NANOS) ? in.readVLong() : 0L
+        );
     }
 
     @Override

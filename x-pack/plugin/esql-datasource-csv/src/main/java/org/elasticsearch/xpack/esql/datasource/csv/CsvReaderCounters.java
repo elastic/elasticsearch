@@ -57,6 +57,13 @@ public final class CsvReaderCounters {
     }
 
     public CsvReaderStatus snapshot() {
-        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected, totalReadNanos.sum(), totalReadCpuNanos.sum());
+        return new CsvReaderStatus(
+            format,
+            rowsEmitted.sum(),
+            parseErrors.sum(),
+            headerDetected,
+            totalReadNanos.sum(),
+            totalReadCpuNanos.sum()
+        );
     }
 }

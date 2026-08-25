@@ -85,7 +85,12 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     private static FormatReaderStatus randomFormatReader() {
         return switch (between(0, 2)) {
             case 0 -> null;
-            case 1 -> new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            case 1 -> new NdJsonReaderStatus(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
             case 2 -> new CsvReaderStatus(
                 randomFrom("csv", "tsv"),
                 randomNonNegativeLong(),

@@ -141,6 +141,21 @@ public class SnapshotResiliencyTests extends ESTestCase {
         return new DeterministicTaskQueue();
     }
 
+    /**
+     * Runs all currently runnable tasks, then advances simulated time and re-drains until no
+     * deferred tasks remain. This is necessary because snapshot finalization reschedules itself
+     * by 1ms when multiple snapshots complete within the same simulated millisecond, in order to
+     * guarantee monotonically increasing end times. Without advancing time, those rescheduled
+     * tasks would never be picked up by a plain {@link DeterministicTaskQueue#runAllRunnableTasks()}.
+     */
+    private void runAllRunnableTasksDrainingDeferred() {
+        deterministicTaskQueue.runAllRunnableTasks();
+        while (deterministicTaskQueue.hasDeferredTasks()) {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
+    }
+
     @After
     public void verifyReposThenStopServices() throws ExecutionException {
         try {
@@ -543,7 +558,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runAllRunnableTasksDrainingDeferred();
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -608,7 +623,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .deleteSnapshot(new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "*"), deleteSnapshotStepListener)
         );
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runAllRunnableTasksDrainingDeferred();
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -699,7 +714,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runAllRunnableTasksDrainingDeferred();
 
         var response = safeResult(searchResponseListener);
         try {
@@ -1333,7 +1348,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
         }));
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runAllRunnableTasksDrainingDeferred();
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
                 + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
@@ -1557,7 +1572,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }));
             });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        runAllRunnableTasksDrainingDeferred();
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
                 + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),

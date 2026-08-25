@@ -25,7 +25,7 @@ import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.indices.recovery.RecoveryListener.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {

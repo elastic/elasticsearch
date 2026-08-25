@@ -47,21 +47,6 @@ public interface RecoveryListener {
     /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
     void onRecoveryAborted();
 
-    enum FailureStrategy {
-        FAIL_SILENT(false),
-        FAIL_SEND(true);
-
-        private final boolean notifyMaster;
-
-        FailureStrategy(boolean notifyMaster) {
-            this.notifyMaster = notifyMaster;
-        }
-
-        public boolean notifyMaster() {
-            return notifyMaster;
-        }
-    }
-
     static RecoveryListener wrapPreservingContext(RecoveryListener listener, Supplier<ThreadContext.StoredContext> context) {
         return new RecoveryListener() {
             @Override

@@ -41,7 +41,6 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -283,7 +282,6 @@ class Elasticsearch {
             nodeEnv.repoDirs(),
             nodeEnv.configDir(),
             nodeEnv.libDir(),
-            LoaderHelper.platformLibDir,
             nodeEnv.modulesDir(),
             nodeEnv.pluginsDir(),
             pluginSourcePaths,

@@ -30,8 +30,7 @@ public interface PathLookup {
         MODULES,
         PLUGINS,
         LOGS,
-        TEMP,
-        NATIVE_LIB
+        TEMP
     }
 
     Path pidFile();

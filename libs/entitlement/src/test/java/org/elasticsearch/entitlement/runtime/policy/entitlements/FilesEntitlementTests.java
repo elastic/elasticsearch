@@ -50,7 +50,6 @@ public class FilesEntitlementTests extends ESTestCase {
         Path.of("/shareddata"),
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/lib"),
-        Path.of("/lib/native"),
         Path.of("/modules"),
         Path.of("/plugins"),
         Path.of("/logs"),

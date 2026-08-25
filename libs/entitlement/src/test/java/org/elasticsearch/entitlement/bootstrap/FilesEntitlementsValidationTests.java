@@ -53,7 +53,6 @@ public class FilesEntitlementsValidationTests extends ESTestCase {
                 Path.of("/shareddata"),
                 new Path[] { testBaseDir.resolve("shared1"), testBaseDir.resolve("shared2") },
                 TEST_LIBS_DIR,
-                TEST_NATIVE_LIBS_DIR,
                 testBaseDir.resolve("modules"),
                 TEST_PLUGINS_DIR,
                 testBaseDir.resolve("logs"),

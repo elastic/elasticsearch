@@ -41,6 +41,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -2887,11 +2888,11 @@ public class NumberFieldMapper extends FieldMapper {
             case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
-                "mapColumnBatch: ESCF column kind ["
-                    + EscfColumnKind.name(source.kind())
-                    + "] is not yet supported for field ["
-                    + fullPath()
-                    + "]"
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not yet supported for field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;

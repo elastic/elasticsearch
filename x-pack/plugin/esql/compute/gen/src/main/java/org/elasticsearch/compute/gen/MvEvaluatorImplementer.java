@@ -239,13 +239,13 @@ public class MvEvaluatorImplementer {
 
         builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
         {
-            builder.addStatement("int valueCount = v.getValueCount(p)");
             if (nullable) {
-                builder.beginControlFlow("if (valueCount == 0)");
+                builder.beginControlFlow("if (v.isNull(p))");
                 builder.addStatement("builder.appendNull()");
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
+            builder.addStatement("int valueCount = v.getValueCount(p)");
             if (warnExceptions.isEmpty() == false) {
                 builder.beginControlFlow("try");
                 body.accept(builder);

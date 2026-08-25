@@ -72,6 +72,7 @@ toc:
           - file: query-dsl/query-dsl-rule-query.md
       - file: query-dsl/term-level-queries.md
         children:
+          - file: query-dsl/query-dsl-bitmap-terms-query.md
           - file: query-dsl/query-dsl-exists-query.md
           - file: query-dsl/query-dsl-fuzzy-query.md
           - file: query-dsl/query-dsl-ids-query.md

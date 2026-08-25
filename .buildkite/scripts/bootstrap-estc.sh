@@ -78,10 +78,12 @@ if [[ ! -x "${ESTC_BIN}" ]]; then
   if [[ ! -x "${GO_ROOT}/bin/go" ]]; then
     echo "--- Installing Go ${GO_VERSION} (one-time per agent)"
     GO_TARBALL="/tmp/go-${GO_VERSION}.tar.gz"
-    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o "${GO_TARBALL}"
-    # go.dev serves matching go${VERSION}.linux-amd64.tar.gz.sha256; verify before
-    # extracting untrusted bytes, same posture as the archimedes tarball path.
-    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz.sha256" -o "${GO_TARBALL}.sha256"
+    # go.dev/dl redirects the .tar.gz to dl.google.com but does NOT redirect the
+    # .sha256 file — it returns HTML instead. Use dl.google.com directly for both
+    # so the checksum comparison doesn't compare a hash against an HTML page.
+    GO_DL_BASE="https://dl.google.com/go/go${GO_VERSION}.linux-amd64"
+    curl -fsSL "${GO_DL_BASE}.tar.gz" -o "${GO_TARBALL}"
+    curl -fsSL "${GO_DL_BASE}.tar.gz.sha256" -o "${GO_TARBALL}.sha256"
     EXPECTED=$(awk '{print tolower($1)}' "${GO_TARBALL}.sha256")
     ACTUAL=$(sha256sum "${GO_TARBALL}" | awk '{print $1}')
     if [[ "${EXPECTED}" != "${ACTUAL}" ]]; then

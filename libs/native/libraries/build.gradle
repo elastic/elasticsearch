@@ -40,6 +40,7 @@ configurations.consumable('nativeLibs') {
 var zstdVersion = "1.5.7-1"
 var vecVersion = "1.0.139"
 var pqrsVersion = "0.2.0"
+var simdjsonVersion = "0.1.0"
 
 repositories {
   exclusiveContent {
@@ -55,6 +56,7 @@ repositories {
       includeModule("org.elasticsearch", "zstd")
       includeModule("org.elasticsearch", "vec")
       includeModule("org.elasticsearch", "es-parquet-rs")
+      includeModule("org.elasticsearch", "es-simdjson")
     }
   }
 }
@@ -86,6 +88,10 @@ dependencies {
   // See `libs/parquet-rs/native/Makefile` for local builds
   if (System.getenv("LOCAL_PQRS_BINARY") == null){
     libs "org.elasticsearch:es-parquet-rs:${pqrsVersion}@zip"
+  }
+  // See `libs/simdjson/native/Makefile` for local builds
+  if (System.getenv("LOCAL_SIMDJSON_BINARY") == null){
+    libs "org.elasticsearch:es-simdjson:${simdjsonVersion}@zip"
   }
 }
 

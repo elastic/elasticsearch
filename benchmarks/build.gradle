@@ -44,6 +44,7 @@ dependencies {
     // us to invoke the JMH uberjar as usual.
     exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
   }
+  api(project(':libs:simdjson'))
   api(project(':libs:h3'))
   api(project(':modules:aggregations'))
   implementation project(':modules:mapper-extras');
@@ -124,6 +125,7 @@ tasks.named("compileJava").configure {
   // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])
+  options.compilerArgs.addAll(["--add-reads", "org.elasticsearch.simdjson=ALL-UNNAMED"])
 }
 
 tasks.register('copyExpression', Copy) {
@@ -148,7 +150,9 @@ tasks.named("run").configure {
   // Arrow's MemoryUtil reflects into java.nio.Buffer.address during static init; the parquet
   // format reader transitively triggers this via BlockFactory.arrowAllocator(). Mirrors the
   // flag already set on the test task above and on :x-pack:plugin:esql-datasource-parquet:test.
+  jvmArgs '--add-modules=jdk.incubator.vector'
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=org.elasticsearch.server/org.elasticsearch.escf=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
   jvmArgs '-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=' + buildParams.getRuntimeJavaVersion().map { it.majorVersion }.get()
   // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend

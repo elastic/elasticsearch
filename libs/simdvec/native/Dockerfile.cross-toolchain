@@ -37,6 +37,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         make \
+        curl \
+        xz-utils \
+        bzip2 \
         clang-21 \
         lld-21 \
         llvm-21 \

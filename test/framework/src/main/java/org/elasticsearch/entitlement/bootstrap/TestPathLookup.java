@@ -23,6 +23,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.LIB;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
 class TestPathLookup implements PathLookup {
@@ -31,6 +32,10 @@ class TestPathLookup implements PathLookup {
     TestPathLookup(Path tempDir) {
         baseDirPaths = new ConcurrentHashMap<>();
         baseDirPaths.put(TEMP, List.of(tempDir));
+        String nativeLibsPath = System.getProperty("es.nativelibs.path");
+        if (nativeLibsPath != null) {
+            baseDirPaths.put(LIB, List.of(Path.of(nativeLibsPath)));
+        }
     }
 
     @Override
@@ -60,7 +65,7 @@ class TestPathLookup implements PathLookup {
     }
 
     void reset() {
-        baseDirPaths.keySet().retainAll(List.of(TEMP));
+        baseDirPaths.keySet().retainAll(List.of(TEMP, LIB));
     }
 
     void add(BaseDir baseDir, Path... paths) {

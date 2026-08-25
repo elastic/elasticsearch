@@ -196,7 +196,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH)
             && ShardBatchIndexer.BATCH_INDEXING_FEATURE_FLAG.isEnabled()
             && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)) {
-            batchEncoders = new BulkBatchEncoders();
+            batchEncoders = new BulkBatchEncoders(bulkRequest);
         } else {
             batchEncoders = null;
         }

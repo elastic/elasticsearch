@@ -45,6 +45,7 @@ dependencies {
   testImplementation project(":libs:columnar")
   implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
+  implementation project(":libs:simdjson")
   implementation project(":libs:entitlement")
 
   // lucene

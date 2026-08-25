@@ -412,6 +412,165 @@ public class BoundsCheckTests extends ProcessorTestCase {
     }
 
     // -------------------------------------------------------------------------
+    // @OffsetSegment
+    // -------------------------------------------------------------------------
+
+    public void testOffsetSegmentOnNonMemorySegmentParamFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "offset", length = "len") int offset, int len);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about non-MemorySegment parameter but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("can only be applied to a MemorySegment parameter"))
+        );
+    }
+
+    public void testOffsetSegmentUnknownOffsetFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "nope", length = "len") MemorySegment buf, int offset, int len);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about unknown offset but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@OffsetSegment.offset references unknown parameter [nope]"))
+        );
+    }
+
+    public void testOffsetSegmentUnknownLengthFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "offset", length = "nope") MemorySegment buf, int offset, int len);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about unknown length but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@OffsetSegment.length references unknown parameter [nope]"))
+        );
+    }
+
+    public void testOffsetSegmentOffsetWrongTypeFails() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface BadLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "offset", length = "len") MemorySegment buf, MemorySegment offset, int len);
+            }
+            """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about offset type but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("@OffsetSegment.offset parameter [offset] must be int or long"))
+        );
+    }
+
+    public void testOffsetSegmentNegativePaddingBytesFails() {
+        String source =
+            """
+                package test;
+                import java.lang.foreign.MemorySegment;
+                import org.elasticsearch.foreign.LibrarySpecification;
+                import org.elasticsearch.foreign.Function;
+                import org.elasticsearch.foreign.OffsetSegment;
+                @LibrarySpecification(name = "testlib")
+                public interface BadLib {
+                    @Function("native_fn")
+                    int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = -1) MemorySegment buf, int offset, int len);
+                }
+                """;
+
+        CompilationResult result = compile("test.BadLib", source);
+
+        assertFalse("Expected compilation to fail", result.success());
+        assertTrue(
+            "Expected error about negative paddingBytes but got: " + result.errors(),
+            result.errors().stream().anyMatch(msg -> msg.contains("paddingBytes") && msg.contains("must be non-negative"))
+        );
+    }
+
+    public void testOffsetSegmentValidCompiles() {
+        String source = """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.OffsetSegment;
+            @LibrarySpecification(name = "testlib")
+            public interface GoodLib {
+                @Function("native_fn")
+                int fn(@OffsetSegment(offset = "offset", length = "len") MemorySegment buf, int offset, int len);
+            }
+            """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    public void testOffsetSegmentWithPaddingCompiles() {
+        String source =
+            """
+                package test;
+                import java.lang.foreign.MemorySegment;
+                import org.elasticsearch.foreign.LibrarySpecification;
+                import org.elasticsearch.foreign.Function;
+                import org.elasticsearch.foreign.OffsetSegment;
+                @LibrarySpecification(name = "testlib")
+                public interface GoodLib {
+                    @Function("native_fn")
+                    int fn(@OffsetSegment(offset = "offset", length = "len", paddingBytes = 64) MemorySegment buf, int offset, int len);
+                }
+                """;
+
+        CompilationResult result = compile("test.GoodLib", source);
+
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+    }
+
+    // -------------------------------------------------------------------------
     // Shared / cross-cutting
     // -------------------------------------------------------------------------
 

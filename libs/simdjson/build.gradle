@@ -1,0 +1,58 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.foreign-api'
+apply plugin: 'elasticsearch.foreign-library'
+
+dependencies {
+  api project(':libs:foreign-library')
+  api project(':libs:logging')
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'simdjson'
+  }
+  testImplementation(testFixtures(project(':libs:native')))
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs.addAll(['--add-modules=jdk.incubator.vector',
+                               '--add-reads=org.elasticsearch.simdjson=jdk.incubator.vector'])
+  // Suppress the "using incubating module(s)" mandatory warning that javac emits for
+  // jdk.incubator.vector. On JDK 21 this warning has no named lint category and cannot
+  // be individually suppressed. -nowarn is scoped to this submodule only.
+  // TODO: replace with -Xlint:-incubating when the compile toolchain moves to JDK 22+
+  options.compilerArgs << '-nowarn'
+}
+
+// The annotation processor tasks inherit -Werror from ElasticsearchJavaBasePlugin, but
+// -Werror treats the mandated jdk.incubator.vector warning as a fatal error even when
+// -nowarn is present. Remove -Werror for annotation-processing-only tasks.
+['processForeignAnnotations', 'processTestForeignAnnotations'].each { taskName ->
+  tasks.named(taskName).configure {
+    options.compilerArgs.remove('-Werror')
+  }
+}
+
+tasks.named('javadoc').configure {
+  options.addStringOption("-add-modules", "jdk.incubator.vector")
+  options.addStringOption("-add-reads", "org.elasticsearch.simdjson=jdk.incubator.vector")
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  ignoreMissingClasses = true
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('test').configure {
+  jvmArgs '--add-modules=jdk.incubator.vector'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}

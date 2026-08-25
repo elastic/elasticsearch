@@ -482,6 +482,7 @@ class ImplClassWriter {
             switch (check) {
                 case BoundsCheckModel.VectorSegmentCheck v -> emitVectorSegmentCheck(cb, generatedDesc, paramTypes, slots, v);
                 case BoundsCheckModel.MatrixSegmentCheck m -> emitMatrixSegmentCheck(cb, generatedDesc, paramTypes, slots, m);
+                case BoundsCheckModel.OffsetSegmentCheck o -> emitOffsetSegmentCheck(cb, paramTypes, slots, o);
             }
         }
     }
@@ -573,6 +574,24 @@ class ImplClassWriter {
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
         cb.labelBinding(paddingOk);
+    }
+
+    /**
+     * Emits {@code Objects.checkFromIndexSize((long) offset, (long) length + paddingBytes, segment.byteSize())}.
+     */
+    private static void emitOffsetSegmentCheck(
+        CodeBuilder cb,
+        List<NativeType> paramTypes,
+        int[] slots,
+        BoundsCheckModel.OffsetSegmentCheck check
+    ) {
+        emitLongParamLoad(cb, paramTypes.get(check.offsetParamIndex()), slots[check.offsetParamIndex()]);
+        emitLongParamLoad(cb, paramTypes.get(check.lengthParamIndex()), slots[check.lengthParamIndex()]);
+        if (check.paddingBytes() > 0) {
+            cb.ldc((long) check.paddingBytes());
+            cb.ladd();
+        }
+        emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
     }
 
     /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */

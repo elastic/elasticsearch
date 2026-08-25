@@ -4899,37 +4899,90 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directRecFrom = from;
             directRecTo = to;
             if (directBlockQuoted) {
-                if (rowHasNoSpecialChars(buf, from, to)) {
-                    return splitAndConvertPlain(buf, from, to);
-                }
-                try {
-                    return splitAndConvertQuoted(buf, from, to);
-                } catch (MalformedRowException e) {
-                    onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
-                    return false;
-                }
+                return splitAndConvertOptimisticQuoted(buf, from, to);
             }
             return splitAndConvertPlain(buf, from, to);
         }
 
         /**
-         * Returns {@code true} when the record {@code [from, to)} contains neither a
-         * {@link CsvFormatOptions#quoteChar()} nor (when escaping is active) a
-         * {@link CsvFormatOptions#escapeChar()}. When the row is clear of both, no quoted-field or
-         * escape-sequence assembly can occur and the cheaper {@link #splitAndConvertPlain} path is
-         * equivalent to {@link #splitAndConvertQuoted} for that row.
+         * Single-pass optimistic dispatcher for the quoted-dialect direct path. Walks
+         * {@code [from, to)} with the same delimiter scan as {@link #splitAndConvertPlain},
+         * but concurrently watches for two signals that mandate the full quoted walker:
+         * <ul>
+         *   <li>a {@link CsvFormatOptions#quoteChar()} at field-start (after optional outer
+         *       whitespace, matching {@link #splitAndConvertQuoted}'s field-open rule), and
+         *   <li>a {@link CsvFormatOptions#escapeChar()} anywhere in an unquoted field (when
+         *       {@link CsvFormatOptions#escaping()} is active).
+         * </ul>
+         * On either detection the whole row is handed off to {@link #splitAndConvertQuoted}.
+         * Staging slots already written for earlier fields in the same row are plain array
+         * cells that the restart overwrites with identical values — safe and correct.
+         * <p>
+         * In the common case (no quotes, no escapes) this is a single pass over the record
+         * buffer, avoiding the extra pre-scan pass that the prior two-step approach required.
          */
-        private boolean rowHasNoSpecialChars(char[] buf, int from, int to) {
+        private boolean splitAndConvertOptimisticQuoted(char[] buf, int from, int to) {
+            final char delim = options.delimiter();
             final char quote = options.quoteChar();
-            if (options.escaping()) {
-                final char esc = options.escapeChar();
-                for (int i = from; i < to; i++) {
-                    final char c = buf[i];
-                    if (c == quote || c == esc) return false;
+            final boolean escaping = options.escaping();
+            final char esc = escaping ? options.escapeChar() : 0;
+
+            int fieldIndex = 0;
+            int fieldStart = from;
+            for (int i = from; i <= to; i++) {
+                if (i < to && buf[i] != delim) {
+                    if (escaping && buf[i] == esc) {
+                        // Escape char mid-field: hand off the whole row to the full quoted walker.
+                        try {
+                            return splitAndConvertQuoted(buf, from, to);
+                        } catch (MalformedRowException e) {
+                            onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                            return false;
+                        }
+                    }
+                    continue;
                 }
-            } else {
-                for (int i = from; i < to; i++) {
-                    if (buf[i] == quote) return false;
+                // Field boundary: end-of-record (i == to) or delimiter.
+                // Skip outer whitespace to locate a potential field-leading quote,
+                // matching splitAndConvertQuoted's field-open detection rule.
+                int p = fieldStart;
+                while (p < i && buf[p] <= ' ' && buf[p] != delim) {
+                    p++;
+                }
+                if (p < i && buf[p] == quote) {
+                    // Field-leading quote: hand off the whole row to the full quoted walker.
+                    try {
+                        return splitAndConvertQuoted(buf, from, to);
+                    } catch (MalformedRowException e) {
+                        onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                        return false;
+                    }
+                }
+                // No special chars detected: emit field directly, same as splitAndConvertPlain.
+                if (fieldIndex < sourceIndexBound && projectedFieldSet.get(fieldIndex)) {
+                    int bufIdx = sourceToBufferIndex[fieldIndex];
+                    if (emitPlainField(buf, fieldStart, i, bufIdx, projectedTypes[bufIdx]) == false) {
+                        return false;
+                    }
+                } else if (checkUnprojectedFieldCap(buf, fieldStart, i) == false) {
+                    return false;
+                }
+                fieldIndex++;
+                fieldStart = i + 1;
+            }
+            int totalFields = fieldIndex;
+            if (totalFields > rowWidthLimit) {
+                onRowError(
+                    "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
+                    null,
+                    directRawLine(),
+                    true
+                );
+                return false;
+            }
+            for (int c = 0; c < columnCount; c++) {
+                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
+                    stageNullValue(c);
                 }
             }
             return true;

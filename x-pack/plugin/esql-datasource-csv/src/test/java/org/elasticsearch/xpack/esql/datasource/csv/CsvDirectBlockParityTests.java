@@ -1273,28 +1273,29 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     // ---------------------------------------------------------------------------------------------
     // Fast path: quoted-dialect rows with no embedded quote or escape byte.
     //
-    // splitAndConvertDirect dispatches to splitAndConvertPlain when the row buffer contains
-    // neither the configured quote char nor the escape char (when escaping is on). These tests
-    // verify that the fast path produces byte-for-byte identical output to the Jackson baseline
-    // (which the read() harness checks automatically), covering both the no-embedded-quote case
-    // and mixed-row inputs where some rows hit the fast path and others go through splitAndConvertQuoted.
+    // splitAndConvertOptimisticQuoted does a single pass over the row, watching for a
+    // field-leading quote char or (when escaping is on) an escape char mid-field. On either
+    // detection it falls back to splitAndConvertQuoted; otherwise it emits each field directly
+    // via emitPlainField. These tests verify that the optimistic path produces byte-for-byte
+    // identical output to the Jackson baseline (which the read() harness checks automatically),
+    // covering both the no-special-char case and mixed inputs where some rows fall back.
     // ---------------------------------------------------------------------------------------------
 
     /**
      * Rows with no embedded quotes or escapes — the common case for typical CSV — take the
-     * plain-split fast path within the quoted dialect. The A/B harness confirms the fast path
-     * and the Jackson/quoted arms produce identical typed blocks.
+     * optimistic plain-field path within the quoted dialect. The A/B harness confirms the
+     * optimistic and Jackson/quoted arms produce identical typed blocks.
      */
     public void testQuotedDialectNoEmbeddedQuotesFastPath() throws IOException {
-        // Multi-type row: the fast path must handle all supported data types correctly.
+        // Multi-type row: the optimistic path must handle all supported data types correctly.
         List<List<Object>> rows = read(false, Map.of(), "id:long,name:keyword,score:double\n1,hello,1.5\n2,world,-2.5\n");
         assertEquals(List.of(row(1L, br("hello"), 1.5), row(2L, br("world"), -2.5)), rows);
     }
 
     /**
      * Rows with no embedded quotes interleaved with rows that do embed a quote or delimiter.
-     * Plain-fast-path rows and quoted-path rows must co-exist within a single file: the fast-path
-     * scan re-runs per row so switching between paths mid-file is safe.
+     * The optimistic dispatcher re-evaluates each row independently, so plain rows and quoted
+     * rows can co-exist within a single file.
      */
     public void testQuotedDialectMixedFastPathAndQuotedPathRows() throws IOException {
         String csv = "a:keyword,b:keyword\nplain,row\n\"has,comma\",quoted\nplain2,again\n";
@@ -1304,7 +1305,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * A row that contains an unquoted escape sequence (e.g. {@code a\,b}) is NOT eligible for the
-     * fast path because the escape char is present. It must still parse correctly via the quoted walker.
+     * plain-field path because the optimistic dispatcher detects the escape char and falls back to
+     * the quoted walker. The row must still parse correctly.
      */
     public void testQuotedDialectUnquotedEscapeBypassesFastPath() throws IOException {
         List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\,b\n");
@@ -1313,9 +1315,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * With {@code escape: none} the dialect is {@code quoting=true, escaping=false}. In this mode
-     * {@code rowHasNoSpecialChars} only checks for the quote char; a backslash is not a special
-     * character and a row containing one is still eligible for the
-     * plain-split fast path. The backslash must survive as a literal character on both arms.
+     * the optimistic dispatcher does not watch for the escape char; a backslash is a literal and
+     * a row containing one takes the plain-field fast path. The backslash must survive intact.
      */
     public void testQuotedDialectEscapeNoneFastPathPreservesBackslash() throws IOException {
         List<List<Object>> rows = read(false, Map.of("escape", "none"), "k:keyword\nhello\\world\n");
@@ -1324,8 +1325,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * {@code quoteChar == delimiter} is an invalid configuration: {@link CsvFormatOptions} rejects
-     * it at construction time. This guarantees {@code rowHasNoSpecialChars} can never be in a
-     * state where the quote char and the field separator are the same character.
+     * it at construction time, so the optimistic dispatcher can never encounter a row where the
+     * quote char and the field separator are the same character.
      */
     public void testQuotedDialectQuoteCharEqualsDelimiterIsRejected() {
         // The default CSV delimiter is comma; setting quote=, makes quoteChar == delimiter.
@@ -1333,10 +1334,10 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     /**
-     * When a non-default {@code quoteChar} (here {@code |}) appears in every data row,
-     * {@code rowHasNoSpecialChars} returns {@code false} for every row and the fast path is never
-     * taken. All rows are routed through {@code splitAndConvertQuoted}. The A/B harness confirms
-     * the quoted path and Jackson arms produce identical results.
+     * When a non-default {@code quoteChar} (here {@code |}) appears at field start in every data
+     * row, the optimistic dispatcher detects the field-leading {@code |} and hands off each row to
+     * {@code splitAndConvertQuoted}. The A/B harness confirms the quoted path and Jackson arms
+     * produce identical results.
      */
     public void testQuotedDialectCustomQuoteCharInEveryRowBypassesFastPath() throws IOException {
         List<List<Object>> rows = read(false, Map.of("quote", "|"), "a:keyword,b:keyword\n|hello|,|world|\n|foo|,bar\n");
@@ -1345,8 +1346,8 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     /**
      * Doubling the {@code quoteChar} inside a quoted field is the RFC 4180 escape for a literal
-     * occurrence of that character. {@code rowHasNoSpecialChars} sees the {@code |} and returns
-     * {@code false}, routing the row through {@code splitAndConvertQuoted}, which must decode
+     * occurrence of that character. The optimistic dispatcher sees the field-leading {@code |} and
+     * routes the row through {@code splitAndConvertQuoted}, which must decode
      * {@code |hello||world|} as {@code hello|world}.
      */
     public void testQuotedDialectCustomQuoteCharDoubledWithinQuotedField() throws IOException {

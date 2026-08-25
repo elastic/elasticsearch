@@ -122,7 +122,7 @@ public class ShardStateIT extends ESIntegTestCase {
         final var masterService = masterNodeClusterService.getMasterService();
         assertBusy(() -> {
             assertTrue(masterService.pendingTasks().stream().anyMatch(task -> {
-                final var src = task.getSource().string();
+                final var src = task.getSource();
                 // We expect the failure reason and exception message, but not the stack trace.
                 return src.startsWith("shard-failed ")
                     && src.contains("[test][0]")

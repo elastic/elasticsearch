@@ -1112,7 +1112,7 @@ In the `dfs.knn` portion of the response we can see the output the of timings fo
 
 Each entry in the `dfs.knn` array also includes an optional `knn_profile` object that gives a more detailed breakdown of where time was spent during the kNN search. Its contents depend on the underlying vector search algorithm.
 
-For an HNSW (the default for `dense_vector` fields) search, `knn_profile` looks like the following:
+For an HNSW search, `knn_profile` looks like the following:
 
 ```js
 "knn_profile" : {

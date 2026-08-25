@@ -262,6 +262,23 @@ public class SerialDiffIT extends AggregationIntegTestCase {
         );
     }
 
+    public void testLargeLagDoesNotExhaustMemory() {
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                histogram("histo").field(INTERVAL_FIELD)
+                    .interval(interval)
+                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                    .subAggregation(metric)
+                    .subAggregation(diff("diff_values", "the_metric").lag(Integer.MAX_VALUE).gapPolicy(gapPolicy))
+            ),
+            response -> {
+                Histogram histo = response.getAggregations().get("histo");
+                assertThat(histo, notNullValue());
+                assertThat(histo.getBuckets(), Matchers.hasSize(numBuckets));
+            }
+        );
+    }
+
     public void testInvalidLagSize() {
         try {
             prepareSearch("idx").addAggregation(

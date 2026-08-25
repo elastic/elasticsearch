@@ -27,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -347,10 +348,10 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals("a_b_c", result);
     }
 
-    // ---- isRestoringShard predicate tests --------------------------------------------------
+    // ---- isRestoringShardFromSnapshot predicate tests --------------------------------------------------
 
     /**
-     * Bundles the objects needed to exercise {@link RestoreService#isRestoringShard} with all six correlation
+     * Bundles the objects needed to exercise {@link RestoreService#isRestoringShardFromSnapshot} with all six correlation
      * conditions satisfied. Individual tests override specific parts to verify each failing condition.
      */
     private record RestoreTestState(ShardRouting primary, RestoreInProgress restoreInProgress, Snapshot snapshot) {}
@@ -396,7 +397,7 @@ public class RestoreServiceTests extends ESTestCase {
      */
     public void testIsRestoringShard_allConditionsMet_returnsTrue() {
         var s = buildRestoreTestState();
-        assertTrue(RestoreService.isRestoringShard(s.restoreInProgress(), s.primary()));
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), s.primary()));
     }
 
     /**
@@ -412,7 +413,7 @@ public class RestoreServiceTests extends ESTestCase {
             ShardRoutingState.INITIALIZING
         ).withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE).build();
 
-        assertFalse(RestoreService.isRestoringShard(s.restoreInProgress(), peerRecovery));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), peerRecovery));
     }
 
     /**
@@ -438,7 +439,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
             .build();
 
-        assertFalse(RestoreService.isRestoringShard(s.restoreInProgress(), noApiRouting));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), noApiRouting));
     }
 
     /**
@@ -448,7 +449,7 @@ public class RestoreServiceTests extends ESTestCase {
     public void testIsRestoringShard_staleUuid_returnsFalse() {
         var s = buildRestoreTestState();
         // EMPTY has no entries at all, so the UUID lookup returns null
-        assertFalse(RestoreService.isRestoringShard(RestoreInProgress.EMPTY, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(RestoreInProgress.EMPTY, s.primary()));
     }
 
     /**
@@ -477,20 +478,15 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertFalse(RestoreService.isRestoringShard(unrelatedRestoreInProgress, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(unrelatedRestoreInProgress, s.primary()));
     }
 
     /**
      * Condition 4: an entry exists for the UUID but its {@link Snapshot} differs from the routing's recovery source
      * (mismatched correlation state). With assertions enabled this throws {@link AssertionError}; in production
-     * (assertions disabled) it logs ERROR and returns {@code false}. See also
-     * {@link #testIsRestoringShard_snapshotMismatch_productionFallback_returnsFalse()}.
+     * (assertions disabled) it logs ERROR and returns {@code false}.
      */
-    public void testIsRestoringShard_snapshotMismatch_throwsAssertionError() {
-        boolean assertionsEnabled = false;
-        assert assertionsEnabled = true;
-        assumeTrue("requires assertions enabled (-ea)", assertionsEnabled);
-
+    public void testIsRestoringShard_snapshotMismatch() {
         var s = buildRestoreTestState();
         SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
         ShardId shardId = s.primary().shardId();
@@ -511,39 +507,11 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertThrows(AssertionError.class, () -> RestoreService.isRestoringShard(mismatchedRestore, s.primary()));
-    }
-
-    /**
-     * Condition 4 production fallback: with assertions disabled, a UUID/snapshot mismatch must return {@code false}
-     * so that callers see a safe degraded result rather than a crash. Run with {@code -Dtests.asserts=false}.
-     */
-    public void testIsRestoringShard_snapshotMismatch_productionFallback_returnsFalse() {
-        boolean assertionsEnabled = false;
-        assert assertionsEnabled = true;
-        assumeTrue("requires assertions disabled (-Dtests.asserts=false)", assertionsEnabled == false);
-
-        var s = buildRestoreTestState();
-        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
-        ShardId shardId = s.primary().shardId();
-
-        Snapshot differentSnapshot = new Snapshot(
-            randomProjectIdOrDefault(),
-            randomIdentifier(),
-            new SnapshotId(randomIdentifier(), randomUUID())
-        );
-        RestoreInProgress mismatchedRestore = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry(
-                source.restoreUUID(),
-                differentSnapshot,
-                RestoreInProgress.State.STARTED,
-                false,
-                List.of(shardId.getIndexName()),
-                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId()))
-            )
-        ).build();
-
-        assertFalse(RestoreService.isRestoringShard(mismatchedRestore, s.primary()));
+        if (Assertions.ENABLED) {
+            assertThrows(AssertionError.class, () -> RestoreService.isRestoringShardFromSnapshot(mismatchedRestore, s.primary()));
+        } else {
+            assertFalse(RestoreService.isRestoringShardFromSnapshot(mismatchedRestore, s.primary()));
+        }
     }
 
     /**
@@ -567,7 +535,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertFalse(RestoreService.isRestoringShard(noShardRestore, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(noShardRestore, s.primary()));
     }
 
     /**
@@ -589,7 +557,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertFalse(RestoreService.isRestoringShard(completedRestore, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(completedRestore, s.primary()));
     }
 
     /**
@@ -613,7 +581,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertFalse(RestoreService.isRestoringShard(failedRestore, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(failedRestore, s.primary()));
     }
 
     /**
@@ -643,7 +611,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertFalse(RestoreService.isRestoringShard(partiallyCompleteRestore, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(partiallyCompleteRestore, s.primary()));
     }
 
     /**
@@ -673,7 +641,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertFalse(RestoreService.isRestoringShard(partiallyCompleteRestore, s.primary()));
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(partiallyCompleteRestore, s.primary()));
     }
 
     /**
@@ -696,7 +664,7 @@ public class RestoreServiceTests extends ESTestCase {
             )
         ).build();
 
-        assertTrue(RestoreService.isRestoringShard(initRestore, s.primary()));
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(initRestore, s.primary()));
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

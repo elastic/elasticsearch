@@ -1065,7 +1065,8 @@ public class SnapshotsServiceUtils {
                 shardRepoGeneration
             );
         } else if (primary.initializing()) {
-            if (partial && RestoreService.isRestoringShard(restoreInProgress, primary)) {
+            if (partial && RestoreService.isRestoringShardFromSnapshot(restoreInProgress, primary)) {
+                // safe: isRestoringShardFromSnapshot only returns true when recoverySource is a SnapshotRecoverySource
                 var source = (SnapshotRecoverySource) primary.recoverySource();
                 logger.debug(
                     "not snapshotting shard [{}]: primary is being restored from [{}] (restore [{}])",

@@ -13,10 +13,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -499,61 +495,8 @@ public class SnapshotDuringRestoreIT extends AbstractSnapshotIntegTestCase {
         assertThat(info.shardFailures().get(0).reason(), containsString(SnapshotsService.SHARD_BEING_RESTORED_REASON));
     }
 
-    /**
-     * Waits until the named snapshot has at least one shard in
-     * {@link SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED}, confirming the shard is
-     * queued behind another in-progress operation on the same repository shard.
-     */
-    private static void awaitSnapshotShardQueued(String repoName, String snapshotName) {
-        awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> {
-            if (entry.snapshot().getSnapshotId().getName().equals(snapshotName) == false) {
-                return false;
-            }
-            return entry.shardSnapshotStatusByRepoShardId()
-                .values()
-                .stream()
-                .anyMatch(s -> s == SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED);
-        }));
-    }
-
-    /**
-     * Waits until the named snapshot has at least one shard in
-     * {@link SnapshotsInProgress.ShardState#MISSING}, confirming the master has already recorded
-     * the restoring shard as failed.
-     */
-    private static void awaitSnapshotShardMissing(String repoName, String snapshotName) {
-        awaitClusterState(
-            state -> SnapshotsInProgress.get(state)
-                .forRepo(repoName)
-                .stream()
-                .anyMatch(
-                    e -> e.snapshot().getSnapshotId().getName().equals(snapshotName)
-                        && e.shards().values().stream().anyMatch(s -> s.state() == SnapshotsInProgress.ShardState.MISSING)
-                )
-        );
-    }
-
     /** Blocks the master before it writes the shard-level snapshot metadata during a clone. */
     private static void blockMasterOnShardClone(String repoName) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repoName).setBlockOnWriteShardLevelMeta();
-    }
-
-    /**
-     * Waits until the primary shard of the given index is {@link ShardRoutingState#INITIALIZING}
-     * with a {@link RecoverySource.Type#SNAPSHOT} recovery source, confirming that a restore is
-     * actively in progress. At this point {@code RestoreInProgress} is guaranteed to be present in
-     * the cluster state (both are set in the same cluster state update by {@code RestoreService}).
-     */
-    private static void awaitPrimaryInSnapshotRestore(String indexName) {
-        awaitClusterState(state -> {
-            final IndexRoutingTable indexRouting = state.routingTable().index(indexName);
-            if (indexRouting == null) {
-                return false;
-            }
-            final ShardRouting primary = indexRouting.shard(0).primaryShard();
-            return primary != null
-                && primary.state() == ShardRoutingState.INITIALIZING
-                && primary.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
-        });
     }
 }

@@ -18,10 +18,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -802,7 +798,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
      * A {@code partial=false} SLM-triggered snapshot taken while a shard is being restored waits
      * for the restore to complete, then captures the shard and completes as {@link SnapshotState#SUCCESS}.
      * This is the regression guard for the non-partial path: the existing waiting behaviour must not
-     * be broken by the {@code isRestoringShard} predicate.
+     * be broken by the {@code isRestoringShardFromSnapshot} predicate.
      */
     public void testSLMPolicyNonPartialSnapshotWhileRestoringWaitsAndSucceeds() throws Exception {
         final String indexName = "test-index";
@@ -860,19 +856,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertThat(info.state(), is(SnapshotState.SUCCESS));
             assertThat(info.shardFailures(), empty());
         }, 30L, TimeUnit.SECONDS);
-    }
-
-    private static void awaitPrimaryInSnapshotRestore(String indexName) throws Exception {
-        awaitClusterState(state -> {
-            final IndexRoutingTable indexRouting = state.routingTable().index(indexName);
-            if (indexRouting == null) {
-                return false;
-            }
-            final ShardRouting primary = indexRouting.shard(0).primaryShard();
-            return primary != null
-                && primary.state() == ShardRoutingState.INITIALIZING
-                && primary.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
-        });
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {

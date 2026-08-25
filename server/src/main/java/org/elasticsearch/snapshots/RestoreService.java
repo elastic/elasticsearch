@@ -1219,7 +1219,7 @@ public final class RestoreService implements ClusterStateApplier {
      * @param primary           the primary shard routing being evaluated; must be in the INITIALIZING state
      * @return {@code true} if the shard is demonstrably mid-restore, {@code false} if any condition is not met
      */
-    public static boolean isRestoringShard(RestoreInProgress restoreInProgress, ShardRouting primary) {
+    public static boolean isRestoringShardFromSnapshot(RestoreInProgress restoreInProgress, ShardRouting primary) {
         if (!(primary.recoverySource() instanceof SnapshotRecoverySource source)) {
             return false;
         }

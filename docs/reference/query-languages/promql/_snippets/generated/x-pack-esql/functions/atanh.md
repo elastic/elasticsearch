@@ -21,7 +21,3 @@
 ```
 atanh(some_metric)
 ```
-
-**Differences from Prometheus**
-
-For an input whose absolute value is 1 or greater, {{es}} returns `null` and emits a warning, rather than the `±Inf` or `NaN` that Prometheus returns.

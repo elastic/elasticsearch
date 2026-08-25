@@ -21,7 +21,3 @@
 ```
 asin(some_metric)
 ```
-
-**Differences from Prometheus**
-
-For inputs outside the range [-1, 1], {{es}} returns `null` and emits a warning, rather than the `NaN` that Prometheus returns.

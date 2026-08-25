@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 
@@ -26,6 +27,7 @@ import java.util.TreeSet;
  * surviving row set is what every column statistic is computed over. Guards that name columns therefore cannot repair
  * row-scoped damage, and a guard written for one scope silently under-covers the other.
  */
+@SuppressForbidden(reason = "enumerating declared constants is the point: a package-private key must not escape the gate")
 public class StatsInvalidationScopeTests extends ESTestCase {
 
     /**
@@ -33,7 +35,15 @@ public class StatsInvalidationScopeTests extends ESTestCase {
      * type that fails to coerce under {@code skip_row}, a narrower declared width, a pinned read type — invalidates
      * EVERY one of these, for EVERY column, not only for the column whose declaration changed.
      */
-    private static final Set<String> ROW_SCOPED_SUFFIXES = Set.of(".null_count", ".value_count", ".min", ".max", ".size_bytes");
+    private static final Set<String> ROW_SCOPED_SUFFIXES = Set.of(
+        SourceStatisticsSerializer.NULL_COUNT_SUFFIX,
+        SourceStatisticsSerializer.VALUE_COUNT_SUFFIX,
+        SourceStatisticsSerializer.MIN_SUFFIX,
+        SourceStatisticsSerializer.MAX_SUFFIX,
+        // Bytes of the surviving values, so a dropped row moves it — and its only consumer is a cost estimate, which
+        // is why it is cheap to clear and why clearing it cannot produce a wrong answer.
+        SourceStatisticsSerializer.SIZE_BYTES_SUFFIX
+    );
 
     /** Whole-source statistics with the same row-scoped dependency. */
     private static final Set<String> ROW_SCOPED_WHOLE_SOURCE = Set.of(SourceStatisticsSerializer.STATS_ROW_COUNT);
@@ -45,7 +55,12 @@ public class StatsInvalidationScopeTests extends ESTestCase {
     );
 
     /** Keys that identify WHICH read produced the entry rather than carrying a measurement. */
-    private static final Set<String> IDENTITY_SCOPED = Set.of(ExternalStats.MTIME_MILLIS_KEY, ExternalStats.CONFIG_FINGERPRINT_KEY);
+    private static final Set<String> IDENTITY_SCOPED = Set.of(
+        ExternalStats.MTIME_MILLIS_KEY,
+        ExternalStats.CONFIG_FINGERPRINT_KEY,
+        // Which read produced the entry, not a measurement over its rows — so a row drop does not invalidate it.
+        ExternalStats.READ_SHAPE_FINGERPRINT_KEY
+    );
 
     /**
      * Bookkeeping the cache itself consumes — completeness markers, stripe addressing, coverage ranges. Not served to
@@ -83,15 +98,17 @@ public class StatsInvalidationScopeTests extends ESTestCase {
 
         Set<String> unclassified = new TreeSet<>();
         for (Class<?> holder : new Class<?>[] { SourceStatisticsSerializer.class, ExternalStats.class }) {
-            // getFields(), not getDeclaredFields() + setAccessible: the repo forbids reaching past java's access
-            // system, and every full _stats.* key is public by contract (the package-private constants in these
-            // classes are statistic SUFFIXES, which are not keys on their own).
-            for (Field f : holder.getFields()) {
+            // Declared fields, not public ones: a key added package-private must not slip past this gate, and the
+            // suffix constants right beside these keys are already package-private, so the precedent for a
+            // non-public constant here is live. Mirrors CsvFormatReaderRecognizedKeysTests, which reaches declared
+            // fields the same way for the same reason.
+            for (Field f : holder.getDeclaredFields()) {
                 if (f.getType() != String.class || Modifier.isStatic(f.getModifiers()) == false) {
                     continue;
                 }
                 String value;
                 try {
+                    f.setAccessible(true);
                     value = (String) f.get(null);
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
@@ -162,6 +179,7 @@ public class StatsInvalidationScopeTests extends ESTestCase {
             stats.put(SourceStatisticsSerializer.columnValueCountKey(column), 99L);
             stats.put(SourceStatisticsSerializer.columnMinKey(column), 1L);
             stats.put(SourceStatisticsSerializer.columnMaxKey(column), 42L);
+            stats.put(SourceStatisticsSerializer.STATS_COL_PREFIX + column + SourceStatisticsSerializer.SIZE_BYTES_SUFFIX, 512L);
         }
         return stats;
     }

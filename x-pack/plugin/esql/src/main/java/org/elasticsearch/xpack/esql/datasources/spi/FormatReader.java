@@ -312,6 +312,10 @@ public interface FormatReader extends Closeable {
      * @param declaredPathBinding true when the pinned schema is a DECLARED claim (provenance DECLARED)
      * @return a new reader honoring the binding mode, or {@code this} when it does not apply
      */
+    default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
+        return this;
+    }
+
     /**
      * Returns a reader that stamps {@code readShape} onto the statistics it harvests — the caller-computed identity of
      * how THIS file is being read (see {@code ReadShapeFingerprint}). Opaque to the reader, exactly like the canonical
@@ -325,10 +329,6 @@ public interface FormatReader extends Closeable {
      * Default no-op: a format that harvests no statistics has nothing to stamp.
      */
     default FormatReader withReadShape(String readShape) {
-        return this;
-    }
-
-    default FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
         return this;
     }
 

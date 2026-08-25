@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -101,7 +102,9 @@ public final class ReadShapeFingerprint {
 
         byte[] bytes = encoded.toString().getBytes(StandardCharsets.UTF_8);
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(bytes, 0, bytes.length, 0, new MurmurHash3.Hash128());
-        return Long.toHexString(hash.h1) + Long.toHexString(hash.h2);
+        // Zero-padded: Long.toHexString does not pad, so (0x1, 0x23) and (0x12, 0x3) would both render "123" —
+        // a rendering collision in the one place the javadoc above argues a collision is a wrong answer.
+        return String.format(Locale.ROOT, "%016x%016x", hash.h1, hash.h2);
     }
 
     /** Length-prefixed so no user-controlled value can forge a field boundary. */

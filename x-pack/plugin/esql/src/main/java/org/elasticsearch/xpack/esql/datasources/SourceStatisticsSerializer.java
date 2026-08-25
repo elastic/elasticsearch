@@ -361,6 +361,12 @@ public final class SourceStatisticsSerializer {
             poisonColumnExtrema(out, column);
             out.remove(columnValueCountKey(column));
             out.remove(columnNullCountKey(column));
+            if (dropRowCount) {
+                // Bytes of the SURVIVING values, so a row drop moves it exactly like the counts do. Dropped rather
+                // than poisoned because its only consumer is a filter-ordering cost estimate, which degrades to
+                // "unknown" gracefully; the commit-side sibling already removes it, so this keeps the two symmetric.
+                out.remove(STATS_COL_PREFIX + column + SIZE_BYTES_SUFFIX);
+            }
         }
         if (dropRowCount) {
             out.remove(STATS_ROW_COUNT);

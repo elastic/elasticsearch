@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -45,6 +46,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Exact-stat validation for the CSV reader's orthogonal per-stripe stats path, mirroring
@@ -304,6 +308,59 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             assertNull("one fragment per stripe ordinal per path", byOrdinal.put(ordinal, payload));
         }
         return byOrdinal;
+    }
+
+    /**
+     * The read-shape stamp is what keeps one read's statistics from being served to a differently-shaped read, and it
+     * is carried by a wither the reader could silently drop while still compiling. Pin both directions: a configured
+     * shape reaches every harvested contribution, and an unconfigured one stamps no key at all — absence is how a
+     * consumer tells "shape unknown" from a real shape.
+     */
+    public void testReadShapeIsStampedOnHarvestedContributions() throws Exception {
+        byte[] bytes = "n\n1\n2\n3\n".getBytes(StandardCharsets.UTF_8);
+
+        List<Map<String, Object>> stamped = captureWithReadShape(bytes, 64L, "shape-A");
+        assertThat("the read must harvest something to stamp", stamped, not(empty()));
+        for (Map<String, Object> contribution : stamped) {
+            assertEquals("shape-A", contribution.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY));
+        }
+
+        List<Map<String, Object>> unstamped = captureWithReadShape(bytes, 64L, null);
+        assertThat(unstamped, not(empty()));
+        for (Map<String, Object> contribution : unstamped) {
+            assertFalse(
+                "an unknown shape must leave the key absent, not empty",
+                contribution.containsKey(ExternalStats.READ_SHAPE_FINGERPRINT_KEY)
+            );
+        }
+    }
+
+    private List<Map<String, Object>> captureWithReadShape(byte[] bytes, long stripeSize, String readShape) throws Exception {
+        StorageObject o = memoryObject(bytes);
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("n"))
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0)
+            .stats(0, stripeSize, true)
+            .statsColumnScope(StripeColumnScope.PROJECTED)
+            .build();
+        FormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+            Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
+        );
+        if (readShape != null) {
+            reader = reader.withReadShape(readShape);
+        }
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
     }
 
     /** Bulk Jackson path: plain single column, no _rowPosition, direct-to-block DISABLED so the read routes onto convertRowsToPage. */

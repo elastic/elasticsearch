@@ -84,6 +84,21 @@ public final class FuzzyQueries {
     }
 
     /**
+     * Bytes the request circuit breaker should be charged for the compiled automata
+     * {@code query} builds; excludes the retained {@link FuzzyQuery} object itself and the
+     * segment/expansion-scaled rewrite RAM that {@link #estimateBytes(FuzzyQuery, int)} charges
+     * for search-time term expansion. {@code UnifiedHighlighter} rebuilds a single automaton
+     * directly from the query's parameters, without rewriting it into per-segment expanded terms,
+     * so this passes the floor values ({@code maxExpansions=1}, {@code segmentCount=0}) to
+     * {@link FuzzyQueryCostEstimator} to exclude that inapplicable expansion cost.
+     */
+    public static long estimateAutomataBytes(FuzzyQuery query) {
+        BytesRef bytes = query.getTerm().bytes();
+        return new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength(), 1, 0)
+            .estimate();
+    }
+
+    /**
      * Effective expansion count for the breaker charge: a {@link TopTermsRewrite}'s configured size,
      * {@link FuzzyQueryCostEstimator#MAX_CHARGED_EXPANSIONS} for the boolean-producing rewrites that
      * can expand up to {@code IndexSearcher.getMaxClauseCount()} (which is never lower, since

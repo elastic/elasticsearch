@@ -17,6 +17,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
  */
 public interface QueryCostEstimator {
 
+    /** Shared floor for a small retained leaf object when no more precise measurement is available. */
+    long LEAF_FLOOR_BYTES = 1024L;
+
     long estimate();
 
     /** Charge {@link #estimate()} to the breaker on {@code ctx}. No-op if unavailable or non-positive. */

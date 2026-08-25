@@ -114,15 +114,17 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         SegmentableFormatReader csvReader = (SegmentableFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("mode", "plain"));
 
         long minSegment = csvReader.minimumSegmentSize();
+        List<Long> positions = RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment);
         List<Long> starts = RecordBoundaryProbe.reduce(
             RecordBoundaryProbe.stridedOutcomes(
                 csvReader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
                 chain,
                 fileLength,
-                RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment),
+                positions,
                 minSegment,
                 stride,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW,
                 () -> false
             )
         );
@@ -132,10 +134,9 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         assertTrue("probe streams must be closed through the chain", tracking.closed.get());
         // The whole window, because each probe drained it, and no more than it, because the chain preserved the
         // requested length rather than opening a range to end-of-file.
-        int probes = RecordBoundaryProbe.stridedPositions(fileLength, stride, minSegment).size();
         assertEquals(
             "each probe must drain its own bounded window through the chain, of a " + fileLength + " byte file",
-            probes * stride,
+            positions.size() * stride,
             tracking.bytesConsumed.get()
         );
     }
@@ -171,7 +172,7 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
         assertThat(
             "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
-            RecordBoundaryProbe.probeWindow(stride, fileLength, stride, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            segmentProbeWindow(fileLength, stride),
             Matchers.greaterThan(RecordBoundaryProbe.MAX_DRAIN_BYTES)
         );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
@@ -186,6 +187,21 @@ public class StorageObjectAbortChainTests extends ESTestCase {
                 + " probes",
             tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
+        );
+    }
+
+    /**
+     * The window {@link ParallelParsingCoordinator#computeSegments} opens at its first probe offset, derived the
+     * way it derives it: the segment size and the record cap bound it. The cap is passed as the width too,
+     * because segmentation reads bytes it is about to parse anyway and so takes no narrower width.
+     */
+    private static long segmentProbeWindow(long fileLength, long stride) {
+        return RecordBoundaryProbe.probeWindow(
+            stride,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
         );
     }
 

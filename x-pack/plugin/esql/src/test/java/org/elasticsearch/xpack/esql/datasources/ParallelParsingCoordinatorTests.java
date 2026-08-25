@@ -125,7 +125,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         String row = "0123456789,0123456789,012345678\n";
         long minSegment = 512 * 1024;
         // Parallelism high enough that fileLength / parallelism falls under minSegment, which pins the stride to
-        // minSegment. The probe window is the stride here, since the default max record size is far above it.
+        // minSegment. The stride is the narrowest of the window's terms here, so it is what a probe opens, and
+        // the record below is longer than it.
         int parallelism = 64;
         // Place the long record at exactly two strides in so the probe at that offset lands on the record start
         // and cannot find a boundary within its window; the probe at three strides (inside the record but within
@@ -192,6 +193,52 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             minSegment
         );
         assertThat("a file of short rows segments further", unobstructed.size(), Matchers.greaterThan(segments.size()));
+    }
+
+    /**
+     * Records that fit in a segment are segmented on, however wide they are. Segmentation bounds its probes by
+     * the record cap rather than by the width split discovery configures, because probes here sit one segment
+     * apart and so cannot read more than the split this node is about to parse in full. A record wider than that
+     * configured width would otherwise resolve no boundary at all and collapse the split onto one parsing thread.
+     */
+    public void testRecordsWiderThanTheDiscoveryWindowStillSegment() throws IOException {
+        int recordBytes = 300 * 1024;
+        int records = 8;
+        int parallelism = 4;
+        long stride = (long) recordBytes * records / parallelism;
+        assertThat(
+            "the records must outrun the width split discovery would use, or the fix under test is not exercised",
+            (long) recordBytes,
+            Matchers.greaterThan(RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW)
+        );
+        assertThat("and must still fit in a segment, or no window could split them", (long) recordBytes, Matchers.lessThan(stride));
+
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < records; i++) {
+            text.append("x".repeat(recordBytes - 1)).append('\n');
+        }
+        byte[] payload = text.toString().getBytes(StandardCharsets.UTF_8);
+
+        // Every probe offset is a whole number of records in, so each one lands on a record start and has to
+        // read that entire record to reach a newline. That is what makes the record width the binding term.
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            new NewlineSegmentableReader(1),
+            new InMemoryStorageObject(payload),
+            payload.length,
+            parallelism,
+            1
+        );
+
+        assertEquals("every probe must resolve, giving one segment per probe plus the first", parallelism, segments.size());
+        long covered = 0;
+        for (long[] segment : segments) {
+            covered += segment[1];
+            assertTrue(
+                "segment at " + segment[0] + " must start on a record",
+                segment[0] == 0 || payload[Math.toIntExact(segment[0]) - 1] == '\n'
+            );
+        }
+        assertEquals("segments must tile the file", payload.length, covered);
     }
 
     /**
@@ -271,7 +318,13 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         long stride = Math.max(fileLength / 4, csvReader.minimumSegmentSize());
         assertThat(
             "a probe here must be left with more than the drain threshold to transfer, or it is no longer testing the abort path",
-            RecordBoundaryProbe.probeWindow(stride, fileLength, stride, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+            RecordBoundaryProbe.probeWindow(
+                stride,
+                fileLength,
+                stride,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            ),
             Matchers.greaterThan(RecordBoundaryProbe.MAX_DRAIN_BYTES)
         );
         assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));

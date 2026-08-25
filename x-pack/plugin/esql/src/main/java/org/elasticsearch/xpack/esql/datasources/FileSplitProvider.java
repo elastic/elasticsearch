@@ -161,12 +161,38 @@ public class FileSplitProvider implements SplitProvider {
     public static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
 
     /**
+     * Bytes one record-boundary probe may read, defaulting to the width in
+     * {@code RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW}. It is a property of the data rather than of the
+     * node: how wide a window a probe needs follows from how long the dataset's records are, so a dataset whose
+     * records outgrow the default raises it here and every query over that dataset resolves the offsets the
+     * default lost.
+     * <p>
+     * It bounds the probes of a strided scan (NDJSON, plain CSV/TSV). Quoted or escaped CSV/TSV is not probed at
+     * a fixed offset at all but walked, and what bounds that walk is the splitter's own convergence window
+     * together with {@code external_max_record_size}; neither of those is this key.
+     * <p>
+     * It is independent of {@link #CONFIG_MAX_SPLIT_PROBES}, and the two multiply into the bytes a strided query
+     * may read while probing, which {@link #MAX_PROBE_BUDGET_BYTES} caps. Below roughly 136kb a probe transfers
+     * its whole window rather than abandoning it, because draining what is left of a window that small costs less
+     * than the handshake a fresh connection pays, so lowering this key past that point raises the bytes a probe
+     * moves instead of lowering them.
+     */
+    public static final String CONFIG_SPLIT_PROBE_WINDOW = "split_probe_window";
+
+    /**
+     * Record-boundary probes a query may issue, and so the macro-splits its files may be cut into, defaulting
+     * to the count in {@code DEFAULT_MAX_SPLIT_PROBES}. A scan large enough to want more stop points than it allows has its
+     * stride widened to fit them, so raising it is what gets the requested stride on a very large scan.
+     */
+    public static final String CONFIG_MAX_SPLIT_PROBES = "max_split_probes";
+
+    /**
      * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
      * {@link FileSourceFactory#COORDINATOR_KEYS}. New keys read by this class via {@code config.get(...)}
      * must be added here so the {@link org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator}
      * recognises them — pinned by {@code FileSourceFactoryValidationTests}.
      */
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE);
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE, CONFIG_SPLIT_PROBE_WINDOW, CONFIG_MAX_SPLIT_PROBES);
 
     /**
      * Macro-split starts on a newline-aligned record boundary (see {@link #buildNewlineMacroSplits}).
@@ -193,17 +219,48 @@ public class FileSplitProvider implements SplitProvider {
     static final int MAX_PARALLEL_SPLIT_DISCOVERY = 16;
 
     /**
-     * Ceiling on the record-boundary probes one query may issue, and so on the macro-splits that come out of
-     * them. Probing is the only part of split discovery that costs a read per split it produces, and a file's
-     * offsets are all materialized before any of them is read, so an unbounded count costs both planning
-     * latency and planning-time heap.
+     * Default ceiling on the record-boundary probes one query may issue, and so on the macro-splits that come
+     * out of them; a dataset that needs a different one sets {@link #CONFIG_MAX_SPLIT_PROBES}. Probing is the
+     * only part of split discovery that costs a read per split it produces, and a file's offsets are all
+     * materialized before any of them is read, so an unbounded count costs both planning latency and
+     * planning-time heap.
      * <p>
      * The budget covers the query rather than a single file because the probes of every file are pooled into
      * one batch: a per-file ceiling would be multiplied by the number of files. A file too small to be cut at
      * the stride is outside the budget entirely, since it costs no probe and yields the one whole-file split
      * that {@code esql.external.max_discovered_files} already bounds.
+     * <p>
+     * It bounds the reads a query issues, not the bytes they move: a probe's cost in bytes is set by the window
+     * it opens, which {@link #CONFIG_SPLIT_PROBE_WINDOW} bounds instead. The two multiply, so a strided query
+     * reads up to this count times that window while probing, which {@link #MAX_PROBE_BUDGET_BYTES} caps.
      */
-    static final int MAX_SPLIT_PROBES_PER_QUERY = 1_000;
+    static final int DEFAULT_MAX_SPLIT_PROBES = 1_000;
+
+    /**
+     * Ceiling accepted for {@link #CONFIG_MAX_SPLIT_PROBES}. The count is what materializes a query's offsets,
+     * each carrying a probe task, a result slot and a listener before any read is issued, so an unbounded count
+     * spends coordinator heap during planning with no circuit breaker behind it. Ten thousand of them is a few
+     * megabytes, which is the point: the bound is where the transient cost stops being ignorable, well above the
+     * counts a very large scan asks for.
+     * <p>
+     * It is also what keeps a query's total offset count inside an {@code int}: the stride is widened to fit the
+     * budget, so no query accumulates more offsets than this however many files it has.
+     */
+    static final int MAX_SPLIT_PROBES_CEILING = 10_000;
+
+    /**
+     * Ceiling on the bytes one query may read while probing, which is {@link #CONFIG_MAX_SPLIT_PROBES} times
+     * {@link #CONFIG_SPLIT_PROBE_WINDOW}. The keys are independent, so neither alone says what a query costs;
+     * this bounds the product they form. A dataset wanting a window wider than this divided by its probe count
+     * has to lower the count to get it, which is the trade a shared budget exists to make explicit.
+     * <p>
+     * Sized to leave both keys usable well past their defaults, since a value that forced one down every time the
+     * other went up would contradict the advice to size the window from the dataset's longest record and the
+     * count from the splits the scan needs. What it is there to stop is the two extremes multiplied: at the
+     * {@link #MAX_SPLIT_PROBES_CEILING} count and a window the size of a whole record, the reads would otherwise
+     * run to hundreds of gigabytes.
+     */
+    static final long MAX_PROBE_BUDGET_BYTES = ByteSizeValue.ofGb(4).getBytes();
 
     private final long targetSplitSizeBytes;
     private final DecompressionCodecRegistry codecRegistry;
@@ -275,6 +332,11 @@ public class FileSplitProvider implements SplitProvider {
         // Also validates the optional {@link #CONFIG_TARGET_SPLIT_SIZE} when users pass WITH options. Every file
         // of a query is planned against the same config, so the requested stride is resolved once here.
         long requestedStrideBytes = resolveTargetSplitSize(config);
+        // The two probe settings, resolved here for the same reason and validated the same way. They form one
+        // budget, so the pair is checked once both are known rather than by either key's own parser.
+        int maxSplitProbes = resolveMaxSplitProbes(config);
+        long probeWindowBytes = resolveSplitProbeWindow(config);
+        validateProbeBudget(probeWindowBytes, maxSplitProbes);
 
         // Hoist provider creation outside the per-file loop when config is non-empty.
         // This avoids constructing a new S3/GCS/Azure client per file.
@@ -430,17 +492,19 @@ public class FileSplitProvider implements SplitProvider {
         // (Parquet footers, block-aligned compressed, range splits, whole-file) finishes here.
         final StorageProvider hoistedProvider = sharedProvider;
         final BooleanSupplier isCancelled = context.isCancelled();
-        final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, probedFileBytes);
+        final long strideBytes = strideBoundedByProbeBudget(requestedStrideBytes, probedFileBytes, maxSplitProbes);
         if (strideBytes > requestedStrideBytes) {
             // The setting being overridden is the query's, not the cluster's, so this goes to the query's
             // response rather than the node log.
             HeaderWarning.addWarning(
-                "[{}] of [{}] would probe more than {} record boundaries across [{}] of files; using [{}] instead",
+                "[{}] of [{}] would probe more than {} record boundaries across [{}] of files; using [{}] instead. "
+                    + "A larger [{}] allows the requested size",
                 CONFIG_TARGET_SPLIT_SIZE,
                 ByteSizeValue.ofBytes(requestedStrideBytes),
-                MAX_SPLIT_PROBES_PER_QUERY,
+                maxSplitProbes,
                 ByteSizeValue.ofBytes(probedFileBytes),
-                ByteSizeValue.ofBytes(strideBytes)
+                ByteSizeValue.ofBytes(strideBytes),
+                CONFIG_MAX_SPLIT_PROBES
             );
         }
         List<PlanResult> planResults;
@@ -470,11 +534,15 @@ public class FileSplitProvider implements SplitProvider {
         // flat batch under a single concurrency budget, so the number of in-flight probe reads is bounded by that
         // budget no matter how many files are being probed. Probing per file instead would multiply the per-file
         // budget by the number of files in flight.
-        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes = probeDeferredBoundaries(planResults, isCancelled);
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes = probeDeferredBoundaries(
+            planResults,
+            probeWindowBytes,
+            isCancelled
+        );
 
         // Phase 4: turn the plan results into splits, now that every boundary either was known at planning time
         // or has been probed.
-        List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes);
+        List<ExternalSplit> splits = splitsFromPlanResults(planResults, probedOutcomes, probeWindowBytes);
 
         // Each surviving task produces at least one split, so the task count is the number of
         // distinct files that are actually scanned after coordinator-side pruning.
@@ -487,13 +555,18 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * Splits come out in file order: walking the plan results keeps a probed file's macro-splits in the position
      * its file occupied in the file list.
+     *
+     * @param probeWindowBytes the configured probe window, which the shortfall report needs because it is one of
+     *                         the bounds a probe read may have stopped at and the only one not reachable from a
+     *                         plan result
      */
     private static List<ExternalSplit> splitsFromPlanResults(
         List<PlanResult> planResults,
-        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes
+        Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probedOutcomes,
+        long probeWindowBytes
     ) {
         List<ExternalSplit> splits = new ArrayList<>();
-        SplitShortfall shortfall = new SplitShortfall();
+        SplitShortfall shortfall = new SplitShortfall(probeWindowBytes);
         for (PlanResult planResult : planResults) {
             switch (planResult) {
                 case PlanResult.Splits planned -> splits.addAll(planned.splits());
@@ -520,7 +593,14 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * How much less of a query got cut than was asked for, because records were longer than a probe would read.
+     * How much less of a query got cut than was asked for, because the boundary search found nothing where it
+     * was to cut.
+     * <p>
+     * It counts a shortfall rather than diagnosing one, since the several ways an offset comes back empty are
+     * not distinguishable from here and mostly not distinguishable at all: a record longer than the search
+     * reads, a terminator on the last byte of a window that stopped short of end-of-file, a walk reaching
+     * end-of-file with no record start left to prove. What they have in common is the only thing the caller can
+     * act on, which is that the file was cut into fewer pieces than the stride asked for.
      * <p>
      * The interesting case is partial. A scan of records a little wider than a probe window loses most of its
      * offsets but keeps some, so it comes back with a fraction of the splits it asked for, and nothing about the
@@ -530,44 +610,99 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * The tally is per query rather than per file because the cause is a property of the dataset: a scan whose
      * records are too wide is too wide on every file it has, and one warning per file would bury the point.
+     * <p>
+     * A file that lost a little is not tallied at all. A warning that fires when one offset of a thousand came
+     * back empty is a warning people learn to skip, and then it is gone when the same sentence means the file was
+     * read whole. So a file is only counted once what it lost is worth acting on; see
+     * {@link #SIGNIFICANT_SHORTFALL_FRACTION}.
      */
     private static final class SplitShortfall {
+
+        /**
+         * The share of a file that has to go uncut before the file is worth reporting: a tenth of its probe
+         * offsets finding nothing, or a tenth of its bytes left on the span a stopped walk gave up in. A file
+         * read whole is always reported whatever the fraction says, since it got no parallelism at all and that
+         * is the case the warning most needs to survive for.
+         */
+        private static final double SIGNIFICANT_SHORTFALL_FRACTION = 0.1;
+
+        /**
+         * Name of the query pragma that bounds one record, which is what a stopped walk ran into. Held as a
+         * literal because this package does not depend on the one declaring the pragma;
+         * {@code QueryPragmas.MAX_RECORD_SIZE} is its definition.
+         */
+        private static final String MAX_RECORD_SIZE_PRAGMA = "external_max_record_size";
+
+        /**
+         * The configured probe window, one of the three bounds a probe's read is the smallest of. The other two
+         * are read off the example file; this one is resolved per query and never reaches a plan result.
+         */
+        private final long probeWindowBytes;
+
         private long offsetsProbed;
         private long offsetsWithoutBoundary;
         private int filesAffected;
         private int filesReadWhole;
+        private int filesProbed;
+        private int filesWalked;
         private DeferredNewlineSplits firstAffected;
+
+        SplitShortfall(long probeWindowBytes) {
+            this.probeWindowBytes = probeWindowBytes;
+        }
 
         /** Tallies a strided file, whose every offset that found nothing is one split the query did not get. */
         void recordProbed(DeferredNewlineSplits deferred, List<RecordBoundaryProbe.Outcome> outcomes, List<Long> starts) {
             long missing = outcomes.stream().filter(outcome -> outcome.kind() == RecordBoundaryProbe.Outcome.Kind.NONE).count();
             if (missing == 0) {
+                // Nothing was lost. A file that comes out of this whole was cut the way its length and the stride
+                // meant it to be, which is not a shortfall and must not be reported as one.
                 return;
             }
-            // Counted only for a file that lost something, so the ratio reported describes the files the
-            // warning is about. Counting every probed file would put the offsets of files that came out whole
-            // in the denominator, and a query that lost only walked files would report none missing of many.
+            boolean readWhole = starts.size() <= 1;
+            if (readWhole == false && missing < outcomes.size() * SIGNIFICANT_SHORTFALL_FRACTION) {
+                return;
+            }
+            // Counted only for a file the warning is about, so the ratio reported describes those files. Counting
+            // every probed file would put the offsets of files that came out whole in the denominator, and a
+            // query that lost only walked files would report none missing of many.
             offsetsProbed += outcomes.size();
             offsetsWithoutBoundary += missing;
-            note(deferred, starts.size() <= 1);
+            note(deferred, readWhole, true);
         }
 
         /**
          * Tallies a sequentially walked file. The walk stops at the record it cannot get past rather than
          * skipping it, so one such record costs every boundary after it and there is no offset count to
-         * report; what it cost is the rest of the file.
+         * report; what it cost is the rest of the file, which is what decides whether it is worth reporting.
          */
         void recordWalk(PlanResult.Walked walked) {
             if (walked.stoppedBeforeEndOfFile() == false) {
                 return;
             }
-            note(walked.deferred(), walked.starts().size() <= 1);
+            List<Long> starts = walked.starts();
+            boolean readWhole = starts.size() <= 1;
+            long fileLength = walked.deferred().task().fileLength();
+            long uncut = fileLength - starts.getLast();
+            if (readWhole == false && uncut < fileLength * SIGNIFICANT_SHORTFALL_FRACTION) {
+                return;
+            }
+            note(walked.deferred(), readWhole, false);
         }
 
-        private void note(DeferredNewlineSplits deferred, boolean readWhole) {
+        /**
+         * @param probed whether the file's boundaries were probed at fixed offsets or walked, which decides
+         *               which setting can recover them
+         */
+        private void note(DeferredNewlineSplits deferred, boolean readWhole, boolean probed) {
             filesAffected++;
             if (readWhole) {
                 filesReadWhole++;
+            }
+            if (probed) {
+                filesProbed++;
+            } else {
+                filesWalked++;
             }
             if (firstAffected == null) {
                 firstAffected = deferred;
@@ -575,9 +710,9 @@ public class FileSplitProvider implements SplitProvider {
         }
 
         /**
-         * Reports the shortfall to the query's response rather than the node log: the remedy is a
-         * {@code max_record_size} or a {@code target_split_size} the records fit inside, and both belong to
-         * whoever ran the query, not to the operator of the node that would see the log.
+         * Reports the shortfall to the query's response rather than the node log: the remedies are dataset
+         * settings and a query pragma, all of which belong to whoever ran the query rather than to the operator
+         * of the node that would see the log.
          */
         void warnIfAny() {
             if (firstAffected == null) {
@@ -585,18 +720,96 @@ public class FileSplitProvider implements SplitProvider {
             }
             // Every file of a query is cut at the same stride, so the one named here is the stride of all of
             // them. It is the stride they were cut at rather than the one the query asked for, which differ when
-            // the probe budget widened it.
+            // the probe count widened it.
             HeaderWarning.addWarning(
-                "{} file(s) were cut into fewer splits than [{}] of [{}] would give, because some of their records are longer "
-                    + "than a boundary search will read{}; {} of them are read as a single whole-file split; e.g. [{}] ({})",
+                "{} file(s) were cut into fewer splits than [{}] of [{}] would give, because no record boundary could be found "
+                    + "where they were to be cut{}; {} of them are read as a single whole-file split; e.g., [{}] ({}). {}",
                 filesAffected,
                 CONFIG_TARGET_SPLIT_SIZE,
                 ByteSizeValue.ofBytes(firstAffected.strideBytes()),
                 probedOffsetDetail(),
                 filesReadWhole,
                 firstAffected.task().filePath(),
-                ByteSizeValue.ofBytes(firstAffected.task().fileLength())
+                ByteSizeValue.ofBytes(firstAffected.task().fileLength()),
+                remedy()
             );
+        }
+
+        /**
+         * What to change, which differs by how the affected files were cut. A probed file's boundaries come from
+         * a bounded read, so what recovers them is whichever bound stopped that read; see {@link #probeBound()}.
+         * A walked file reads none of those bounds: quoted and escaped records cannot be probed at a fixed
+         * offset, so they are walked instead, and the walk stops at a record the reader will not span. Naming a
+         * probe's bound to that user sends them to a setting that cannot move their outcome, which is why the two
+         * get different sentences and a query that lost both kinds gets both.
+         */
+        private String remedy() {
+            if (filesWalked == 0) {
+                return Strings.format(
+                    "Records longer than the bytes a probe reads are the usual cause: a probe reads at most %s, and a "
+                        + "value above the longest record may recover the splits",
+                    probeBound()
+                );
+            }
+            if (filesProbed == 0) {
+                return Strings.format(
+                    "Quoted or escaped records are walked rather than probed at a fixed offset, and the walk stops "
+                        + "at a record longer than [%s] of [%s]: raising it above the longest record may recover "
+                        + "the splits",
+                    MAX_RECORD_SIZE_PRAGMA,
+                    maxRecordSize()
+                );
+            }
+            return Strings.format(
+                "%d of them were probed, where records longer than the bytes a probe reads are the usual cause: a probe "
+                    + "reads at most %s, and a value above the longest record may recover their splits. The other %d hold "
+                    + "quoted or escaped records, which are walked rather than probed, and the walk stops at a record "
+                    + "longer than [%s] of [%s]: raising it above the longest record may recover theirs",
+                filesProbed,
+                probeBound(),
+                filesWalked,
+                MAX_RECORD_SIZE_PRAGMA,
+                maxRecordSize()
+            );
+        }
+
+        /**
+         * The record bound the walk ran into. Read off the example file, which is any affected file, because the
+         * pragma applies to the whole query and so every file of it carries the same value.
+         */
+        private ByteSizeValue maxRecordSize() {
+            return ByteSizeValue.ofBytes(firstAffected.task().maxRecordBytes());
+        }
+
+        /**
+         * How far a probe read, and which setting stopped it there. A probe's window is the smallest of the query's
+         * record cap, its stride and its configured probe window, so only the smallest of the three can recover a
+         * boundary: raising either of the others leaves the read where it was. Naming the bound rather than the
+         * settings a probe generally reads is what keeps the advice actionable for a query that has already raised
+         * one of them past the one that binds.
+         * <p>
+         * Every one of the three is a property of the query rather than of a file, so they are read off the example
+         * file for the same reason the stride in the warning is.
+         * <p>
+         * Two of them can tie, and then both are named, because moving either alone leaves the minimum where it
+         * was. What is left out is the fourth term of the window, the bytes remaining before end-of-file, which is
+         * a property of the offset rather than something a query can set.
+         */
+        private String probeBound() {
+            long maxRecordBytes = firstAffected.task().maxRecordBytes();
+            long strideBytes = firstAffected.strideBytes();
+            long bound = Math.min(Math.min(maxRecordBytes, strideBytes), probeWindowBytes);
+            List<String> keys = new ArrayList<>(3);
+            if (probeWindowBytes == bound) {
+                keys.add("[" + CONFIG_SPLIT_PROBE_WINDOW + "]");
+            }
+            if (strideBytes == bound) {
+                keys.add("[" + CONFIG_TARGET_SPLIT_SIZE + "]");
+            }
+            if (maxRecordBytes == bound) {
+                keys.add("[" + MAX_RECORD_SIZE_PRAGMA + "]");
+            }
+            return Strings.format("[%s], bounded by %s", ByteSizeValue.ofBytes(bound), String.join(" and ", keys));
         }
 
         /**
@@ -624,9 +837,12 @@ public class FileSplitProvider implements SplitProvider {
      * the two phases from having to agree on an ordering: a probe task already carries the descriptor it
      * contributes to, so filtering or reordering the plan results between planning and probing cannot hand one
      * file another file's boundaries.
+     *
+     * @param probeWindowBytes the bytes each of these probes may read, from {@link #CONFIG_SPLIT_PROBE_WINDOW}
      */
     private Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> probeDeferredBoundaries(
         List<PlanResult> planResults,
+        long probeWindowBytes,
         BooleanSupplier isCancelled
     ) {
         List<DeferredNewlineSplits> deferredFiles = new ArrayList<>();
@@ -640,11 +856,13 @@ public class FileSplitProvider implements SplitProvider {
         if (probeCount == 0) {
             return Map.of();
         }
+        // Every file's stride was widened to fit the query's probe budget, which MAX_SPLIT_PROBES_CEILING bounds,
+        // so the pooled count cannot approach the range of the int it is held in.
+        assert probeCount <= MAX_SPLIT_PROBES_CEILING : "pooled probe count [" + probeCount + "] above the ceiling";
         // A cancel between planning and probing should be seen before any probe read is issued.
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
         }
-
         try {
             Map<DeferredNewlineSplits, List<RecordBoundaryProbe.Outcome>> outcomesByFile = new IdentityHashMap<>(deferredFiles.size());
             if (executor == null) {
@@ -659,6 +877,7 @@ public class FileSplitProvider implements SplitProvider {
                             deferred.minSegment(),
                             deferred.strideBytes(),
                             deferred.task().maxRecordBytes(),
+                            probeWindowBytes,
                             isCancelled
                         )
                     );
@@ -672,7 +891,7 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 List<RecordBoundaryProbe.Outcome> outcomes = BoundedParallelGather.gather(
                     probeTasks,
-                    probe -> runProbe(probe, isCancelled),
+                    probe -> runProbe(probe, probeWindowBytes, isCancelled),
                     splitDiscoveryConcurrency(),
                     executor
                 );
@@ -703,7 +922,7 @@ public class FileSplitProvider implements SplitProvider {
      * inside the probe read can abort a parked sleep on cancel. The scope is thread-local and a probe runs on
      * whichever gather thread picks it up, so it is installed per probe rather than once around the gather.
      */
-    private static RecordBoundaryProbe.Outcome runProbe(ProbeTask probe, BooleanSupplier isCancelled) throws IOException {
+    private static RecordBoundaryProbe.Outcome runProbe(ProbeTask probe, long windowBytes, BooleanSupplier isCancelled) throws IOException {
         DeferredNewlineSplits deferred = probe.deferred();
         return StorageRetryCancellation.callWithCancellation(
             isCancelled,
@@ -715,6 +934,7 @@ public class FileSplitProvider implements SplitProvider {
                 deferred.minSegment(),
                 deferred.strideBytes(),
                 deferred.task().maxRecordBytes(),
+                windowBytes,
                 isCancelled
             )
         );
@@ -724,11 +944,18 @@ public class FileSplitProvider implements SplitProvider {
      * How many split-discovery reads may be in flight at once across the whole query, governing both the per-file
      * planning pass and the boundary probes that follow it.
      * <p>
-     * Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY}, but clamped to the node's blob-store concurrency: a
-     * planning read and a probe alike hold one of those permits for as long as their stream is open, so
-     * submitting more of either than there are permits would only park discovery threads waiting to acquire one.
+     * Bounded by {@link #MAX_PARALLEL_SPLIT_DISCOVERY}, and clamped to the node's blob-store concurrency because
+     * a planning read and a probe alike hold one of those permits for as long as their stream is open: asking for
+     * more in flight than there are permits buys a query nothing but a thread parked on the semaphore. The clamp
+     * is per query where the permits are per node and per scheme, so it bounds one query's contribution to that
+     * contention rather than the contention itself, and concurrent queries still queue against each other.
      * A configured concurrency of {@code 0} disables permit limiting altogether rather than meaning "no
      * concurrency", so the ceiling applies as-is.
+     * <p>
+     * These reads block the thread they run on, which is {@link #executor}'s. That executor must not be the pool
+     * the caller of split discovery is itself running on: the caller waits for this fan-out to finish, so drawing
+     * both from one bounded pool would let a thread wait on work only that pool can run. Production keeps them
+     * apart, {@code GENERIC} here against the {@code esql_external_io} thread the resolver calls in on.
      */
     int splitDiscoveryConcurrency() {
         int permits = ExternalSourceSettings.blobStoreConcurrency(settings);
@@ -777,9 +1004,13 @@ public class FileSplitProvider implements SplitProvider {
      * itself, and everything the splits are stamped with, already lives on the task, and copying that across
      * would mean a field added there is silently absent from the macro-split path.
      * <p>
-     * {@code positions} holds the fixed stride offsets to probe. It is non-empty exactly when this is a
-     * {@link MacroSplitPlan.Strided} file, and empty for a {@link MacroSplitPlan.SequentialWalk} one, whose
-     * boundaries only the walk itself can find.
+     * {@code positions} holds the fixed stride offsets to probe, and so also says which of the two walks this
+     * file needs. It is non-empty for a strided splitter, whose offsets are each resolvable without reference to
+     * any other and are therefore deferred into the query-wide probe batch. It is empty for a
+     * provable-but-not-strided one (quoted or escaped CSV/TSV, selected by
+     * {@link RecordSplitter#supportsProvenProbing()}), whose every step depends on the parse state left by the
+     * one before it, so only the walk itself can say where to look next. A strided file with no offsets worth
+     * probing is never described here at all; see {@link #newlineMacroSplitCandidate}.
      * <p>
      * {@code strideBytes} is the spacing those offsets were laid out at, which is the requested
      * {@code target_split_size} unless {@link #strideBoundedByProbeBudget} widened it, and is what the probes
@@ -797,28 +1028,6 @@ public class FileSplitProvider implements SplitProvider {
         long strideBytes,
         List<Long> positions
     ) {}
-
-    /**
-     * How a newline macro-split candidate's record boundaries are to be found, which is a property of the
-     * splitter its reader resolves to and decided once, at planning time, so that nothing downstream has to ask
-     * the splitter again.
-     */
-    private sealed interface MacroSplitPlan {
-        DeferredNewlineSplits deferred();
-
-        /**
-         * Boundaries at fixed offsets, each resolvable without reference to any other, so the probes can be
-         * deferred into the query-wide batch and run concurrently.
-         */
-        record Strided(DeferredNewlineSplits deferred) implements MacroSplitPlan {}
-
-        /**
-         * Boundaries only a single forward walk can find (quoted or escaped CSV/TSV, selected by
-         * {@link RecordSplitter#supportsProvenProbing()}). Every step depends on the parse state left by the one
-         * before it, so the walk runs during planning, where it is at least concurrent with other files.
-         */
-        record SequentialWalk(DeferredNewlineSplits deferred) implements MacroSplitPlan {}
-    }
 
     /**
      * The outcome of planning one file: its final splits, a descriptor whose record boundaries still need
@@ -945,8 +1154,8 @@ public class FileSplitProvider implements SplitProvider {
             return new PlanResult.Splits(fileSplits);
         }
 
-        MacroSplitPlan macroSplitPlan = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredReader);
-        if (macroSplitPlan == null) {
+        DeferredNewlineSplits deferred = newlineMacroSplitCandidate(task, strideBytes, hoistedProvider, configuredReader);
+        if (deferred == null) {
             // Whole-file split when macro splitting does not apply: small files, unsupported formats, or a file
             // with no stride offset far enough from end-of-file to be worth cutting at.
             fileSplits.add(
@@ -962,17 +1171,14 @@ public class FileSplitProvider implements SplitProvider {
             );
             return new PlanResult.Splits(fileSplits);
         }
-        return switch (macroSplitPlan) {
-            // A strided candidate's probes are deferred so they can share one concurrency budget with every
-            // other file's probes.
-            case MacroSplitPlan.Strided strided -> new PlanResult.NeedsProbing(strided.deferred());
-            // A provable-but-not-strided one must walk sequentially, so resolve it here, where it is at least
-            // concurrent with the planning of other files.
-            case MacroSplitPlan.SequentialWalk sequentialWalk -> {
-                RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(sequentialWalk.deferred(), isCancelled);
-                yield new PlanResult.Walked(sequentialWalk.deferred(), walk.boundaries(), walk.stoppedBeforeEndOfFile());
-            }
-        };
+        // Offsets to probe mean a strided splitter, and its probes are deferred so they can share one
+        // concurrency budget with every other file's. A candidate with none can only be walked sequentially,
+        // so resolve it here, where it is at least concurrent with the planning of other files.
+        if (deferred.positions().isEmpty() == false) {
+            return new PlanResult.NeedsProbing(deferred);
+        }
+        RecordBoundaryProbe.ProvenWalk walk = provenMacroSplitStarts(deferred, isCancelled);
+        return new PlanResult.Walked(deferred, walk.boundaries(), walk.stoppedBeforeEndOfFile());
     }
 
     /**
@@ -1322,9 +1528,9 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Decides how a file's record boundaries near {@code targetStrideBytes} are to be found and, if they can be,
-     * returns everything needed to find them and build the splits. Performs <b>no I/O</b>: for a strided splitter
-     * the probe positions are pure arithmetic, so the caller is free to run the probes later and concurrently
-     * with other files' probes.
+     * returns everything needed to find them and build the splits, including which of the two walks applies; see
+     * {@link DeferredNewlineSplits}. Performs <b>no I/O</b>: for a strided splitter the probe positions are pure
+     * arithmetic, so the caller is free to run the probes later and concurrently with other files' probes.
      * <p>
      * Returns {@code null} for every file the caller should read whole, which is both a file that is no
      * macro-split candidate at all and a strided one whose offsets all fall within a minimum segment of
@@ -1332,7 +1538,7 @@ public class FileSplitProvider implements SplitProvider {
      * apart downstream would mean carrying a descriptor that describes nothing to cut.
      */
     @Nullable
-    private MacroSplitPlan newlineMacroSplitCandidate(
+    private DeferredNewlineSplits newlineMacroSplitCandidate(
         FileTask task,
         long targetStrideBytes,
         @Nullable StorageProvider hoistedProvider,
@@ -1367,13 +1573,12 @@ public class FileSplitProvider implements SplitProvider {
         }
         StorageProvider provider = resolveProvider(task.filePath(), task.config(), hoistedProvider);
         StorageObject object = provider.newObject(task.filePath(), fileLength);
-        DeferredNewlineSplits deferred = new DeferredNewlineSplits(task, object, splitter, minSegment, targetStrideBytes, positions);
-        return strided ? new MacroSplitPlan.Strided(deferred) : new MacroSplitPlan.SequentialWalk(deferred);
+        return new DeferredNewlineSplits(task, object, splitter, minSegment, targetStrideBytes, positions);
     }
 
     /**
      * The stride every file of a query is cut at: the requested one, or the wider one that keeps the query
-     * within {@link #MAX_SPLIT_PROBES_PER_QUERY} record-boundary probes.
+     * within {@code maxSplitProbes} record-boundary probes.
      * <p>
      * Consecutive probe offsets are a stride apart on both walks (the strided one probes
      * {@code stride, 2 * stride, ...}, the proven one resumes a stride past each boundary it finds), so a file
@@ -1388,17 +1593,18 @@ public class FileSplitProvider implements SplitProvider {
      * <p>
      * It is an estimate off the file extension, not off the reader each file resolves to, so a candidate
      * extension whose reader turns out to be unsplittable is counted even though it issues no probe. That only
-     * widens the stride, and only in a scan whose candidate bytes already exceed
-     * {@code MAX_SPLIT_PROBES_PER_QUERY} strides; resolving a reader per file to sharpen it would cost more than
-     * the coarser cut does.
+     * widens the stride, and only in a scan whose candidate bytes already exceed {@code maxSplitProbes}
+     * strides; resolving a reader per file to sharpen it would cost more than the coarser cut does.
      * <p>
      * Widening rather than failing keeps a {@code target_split_size} that suits most of a scan from being
      * rejected because the scan as a whole is large. Telling the user that the size they asked for is not the
      * size they got is the caller's to do, so that this stays arithmetic the caller can evaluate without
      * emitting anything.
+     *
+     * @param maxSplitProbes the probes this query may issue, from {@link #CONFIG_MAX_SPLIT_PROBES}
      */
-    private static long strideBoundedByProbeBudget(long requestedStrideBytes, long probedFileBytes) {
-        return Math.max(requestedStrideBytes, Math.ceilDiv(probedFileBytes, MAX_SPLIT_PROBES_PER_QUERY));
+    private static long strideBoundedByProbeBudget(long requestedStrideBytes, long probedFileBytes, int maxSplitProbes) {
+        return Math.max(requestedStrideBytes, Math.ceilDiv(probedFileBytes, maxSplitProbes));
     }
 
     /**
@@ -1672,6 +1878,124 @@ public class FileSplitProvider implements SplitProvider {
         long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_TARGET_SPLIT_SIZE).getBytes();
         Check.clientError(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_TARGET_SPLIT_SIZE, value);
         return result;
+    }
+
+    /**
+     * Resolves the bytes each of this query's record-boundary probes may read, falling back to
+     * {@link RecordBoundaryProbe#DEFAULT_SPLIT_PROBE_WINDOW}. The default lives on the constant rather than on a
+     * field of this provider because every constructor overload would otherwise have to carry a value none of
+     * them has anything to say about.
+     */
+    private static long resolveSplitProbeWindow(Map<String, Object> config) {
+        if (config == null) {
+            return RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW;
+        }
+        Object value = config.get(CONFIG_SPLIT_PROBE_WINDOW);
+        if (value == null) {
+            return RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW;
+        }
+        String s = value.toString().trim();
+        if (s.isEmpty()) {
+            return RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW;
+        }
+        return validateSplitProbeWindow(s);
+    }
+
+    /**
+     * Parses and validates an already-trimmed {@code split_probe_window} value, returning the size in bytes.
+     * Shared by the query path ({@link #resolveSplitProbeWindow}) and the dataset CRUD validator so both accept
+     * exactly the same inputs. The caller owns trimming and the null/empty fallback to a default; this method
+     * always parses.
+     *
+     * @throws org.elasticsearch.ElasticsearchParseException if the unit suffix is missing or malformed
+     * @throws IllegalArgumentException                      if the resulting size is not positive
+     */
+    public static long validateSplitProbeWindow(String value) {
+        long result = ByteSizeValue.parseBytesSizeValue(value, CONFIG_SPLIT_PROBE_WINDOW).getBytes();
+        Check.clientError(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_SPLIT_PROBE_WINDOW, value);
+        return result;
+    }
+
+    /**
+     * Resolves the record-boundary probes this query may issue, falling back to
+     * {@link #DEFAULT_MAX_SPLIT_PROBES}.
+     */
+    private static int resolveMaxSplitProbes(Map<String, Object> config) {
+        if (config == null) {
+            return DEFAULT_MAX_SPLIT_PROBES;
+        }
+        Object value = config.get(CONFIG_MAX_SPLIT_PROBES);
+        if (value == null) {
+            return DEFAULT_MAX_SPLIT_PROBES;
+        }
+        String s = value.toString().trim();
+        if (s.isEmpty()) {
+            return DEFAULT_MAX_SPLIT_PROBES;
+        }
+        return validateMaxSplitProbes(s);
+    }
+
+    /**
+     * Parses and validates an already-trimmed {@code max_split_probes} value, returning the count. It is a
+     * count of reads rather than a size, so it parses as a plain integer and takes no unit suffix, which is what
+     * its rejection message says where {@link #validateSplitProbeWindow} says only that the value must be
+     * positive. Both reject as client errors, so a bad value for either key answers 400.
+     * <p>
+     * Unlike the window, this one has a ceiling of its own ({@link #MAX_SPLIT_PROBES_CEILING}) because it is the
+     * key that costs planning heap rather than only bytes read.
+     *
+     * @throws IllegalArgumentException if the value is not an integer, is not positive, or is above the ceiling
+     */
+    public static int validateMaxSplitProbes(String value) {
+        int result;
+        try {
+            result = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                Strings.format("Invalid value for [%s]: [%s]; must be a positive integer", CONFIG_MAX_SPLIT_PROBES, value),
+                e
+            );
+        }
+        Check.clientError(result > 0, "Invalid value for [{}]: [{}]; must be positive", CONFIG_MAX_SPLIT_PROBES, value);
+        Check.clientError(
+            result <= MAX_SPLIT_PROBES_CEILING,
+            "Invalid value for [{}]: [{}]; must not exceed [{}]",
+            CONFIG_MAX_SPLIT_PROBES,
+            value,
+            MAX_SPLIT_PROBES_CEILING
+        );
+        return result;
+    }
+
+    /**
+     * Validates that a dataset's two probe keys do not together ask for more than {@link #MAX_PROBE_BUDGET_BYTES}
+     * of reads. Resolves the effective values, defaulting whichever key is absent, because one key on its own is
+     * enough to blow the budget against the other's default: a check that skipped absent keys would accept a
+     * dataset at registration and then reject every query over it.
+     */
+    public static void validateProbeBudget(Map<String, Object> config) {
+        validateProbeBudget(resolveSplitProbeWindow(config), resolveMaxSplitProbes(config));
+    }
+
+    /**
+     * Rejects a probe budget above {@link #MAX_PROBE_BUDGET_BYTES}, expressed as the widest window the given
+     * probe count leaves room for. The message names a window rather than the product because the product is what
+     * the user did not ask for, and dividing also keeps the check itself away from a multiplication that a large
+     * enough window would overflow.
+     */
+    static void validateProbeBudget(long splitProbeWindowBytes, int maxSplitProbes) {
+        long widestWindow = MAX_PROBE_BUDGET_BYTES / maxSplitProbes;
+        Check.clientError(
+            splitProbeWindowBytes <= widestWindow,
+            "Invalid combination of [{}] of [{}] and [{}] of [{}]: a query may read at most [{}] while probing, "
+                + "which at that many probes leaves a window of [{}]; lower either value",
+            CONFIG_SPLIT_PROBE_WINDOW,
+            ByteSizeValue.ofBytes(splitProbeWindowBytes),
+            CONFIG_MAX_SPLIT_PROBES,
+            maxSplitProbes,
+            ByteSizeValue.ofBytes(MAX_PROBE_BUDGET_BYTES),
+            ByteSizeValue.ofBytes(widestWindow)
+        );
     }
 
     /**

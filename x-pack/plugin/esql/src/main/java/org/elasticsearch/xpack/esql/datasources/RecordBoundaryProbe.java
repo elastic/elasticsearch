@@ -91,29 +91,59 @@ final class RecordBoundaryProbe {
     }
 
     /**
-     * The window a probe at {@code pos} reads: the longest record the splitter would accept, capped at the
-     * stride and at what is left of the file.
+     * Default width of the window one split-discovery probe opens, which is how far it reads before giving up
+     * on its offset. A dataset whose records are longer than this sets {@code split_probe_window}. Segmenting a
+     * split across the threads of one node takes no width from here, because its probes read only bytes that
+     * node is about to parse; see {@link ParallelParsingCoordinator#computeSegments}.
      * <p>
-     * {@code maxRecordBytes} is the ceiling because it is already the point past which the splitter reports
-     * {@link RecordSplitter#RECORD_TOO_LARGE}, so a window wider than it could only read bytes the splitter
-     * would refuse to use. It also leaves the longest record a probe will resolve under the query's own
-     * control, through {@code max_record_size} and {@code target_split_size}, rather than under a size nothing
-     * in a query can reach. The two are not interchangeable: where the stride is the smaller of them it is the
-     * stride that binds, so a record longer than one split yields no boundary even though the streamed path
-     * would accept it.
+     * A width narrower than the record cap is what ties a walk's cost in bytes to numbers its caller states,
+     * the offset count times this one. The record cap alone would leave that product free to run away: at the
+     * defaults it is 64mb, so a thousand offsets that each find nothing would read tens of gigabytes before
+     * the walk gave up on the file. That case is reachable rather than theoretical, a minified single-line
+     * JSON array being a file with no terminator in it at all, and the read is issued on the coordinator
+     * during planning, before a row comes back.
+     * <p>
+     * A quarter of a megabyte is the width an ordinary row of a text file resolves against, and at the
+     * default offset count a walk that reads every byte of every window spends a quarter of a gigabyte, which
+     * at the bandwidth a blob store gives one node costs seconds rather than minutes. A dataset whose records
+     * are wider than this knows something the default cannot, which is what the key is for.
+     */
+    static final long DEFAULT_SPLIT_PROBE_WINDOW = 256L * 1024;
+
+    /**
+     * The window a probe at {@code pos} reads: the smallest of the longest record the splitter would accept,
+     * the stride, the configured probe window, and what is left of the file.
+     * <p>
+     * {@code maxRecordBytes} bounds it because a record longer than the streamed path would accept is one no
+     * split can usefully start after, so reading past it buys nothing. It also leaves the longest record a
+     * probe resolves under the query's own control, through the {@code external_max_record_size} pragma and the
+     * {@code target_split_size} read option, rather than under a size nothing in a query can reach. Since the
+     * window ends the scan at the same byte the cap would, a probe never observes
+     * {@link RecordSplitter#RECORD_TOO_LARGE}; that sentinel belongs to the streamed path, which reads until
+     * the cap is exceeded rather than until a window runs out.
      * <p>
      * Capping at the stride is what keeps one probe's window from reaching into the next probe's offset, so the
      * boundaries a set of offsets produces stay in the same order as the offsets themselves. It is also what
      * makes a caller asking for splits smaller than a record's worth of bytes get correspondingly smaller
-     * probes.
+     * probes. Where the stride is the smaller of the two it is the stride that binds, so a record longer than
+     * one split yields no boundary even though the streamed path would accept it.
      * <p>
      * A wide window is not a wide read. The splitters scan through an 8kb buffer and stop at the first
      * terminator, and {@link ProbeStream} then aborts the stream rather than transferring the rest, so on a
      * file of ordinary rows the bytes moved are set by the record length and not by this at all. What the
-     * window bounds is the worst case: how far a probe will go before giving up on the offset.
+     * window bounds is the worst case: how far a probe will go before giving up on the offset, and so also how
+     * long a probe can run past a cancel, since the scan inside the splitter is not itself interruptible.
+     * <p>
+     * The longest record a window that stops short of end-of-file can resolve is one byte shorter than the
+     * window, because {@link #probeAt} rejects a boundary on the window's last byte as found against the window
+     * rather than against the file.
+     *
+     * @param windowBytes the bytes one probe may read: {@code split_probe_window} when discovering splits, and
+     *                    the record cap when segmenting one split across a node's threads
      */
-    static long probeWindow(long pos, long fileLength, long strideBytes, int maxRecordBytes) {
-        return Math.min(Math.min(maxRecordBytes, strideBytes), fileLength - pos);
+    static long probeWindow(long pos, long fileLength, long strideBytes, int maxRecordBytes, long windowBytes) {
+        long bounded = Math.min(Math.min(maxRecordBytes, strideBytes), windowBytes);
+        return Math.min(bounded, fileLength - pos);
     }
 
     /**
@@ -135,9 +165,18 @@ final class RecordBoundaryProbe {
      * inherits it. Installing one here would instead overwrite whatever signal the calling thread was carrying
      * with this method's own, which for a caller whose probes are not separately cancellable would leave the
      * read unable to observe a cancel at all.
+     * <p>
+     * A cancel is observed on the way in and again once the splitter returns, but not while it scans:
+     * {@link RecordSplitter#findNextRecordBoundary} takes no cancellation signal, and the retry scope above by
+     * its own account never interrupts a socket read in progress. What bounds how long a cancel waits is
+     * therefore the window; see {@link #probeWindow}. Each probe reads at most one of them, so a walk of many
+     * offsets reads at most that many windows and a cancelled query waits out one window per probe slot still
+     * occupied rather than a scan of the record cap per offset. Split discovery narrows that wait further by
+     * configuring a width, {@link #DEFAULT_SPLIT_PROBE_WINDOW} by default, because its walks are the long ones.
      *
      * @param strideBytes the distance between the offsets the caller is probing, which bounds the window
      * @param maxRecordBytes the longest record the splitter will accept, which also bounds the window
+     * @param windowBytes the bytes one probe may read, which also bounds the window
      */
     static Outcome probeAt(
         RecordSplitter splitter,
@@ -147,12 +186,13 @@ final class RecordBoundaryProbe {
         long minSegment,
         long strideBytes,
         int maxRecordBytes,
+        long windowBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(CANCELLED_MESSAGE);
         }
-        long window = probeWindow(pos, fileLength, strideBytes, maxRecordBytes);
+        long window = probeWindow(pos, fileLength, strideBytes, maxRecordBytes, windowBytes);
         long skipped;
         InputStream stream = storageObject.newStream(pos, window);
         try (ProbeStream probe = new ProbeStream(storageObject, stream, window)) {
@@ -166,7 +206,10 @@ final class RecordBoundaryProbe {
                 probe.drain();
             }
         }
-        // No boundary within the window: its end was reached, or the record exceeds the splitter's maximum.
+        // No boundary within the window. What a probe sees is the window running out, since the stream is a
+        // closed range: the splitter reads end-of-stream and reports no boundary rather than reporting a record
+        // over its cap, which needs bytes past the cap to observe and the window never supplies. RECORD_TOO_LARGE
+        // is read here anyway so a splitter that reports it is not mistaken for one that found a boundary.
         // Either way this offset yields no boundary, and the span before it runs on through the record that
         // swallowed the window until the next offset that does find one.
         if (skipped == RecordSplitter.RECORD_TOO_LARGE || skipped < 0) {
@@ -311,12 +354,15 @@ final class RecordBoundaryProbe {
         long minSegment,
         long strideBytes,
         int maxRecordBytes,
+        long windowBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
         return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
             List<Outcome> outcomes = new ArrayList<>(positions.size());
             for (long pos : positions) {
-                outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, maxRecordBytes, isCancelled));
+                outcomes.add(
+                    probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, maxRecordBytes, windowBytes, isCancelled)
+                );
             }
             return outcomes;
         });

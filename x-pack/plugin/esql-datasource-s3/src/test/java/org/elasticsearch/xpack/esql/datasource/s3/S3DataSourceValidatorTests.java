@@ -440,6 +440,29 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("target_split_size", "1024")));
     }
 
+    public void testValidateDatasetMaxSplitProbesAboveTheCeilingRejected() {
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "10001")));
+    }
+
+    /**
+     * A window that fits the budget against the default probe count, and one that does not. The absent key has to
+     * be resolved to its default for the second to be caught here rather than at query time.
+     */
+    public void testValidateDatasetProbeBudgetCountsTheAbsentKeysDefault() {
+        assertEquals("4mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "4mb")).get("split_probe_window"));
+        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "8mb")));
+    }
+
+    /** Two values each acceptable alone, rejected for the reads they ask for together. */
+    public void testValidateDatasetProbeBudgetRejectsTheProductOfTwoValidKeys() {
+        assertEquals("1mb", validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb")).get("split_probe_window"));
+        assertEquals("8000", validator.validateDataset(Map.of(), "s3://b/p", Map.of("max_split_probes", "8000")).get("max_split_probes"));
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("split_probe_window", "1mb", "max_split_probes", "8000"))
+        );
+    }
+
     public void testReaderStaysExternalOnly() {
         // reader remains an EXTERNAL-only dev knob: it is never accepted as a dataset setting, with or
         // without a format-aware validator.

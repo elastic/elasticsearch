@@ -601,6 +601,12 @@ public final class ParallelParsingCoordinator {
             // probeAt is called directly (not via stridedOutcomes) so as not to overwrite the ambient
             // StorageRetryCancellation scope the read installed, which is what lets backoff sleeps abort on cancel.
             List<Long> positions = RecordBoundaryProbe.stridedPositions(fileLength, nominalSize, minSegment);
+            // The nominal segment size already bounds each of these probes, and they sit one nominal size
+            // apart, so the bytes they read cannot exceed the split this node is about to parse in full: they
+            // are bytes read early rather than bytes read twice. The record cap is the only other bound they
+            // need. A narrower configured width belongs to split discovery, where a probe reads from a dataset
+            // that nothing has read yet and pays for those bytes again at execution.
+            long windowBytes = maxRecordBytes;
             List<RecordBoundaryProbe.Outcome> outcomes = new ArrayList<>(positions.size());
             for (long pos : positions) {
                 outcomes.add(
@@ -612,6 +618,7 @@ public final class ParallelParsingCoordinator {
                         minSegment,
                         nominalSize,
                         maxRecordBytes,
+                        windowBytes,
                         () -> false
                     )
                 );

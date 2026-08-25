@@ -292,6 +292,27 @@ public class FileDataSourceValidator implements DataSourceValidator {
                 validate(() -> FileSplitProvider.validateTargetSplitSize(trimmedSplitSize), errors);
             }
         }
+        int errorsBeforeProbeKeys = errors.validationErrors().size();
+        Object splitProbeWindow = settings.get(FileSplitProvider.CONFIG_SPLIT_PROBE_WINDOW);
+        if (splitProbeWindow != null) {
+            String trimmedProbeWindow = splitProbeWindow.toString().trim();
+            if (trimmedProbeWindow.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateSplitProbeWindow(trimmedProbeWindow), errors);
+            }
+        }
+        Object maxSplitProbes = settings.get(FileSplitProvider.CONFIG_MAX_SPLIT_PROBES);
+        if (maxSplitProbes != null) {
+            String trimmedMaxProbes = maxSplitProbes.toString().trim();
+            if (trimmedMaxProbes.isEmpty() == false) {
+                validate(() -> FileSplitProvider.validateMaxSplitProbes(trimmedMaxProbes), errors);
+            }
+        }
+        // The two probe keys form one read budget, so the pair is checked against its own effective values
+        // (defaulting whichever is absent) rather than by either key's parser. Only once both parse: a malformed
+        // value is already reported above, and re-parsing it here would report it twice.
+        if (errors.validationErrors().size() == errorsBeforeProbeKeys) {
+            validate(() -> FileSplitProvider.validateProbeBudget(settings), errors);
+        }
 
         // Normalize the format selector before raw storage so the representation in cluster state
         // is canonical (lowercase, trimmed) regardless of how the user typed it. This ensures that

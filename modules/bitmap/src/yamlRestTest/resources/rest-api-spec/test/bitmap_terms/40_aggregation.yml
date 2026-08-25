@@ -1,5 +1,9 @@
+# Binary values are base64 strings in JSON but remain byte arrays in binary XContent formats.
+# Pin search responses to JSON so the exact portable bitmap assertions are deterministic.
 ---
 "roaring_bitmap aggregation on an integer field returns a portable bitmap and normal total hits":
+  - requires:
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -23,6 +27,9 @@
           - '{"id": 5}'
 
   - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
       search:
         index: test_roaring_bitmap_aggregation
         body:
@@ -41,6 +48,8 @@
 
 ---
 "roaring_bitmap aggregation on a long field returns a portable bitmap":
+  - requires:
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -66,6 +75,9 @@
           - '{"id": 1099511627776}'
 
   - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
       search:
         index: test_roaring_bitmap_aggregation_long
         body:
@@ -83,6 +95,8 @@
 
 ---
 "roaring_bitmap aggregation on an integer field only sees documents matching a filter":
+  - requires:
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -110,6 +124,9 @@
           - '{"id": 20, "category": "even"}'
 
   - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
       search:
         index: test_roaring_bitmap_aggregation_filtered
         body:
@@ -130,6 +147,8 @@
 
 ---
 "roaring_bitmap aggregation on a long field only sees documents matching a filter":
+  - requires:
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -155,6 +174,9 @@
           - '{"id": 9223372036854775807, "category": "odd"}'
 
   - do:
+      headers:
+        Content-Type: application/json
+        Accept: application/json
       search:
         index: test_roaring_bitmap_aggregation_long_filtered
         body:

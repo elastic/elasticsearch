@@ -113,11 +113,11 @@ For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-co
 
 ### Connecting to Microsoft Teams [es-connectors-microsoft-teams-connecting-to-microsoft-teams]
 
-The Microsoft Teams connector authenticates with **application-only** credentials (client secret or certificate; no user sign-in), the same pattern as SharePoint Online and Outlook. It uses tenant-wide Microsoft Graph **application** permissions. No Teams app package, Resource-Specific Consent (RSC), or per-team/per-chat install is required.
+The connector connects to Microsoft Teams using application credentials (client secret or certificate), the same approach as SharePoint Online and Outlook. You do not need to install a Teams app in every team or chat.
 
-Privacy for end users searching Elasticsearch is enforced with [document level security (DLS)](/reference/search-connectors/document-level-security.md) from team, channel, and chat membership. The connector app itself can read content granted by the Graph permissions below (including private chats).
+When [document level security (DLS)](/reference/search-connectors/document-level-security.md) is enabled, search results are restricted to users who belong to the relevant team, channel, or chat. The connector application itself can read content according to the permissions you grant below.
 
-To connect to Microsoft Teams you need to [register an application in Microsoft Entra ID](https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) and grant it the required Graph application permissions. Follow these steps:
+To connect to Microsoft Teams, [register an application in Microsoft Entra ID](https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal) and grant it the required Microsoft Graph application permissions. Follow these steps:
 
 1. In the [Microsoft Entra admin center](https://entra.microsoft.com), register a new application (confidential client).
 2. Record the **Directory (tenant) ID** and **Application (client) ID**.
@@ -126,16 +126,14 @@ To connect to Microsoft Teams you need to [register an application in Microsoft 
     * a **certificate** (upload a certificate and keep the matching private key).
 4. Under **API permissions**, add and grant **admin consent** for the following Microsoft Graph **application** permissions:
 
-    | Permission | Why |
-    | --- | --- |
-    | `Team.ReadBasic.All` | Discover teams. |
-    | `TeamMember.Read.All` | Team `member_ids` and content ACLs. |
-    | `User.ReadBasic.All` | List directory users for User docs, identity profiles (`mail`, UPN, display name), and chat discovery seed. |
-    | `Channel.ReadBasic.All` | Discover channels. |
-    | `ChannelMember.Read.All` | Channel `member_ids` and content ACLs. |
-    | `ChannelMessage.Read.All` | Channel messages and replies. |
-    | `Chat.Read.All` | Discover chats, chat `member_ids`/ACLs, and chat messages. |
-    | `Files.Read.All` | File content when **Fetch attachment content** is enabled. |
+    * `Team.ReadBasic.All` — read teams in your organization
+    * `TeamMember.Read.All` — read who belongs to each team
+    * `User.ReadBasic.All` — read user profiles
+    * `Channel.ReadBasic.All` — read channels
+    * `ChannelMember.Read.All` — read who can access each channel
+    * `ChannelMessage.Read.All` — read channel messages and replies
+    * `Chat.Read.All` — read chats, messages, and replies
+    * `Files.Read.All` — read file attachments (required when **Fetch attachment content** is enabled)
 
 5. Click **Grant admin consent** to approve the permissions. This step requires administrative privileges. If you are not an admin, request that an admin grant consent via the Entra admin center.
 
@@ -147,7 +145,7 @@ The connector requires **application** permissions. It does not support delegate
 
 #### Protected APIs [es-connectors-microsoft-teams-protected-apis]
 
-`ChannelMessage.Read.All` and `Chat.Read.All` are [protected Teams APIs](https://learn.microsoft.com/en-us/graph/teams-protected-apis). Admin consent is required; some tenants also need Microsoft to approve protected API access for the app before app-only message calls return `200`. Verify with an **app-only** (client credentials) token — not Graph Explorer's default delegated login.
+`ChannelMessage.Read.All` and `Chat.Read.All` are [protected Teams APIs](https://learn.microsoft.com/en-us/graph/teams-protected-apis). Admin consent alone may not be enough — some tenants also need Microsoft to approve access for your application before message content can be read.
 
 
 ### Configuration [es-connectors-microsoft-teams-configuration]
@@ -188,7 +186,7 @@ The following configuration fields are available:
 
 
 `fetch_attachment_content`
-:   Toggle to index channel Files-folder items and message file attachments as **File** documents, and extract their content. Requires the `Files.Read.All` application permission. Default value is `true`.
+:   Toggle to index files from channel folders and message attachments, and extract their content. Requires the `Files.Read.All` application permission. Default value is `true`.
 
 
 `use_text_extraction_service`
@@ -284,39 +282,21 @@ Refer to [Content extraction](/reference/search-connectors/es-connectors-content
 
 ### Documents and syncs [es-connectors-microsoft-teams-documents-and-syncs]
 
-The connector syncs the following content types:
+The connector syncs the following content from Microsoft Teams:
 
-* **Team**
-* **Channel**
-* **Channel Message** (including thread replies)
-* **Chat** (discovered via directory users, deduped by chat id)
-* **Chat Message**
-* **User** (every Entra user from tenant `GET /users`)
-* **File** (when **Fetch attachment content** is enabled)
+* **Teams**
+* **Channels**
+* **Channel messages** (including thread replies)
+* **Chats** (one-on-one, group, and meeting chats), including messages and thread replies
+* **Users** from your Microsoft Entra directory
+* **Files** (when **Fetch attachment content** is enabled): files from channel folders and message attachments
 
-Team, Channel, and Chat documents include `member_ids` (Entra user ids). Channels with `membershipType` other than `standard` resolve members via the channel members API; standard channels inherit the parent team's membership.
-
-**User** documents carry directory metadata (`name`, `email` from Graph `mail`, `upn` from `userPrincipalName`) and are **not** DLS-restricted.
-
-**File** documents are sourced from:
-
-* channel Files-folder drive items (`GET /teams/{team-id}/channels/{channel-id}/filesFolder` → recursive children), and
-* chat/channel message `reference` attachments resolved via `contentUrl` → shares API.
-
-Each driveItem id is indexed **once** per sync. Message documents link to File docs via `attachments: [{id, title}]`.
-
-Discovery order for each sync:
-
-1. List all directory users via `GET /users` → User docs and DLS identity docs.
-2. Enumerate teams and channels (membership for ACLs and `member_ids`).
-3. For each directory user, list chats via `GET /users/{id}/chats`; keep each chat id once; sync Chat and messages once per unique chat.
-
-Chat ACL membership is always loaded with `GET /chats/{id}/members` when that chat is synced. Channel replies are always loaded with `GET .../messages/{id}/replies`.
+Private and shared channels are included. Each file is indexed once, even when it appears in a channel folder and as a message attachment.
 
 ::::{note}
 * Content from files bigger than 10 MB won’t be extracted by default. Use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
-* Permissions are not synced by default. Enable [document-level security (DLS)](/reference/search-connectors/document-level-security.md) to sync permissions.
-* Missing core application permissions (HTTP 401–403) fail the content sync and access-control sync rather than producing a quiet near-empty index. Resources that are genuinely absent (HTTP 404) may be soft-skipped and summarized in a warning at the end of sync.
+* Permissions are not synced by default. Enable [document-level security (DLS)](/reference/search-connectors/document-level-security.md) to sync permissions. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* If the connector is missing required permissions, the sync fails rather than indexing an incomplete set of content.
 
 ::::
 
@@ -326,18 +306,18 @@ Chat ACL membership is always loaded with `GET /chats/{id}/members` when that ch
 ::::{important}
 Applies when upgrading to **9.6.0+** from a Microsoft Teams connector that used username/password or delegated Graph authentication.
 
-On the first successful full sync after upgrade, documents that this rewrite no longer produces are deleted from the content index if they were left by the previous connector, including:
+If you already have a legacy Microsoft Teams connector or index, **prefer deleting the old connector and index** and creating a new connector with a fresh index. That avoids leftover documents from the previous connector (calendars, tabs, meeting recordings, and other content types that are no longer synced).
+
+If you upgrade in place, the first successful full sync removes documents the new connector no longer produces, including:
 
 * calendars
-* channel/chat tabs
+* channel and chat tabs
 * meeting recordings
-* legacy **Team Member** documents (replaced by **User**)
-
-Operators should expect that cleanup. Synced going forward: teams, channels, channel messages/replies, chats discovered via directory users, chat messages, all directory Users, Files (when enabled), and DLS identities.
-
-Calendars, meeting-recording metadata, and channel/chat tabs from the legacy connector are intentionally out of scope for this rewrite. Use the [Outlook connector](/reference/search-connectors/es-connectors-outlook.md) for calendars and the [SharePoint Online connector](/reference/search-connectors/es-connectors-sharepoint-online.md) for SharePoint-hosted meeting recordings.
+* legacy team member records (replaced by user profiles)
 
 After upgrading, reconfigure the connector for application-only authentication (client secret or certificate). Username and password fields are no longer supported.
+
+Calendars, meeting recordings, and tabs are no longer synced by this connector. Use the [Outlook connector](/reference/search-connectors/es-connectors-outlook.md) for calendars and the [SharePoint Online connector](/reference/search-connectors/es-connectors-sharepoint-online.md) for SharePoint-hosted meeting recordings.
 
 ::::
 
@@ -353,11 +333,7 @@ This connector does not support [incremental syncs](/reference/search-connectors
 
 Document level security (DLS) enables you to restrict access to documents based on a user's permissions. Refer to [configuration](#es-connectors-microsoft-teams-configuration) on this page for how to enable DLS for this connector.
 
-When DLS is enabled:
-
-* Team, Channel, Chat, Channel Message, Chat Message, and File content documents stamp `user_id:{Entra oid}` tokens on `_allow_access_control` (from `conversationMember.userId`).
-* Access-control (identity) documents carry `user_id:`, `email:` (Graph `mail`), and `user:` (Graph `userPrincipalName`, SharePoint Online-aligned) so email/UPN login can match `user_id:`-only content ACLs.
-* User content documents omit `_allow_access_control`.
+When DLS is enabled, users only see Teams, channels, chats, messages, and files they have access to in Microsoft Teams. User profile documents from your directory are not restricted by DLS.
 
 ::::{tip}
 Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.

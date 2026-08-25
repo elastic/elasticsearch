@@ -555,7 +555,7 @@ public class Knn extends SingleFieldFullTextFunction
      * field vector has cosine similarity >= threshold (or always true when no threshold is set),
      * false for rows below the threshold, and null for rows with a null field vector.
      */
-    @Evaluator(extraName = "RuntimeFilter", allNullsIsNull = false)
+    @Evaluator(extraName = "RuntimeFilter", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static boolean runtimeFilter(
         @Position int position,
         FloatBlock fieldBlock,
@@ -585,7 +585,7 @@ public class Knn extends SingleFieldFullTextFunction
      * Evaluator factory for runtime KNN scoring (double result): normalizes the vector similarity value to the unit interval
      * and applies boost.
      */
-    @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false)
+    @Evaluator(extraName = "RuntimeScore", allNullsIsNull = false, warnExceptions = { IllegalArgumentException.class })
     static double runtimeScore(
         @Position int position,
         FloatBlock fieldBlock,

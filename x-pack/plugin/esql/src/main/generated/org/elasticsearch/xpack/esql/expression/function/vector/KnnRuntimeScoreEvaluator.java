@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -67,7 +68,12 @@ public final class KnnRuntimeScoreEvaluator implements ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, FloatBlock fieldBlockBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.boost));
+        try {
+          result.appendDouble(Knn.runtimeScore(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.boost));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

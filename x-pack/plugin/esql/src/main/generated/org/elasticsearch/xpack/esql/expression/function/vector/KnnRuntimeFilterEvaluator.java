@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import java.lang.Float;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -68,7 +69,12 @@ public final class KnnRuntimeFilterEvaluator implements ExpressionEvaluator {
   public BooleanBlock eval(int positionCount, FloatBlock fieldBlockBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(Knn.runtimeFilter(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.similarityThreshold));
+        try {
+          result.appendBoolean(Knn.runtimeFilter(p, fieldBlockBlock, this.queryVector, this.similarityFunction, this.similarityThreshold));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

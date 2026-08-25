@@ -46,6 +46,10 @@ public final class StringColumnReader {
     private final ValueStream.Reader exceptions;
     private final LongValues escapeRanks;
 
+    /** The last value {@link #escapeRankOf} answered, and its rank, so an ascending pass carries on. */
+    private long escapeCursorAddress = -1;
+    private long escapeCursorRank;
+
     private final BytesRef value = new BytesRef();
 
     /** Held so a summary can be read on demand; a merge reads it, an ordinary search never does. */
@@ -122,15 +126,30 @@ public final class StringColumnReader {
     /**
      * Where an escaped value's bytes are: how many escaped before it. The table gives that for the start
      * of its block and the ordinals in between give the rest.
+     *
+     * <p>Values are asked for in ascending order, so counting carries on from the last value answered
+     * rather than from the start of its block whenever that value is nearer. A pass over a column then
+     * reads each ordinal once instead of once for every escape that shares a block with it.
      */
     private long escapeRankOf(long valueAddress) throws IOException {
         final long block = valueAddress / StringColumnWriter.ESCAPE_RANK_BLOCK;
-        long rank = escapeRanks.get(block);
-        for (long at = block * StringColumnWriter.ESCAPE_RANK_BLOCK; at < valueAddress; at++) {
+        final long blockStart = block * StringColumnWriter.ESCAPE_RANK_BLOCK;
+        long at;
+        long rank;
+        if (escapeCursorAddress >= blockStart && escapeCursorAddress <= valueAddress) {
+            at = escapeCursorAddress;
+            rank = escapeCursorRank;
+        } else {
+            at = blockStart;
+            rank = escapeRanks.get(block);
+        }
+        for (; at < valueAddress; at++) {
             if (ordinals.valueAt(at) == meta.dictionarySize()) {
                 rank++;
             }
         }
+        escapeCursorAddress = valueAddress;
+        escapeCursorRank = rank;
         return rank;
     }
 

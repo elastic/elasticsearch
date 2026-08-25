@@ -30,6 +30,41 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public class StringDictionaryTests extends ColumnarStringTestCase {
 
+    /**
+     * An escaped value resolves to the same bytes however it is asked for. Counting an escape's place
+     * carries on from the value answered before it, so a caller that goes back or jumps has to fall back
+     * to counting from the start of the block rather than from wherever the last caller left off.
+     */
+    public void testEscapesResolveInAnyOrder() throws IOException {
+        final String[] terms = { "alpha", "bravo", "charlie" };
+        final BytesRef[] docValues = new BytesRef[2000];
+        for (int d = 0; d < docValues.length; d++) {
+            docValues[d] = d % 7 == 3 ? new BytesRef("escaped-" + d) : new BytesRef(terms[d % terms.length]);
+        }
+        withColumn(docValues, randomValidBlockSize(), randomChunkCodec(), randomTargetChunkBytes(), ROOMY, (metadata, reader) -> {
+            assertTrue("expected a dictionary", reader.hasDictionary());
+            final List<Integer> escaped = new ArrayList<>();
+            for (int d = 0; d < docValues.length; d++) {
+                if (d % 7 == 3) {
+                    escaped.add(d);
+                }
+            }
+            for (int doc : escaped) {
+                assertEquals("ascending [" + doc + "]", docValues[doc], reader.valueAt(reader.firstValueAddress(doc)));
+            }
+            for (int i = escaped.size() - 1; i >= 0; i--) {
+                final int doc = escaped.get(i);
+                assertEquals("descending [" + doc + "]", docValues[doc], reader.valueAt(reader.firstValueAddress(doc)));
+                assertEquals("repeated [" + doc + "]", docValues[doc], reader.valueAt(reader.firstValueAddress(doc)));
+            }
+            final List<Integer> shuffled = new ArrayList<>(escaped);
+            java.util.Collections.shuffle(shuffled, random());
+            for (int doc : shuffled) {
+                assertEquals("shuffled [" + doc + "]", docValues[doc], reader.valueAt(reader.firstValueAddress(doc)));
+            }
+        });
+    }
+
     private static final DictionaryPolicy ROOMY = new DictionaryPolicy(512 * 1024, 0.5, 0.2);
 
     /** A handful of terms over many documents: every value is named, and reads back as itself. */
@@ -317,27 +352,6 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             assertEveryValueReadsBack(docValues, reader);
-        });
-    }
-
-    /** Values are read out of order, so a rank is resolved from its own block rather than from the last one. */
-    public void testEscapesResolveInAnyOrder() throws IOException {
-        final int block = StringColumnWriter.ESCAPE_RANK_BLOCK;
-        final int size = block * 5;
-        final int[] escapeAt = new int[40];
-        for (int i = 0; i < escapeAt.length; i++) {
-            escapeAt[i] = i * 13 % size;
-        }
-        final BytesRef[] docValues = withEscapesAt(size, escapeAt);
-        withDictionary(docValues, (metadata, reader) -> {
-            final List<Integer> order = new ArrayList<>();
-            for (int d = 0; d < size; d++) {
-                order.add(d);
-            }
-            java.util.Collections.shuffle(order, random());
-            for (int doc : order) {
-                assertEquals("value at doc " + doc, docValues[doc], reader.valueAt(reader.firstValueAddress(doc)));
-            }
         });
     }
 

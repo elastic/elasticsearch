@@ -1615,9 +1615,11 @@ final class ParquetPushedExpressions {
         if (block.areAllValuesNull()) {
             // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
             // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
-            // conservative one. It has to be exact - a survivor mask can only ever be narrowed
-            // downstream, so an over-wide mask is recoverable by RECHECK and an over-narrow one
-            // is not.
+            // conservative one. It has to be exact - once a mask leaves the pushdown it can only
+            // ever be narrowed, so an over-wide mask is recoverable by RECHECK and an over-narrow
+            // one is not. (Within the pushdown an OR still widens, via evaluateExpression's
+            // left.or(right); the conclusion is unchanged, since a too-narrow arm keeps the OR
+            // too narrow.)
             //
             // Checked before the instanceof dispatch below because ConstantNullBlock implements
             // every typed Block interface at once, so an all-null batch would otherwise bind the

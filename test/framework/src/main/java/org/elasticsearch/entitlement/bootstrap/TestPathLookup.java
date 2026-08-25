@@ -13,7 +13,6 @@ import org.apache.lucene.tests.mockfile.FilterFileSystem;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

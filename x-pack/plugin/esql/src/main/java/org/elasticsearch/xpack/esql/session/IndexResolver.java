@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -61,6 +62,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
@@ -136,6 +138,7 @@ public class IndexResolver {
             false,
             false,
             false,
+            null,
             DO_NOT_GROUP,
             listener.map(Versioned::inner)
         );
@@ -184,6 +187,7 @@ public class IndexResolver {
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             trackUnmappedFieldIndices,
+            null,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
@@ -215,6 +219,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean trackUnmappedFieldIndices,
+        @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
@@ -227,6 +232,7 @@ public class IndexResolver {
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             trackUnmappedFieldIndices,
+            routingInfoCapture,
             (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
@@ -247,10 +253,17 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean trackUnmappedFieldIndices,
+        @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         client.execute(EsqlResolveFieldsAction.TYPE, request, listener.delegateFailureAndWrap((l, response) -> {
+            if (routingInfoCapture != null) {
+                TargetProjects tp = request.getResolvedTargetProjects();
+                if (tp != null) {
+                    routingInfoCapture.accept(tp);
+                }
+            }
             TransportVersion responseMinimumVersion = response.caps().minTransportVersion();
             // Note: Once {@link EsqlResolveFieldsResponse}'s CREATED version is live everywhere
             // we can remove this and make sure responseMinimumVersion is non-null. That'll be 10.0-ish.

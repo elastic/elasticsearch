@@ -687,7 +687,7 @@ FROM partial_mapping_sample_data
 replaceUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
-skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -705,7 +705,7 @@ date_string:date
 aggregateUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
-skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -735,7 +735,7 @@ count:long
 sortUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
-skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -753,7 +753,7 @@ date_string:keyword
 renameUnmappedFieldFromEmptyMapping
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_unmapped_load_empty_mapping_no_fields
-skip_columnar: LOAD of unmapped or partially unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM no_mapping_date_extract_fields
@@ -4143,7 +4143,7 @@ FROM sample_data
 // The LOAD_ALL twin of this test lives in unmapped-load-all.csv-spec under the same name.
 crossMappingLoadsBothLegs
 required_capability: optional_fields_v5
-skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM cross_mapping_a, cross_mapping_b METADATA _index
@@ -4159,7 +4159,7 @@ b2          | a2          | cross_mapping_b
 // The LOAD_ALL twin in unmapped-load-all.csv-spec selects the same field by wildcard instead.
 syntheticSourceLoadsScalarUnmappedField
 required_capability: optional_fields_v5
-skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="load"\;
 FROM synthetic_source_partial_mapping

@@ -68,6 +68,16 @@ import static org.hamcrest.Matchers.empty;
  * <p>Every exclusion decision is reported in the post-run {@link #logColumnarSummary()} line, so
  * lost coverage is never silent.
  *
+ * <p>One family of {@code skip_columnar:} directives is permanent by design and should not be
+ * revisited: tests that combine {@code SET unmapped_fields="load"} with a {@code dynamic: false}
+ * dataset. Strict columnar disables generic {@code _ignored_source}
+ * ({@code DocumentParserContext#canAddIgnoredField} ends with {@code isStrictColumnar() == false}),
+ * so a field the mapping does not declare is discarded while the document is parsed rather than
+ * captured. Nothing at query time can recover it &mdash; not synthetic source, and not
+ * {@code _source.mode: columnar_stored}, whose blob is itself rebuilt from doc values. This is
+ * documented user-facing behaviour, see {@code docs/reference/elasticsearch/columnar/index.md}
+ * ("{@code dynamic: false} and {@code enabled: false} are lossy").
+ *
  * <h2>Mapping sanitisation</h2>
  *
  * <p>The {@link ColumnarStrategy} removes mapping runtime fields before creating each index because

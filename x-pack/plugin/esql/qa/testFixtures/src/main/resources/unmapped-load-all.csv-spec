@@ -321,7 +321,7 @@ FROM partial_mapping_sample_data
 // syntheticSourceLoadsScalarUnmappedField in unmapped-load.csv-spec does.
 syntheticSourceKeepScalarUnmappedField
 required_capability: optional_fields_load_all
-skip_columnar: unmapped fields cannot be read from synthetic _source in columnar mode (no doc values to reconstruct from)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM synthetic_source_partial_mapping
@@ -340,7 +340,7 @@ FROM synthetic_source_partial_mapping
 // it does not, so both legs produce values. Mirrors crossMappingLoadsBothLegs in unmapped-load.csv-spec.
 crossMappingLoadsBothLegs
 required_capability: optional_fields_load_all
-skip_columnar: LOAD_ALL of unmapped fields returns null in columnar mode (synthetic _source lacks source-only fields)
+skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read - lossy by design
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM cross_mapping_a, cross_mapping_b METADATA _index

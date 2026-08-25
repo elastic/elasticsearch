@@ -75,7 +75,11 @@ class JmhPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
             tasks.register('printJmhTestWiring') {
                 def jmhTestTask = tasks.named('jmhTest').get()
                 def isTest = jmhTestTask instanceof Test
-                def checkDeps = tasks.named('check').get().taskDependencies.getDependencies(null)*.name.sort()
+                def checkDeps = tasks.named('check').get().dependsOn.collect { d ->
+                    if (d instanceof org.gradle.api.tasks.TaskProvider) d.name
+                    else if (d instanceof org.gradle.api.Task) d.name
+                    else d.toString()
+                }.sort()
                 doLast {
                     println "JMH_TEST_WIRING: isTest=" + isTest + " checkDependsOn=" + checkDeps.join(",")
                 }

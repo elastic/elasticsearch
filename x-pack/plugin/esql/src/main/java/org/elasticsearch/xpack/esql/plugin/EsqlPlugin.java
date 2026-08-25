@@ -119,9 +119,12 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestTestDataSourceConnectionAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportTestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
@@ -675,6 +678,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
             new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
+            new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
@@ -708,6 +712,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
+            handlers.add(new RestTestDataSourceConnectionAction());
             handlers.add(new RestPutDatasetAction());
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());

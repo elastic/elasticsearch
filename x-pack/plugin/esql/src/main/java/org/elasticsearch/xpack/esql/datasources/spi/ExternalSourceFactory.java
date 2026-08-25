@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -84,6 +85,18 @@ public interface ExternalSourceFactory {
      * abstract contract exists to prevent — so do not write one.
      */
     void validateConfig(String location, Map<String, Object> config);
+
+    /**
+     * Tests connectivity to the external source described by the given config. The default throws
+     * {@link TestConnectionNotSupportedException} so that format-only types (parquet, csv, file)
+     * surface as {@code UNTESTABLE} rather than a hard error — the type is valid, it just has no
+     * connectivity probe. Connector-based factories override this with a live connection probe.
+     * Connection failures propagate as {@link IOException} or unchecked exceptions — the caller
+     * maps them to a {@code FAILURE} result.
+     */
+    default void testConnection(Map<String, Object> config) throws IOException {
+        throw new TestConnectionNotSupportedException("data source type [" + type() + "] does not support connection testing");
+    }
 
     default FilterPushdownSupport filterPushdownSupport() {
         return null;

@@ -194,3 +194,11 @@ export ESTC_OUTPUT_MODE=agent
 export CI=true
 
 echo "estc broker ready (pid=${ESTC_BROKER_PID}, socket=${ESTC_BROKER_SOCKET})"
+
+# ── 8. Sync estc skills into the checkout so the agent can use them. ────────
+# --dir bypasses the settings-based project scan and syncs directly to the
+# checkout directory. This works in headless CI where no settings.yaml exists.
+echo "--- Syncing estc skills to ${BUILDKITE_BUILD_CHECKOUT_PATH:-${PWD}}"
+estc sync --dir "${BUILDKITE_BUILD_CHECKOUT_PATH:-${PWD}}" \
+          --plugins es-oncall,es-dev,estc \
+          --verbose

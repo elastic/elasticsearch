@@ -1795,6 +1795,60 @@ Infinity      | 2024-05-10T01:00:00.000Z | qa
 Infinity      | 2024-05-10T01:00:00.000Z | staging
 ;
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// PromQL across-series aggregations honor Prometheus/IEEE-754 non-finite semantics via the PromQL-only lenient
+// aggregator path (max / min), gated on the promql_non_finite_math capability. Native ES|QL STATS aggregations remain
+// strict (finite-only).
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Prometheus max treats -Inf as an ordinary (smallest) value, so max over an all-(-Inf) set is -Inf.
+nonfinite_max_all_negative_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(max(0 - (sum by (cluster) (network.cost) * Inf)));
+
+result:double | step:datetime
+-Infinity     | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus max treats +Inf as an ordinary (largest) value, so max over an all-(+Inf) set is +Inf.
+nonfinite_max_all_positive_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(max(sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus min treats -Inf as an ordinary (smallest) value, so min over an all-(-Inf) set is -Inf.
+nonfinite_min_all_negative_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(min(0 - (sum by (cluster) (network.cost) * Inf)));
+
+result:double | step:datetime
+-Infinity     | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus min treats +Inf as an ordinary (largest) value, so min over an all-(+Inf) set is +Inf.
+nonfinite_min_all_positive_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(min(sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
 scalar_constant_time
 required_capability: promql_command_v0
 required_capability: promql_time

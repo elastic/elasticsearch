@@ -14,7 +14,19 @@ import java.io.IOException;
 public class MaxSerializationTests extends AbstractExpressionSerializationTests<Max> {
     @Override
     protected Max createTestInstance() {
-        return new Max(randomSource(), randomChild());
+        return new Max(randomSource(), randomChild(), randomChild(), randomChild(), randomBoolean());
+    }
+
+    /**
+     * {@code createTestInstance} randomizes the non-finite flag, so a single generic round-trip only exercises one of
+     * the two forms; this covers both.
+     */
+    public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
+        Max lenient = new Max(randomSource(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(lenient).allowNonFinite());
+
+        Max strict = new Max(randomSource(), randomChild(), randomChild(), randomChild(), false);
+        assertFalse(copyInstance(strict).allowNonFinite());
     }
 
     @Override

@@ -267,7 +267,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private void registerLongGaugeMetric(String name, String unit, String description, LongSupplier valueSupplier) {
         @SuppressWarnings("resource")
-        final var longGauge = meterRegistry.registerLongGauge(
+        final var longGauge = meterRegistry.registerLongAsyncGauge(
             name,
             description,
             unit,

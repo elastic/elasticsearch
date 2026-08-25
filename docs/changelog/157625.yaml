@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157625
+summary: Stop unread Parquet row groups and pages under LIMIT
+type: enhancement

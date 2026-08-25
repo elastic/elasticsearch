@@ -37,6 +37,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -52,6 +54,8 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -1142,6 +1146,62 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 }
             });
         }
+    }
+
+    /**
+     * Regression test for loading nested chunks from an array-valued {@code semantic_text} field.
+     */
+    public void testNestedStoredSourceLoaderReturnsEmptyForSemanticTextChunks() throws IOException {
+        assumeFalse("the legacy format keeps the chunks in _source at the field's path", useLegacyFormat);
+
+        final String fieldName = "sparse_field";
+        TaskType taskType = TaskType.SPARSE_EMBEDDING;
+        Model model = TestModel.createRandomInstance(taskType);
+        when(globalModelRegistry.getEndpointClusterState(anyString())).thenAnswer(invocation -> new EndpointClusterState(model));
+
+        IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(false);
+        XContentBuilder mapping = mapping(b -> addSemanticMapping(b, fieldName, model.getInferenceEntityId(), null, null, null, null));
+        MapperService mapperService = createSemanticMapperServiceWithSourceMode(mapping, indexVersion, SourceFieldMapper.Mode.STORED);
+
+        List<String> rawValues = List.of("inference test", "another inference test");
+        DocumentMapper documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(b -> {
+            b.field(fieldName, rawValues);
+            addSemanticTextInferenceResults(
+                false,
+                b,
+                List.of(randomSemanticText(false, fieldName, model, null, rawValues, XContentType.JSON))
+            );
+        }));
+
+        List<LuceneDocument> luceneDocs = doc.docs();
+        assertEquals(3, luceneDocs.size());
+
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            NestedDocuments nestedDocuments = new NestedDocuments(
+                mapperService.mappingLookup(),
+                QueryBitSetProducer::new,
+                IndexVersion.current()
+            );
+            SourceLoader sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, nestedDocuments);
+            LeafReaderContext leafCtx = reader.leaves().get(0);
+            SourceLoader.Leaf leaf = sourceLoader.leaf(leafCtx, null);
+            LeafStoredFieldLoader leafStoredFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields())
+                .getLoader(leafCtx, null);
+
+            for (int chunkDocId = 0; chunkDocId < 2; chunkDocId++) {
+                leafStoredFieldLoader.advanceTo(chunkDocId);
+                Source chunkSource = leaf.source(leafStoredFieldLoader, chunkDocId);
+                assertTrue(chunkSource.source().isEmpty());
+            }
+
+            leafStoredFieldLoader.advanceTo(2);
+            Source rootSource = leaf.source(leafStoredFieldLoader, 2);
+            assertThat(rootSource.source().get(fieldName), instanceOf(List.class));
+            @SuppressWarnings("unchecked")
+            List<Object> loadedRawValues = (List<Object>) rootSource.source().get(fieldName);
+            assertEquals(rawValues, loadedRawValues);
+        });
     }
 
     public void testMissingInferenceId() throws IOException {

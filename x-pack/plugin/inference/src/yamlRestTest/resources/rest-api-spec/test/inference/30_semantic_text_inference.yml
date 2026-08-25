@@ -283,6 +283,86 @@ setup:
   - match: { hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.end_offset: 35 }
 
 ---
+"Source-reading clause in nested scope over multi-valued semantic_text does not fail the shard":
+  # Regression test for https://github.com/elastic/elasticsearch/issues/157645.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_multi_valued
+        refresh: true
+        body:
+          sparse_field: ["inference test", "another inference test"]
+          non_inference_field: "proj"
+
+  - do:
+      search:
+        index: test-index
+        body:
+          size: 0
+          runtime_mappings:
+            rt_project:
+              type: keyword
+              script:
+                source: |
+                  def v = params._source['non_inference_field'];
+                  if (v != null) { emit(v); }
+          query:
+            nested:
+              path: sparse_field.inference.chunks
+              query:
+                term:
+                  rt_project: "proj"
+
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          size: 0
+          runtime_mappings:
+            rt_project:
+              type: keyword
+              script:
+                source: |
+                  def v = params._source['non_inference_field'];
+                  if (v != null) { emit(v); }
+          aggs:
+            chunks:
+              nested:
+                path: sparse_field.inference.chunks
+              aggs:
+                by_project:
+                  terms:
+                    field: rt_project
+
+  - match: { _shards.failed: 0 }
+  - match: { aggregations.chunks.doc_count: 2 }
+  - length: { aggregations.chunks.by_project.buckets: 0 }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          size: 1
+          runtime_mappings:
+            rt_project:
+              type: keyword
+              script:
+                source: |
+                  def v = params._source['non_inference_field'];
+                  if (v != null) { emit(v); }
+          query:
+            term:
+              rt_project: "proj"
+
+  - match: { _shards.failed: 0 }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_multi_valued" }
+
+---
 "Dense vector results are indexed as nested chunks and searchable":
   - do:
       bulk:

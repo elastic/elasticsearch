@@ -13,6 +13,10 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -72,6 +76,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.rest.RestController.CLUSTER_NAME_HTTP_HEADER;
+import static org.elasticsearch.rest.RestController.CLUSTER_UUID_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE;
 import static org.elasticsearch.rest.RestController.HANDLER_NAME_KEY;
@@ -170,6 +176,59 @@ public class RestControllerTests extends ESTestCase {
         List<String> expectedProductResponseHeader = new ArrayList<>();
         expectedProductResponseHeader.add(ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders().getOrDefault(ELASTIC_PRODUCT_HTTP_HEADER, null));
+    }
+
+    public void testApplyClusterInfoResponseHeaders() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterName()).thenReturn(new ClusterName("test-cluster"));
+        final Metadata metadata = Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test-cluster")).metadata(metadata).build());
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            telemetryProvider,
+            clusterService
+        );
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertEquals(List.of("test-cluster"), threadContext.getResponseHeaders().getOrDefault(CLUSTER_NAME_HTTP_HEADER, null));
+        assertEquals(List.of("test-uuid"), threadContext.getResponseHeaders().getOrDefault(CLUSTER_UUID_HTTP_HEADER, null));
+    }
+
+    public void testClusterUuidResponseHeaderOmittedUntilCommitted() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterName()).thenReturn(new ClusterName("test-cluster"));
+        // UUID is not yet committed, so only the cluster name header should be present
+        final Metadata metadata = Metadata.builder().clusterUUIDCommitted(false).build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test-cluster")).metadata(metadata).build());
+        final RestController restController = new RestController(
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            telemetryProvider,
+            clusterService
+        );
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertEquals(List.of("test-cluster"), threadContext.getResponseHeaders().getOrDefault(CLUSTER_NAME_HTTP_HEADER, null));
+        assertNull(threadContext.getResponseHeaders().getOrDefault(CLUSTER_UUID_HTTP_HEADER, null));
+    }
+
+    public void testClusterInfoResponseHeadersAbsentWithoutClusterService() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        AssertingChannel channel = new AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        assertNull(threadContext.getResponseHeaders().getOrDefault(CLUSTER_NAME_HTTP_HEADER, null));
+        assertNull(threadContext.getResponseHeaders().getOrDefault(CLUSTER_UUID_HTTP_HEADER, null));
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {

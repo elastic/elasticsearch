@@ -17,6 +17,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -90,6 +92,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    static final String CLUSTER_NAME_HTTP_HEADER = "X-elastic-cluster-name";
+    static final String CLUSTER_UUID_HTTP_HEADER = "X-elastic-cluster-uuid";
     static final Set<String> RESERVED_PATHS = Set.of("/__elb_health__", "/__elb_health__/zk", "/_health", "/_health/zk");
     private static final BytesReference FAVICON_RESPONSE;
     public static final String STATUS_CODE_KEY = "es_rest_status_code";
@@ -121,6 +125,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
     // If true, the ServerlessScope annotations will be enforced
     private final ServerlessApiProtections apiProtections;
 
+    // Provides the cluster name and UUID stamped on every response; may be null when the controller has no cluster state access
+    @Nullable
+    private final ClusterService clusterService;
+
     public static final String METRIC_REQUESTS_TOTAL = "es.rest.requests.total";
 
     public RestController(
@@ -129,6 +137,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         TelemetryProvider telemetryProvider
+    ) {
+        this(restInterceptor, client, circuitBreakerService, usageService, telemetryProvider, null);
+    }
+
+    public RestController(
+        RestInterceptor restInterceptor,
+        NodeClient client,
+        CircuitBreakerService circuitBreakerService,
+        UsageService usageService,
+        TelemetryProvider telemetryProvider,
+        @Nullable ClusterService clusterService
     ) {
         this.usageService = usageService;
         this.instrumentation = telemetryProvider.getHttpServerInstrumentation();
@@ -140,6 +159,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         this.interceptor = restInterceptor;
         this.client = client;
         this.circuitBreakerService = circuitBreakerService;
+        this.clusterService = clusterService;
         registerHandlerNoWrap(RestRequest.Method.GET, "/favicon.ico", RestApiVersion.current(), new RestFavIconHandler());
         this.apiProtections = new ServerlessApiProtections(false);
     }
@@ -421,9 +441,26 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return route.getMethod() == method && route.getPath().equals(path) && route.getRestApiVersion() == version;
     }
 
+    /**
+     * Stamps the cluster name and, once it has been committed, the cluster UUID on the response as HTTP headers. These let clients and
+     * downstream observability tooling correlate a response with the cluster that produced it. This is a no-op when the controller was
+     * created without access to cluster state, and the UUID header is omitted until the cluster UUID is committed.
+     */
+    private void addClusterInfoResponseHeaders(ThreadContext threadContext) {
+        if (clusterService == null) {
+            return;
+        }
+        threadContext.addResponseHeader(CLUSTER_NAME_HTTP_HEADER, clusterService.getClusterName().value());
+        final Metadata metadata = clusterService.state().metadata();
+        if (metadata.clusterUUIDCommitted()) {
+            threadContext.addResponseHeader(CLUSTER_UUID_HTTP_HEADER, metadata.clusterUUID());
+        }
+    }
+
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        addClusterInfoResponseHeaders(threadContext);
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -439,6 +476,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        addClusterInfoResponseHeaders(threadContext);
         try {
             final Exception e;
             if (cause == null) {

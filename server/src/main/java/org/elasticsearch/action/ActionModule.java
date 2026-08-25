@@ -530,7 +530,14 @@ public class ActionModule extends AbstractModule {
         if (customController != null) {
             restController = customController;
         } else {
-            restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, telemetryProvider);
+            restController = new RestController(
+                restInterceptor,
+                nodeClient,
+                circuitBreakerService,
+                usageService,
+                telemetryProvider,
+                clusterService
+            );
         }
         reservedClusterStateService = new ReservedClusterStateService(
             clusterService,

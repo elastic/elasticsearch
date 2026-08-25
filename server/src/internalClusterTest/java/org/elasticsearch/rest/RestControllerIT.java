@@ -14,6 +14,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
@@ -58,6 +59,14 @@ public class RestControllerIT extends ESIntegTestCase {
         final var response = client.performRequest(new Request("GET", ChunkedResponseWithHeadersPlugin.ROUTE));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(ChunkedResponseWithHeadersPlugin.HEADER_VALUE, response.getHeader(ChunkedResponseWithHeadersPlugin.HEADER_NAME));
+    }
+
+    public void testClusterInfoResponseHeaders() throws IOException {
+        final var response = getRestClient().performRequest(new Request("GET", "/_cluster/health"));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        assertEquals(clusterService.getClusterName().value(), response.getHeader("X-elastic-cluster-name"));
+        assertEquals(clusterService.state().metadata().clusterUUID(), response.getHeader("X-elastic-cluster-uuid"));
     }
 
     public void testHeadersAreCollapsed() throws IOException {

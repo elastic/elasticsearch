@@ -36,6 +36,7 @@ public interface NonFiniteSupport extends TransportVersionAware {
 
     TransportVersion ESQL_PROMQL_NON_FINITE_MATH = TransportVersion.fromName("esql_promql_non_finite_math");
     TransportVersion ESQL_PROMQL_NON_FINITE_UNARY_MATH = TransportVersion.fromName("esql_promql_non_finite_unary_math");
+    TransportVersion ESQL_PROMQL_NON_FINITE_TRIG = TransportVersion.fromName("esql_promql_non_finite_trig");
 
     /**
      * Transport version that first writes this expression's non-finite flag. Defaults to

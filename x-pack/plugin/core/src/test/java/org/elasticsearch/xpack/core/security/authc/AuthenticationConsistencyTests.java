@@ -60,18 +60,12 @@ public class AuthenticationConsistencyTests extends ESTestCase {
         );
         assertThat(e.getMessage(), equalTo("Service account authentication user must have no role"));
 
+        final String[] roles = { "role-a", "role-b" };
         final Authentication authentication = AuthenticationContextSerializer.decode(
-            encodeAuthentication(
-                serviceAccountSubject(
-                    "my-namespace/my-service",
-                    new String[] { "role-a", "role-b" },
-                    Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true)
-                ),
-                Authentication.AuthenticationType.TOKEN
-            )
+            AuthenticationTestHelper.builder().userManagedServiceAccount("my-namespace/my-service", roles).build().encode()
         );
         assertThat(authentication.isUserManagedServiceAccount(), is(true));
-        assertThat(authentication.getEffectiveSubject().getUser().roles(), arrayContaining("role-a", "role-b"));
+        assertThat(authentication.getEffectiveSubject().getUser().roles(), arrayContaining(roles));
     }
 
     private Map<String, String> getErrorMessageToEncodedAuthentication() throws IOException {

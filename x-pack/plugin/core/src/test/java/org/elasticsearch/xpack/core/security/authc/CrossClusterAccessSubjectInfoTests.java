@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,16 +127,7 @@ public class CrossClusterAccessSubjectInfoTests extends ESTestCase {
     public void testCleanWithValidationForUserManagedServiceAccounts() throws IOException {
         final String[] roles = { "role-a", "role-b" };
         final Authentication authentication = AuthenticationTestHelper.builder()
-            .serviceAccount(
-                new User(
-                    "my-namespace/my-service",
-                    roles,
-                    "Service account - my-namespace/my-service",
-                    null,
-                    Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true),
-                    true
-                )
-            )
+            .userManagedServiceAccount("my-namespace/my-service", roles)
             .metadata(Map.copyOf(newHashMapWithRandomMetadata()))
             .build();
         final CrossClusterAccessSubjectInfo subjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(authentication);

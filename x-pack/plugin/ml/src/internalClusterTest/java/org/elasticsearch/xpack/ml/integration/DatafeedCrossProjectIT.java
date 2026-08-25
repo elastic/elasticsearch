@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -104,6 +105,46 @@ public class DatafeedCrossProjectIT extends MlSingleNodeTestCase {
 
         DatafeedConfig retrievedDatafeed = getResponseHolder.get().build();
         assertThat(retrievedDatafeed.getProjectRouting(), equalTo(expectedProjectRouting));
+    }
+
+    public void testStartWithoutCredentialUsesOriginOnlyIndicesOptions() throws Exception {
+        String datafeedId = "datafeed_no_credential";
+        String jobId = "job_no_credential";
+
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder(datafeedId, jobId);
+        datafeedBuilder.setIndices(List.of("logs-*"));
+
+        AtomicReference<Tuple<DatafeedConfig, DocWriteResponse>> putResponseHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(
+            actionListener -> datafeedConfigProvider.putDatafeedConfig(datafeedBuilder.build(), createSecurityHeader(), actionListener),
+            putResponseHolder,
+            exceptionHolder
+        );
+        assertNull(exceptionHolder.get());
+        assertThat(putResponseHolder.get().v2().status(), equalTo(RestStatus.CREATED));
+
+        AtomicReference<DatafeedConfig.Builder> getResponseHolder = new AtomicReference<>();
+        blockingCall(
+            actionListener -> datafeedConfigProvider.getDatafeedConfig(datafeedId, null, actionListener),
+            getResponseHolder,
+            exceptionHolder
+        );
+        assertNull(exceptionHolder.get());
+
+        DatafeedConfig retrievedDatafeed = getResponseHolder.get().build();
+        assertNull(retrievedDatafeed.getCloudInternalCredential());
+
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(
+            retrievedDatafeed,
+            decider,
+            retrievedDatafeed.getCloudInternalCredential() != null
+        );
+        assertThat(effectiveDatafeed.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
     private Map<String, String> createSecurityHeader() {

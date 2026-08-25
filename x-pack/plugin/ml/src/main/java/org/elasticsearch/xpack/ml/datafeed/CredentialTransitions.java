@@ -393,7 +393,14 @@ public final class CredentialTransitions {
         @Nullable CloudCredential carriedCredential,
         ActionListener<Void> listener
     ) {
-        DatafeedConfig effectiveConfig = DatafeedConfig.withCrossProjectModeIfEnabled(config, crossProjectModeDecider);
+        final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
+        DatafeedConfig effectiveConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+            config,
+            crossProjectModeDecider,
+            callerCredential != null
+        );
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
         QueryBuilder query = effectiveConfig.getParsedQuery(xContentRegistry);
         if (query != null) {
@@ -408,9 +415,6 @@ public final class CredentialTransitions {
         if (effectiveConfig.getProjectRouting() != null) {
             searchRequest.setProjectRouting(effectiveConfig.getProjectRouting());
         }
-        final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
         final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         boolean flatWorldOnly = effectiveConfig.getIndices().stream().noneMatch(RemoteClusterAware::isRemoteIndexName);
         ActionListener<Void> probeListener = listener.delegateResponse((l, e) -> {

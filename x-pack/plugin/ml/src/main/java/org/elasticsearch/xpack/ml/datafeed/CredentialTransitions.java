@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -59,6 +60,30 @@ import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSe
 public final class CredentialTransitions {
 
     private static final Logger logger = LogManager.getLogger(CredentialTransitions.class);
+
+    static final TimeValue MINT_FAILURE_LOG_INTERVAL = TimeValue.timeValueMinutes(1);
+
+    /**
+     * Rate-limits repeated CPS datafeed mint-failure ERROR logs on this node during systemic UIAM failures.
+     */
+    static final class MintFailureLogThrottle {
+
+        private long lastEmittedMillis = -1;
+        private int suppressedSinceLastEmit;
+
+        synchronized MintFailureLogDecision recordFailure(long nowMillis) {
+            if (lastEmittedMillis < 0 || nowMillis - lastEmittedMillis >= MINT_FAILURE_LOG_INTERVAL.millis()) {
+                int suppressed = suppressedSinceLastEmit;
+                lastEmittedMillis = nowMillis;
+                suppressedSinceLastEmit = 0;
+                return new MintFailureLogDecision(true, suppressed);
+            }
+            suppressedSinceLastEmit++;
+            return new MintFailureLogDecision(false, 0);
+        }
+    }
+
+    record MintFailureLogDecision(boolean shouldLog, int suppressedCount) {}
 
     /**
      * Result of minting a CPS datafeed cloud API key: the persisted envelope plus security headers
@@ -106,6 +131,7 @@ public final class CredentialTransitions {
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final MintFailureLogThrottle mintFailureLogThrottle = new MintFailureLogThrottle();
 
     public CredentialTransitions(
         AnomalyDetectionAuditor auditor,
@@ -510,7 +536,21 @@ public final class CredentialTransitions {
                         }
                         onSuccess.accept(new MintedCredential(result.persistedCredential(), mintedHeaders));
                     }), e -> {
-                        logger.error(() -> "[" + datafeedId + "] Failed to mint internal cloud API key for CPS datafeed", e);
+                        MintFailureLogDecision logDecision = mintFailureLogThrottle.recordFailure(threadPool.relativeTimeInMillis());
+                        if (logDecision.shouldLog()) {
+                            if (logDecision.suppressedCount() > 0) {
+                                logger.error(
+                                    () -> "["
+                                        + datafeedId
+                                        + "] Failed to mint internal cloud API key for CPS datafeed; suppressed ["
+                                        + logDecision.suppressedCount()
+                                        + "] additional CPS datafeed mint failures since the previous report",
+                                    e
+                                );
+                            } else {
+                                logger.error(() -> "[" + datafeedId + "] Failed to mint internal cloud API key for CPS datafeed", e);
+                            }
+                        }
                         failurePropagator.onFailure(e);
                     })
                 );

@@ -840,7 +840,8 @@ public class NumberColumnTransformTests extends ESTestCase {
             NumberType.LONG,
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            99L
+            99L,
+            false
         );
         long[] vals = readValues(out, 3);
         assertEquals(10L, vals[0]);
@@ -1080,7 +1081,8 @@ public class NumberColumnTransformTests extends ESTestCase {
             NumberType.LONG,
             true,
             BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            99L
+            99L,
+            false
         );
         long[][] vals = readArrayValues(out, 2);
         assertArrayEquals(new long[] { 1L, 99L, 3L }, vals[0]);

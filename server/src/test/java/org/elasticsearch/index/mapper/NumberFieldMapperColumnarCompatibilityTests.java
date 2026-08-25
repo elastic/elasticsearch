@@ -368,12 +368,10 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     /**
      * {@link NumberFieldMapper#supportsColumnarParse} accepts {@code doc_values.multi_value=true} —
      * the setting defaults to {@code true}, so rejecting it would take every numeric field in a
-     * columnar index off the columnar path. Multi-valued documents themselves are not implemented:
-     * they arrive as an ESCF {@code ARRAY} column and the kind switch in
-     * {@link NumberFieldMapper#mapColumnBatch} throws, which makes {@code ShardBatchMapper} fall the
-     * chunk back to the row path. This test pins the gap that fallback papers over.
+     * columnar index off the columnar path. Multi-valued documents arrive as an ESCF {@code ARRAY}
+     * column, which {@link NumberFieldMapper#mapColumnBatch} maps into a sortable-long array column
+     * plus the positional offsets sidecar the row path records for synthetic source.
      */
-    @AwaitsFix(bugUrl = "columnar mapColumnBatch does not implement multi-valued numeric fields; ARRAY columns fall back to the row path")
     public void testLongField_multiValue() throws IOException {
         assertColumnarMatchesXContent(
             mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
@@ -381,6 +379,33 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
             // Every present value is an array so the column is a plain ARRAY; mixing in a scalar
             // would make it a UNION and trip the same switch for a different reason.
             batch("long multi-value", 1L, doc("d1", 1L, "{\"f\":[1,2,3]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[7]}"))
+        );
+    }
+
+    /**
+     * An ARRAY column whose child is STRING and whose every row holds exactly one element. The
+     * string transform writes one value per document into a scalar-locked builder, so the output
+     * column is a plain LONG rather than an ARRAY even though the source was an ARRAY. The row path
+     * likewise records no offsets sidecar for single-slot rows, so parity holds.
+     */
+    public void testLongField_multiValue_singleElementStringArrays() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch("long single-element string arrays", 1L, doc("d1", 1L, "{\"f\":[\"1\"]}"), doc("d2", 2L, "{\"f\":[\"2\"]}"))
+        );
+    }
+
+    /**
+     * Every row is a single-element numeric array, so the transform keeps an ARRAY column but no row
+     * has enough slots to be worth recording. The sidecar builder returns nothing, matching the row
+     * path's per-document decision to skip offsets for single-slot rows.
+     */
+    public void testLongField_multiValue_allSingleElementNoOffsets() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "long").endObject()),
+            multiValueColumnarSettings(),
+            batch("long all single-element", 1L, doc("d1", 1L, "{\"f\":[1]}"), doc("d2", 2L, "{}"), doc("d3", 3L, "{\"f\":[2]}"))
         );
     }
 

@@ -44,6 +44,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.escf.ColumnarOffsetsBuilder;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
@@ -2878,13 +2879,16 @@ public class NumberFieldMapper extends FieldMapper {
             && copyTo().copyToFields().isEmpty()
             && multiFields().iterator().hasNext() == false
             && (dimension == false || writeDimensionRouting == false)
+            && (offsetsFieldName == null || indexSettings.getMode().isStrictColumnar())
             && indexSettings.getIndexVersionCreated().isLegacyIndexVersion() == false;
     }
 
     @Override
     public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        assert offsetsFieldName == null || indexSettings.getMode().isStrictColumnar()
+            : "offsets field [" + offsetsFieldName + "] outside a strict-columnar index mode";
         switch (source.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING -> {
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> {
             } // handled below
             default -> throw new UnsupportedOperationException(
                 "mapColumnBatch: ESCF column kind ["
@@ -2895,7 +2899,19 @@ public class NumberFieldMapper extends FieldMapper {
             );
         }
         Long nullSortableLong = nullValue != null ? type.toSortableLong(nullValue) : null;
-        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(source, type, coerce(), ctx.recycler(), nullSortableLong);
+        EscfColumnData outData = NumberColumnTransform.toSortableLongColumn(
+            source,
+            type,
+            coerce(),
+            ctx.recycler(),
+            nullSortableLong,
+            offsetsFieldName != null
+        );
+        assert source.kind() != EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.ARRAY || outData.kind() == EscfColumnKind.LONG
+            : "ARRAY source produced " + EscfColumnKind.name(outData.kind());
+        if (outData.kind() == EscfColumnKind.ARRAY && isSingleValueEnforced()) {
+            rejectWideRows(outData);
+        }
         if (fieldType().indexType().hasDocValuesSkipper()) {
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), SORTED_NUMERIC_DV_INDEXED_FIELD_TYPE, numericKind(type)));
         } else if (indexed && type == NumberType.HALF_FLOAT) {
@@ -2910,6 +2926,23 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             IndexableFieldType columnFieldType = indexed ? indexableFieldType(type) : SORTED_NUMERIC_DV_FIELD_TYPE;
             ctx.addColumn(LuceneLongColumn.of(outData, fieldType().name(), columnFieldType, numericKind(type)));
+        }
+        if (offsetsFieldName != null && outData.kind() == EscfColumnKind.ARRAY) {
+            LuceneBinaryColumn offsets = ColumnarOffsetsBuilder.build(EscfColumn.from(outData), offsetsFieldName, ctx.recycler());
+            if (offsets != null) {
+                ctx.addColumn(offsets);
+            }
+        }
+    }
+
+    private void rejectWideRows(EscfColumnData outData) {
+        int[] rowOffsets = outData.offsets();
+        for (int doc = 0; doc < outData.docCount(); doc++) {
+            if (rowOffsets[doc + 1] - rowOffsets[doc] > 1) {
+                throw new UnsupportedOperationException(
+                    "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value for doc [" + doc + "]"
+                );
+            }
         }
     }
 

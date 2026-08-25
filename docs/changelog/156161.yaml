@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 156161
-summary: MV_GREATER and MV_LESS functions for MV comparisons
+summary: Add `MV_GREATER` and `MV_LESS`, any-value comparison over multivalued fields
 type: feature

@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns `true` if at least one value of `field` is greater than `bound`, using the natural order of the type. A null or empty field returns `false`, as does a null or multivalued bound. The comparison is strict (`>`) by default; set `include_bound` to `true` in the optional `options` map to make it inclusive (`>=`).
+Returns `true` if at least one value of `field` is greater than `bound`, using the natural order of the type. A null or empty field returns `false`, as does a null or multivalued bound. The comparison is strict (`>`) by default; set `include_bound` to `true` in the optional `options` map to make it inclusive (`>=`). Works on any ordered type: numbers, dates, IPs, versions, and strings (compared by their UTF-8 bytes).
 

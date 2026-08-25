@@ -937,23 +937,23 @@ public class StatelessPlugin extends Plugin
             new PluginComponentBinding<>(SearchShardSizeCollector.class, setAndGet(this.searchShardSizeCollector, searchShardSizeCollector))
         );
 
-        // HollowShardsService is constructed on all nodes because ShardsMappingSizeCollector is also
-        // constructed on all nodes and requires it. All other functional uses are gated on hasIndexRole.
-        var hollowShardsService = setAndGet(
-            this.hollowShardsService,
-            createHollowShardsService(
-                settings,
-                clusterService,
-                indicesService,
-                objectStoreService,
-                commitService,
-                indexShardCacheWarmer,
-                threadPool,
-                hollowShardMetrics.get(),
-                bccHeaderReadExecutor.get()
-            )
-        );
-        components.add(hollowShardsService);
+        if (hasIndexRole) {
+            final var hollowShardsService = setAndGet(
+                this.hollowShardsService,
+                createHollowShardsService(
+                    settings,
+                    clusterService,
+                    indicesService,
+                    objectStoreService,
+                    commitService,
+                    indexShardCacheWarmer,
+                    threadPool,
+                    hollowShardMetrics.get(),
+                    bccHeaderReadExecutor.get()
+                )
+            );
+            components.add(hollowShardsService);
+        }
 
         var vbccChunksPressure = createVirtualBatchedCompoundCommitChunksPressure(settings, meterRegistry);
         components.add(vbccChunksPressure);
@@ -983,18 +983,19 @@ public class StatelessPlugin extends Plugin
         this.statelessMemoryMetricsService.set(memoryMetricsService);
         components.add(memoryMetricsService);
 
-        var heapMemoryUsagePublisher = new HeapMemoryUsagePublisher(client);
-        components.add(heapMemoryUsagePublisher);
-        var shardsMappingSizeCollector = ShardsMappingSizeCollector.create(
-            hasIndexRole,
-            clusterService,
-            indicesService,
-            heapMemoryUsagePublisher,
-            threadPool,
-            hollowShardsService
-        );
-        this.shardsMappingSizeCollector.set(shardsMappingSizeCollector);
-        components.add(shardsMappingSizeCollector);
+        if (hasIndexRole) {
+            final var heapMemoryUsagePublisher = new HeapMemoryUsagePublisher(client);
+            components.add(heapMemoryUsagePublisher);
+            final var shardsMappingSizeCollector = ShardsMappingSizeCollector.create(
+                clusterService,
+                indicesService,
+                heapMemoryUsagePublisher,
+                threadPool,
+                this.hollowShardsService.get()
+            );
+            this.shardsMappingSizeCollector.set(shardsMappingSizeCollector);
+            components.add(shardsMappingSizeCollector);
+        }
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
@@ -1007,7 +1008,7 @@ public class StatelessPlugin extends Plugin
                 EstimatedHeapUsageRecoveryGate.create(
                     clusterService,
                     memoryMetricsService,
-                    shardsMappingSizeCollector,
+                    this.shardsMappingSizeCollector.get(),
                     threadPool,
                     estimatedHeapSettings.get()
                 )
@@ -1033,7 +1034,7 @@ public class StatelessPlugin extends Plugin
                     clusterService,
                     threadPool,
                     indicesService,
-                    hollowShardsService,
+                    this.hollowShardsService.get(),
                     commitService,
                     indexShardCacheWarmer,
                     hollowShardMetrics.get()
@@ -1137,7 +1138,7 @@ public class StatelessPlugin extends Plugin
                 provider.onServicesCreated(
                     cacheService,
                     closedShardService,
-                    hollowShardsService,
+                    this.hollowShardsService.get(),
                     searchShardSizeCollector,
                     memoryMetricsService,
                     objectStoreService

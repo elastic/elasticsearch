@@ -156,6 +156,8 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
         LongSupplier relativeTimeSupplierInMillis,
         Executor bccHeaderReadExecutor
     ) {
+        assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;

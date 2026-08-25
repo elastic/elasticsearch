@@ -14,6 +14,8 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -99,7 +101,6 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
     private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
         ShardsMappingSizeCollector.class
     );
-    private final boolean isIndexNode;
     private final IndicesService indicesService;
     private final HeapMemoryUsagePublisher publisher;
     private final ThreadPool threadPool;
@@ -116,14 +117,14 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
     private volatile ByteSizeValue hollowShardSegmentMemoryOverhead;
 
     public ShardsMappingSizeCollector(
-        final boolean isIndexNode,
         final IndicesService indicesService,
         final HeapMemoryUsagePublisher publisher,
         final ThreadPool threadPool,
         final ClusterService clusterService,
         final HollowShardsService hollowShardsService
     ) {
-        this.isIndexNode = isIndexNode;
+        assert DiscoveryNode.hasRole(clusterService.getSettings(), DiscoveryNodeRole.INDEX_ROLE);
+
         this.indicesService = indicesService;
         this.publisher = publisher;
         this.threadPool = threadPool;
@@ -139,7 +140,6 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
     }
 
     public static ShardsMappingSizeCollector create(
-        final boolean isIndexNode,
         final ClusterService clusterService,
         final IndicesService indicesService,
         final HeapMemoryUsagePublisher publisher,
@@ -147,7 +147,6 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
         final HollowShardsService hollowShardsService
     ) {
         final ShardsMappingSizeCollector instance = new ShardsMappingSizeCollector(
-            isIndexNode,
             indicesService,
             publisher,
             threadPool,
@@ -205,10 +204,6 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
 
     @Override
     public void clusterChanged(final ClusterChangedEvent event) {
-        if (isIndexNode == false) {
-            return;
-        }
-
         if (event.nodesDelta().masterNodeChanged()) {
             // new master does not have any mapping size estimation data, publish everything
             updateMappingMetricsForAllIndices(event.state().version());
@@ -309,9 +304,6 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
      */
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
-        if (isIndexNode == false) {
-            return;
-        }
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
             : "We assume this is only run on the applier thread";
         recentlyStartedShards.add(indexShard.shardId());
@@ -414,17 +406,11 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
     }
 
     void start() {
-        if (isIndexNode == false) {
-            return;
-        }
         publishTask = new PublishTask();
         publishTask.scheduleNext();
     }
 
     void stop() {
-        if (isIndexNode == false) {
-            return;
-        }
         publishTask = null;
     }
 

@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.core.Releasable;
@@ -55,6 +57,8 @@ public class StatelessPrimaryRelocationTargetService {
         IndexShardCacheWarmer indexShardCacheWarmer,
         StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector
     ) {
+        assert DiscoveryNode.hasRole(clusterService.getSettings(), DiscoveryNodeRole.INDEX_ROLE);
+
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.indicesService = indicesService;

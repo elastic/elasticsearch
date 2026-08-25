@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -63,8 +64,6 @@ import static org.mockito.Mockito.when;
 
 public class ShardsMappingSizeCollectorTests extends ESTestCase {
 
-    private static final boolean IS_INDEX_NODE = true;
-
     private static final Index TEST_INDEX = new Index("test-index-name-001", "e0adaff5-8ac4-4bb8-a8d1-adfde1a064cc");
 
     private static final int FREQUENCY_IN_SECONDS = 1;
@@ -72,6 +71,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
     private static final Settings TEST_SETTINGS = Settings.builder()
         .put(CUT_OFF_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(FREQUENCY_IN_SECONDS))
         .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
+        .put("node.roles", DiscoveryNodeRole.INDEX_ROLE.roleName())
         .build();
 
     private final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
@@ -97,6 +97,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(TEST_SETTINGS);
         indicesService = mock(IndicesService.class);
         when(indicesService.iterator()).thenReturn(List.<IndexService>of().iterator());
 
@@ -138,7 +139,6 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         var publisher = mock(HeapMemoryUsagePublisher.class);
         var collector = spy(
             new ShardsMappingSizeCollector(
-                IS_INDEX_NODE,
                 indicesService,
                 publisher,
                 deterministicTaskQueue.getThreadPool(),
@@ -205,7 +205,6 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
 
         var publisher = mock(HeapMemoryUsagePublisher.class);
         var collector = new ShardsMappingSizeCollector(
-            IS_INDEX_NODE,
             indicesService,
             publisher,
             deterministicTaskQueue.getThreadPool(),
@@ -280,7 +279,6 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
             .build();
         clusterSettings.applySettings(setting);
         var collector = new ShardsMappingSizeCollector(
-            IS_INDEX_NODE,
             indicesService,
             publisher,
             deterministicTaskQueue.getThreadPool(),
@@ -313,7 +311,6 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
             }
         };
         var collector = new ShardsMappingSizeCollector(
-            IS_INDEX_NODE,
             indicesService,
             publisher,
             deterministicTaskQueue.getThreadPool(),
@@ -368,7 +365,6 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
 
         var publisher = mock(HeapMemoryUsagePublisher.class);
         var collector = new ShardsMappingSizeCollector(
-            IS_INDEX_NODE,
             indicesService,
             publisher,
             deterministicTaskQueue.getThreadPool(),
@@ -401,7 +397,6 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
 
         var publisher = mock(HeapMemoryUsagePublisher.class);
         var collector = new ShardsMappingSizeCollector(
-            IS_INDEX_NODE,
             indicesService,
             publisher,
             deterministicTaskQueue.getThreadPool(),

@@ -5309,8 +5309,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertReshardStateEventuallyCleanedUp(indexNode, deletedIndexUUIDs);
     }
 
-    /// A refresh issued during a reshard waits for the split to reach a safe point. If the index is deleted meanwhile, the refresh
-    /// has to be answered rather than block until the client times out, whichever phase the split is holding at.
+    /// A refresh issued during a reshard waits for the split to reach a safe point. If the index is deleted meanwhile, the request
+    /// must receive a terminal response rather than remain pending after cancellation, whichever phase the split is holding at.
     public void testRefreshDuringSplitIsAnsweredWhenIndexIsDeleted() throws Exception {
         startMasterOnlyNode();
         // The stale-index GC reclaims the deleted index's object store prefix, and it only runs on an index-role node.

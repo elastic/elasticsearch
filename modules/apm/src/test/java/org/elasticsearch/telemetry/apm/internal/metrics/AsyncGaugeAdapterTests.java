@@ -11,9 +11,9 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class GaugeAdapterTests extends ESTestCase {
+public class AsyncGaugeAdapterTests extends ESTestCase {
     RecordingOtelMeter otelMeter;
     APMMeterRegistry registry;
 
@@ -39,7 +39,7 @@ public class GaugeAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testLongGaugeRecord() throws Exception {
         AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
-        LongGauge gauge = registry.registerLongGauge("es.test.name.total", "desc", "unit", attrs::get);
+        LongAsyncGauge gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "unit", attrs::get);
 
         attrs.set(new LongWithAttributes(1L, Map.of("es_test_attribute", 1L)));
 
@@ -72,7 +72,7 @@ public class GaugeAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testDoubleGaugeRecord() throws Exception {
         AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
-        DoubleGauge gauge = registry.registerDoubleGauge("es.test.name.total", "desc", "unit", attrs::get);
+        DoubleAsyncGauge gauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "unit", attrs::get);
 
         attrs.set(new DoubleWithAttributes(1.0d, Map.of("es_test_attribute", 1L)));
 
@@ -103,8 +103,13 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     public void testZeroValuedGaugesAreRecorded() {
-        LongGauge longGauge = registry.registerLongGauge("es.test.long.current", "desc", "unit", () -> new LongWithAttributes(0L));
-        DoubleGauge doubleGauge = registry.registerDoubleGauge(
+        LongAsyncGauge longAsyncGauge = registry.registerLongAsyncGauge(
+            "es.test.long.current",
+            "desc",
+            "unit",
+            () -> new LongWithAttributes(0L)
+        );
+        DoubleAsyncGauge doubleAsyncGauge = registry.registerDoubleAsyncGauge(
             "es.test.double.current",
             "desc",
             "unit",
@@ -113,12 +118,12 @@ public class GaugeAdapterTests extends ESTestCase {
 
         otelMeter.collectMetrics();
 
-        assertThat(otelMeter.getRecorder().getMeasurements(longGauge), hasSize(1));
-        assertThat(otelMeter.getRecorder().getMeasurements(doubleGauge), hasSize(1));
+        assertThat(otelMeter.getRecorder().getMeasurements(longAsyncGauge), hasSize(1));
+        assertThat(otelMeter.getRecorder().getMeasurements(doubleAsyncGauge), hasSize(1));
     }
 
     public void testNullGaugeRecord() throws Exception {
-        DoubleGauge dgauge = registry.registerDoubleGauge(
+        DoubleAsyncGauge dgauge = registry.registerDoubleAsyncGauge(
             "es.test.name.total",
             "desc",
             "unit",
@@ -128,21 +133,26 @@ public class GaugeAdapterTests extends ESTestCase {
         List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dgauge);
         assertThat(metrics, hasSize(0));
 
-        LongGauge lgauge = registry.registerLongGauge("es.test.name.total", "desc", "unit", new AtomicReference<LongWithAttributes>()::get);
+        LongAsyncGauge lgauge = registry.registerLongAsyncGauge(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            new AtomicReference<LongWithAttributes>()::get
+        );
         otelMeter.collectMetrics();
         metrics = otelMeter.getRecorder().getMeasurements(lgauge);
         assertThat(metrics, hasSize(0));
     }
 
     public void testLongGaugeWithInvalidAttribute() {
-        registry.registerLongGauge("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
+        registry.registerLongAsyncGauge("es.test.name.total", "desc", "unit", () -> new LongWithAttributes(1, Map.of("index", "index1")));
 
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), containsString("Attribute [index] of [es.test.name.total] is forbidden"));
     }
 
     public void testDoubleGaugeWithInvalidAttribute() {
-        registry.registerDoubleGauge(
+        registry.registerDoubleAsyncGauge(
             "es.test.name.total",
             "desc",
             "unit",
@@ -157,7 +167,7 @@ public class GaugeAdapterTests extends ESTestCase {
         var anotherMeter = new RecordingOtelMeter();
         var value = new AtomicReference<>(42L);
 
-        var gauge = registry.registerLongGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(value.get()));
+        var gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(value.get()));
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(gauge);
@@ -179,7 +189,7 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     public void testLongGaugeIsRemovedFromTheRegistryAfterClosing() throws Exception {
-        var gauge = registry.registerLongGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(42));
+        var gauge = registry.registerLongAsyncGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(42));
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(gauge);
@@ -197,7 +207,7 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     public void testDoubleGaugeIsRemovedFromTheRegistryAfterClosing() throws Exception {
-        var gauge = registry.registerDoubleGauge("es.test.name.total", "desc", "thingies", () -> new DoubleWithAttributes(42.0));
+        var gauge = registry.registerDoubleAsyncGauge("es.test.name.total", "desc", "thingies", () -> new DoubleWithAttributes(42.0));
 
         otelMeter.collectMetrics();
         var metrics = otelMeter.getRecorder().getMeasurements(gauge);

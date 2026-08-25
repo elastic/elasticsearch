@@ -155,9 +155,12 @@ public class OtelLoggingIT extends AbstractTelemetryIT {
     }
 
     private void assertLogDeliveryResource() {
-        ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
+        ReceivedTelemetry.ReceivedResource resource = apmServer().logResource();
         assertNotNull("log export should carry a resource", resource);
-        assertThat(resource.attributes(), equalTo(Map.of("service.name", "elasticsearch", "service.type", "elasticsearch")));
+        assertThat(
+            resource.attributes(),
+            equalTo(Map.of("service.name", TestOtelFilterPlugin.LOG_SERVICE_NAME, "service.type", "elasticsearch"))
+        );
     }
 
     /**

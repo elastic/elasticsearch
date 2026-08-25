@@ -40,6 +40,9 @@ import java.util.regex.Pattern;
  * <p>It reproduces the host, OS, process, Kubernetes, container and environment attributes
  * expected by APM Server. Operators can add or override attributes via the
  * {@code telemetry.resource.*} setting ({@link OtelSdkSettings#TELEMETRY_RESOURCE_ATTRIBUTES}).
+ *
+ * <p>Log records do not use this resource; their delivery pipeline requires a much narrower one, built
+ * by {@link OtelSdkExportLogsSupplier#logDeliveryResource(String)}.
  */
 final class OtelSdkResource {
 

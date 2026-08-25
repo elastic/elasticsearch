@@ -9,12 +9,17 @@
 
 package org.elasticsearch.telemetry;
 
+/**
+ * Identifies the source of every OTel log record this node exports.
+ */
 public interface TelemetryLogResourceProvider {
 
     String DEFAULT_SERVICE_NAME = "elasticsearch";
 
+    /** Must be non-null and non-empty. */
     String serviceName();
 
+    /** Identity used when no plugin overrides it. */
     class Default implements TelemetryLogResourceProvider {
         @Override
         public String serviceName() {

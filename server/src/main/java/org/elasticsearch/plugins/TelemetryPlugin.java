@@ -18,10 +18,6 @@ import java.util.List;
 
 public interface TelemetryPlugin {
 
-    default TelemetryProvider getTelemetryProvider(Environment environment, List<TelemetryLoggingFilterProvider> filterProviders) {
-        return getTelemetryProvider(environment, filterProviders, new TelemetryLogResourceProvider.Default());
-    }
-
     TelemetryProvider getTelemetryProvider(
         Environment environment,
         List<TelemetryLoggingFilterProvider> filterProviders,

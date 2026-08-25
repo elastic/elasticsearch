@@ -284,7 +284,7 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
 
     @Override
     public void close() {
-        // Only asynchronous instruments such as gauges are closeable; the synchronous counters and histograms need no cleanup.
+        // Only the asynchronous gauge is closeable; the synchronous counters and histograms need no cleanup.
         recoveryGateBlockedCurrentMetric.gauge().close();
     }
 

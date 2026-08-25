@@ -18,7 +18,7 @@ import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -59,7 +59,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
     private final SingleObjectCache<Long> estimateCache;
     private final LongGaugeMetric estimatedHeapUsageMetric;
     private volatile double estimatedHeapUsageDeltaPercentage;
-    private final DoubleGauge estimatedHeapUsageDeltaPercentageMetric;
+    private final DoubleAsyncGauge estimatedHeapUsageDeltaPercentageMetric;
     private final LongHistogram estimatedHeapComputationTimeMetric;
 
     /// Builds a gate wired to the node's real services and JVM max heap: the estimate is computed from the exact shard values the
@@ -110,7 +110,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
             "Estimated heap usage used by the recovery gate",
             "bytes"
         );
-        this.estimatedHeapUsageDeltaPercentageMetric = meterRegistry.registerDoubleGauge(
+        this.estimatedHeapUsageDeltaPercentageMetric = meterRegistry.registerDoubleAsyncGauge(
             ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC,
             "High-watermark minus estimated heap usage, in percentage; positive values indicate recovery dispatch may proceed",
             "percent",
@@ -186,7 +186,7 @@ public class EstimatedHeapUsageRecoveryGate implements RecoveryGate, Releasable 
 
     @Override
     public void close() {
-        // Only asynchronous instruments such as gauges are closeable; the synchronous histogram needs no cleanup.
+        // Only the asynchronous gauges are closeable; the synchronous histogram needs no cleanup.
         Releasables.close(estimatedHeapUsageMetric.gauge()::close, estimatedHeapUsageDeltaPercentageMetric::close);
     }
 }

@@ -58,7 +58,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         assertThat(blockedDurationMeasurements.getLast().getLong(), equalTo(secondBlockedTimeMillis));
 
         collector.close();
-        assertFalse(telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_METRIC));
+        assertFalse(telemetryPlugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE).contains(RECOVERY_GATE_BLOCKED_CURRENT_METRIC));
     }
 
     private static void assertBlockedCurrentMetric(TestTelemetryPlugin telemetryPlugin, long expected) {

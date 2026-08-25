@@ -445,7 +445,8 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Whether this mapper writes extra values to the {@code ._on_failure} sidecar column; when {@code true}, append
      * {@link CompositeSyntheticFieldLoader#onFailureValuesLayer} <em>last</em> so encounter order is preserved.
-     * Uses {@link #onFailureBehavior()} not {@link #shouldEnforceSingleValue(XContentParser.Token)} because {@code NumberFieldMapper} diverges the two;
+     * Uses {@link #onFailureBehavior()} not {@link #shouldEnforceSingleValue(XContentParser.Token)} because {@code NumberFieldMapper}
+     * diverges the two;
      * FALLBACK excluded because those fields reconstruct from {@code _ignored_source} and have no composite loader.
      */
     protected final boolean onFailureColumnEnabled() {

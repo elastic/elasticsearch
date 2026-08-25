@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.simdvec;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.SuppressForbidden;
@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.nativeaccess.PosixNativeAccess.ENABLE_JDK_VECTOR_LIBRARY;
+import static org.elasticsearch.simdvec.SimdVecLibrary.ENABLE_JDK_VECTOR_LIBRARY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -60,7 +60,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
         // System.out.println(output);
         // System.out.println(error);
         process.waitFor(30, TimeUnit.SECONDS);
-        assertThat(output, containsString("getVectorSimilarityFunctions=[Optional.empty]"));
+        assertThat(output, containsString("SimdVecLibrary.instance=[Optional.empty]"));
         assertThat(process.exitValue(), equalTo(0));
     }
 
@@ -70,7 +70,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
 
     static final String TEST_SOURCE = """
         package p;
-        import org.elasticsearch.nativeaccess.NativeAccess;
+        import org.elasticsearch.simdvec.SimdVecLibrary;
         import org.elasticsearch.common.logging.LogConfigurator;
 
         public class Test {
@@ -79,8 +79,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
             }
 
             public static void main(String... args) {
-                var na = NativeAccess.instance().getVectorSimilarityFunctions();
-                System.out.println("getVectorSimilarityFunctions=[" + NativeAccess.instance().getVectorSimilarityFunctions() + "]");
+                System.out.println("SimdVecLibrary.instance=[" + SimdVecLibrary.instance() + "]");
             }
         }
         """;

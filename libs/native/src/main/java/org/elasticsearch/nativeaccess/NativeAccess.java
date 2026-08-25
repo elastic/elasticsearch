@@ -174,11 +174,6 @@ public interface NativeAccess {
 
     void tryPreallocate(Path file, long size);
 
-    /*
-     * Returns the vector similarity functions, or an empty optional.
-     */
-    Optional<SimdVecLibrary> getVectorSimilarityFunctions();
-
     /**
      * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.
      */

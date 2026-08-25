@@ -1936,6 +1936,64 @@ result:double | step:datetime
 Infinity      | 2024-05-10T01:00:00.000Z
 ;
 
+// A documented divergence from Prometheus: the quantile is the value at the rank, so an all-infinite input yields
+// that infinity. Prometheus instead interpolates between the two samples bracketing the rank as
+// `values[lower]*(1-weight) + values[upper]*weight`; with 3 series and phi=0.5 the rank is exactly 1, so weight is 0
+// and the upper term (+Inf * 0) is NaN, making its whole result NaN.
+nonfinite_quantile_over_infinity
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(quantile(0.5, sum by (cluster) (network.cost) * Inf));
+
+result:double | step:datetime
+Infinity      | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus quantile over an all-NaN set is NaN.
+nonfinite_quantile_over_nan
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(quantile(0.5, sum by (cluster) (network.cost) * NaN));
+
+result:double | step:datetime
+NaN           | 2024-05-10T01:00:00.000Z
+;
+
+// Prometheus treats NaN as farthest from the bottom, so bottomk rejects it while a finite value exists:
+// bottomk(1) returns `staging` (15.875), not the NaN `prod` series.
+nonfinite_bottomk_ranks_nan_last
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_bottomk
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(bottomk(1, (sum by (cluster) (network.cost) - 18.625) / (sum by (cluster) (network.cost) - 18.625) * sum by (cluster) (network.cost)));
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T01:00:00.000Z | staging
+;
+
+// A NaN series is reported with its NaN value, rather than dropped, once k is wide enough that no series has to
+// lose a slot. Sorted by cluster because NaN has no meaningful position in a value sort.
+nonfinite_topk_keeps_nan_when_k_covers_every_series
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_topk
+required_capability: promql_nested_aggregates
+required_capability: promql_non_finite_math
+PROMQL index=k8s step=1h result=(topk(3, (sum by (cluster) (network.cost) - 18.625) / (sum by (cluster) (network.cost) - 18.625) * sum by (cluster) (network.cost)))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+NaN           | 2024-05-10T01:00:00.000Z | prod
+26.5          | 2024-05-10T01:00:00.000Z | qa
+15.875        | 2024-05-10T01:00:00.000Z | staging
+;
+
 scalar_constant_time
 required_capability: promql_command_v0
 required_capability: promql_time

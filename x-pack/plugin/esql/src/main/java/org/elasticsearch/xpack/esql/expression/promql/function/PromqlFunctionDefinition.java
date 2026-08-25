@@ -348,9 +348,17 @@ public final class PromqlFunctionDefinition {
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
-    public static final String QUANTILE_NOTE =
+    public static final String QUANTILE_APPROXIMATION_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
             + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
+    /**
+     * Extends {@link #QUANTILE_APPROXIMATION_NOTE} for the quantiles that rank non-finite samples rather than
+     * discarding them. Only accurate for a quantile backed by the non-finite-preserving aggregator.
+     */
+    public static final String QUANTILE_NOTE = QUANTILE_APPROXIMATION_NOTE
+        + " Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order Prometheus sorts by. A "
+        + "rank landing exactly on a sample returns that sample, whereas Prometheus still averages in the neighbouring "
+        + "sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.";
 
     /**
      * Stack (versioned Elasticsearch) releases that PromQL function documentation can reference. Kept as a small closed

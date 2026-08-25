@@ -182,6 +182,9 @@ class SumDoubleAggregator {
 
         void add(double valueToAdd, double deltaToAdd, int groupId) {
             ensureCapacity(groupId);
+            // Reaching here means the group has an observation, whatever its value, so it must be reported as seen.
+            // An untracked group is rendered as null, which would drop a group whose total is ±Inf or NaN.
+            trackGroupId(groupId);
 
             // If the value is Inf or NaN, just add it to the running tally to "convert" to
             // Inf/NaN. This keeps the behavior bwc from before kahan summing
@@ -200,7 +203,6 @@ class SumDoubleAggregator {
             double updatedValue = value + correctedSum;
             deltas.set(groupId, correctedSum - (updatedValue - value));
             values.set(groupId, updatedValue);
-            trackGroupId(groupId);
         }
 
         private void ensureCapacity(int groupId) {

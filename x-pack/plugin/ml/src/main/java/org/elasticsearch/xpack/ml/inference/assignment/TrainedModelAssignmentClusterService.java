@@ -481,6 +481,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                observedMemoryEstimator.remove(deploymentId);
                 // As a model deployment has been stopped we should rebalance as we might now
                 // be able to satisfy more allocations for the rest of the deployments.
                 rebalanceAssignments(
@@ -517,6 +518,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                observedMemoryEstimator.clear();
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         });
@@ -570,6 +572,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     private void processObservedMemoryStats(GetDeploymentStatsAction.Response response) {
+        // Read current state once so we can pre-check significance without hitting the cluster-state queue.
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
         for (AssignmentStats stats : response.getStats().results()) {
             // Use the worst (largest) peak RSS across the deployment's nodes so the estimate is conservative and
             // OOM-safe: it must cover the busiest node, not the average.
@@ -588,7 +592,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 continue;
             }
             long effectivePerAllocation = observedMemoryEstimator.update(stats.getDeploymentId(), worstNodePeakRss, allocationsOnWorstNode);
-            writeBackObservedMemory(stats.getDeploymentId(), effectivePerAllocation);
+            // Skip the cluster-state task if the value hasn't changed enough to matter. The significance check
+            // inside writeBackObservedMemory's execute() is the authoritative guard; this pre-check just avoids
+            // queuing a no-op task in the common (stable) case.
+            TrainedModelAssignment existing = metadata.getDeploymentAssignment(stats.getDeploymentId());
+            Long currentStored = existing != null ? existing.getObservedPerAllocationMemoryBytes() : null;
+            if (isSignificantMemoryChange(currentStored, effectivePerAllocation)) {
+                writeBackObservedMemory(stats.getDeploymentId(), effectivePerAllocation);
+            }
         }
     }
 

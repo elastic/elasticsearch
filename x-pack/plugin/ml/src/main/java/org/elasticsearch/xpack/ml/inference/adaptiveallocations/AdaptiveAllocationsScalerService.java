@@ -533,10 +533,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 );
             }
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
-            if (newNumberOfAllocations != null
-                && adaptiveAllocationsScaler.getNeededNumberOfAllocations() > adaptiveAllocationsScaler.getNumberOfAllocations()
-                && adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory() != null
-                && adaptiveAllocationsScaler.getNumberOfAllocations() <= adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory()) {
+            if (adaptiveAllocationsScaler.getMaxNumberOfAllocationsByMemory() != null
+                && adaptiveAllocationsScaler.getNeededNumberOfAllocations() > adaptiveAllocationsScaler
+                    .getMaxNumberOfAllocationsByMemory()) {
                 logger.debug(
                     "adaptive allocations scaler: deployment [{}] is capped at [{}] allocations by available memory " + "(needed [{}]).",
                     deploymentId,

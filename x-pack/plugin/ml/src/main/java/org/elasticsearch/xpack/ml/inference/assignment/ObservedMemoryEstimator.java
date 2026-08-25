@@ -63,4 +63,11 @@ public class ObservedMemoryEstimator {
     public void remove(String deploymentId) {
         effectivePerAllocationBytesByDeployment.remove(deploymentId);
     }
+
+    /**
+     * Forget all deployment state (e.g. when all assignments are cleared).
+     */
+    public void clear() {
+        effectivePerAllocationBytesByDeployment.clear();
+    }
 }

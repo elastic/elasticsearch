@@ -5306,8 +5306,99 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         logger.info("Split target states observed at delete time: {}", observedSplitStates);
 
-        // Nothing reclaims an abandoned reshard's target blobs eagerly, so the stale-index GC has to remove the whole per-index prefix.
-        // An abandoned split must also leave no state behind on either service, or it leaks memory.
+        assertReshardStateEventuallyCleanedUp(indexNode, deletedIndexUUIDs);
+    }
+
+    /// A refresh issued during a reshard waits for the split to reach a safe point. If the index is deleted meanwhile, the refresh
+    /// has to be answered rather than block until the client times out, whichever phase the split is holding at.
+    public void testRefreshDuringSplitIsAnsweredWhenIndexIsDeleted() throws Exception {
+        startMasterOnlyNode();
+        // The stale-index GC reclaims the deleted index's object store prefix, and it only runs on an index-role node.
+        final String indexNode = startIndexNode(
+            Settings.builder().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, 100);
+
+        // Hold the split at a randomly chosen phase by intercepting the transition that would move it past that phase, so that
+        // across seeds the refresh is issued at every point of the split rather than one fixed one.
+        final var phase = randomFrom(
+            IndexReshardingState.Split.TargetShardState.CLONE,
+            IndexReshardingState.Split.TargetShardState.HANDOFF,
+            IndexReshardingState.Split.TargetShardState.SPLIT
+        );
+        final var heldTransition = switch (phase) {
+            case CLONE -> IndexReshardingState.Split.TargetShardState.HANDOFF;
+            case HANDOFF -> IndexReshardingState.Split.TargetShardState.SPLIT;
+            case SPLIT -> IndexReshardingState.Split.TargetShardState.DONE;
+            case DONE -> throw new AssertionError("a split cannot be held at DONE");
+        };
+        logger.info("Holding the split at [{}] by intercepting its transition to [{}]", phase, heldTransition);
+
+        final CountDownLatch reachedPhase = new CountDownLatch(1);
+        final CountDownLatch releasePhase = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action)
+                && MasterNodeRequestHelper.unwrapTermOverride(request) instanceof SplitStateRequest splitStateRequest
+                && splitStateRequest.getNewTargetShardState() == heldTransition) {
+                reachedPhase.countDown();
+                safeAwait(releasePhase);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
+        safeAwait(reachedPhase);
+
+        final String indexUUID = resolveIndex(indexName).getUUID();
+        try {
+            final var refresh = indicesAdmin().prepareRefresh(indexName).execute();
+            assertAcked(indicesAdmin().prepareDelete(indexName).get(SAFE_AWAIT_TIMEOUT));
+
+            try {
+                refresh.actionGet(SAFE_AWAIT_TIMEOUT);
+            } catch (ElasticsearchTimeoutException e) {
+                throw new AssertionError("refresh issued at [" + phase + "] was never answered after the index was deleted", e);
+            }
+        } finally {
+            releasePhase.countDown();
+        }
+
+        // Releasing the held transition lets the abandoned split unwind, which must leave nothing behind.
+        assertReshardStateEventuallyCleanedUp(indexNode, Set.of(indexUUID));
+    }
+
+    /// Handoff blocks writes by taking all source-shard operation permits. `waitForHandoffSuccessOrFailure` owns the releasable until
+    /// it creates the convergence observer, so if the index is deleted first it must release the permits; otherwise queued writes
+    /// remain blocked for the life of the shard.
+    public void testHandoffReleasesPermitsWhenIndexIsGone() throws Exception {
+        startMasterOnlyNode();
+        final String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        final AtomicBoolean released = new AtomicBoolean();
+        final Releasable permits = () -> released.set(true);
+
+        // A shard of an index that is not in the cluster state, which is what the source node sees when the index is deleted
+        // while a handoff is in flight.
+        final ShardId goneShard = new ShardId(new Index("gone", "gone-uuid"), 1);
+
+        final var handoff = new PlainActionFuture<ActionResponse>();
+        splitSourceService.waitForHandoffSuccessOrFailure(goneShard, 1L, 1L, new AtomicBoolean(true), permits, handoff);
+
+        assertTrue("indexing permits were leaked when the index was gone", released.get());
+        expectThrows(IndexNotFoundException.class, () -> handoff.actionGet(SAFE_AWAIT_TIMEOUT));
+    }
+
+    /// Deleting an index mid-reshard leaves nothing behind: the stale-index GC removes the whole per-index prefix, and neither split
+    /// service keeps state for the abandoned split, which would otherwise leak memory.
+    private static void assertReshardStateEventuallyCleanedUp(String indexNode, Set<String> deletedIndexUUIDs) throws Exception {
         final var splitTargetService = internalCluster().getInstance(SplitTargetService.class, indexNode);
         final var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
         assertBusy(() -> {

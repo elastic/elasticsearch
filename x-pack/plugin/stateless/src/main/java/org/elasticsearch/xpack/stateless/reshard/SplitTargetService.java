@@ -210,6 +210,10 @@ public class SplitTargetService {
         var stateMachine = onGoingSplits.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
+            // The split will not reach DONE now, so anything waiting for it to complete has to be failed here. Otherwise a refresh
+            // that arrived while the split was in progress is never answered, and its tracker entry is never released.
+            reshardIndexService.notifySplitFailure(indexShard.shardId(), new IndexShardClosedException(indexShard.shardId()));
+            reshardIndexService.stopTrackingSplit(indexShard.shardId());
         }
     }
 

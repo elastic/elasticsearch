@@ -636,8 +636,16 @@ public class SplitSourceService {
         ActionListener<ActionResponse> listener
     ) {
         Index index = targetShardId.getIndex();
-        IndexMetadata indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
-        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+        // We own the permits until HandoffConvergenceObserver takes them below, so an index deleted in the meantime has to be
+        // handled here rather than thrown past them.
+        Optional<IndexMetadata> indexMetadataOpt = clusterService.state().metadata().findIndex(index);
+        if (indexMetadataOpt.isEmpty()) {
+            logger.debug("Index [{}] was deleted before waiting for handoff", index);
+            permits.close();
+            listener.onFailure(new IndexNotFoundException(index));
+            return;
+        }
+        IndexReshardingMetadata reshardingMetadata = indexMetadataOpt.get().getReshardingMetadata();
 
         assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
 

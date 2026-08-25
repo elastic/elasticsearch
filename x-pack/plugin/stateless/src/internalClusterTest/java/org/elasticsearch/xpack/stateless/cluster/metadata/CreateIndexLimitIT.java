@@ -294,7 +294,7 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         }
         systemIndicesCounter.addAndGet(systemIndices);
         collectMetrics();
-        List<Measurement> measurements = getClusterMeasurements(InstrumentType.LONG_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
+        List<Measurement> measurements = getClusterMeasurements(InstrumentType.LONG_ASYNC_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
 
         // All system indices, no user indices
         assertThat(measurements, hasSize(1));
@@ -310,7 +310,7 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         collectMetrics();
-        measurements = getClusterMeasurements(InstrumentType.LONG_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
+        measurements = getClusterMeasurements(InstrumentType.LONG_ASYNC_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
         List<Long> metrics = measurements.stream().map(Measurement::getLong).toList();
         assertThat(metrics, hasSize(1));
         assertThat(metrics.get(0), equalTo((long) userIndicesLimit));

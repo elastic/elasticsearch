@@ -49,7 +49,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
         var offset = ((long) targetOrd * byteSize);
         slice.seek(offset);
-        return IndexInputUtils.withSlice(slice, byteSize, bufferScratch::get, segment -> {
+        return IndexInputUtils.withFloatSlice(slice, byteSize, bufferScratch, segment -> {
             var indexLowerInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes);
             var indexUpperInterval = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + Float.BYTES);
             var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + 2 * Float.BYTES);
@@ -95,7 +95,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         }
 
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrsScratch::get, addrs -> {
+        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrsScratch, addrs -> {
             var scoresSegment = MemorySegment.ofArray(scores);
             DISTANCE_FUNCS.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, scoresSegment);
             maxScore[0] = ScoreCorrections.nativeBbqApplyCorrectionsBulk(

@@ -167,11 +167,7 @@ public abstract class EscfColumn implements SliceableColumn {
      * Valid for {@link EscfColumnKind#UNION} columns whose row type is {@link org.elasticsearch.sourcebatch.SourceValueType#INT}.
      */
     public int getIntValue(int row) {
-        long val = getLongValue(row);
-        if (val < Integer.MIN_VALUE || val > Integer.MAX_VALUE) {
-            throw new ArithmeticException("Long value " + val + " does not fit in int");
-        }
-        return (int) val;
+        return Math.toIntExact(getLongValue(row));
     }
 
     /**

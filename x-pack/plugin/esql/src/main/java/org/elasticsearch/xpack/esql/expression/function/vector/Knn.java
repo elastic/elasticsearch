@@ -342,6 +342,7 @@ public class Knn extends SingleFieldFullTextFunction
     private ExpressionEvaluator.Factory evaluatorForRuntimeSearch(ToEvaluator toEvaluator) {
         float[] queryVector = queryAsFloats();
         Float similarityThreshold = similarityThresholdOption();
+        // TODO: for now we only support cosine similarity, accept a similarity function option in the future.
         return new KnnRuntimeFilterEvaluator.Factory(
             source(),
             toEvaluator.apply(field()),
@@ -362,6 +363,7 @@ public class Knn extends SingleFieldFullTextFunction
     private ExpressionEvaluator.Factory scorerForRuntimeSearch(ExpressionScoreMapper.ToScorer toScorer) {
         float[] queryVector = queryAsFloats();
         float boost = getBoost();
+        // TODO: for now we only support cosine similarity, accept a similarity function option in the future.
         return new KnnRuntimeScoreEvaluator.Factory(
             source(),
             toScorer.toEvaluator().apply(field()),

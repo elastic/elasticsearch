@@ -555,7 +555,7 @@ took:
   - exists: esql.datasources.discovery.files_scanned.gt_100M
   # bytes histogram buckets (bytes scanned)
   - exists: esql.datasources.discovery.bytes_scanned.lt_1b
-  - exists: esql.datasources.discovery.bytes_scanned.gt_100mb
+  - exists: esql.datasources.discovery.bytes_scanned.gt_100M
   # splits scanned histogram
   - exists: esql.datasources.parse.splits_scanned.lt_1
   # cluster-state inventory counters — no datasource registered in this test, so counts are 0

@@ -84,7 +84,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(acc.discoveryDuration(1), equalTo(1L));
         // files 5 → lt_10 bucket (index 1)
         assertThat(acc.discoveryFilesScanned(1), equalTo(1L));
-        // bytes 512 → lt_1kb bucket (index 3)
+        // bytes 512 → lt_1k bucket (index 3)
         assertThat(acc.discoveryBytesScanned(3), equalTo(1L));
     }
 
@@ -159,14 +159,15 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> acc.queries(-1));
     }
 
-    public void testUnrecognizedOutcomeClampsToFailureInExternalSourceMetrics() {
+    public void testUnrecognizedOutcomeIsSwallowedByRecordQuery() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(MeterRegistry.NOOP, acc);
-        // An unrecognized outcome must not throw — it must clamp to "failure" so that APM and
-        // phone-home counters stay in sync (APM already incremented its counter before the accumulator call).
+        // An unrecognized outcome is a programming error — recordQuery() passes it straight to the
+        // accumulator, which throws IllegalArgumentException; the try-catch swallows it.
+        // No accumulator counter should change.
         metrics.recordQuery("unexpected_outcome", 100L, false);
-        assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE), equalTo(1L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS), equalTo(0L));
+        assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE), equalTo(0L));
         assertThat(acc.queries(DataSourceUsageAccumulator.OUTCOME_CANCELLED), equalTo(0L));
     }
 
@@ -194,7 +195,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         // verify one populated bucket per histogram family (exact bucket derived from input values above)
         assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(1L)); // 5ms < 10ms → index 0
         assertThat(counters.get("datasources.discovery.files_scanned.lt_10"), equalTo(1L));     // 5 files → index 1
-        assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1kb"), equalTo(1L));    // 512 bytes → index 3
+        assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1k"), equalTo(1L));     // 512 bytes → index 3
         assertThat(counters.get("datasources.parse.splits_scanned.lt_10"), equalTo(1L));        // 3 splits → index 1
     }
 

@@ -84,19 +84,19 @@ public final class DataSourceUsageAccumulator {
         "gt_100M"
     );
 
-    /** Bytes ladder (log-10 anchored at 1 byte). */
+    /** Bytes ladder (log-10 anchored at 1 byte, decimal thresholds, SI labels matching the count ladder). */
     private static final long[] BYTES_THRESHOLDS = { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
     public static final List<String> BYTES_SUFFIXES = List.of(
         "lt_1b",
         "lt_10b",
         "lt_100b",
-        "lt_1kb",
-        "lt_10kb",
-        "lt_100kb",
-        "lt_1mb",
-        "lt_10mb",
-        "lt_100mb",
-        "gt_100mb"
+        "lt_1k",
+        "lt_10k",
+        "lt_100k",
+        "lt_1M",
+        "lt_10M",
+        "lt_100M",
+        "gt_100M"
     );
 
     public static final int BUCKET_COUNT = 10;

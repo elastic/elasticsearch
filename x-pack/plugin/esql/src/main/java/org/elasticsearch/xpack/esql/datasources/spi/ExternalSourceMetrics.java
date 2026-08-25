@@ -427,7 +427,7 @@ public final class ExternalSourceMetrics {
                 queriesPartialTotal.incrementBy(1);
             }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQuery(accOutcome(outcome), durationMillis, partial);
+                usageAccumulator.recordQuery(outcome, durationMillis, partial);
             }
         } catch (Exception e) {
             logger.trace("telemetry: recordQuery failed", e);
@@ -577,17 +577,6 @@ public final class ExternalSourceMetrics {
      */
     private static String accScheme(String canonical) {
         return DataSourceUsageAccumulator.SCHEME_NAMES_SET.contains(canonical) ? canonical : "unknown";
-    }
-
-    /**
-     * Returns the outcome token to pass to the {@link DataSourceUsageAccumulator}. APM accepts any
-     * string for the outcome attribute, but the accumulator's
-     * {@link DataSourceUsageAccumulator#outcomeIndex(String)} only accepts the three declared values.
-     * Any unexpected outcome is bucketed to {@code "failure"} to avoid a divergence between APM
-     * counters (already incremented above the accumulator call) and phone-home counters.
-     */
-    private static String accOutcome(String outcome) {
-        return DataSourceUsageAccumulator.OUTCOME_NAMES_SET.contains(outcome) ? outcome : "failure";
     }
 
     /**

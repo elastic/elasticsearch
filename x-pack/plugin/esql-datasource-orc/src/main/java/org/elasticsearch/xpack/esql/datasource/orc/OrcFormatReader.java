@@ -1723,11 +1723,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return null;
             }
             if (coercionWarnings == null) {
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    ? "their entire row is dropped"
+                    : "they are returned as null";
                 coercionWarnings = new SkipWarnings(
-                    "ORC file ["
-                        + fileLocation
-                        + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null"
+                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome
                 );
             }
             return coercionWarnings;

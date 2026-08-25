@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -104,6 +105,15 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         }
 
         if (supportsDeferredExtraction(externalSource.sourceType(), ctx == null ? null : ctx.external()) == false) {
+            return topN;
+        }
+
+        // Don't insert ExternalFieldExtractExec when skip_row is active with declared-type coercion
+        // columns: the columnar iterator must filter rows at emit time (the extractor runs after the
+        // page shape is fixed and cannot drop rows that fail coercion). Checking here prevents a
+        // plan/factory mismatch where the factory would silently turn off deferredExtraction after
+        // the plan already carries an ExternalFieldExtractExec.
+        if (skipRowWithCoercions(externalSource)) {
             return topN;
         }
 
@@ -216,6 +226,20 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         TopNExec rewrittenTopN = (TopNExec) replaceSource(topN, externalSource, narrowedSource);
 
         return new ExternalFieldExtractExec(topN.source(), rewrittenTopN, List.copyOf(deferredColumns), rowPositionAttribute);
+    }
+
+    /**
+     * Returns {@code true} when the source is configured with {@code error_mode: skip_row} AND has
+     * declared-type coercion columns. In that combination the columnar iterator must filter bad rows
+     * at emit time; the {@link ExternalFieldExtractExec} runs after the page shape is fixed and
+     * cannot participate in row-dropping. Inserting the extract operator would create a plan/factory
+     * mismatch: the factory would decline deferred extraction at runtime, but the plan node would
+     * still attempt to use a SourceExtractors registry that was never filled — surfacing as
+     * "extractor id [0] is out of range [0, 0)".
+     */
+    private static boolean skipRowWithCoercions(ExternalSourceExec source) {
+        ErrorPolicy policy = ErrorPolicy.fromConfig(source.config(), ErrorPolicy.STRICT);
+        return policy.mode() == ErrorPolicy.Mode.SKIP_ROW && source.declaredReadSpec().declaredTypeColumns().isEmpty() == false;
     }
 
     /**

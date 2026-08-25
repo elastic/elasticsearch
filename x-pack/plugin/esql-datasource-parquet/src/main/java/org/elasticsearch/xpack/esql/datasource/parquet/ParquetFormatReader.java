@@ -2907,11 +2907,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 return null;
             }
             if (coercionWarnings == null) {
+                String outcome = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    ? "their entire row is dropped"
+                    : "they are returned as null";
                 coercionWarnings = new SkipWarnings(
-                    "Parquet file ["
-                        + fileLocation
-                        + "] has values that could not be coerced to the declared column type; "
-                        + "they are returned as null",
+                    "Parquet file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
                     warningSink
                 );
             }

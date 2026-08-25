@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -38,7 +38,7 @@ public class AshSphericalScalarQuantizerBenchmark {
 
     // TODO: move to org.elasticsearch.benchmark.vector.quantization when the methods move out of SphericalQuantizer for panama-isation
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     public enum Distribution {

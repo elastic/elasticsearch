@@ -19,7 +19,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
@@ -91,7 +91,7 @@ public class ZstdDecompressBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         tempDir = Files.createTempDirectory("zstd-bench");
         ZstdCompressionMode mode = new ZstdCompressionMode(1);
         decompressor = mode.newDecompressor();

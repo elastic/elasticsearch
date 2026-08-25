@@ -15,7 +15,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.store.StoreMetrics;
@@ -122,7 +122,7 @@ public class StoreMetricsOverheadBenchmark {
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
         dataPath = Files.createTempDirectory("store-metrics-bench-data");
         workPath = Files.createTempDirectory("store-metrics-bench-work");
         longScratch = new long[BULK_LONGS];

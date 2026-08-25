@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.quantization;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 public class Stride4BitValuesBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     @Param({ "384", "782", "1024" })

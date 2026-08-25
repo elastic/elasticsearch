@@ -9,7 +9,7 @@
 
 package org.elasticsearch.benchmark.script;
 
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 public class PainlessListContainsBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final List<String> WORDS = List.of(

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.benchmark;
 
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.openjdk.jmh.annotations.Param;
 
 import java.lang.reflect.Field;
@@ -18,22 +16,22 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Reflection helpers for JMH benchmarks. The logging bootstrap lives separately in
+ * {@link org.elasticsearch.benchmark.internal.BenchmarkLogging} so that benchmarks
+ * that only need parameter enumeration do not force-load the logging machinery.
+ */
 public final class Utils {
 
     private Utils() {
         // utility class
     }
 
-    static {
-        LogConfigurator.setClusterName("elasticsearch-benchmark");
-        LogConfigurator.setNodeName("test");
-    }
-
-    public static void configureBenchmarkLogging() {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.configureESLogging();
-    }
-
+    /**
+     * Reflectively read every value declared by {@code @Param} (and, if present,
+     * {@code @ExtraParam}) on the given field of {@code clazz}. Used by benchmark
+     * correctness tests to iterate the same parameter combinations JMH would run.
+     */
     public static List<String> possibleValues(Class<?> clazz, String field) {
         List<String> result = new ArrayList<>();
         try {

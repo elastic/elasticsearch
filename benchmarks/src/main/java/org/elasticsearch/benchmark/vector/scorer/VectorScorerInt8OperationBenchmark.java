@@ -9,7 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -42,7 +42,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 public class VectorScorerInt8OperationBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     byte[] bytesA;

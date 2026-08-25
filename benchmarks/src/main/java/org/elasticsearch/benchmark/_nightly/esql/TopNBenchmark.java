@@ -12,6 +12,7 @@ package org.elasticsearch.benchmark._nightly.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -61,7 +62,7 @@ import java.util.stream.Stream;
 public class TopNBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)

@@ -14,7 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
@@ -61,7 +61,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 public class VectorScorerBQBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     public enum VectorImplementation {

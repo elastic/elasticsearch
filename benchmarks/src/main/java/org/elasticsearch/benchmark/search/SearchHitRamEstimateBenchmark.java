@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
@@ -56,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 public class SearchHitRamEstimateBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /** Number of chunk-sized hits estimated per {@link #estimateChunk} invocation. */

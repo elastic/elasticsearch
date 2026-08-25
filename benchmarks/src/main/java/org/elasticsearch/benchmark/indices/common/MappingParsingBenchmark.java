@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.indices.common;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -63,7 +63,7 @@ import java.util.concurrent.TimeUnit;
 public class MappingParsingBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final String MAPPING = """

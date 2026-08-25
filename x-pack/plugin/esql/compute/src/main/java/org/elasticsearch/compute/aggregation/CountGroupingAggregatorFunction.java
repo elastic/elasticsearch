@@ -7,9 +7,12 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -45,8 +48,8 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.counts = driverContext.bigArrays().newLongArray(256);
         this.countAll = channels.isEmpty();
+        this.counts = driverContext.bigArrays().newLongArray(1024);
     }
 
     private int blockIndex() {
@@ -372,8 +375,237 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return sb.toString();
     }
 
+    public void clear() {
+        counts.clear();
+    }
+
     @Override
     public void close() {
         counts.close();
+    }
+
+    @Override
+    public boolean supportPartitioning() {
+        return true;
+    }
+
+    /**
+     * Per-partition count values in partition order. Values start as ints and are migrated to longs by the
+     * partitioner if any count exceeds the int range.
+     */
+    record CountPartitionedGroupingState(CircuitBreaker breaker, int[][] intValues, long[][] longValues)
+        implements
+            PartitionedGroupingState {
+
+        @Override
+        public void releasePartition(int partition) {
+            long bytes = 0;
+            if (longValues != null && longValues[partition] != null) {
+                bytes += (long) longValues[partition].length * Long.BYTES;
+                longValues[partition] = null;
+            }
+            if (intValues != null && intValues[partition] != null) {
+                bytes += (long) intValues[partition].length * Integer.BYTES;
+                intValues[partition] = null;
+            }
+            breaker.addWithoutBreaking(-bytes);
+        }
+
+        @Override
+        public void close() {
+            long usedBytes = CountGroupingStatePartitioner.usedBytes(intValues) + CountGroupingStatePartitioner.usedBytes(longValues);
+            if (intValues != null) {
+                Arrays.fill(intValues, null);
+            }
+            if (longValues != null) {
+                Arrays.fill(longValues, null);
+            }
+            breaker.addWithoutBreaking(-usedBytes);
+        }
+    }
+
+    static final class CountGroupingStatePartitioner implements GroupingStatePartitioner {
+        private static final String BREAKER_LABEL = "CountGroupingStatePartitioner";
+
+        private final CircuitBreaker breaker;
+        private final LongArray src;
+        private long[] buffer = new long[0]; // TODO: share the buffer
+        private long[][] longValues;
+        private int[][] intValues;
+
+        CountGroupingStatePartitioner(CircuitBreaker breaker, LongArray src, int estimateSizePerPartition) {
+            this.breaker = breaker;
+            this.src = src;
+            final int cap = ArrayUtil.oversize(
+                Math.max(PartitionedHashTable.PARTITION_WRITE_BATCH, estimateSizePerPartition),
+                Integer.BYTES
+            );
+            breaker.addEstimateBytesAndMaybeBreak((long) PartitionedHashTable.NUM_PARTITIONS * cap * Integer.BYTES, BREAKER_LABEL);
+            this.intValues = new int[PartitionedHashTable.NUM_PARTITIONS][];
+            for (int p = 0; p < PartitionedHashTable.NUM_PARTITIONS; p++) {
+                this.intValues[p] = new int[cap];
+            }
+        }
+
+        @Override
+        public void split(int firstId, short[] shiftedIds, int batchSize, int[] partitionCounts, int[] partitionOffsets) {
+            if (buffer.length < batchSize) {
+                buffer = new long[ArrayUtil.oversize(batchSize, Long.BYTES)];
+            }
+            final int readLen = (int) Math.clamp(src.size() - firstId, 0L, batchSize);
+            if (readLen > 0) {
+                src.bulkGet(firstId, buffer, 0, readLen);
+            }
+            if (readLen < batchSize) {
+                Arrays.fill(buffer, readLen, batchSize, 0L);
+            }
+            if (intValues != null) {
+                if (fitsInts(buffer, batchSize)) {
+                    splitInts(shiftedIds, partitionCounts, partitionOffsets);
+                    return;
+                }
+                migrateToLongs();
+            }
+            splitLongs(shiftedIds, partitionCounts, partitionOffsets);
+        }
+
+        private static boolean fitsInts(long[] buffer, int batchSize) {
+            for (int i = 0; i < batchSize; i++) {
+                if (buffer[i] > Integer.MAX_VALUE) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private void splitInts(short[] shiftedIds, int[] partitionCounts, int[] partitionOffsets) {
+            final int[][] values = intValues;
+            for (int p = 0; p < PartitionedHashTable.NUM_PARTITIONS; p++) {
+                final int c = partitionCounts[p];
+                if (c == 0) {
+                    continue;
+                }
+                final int dst = partitionOffsets[p];
+                int[] sub = values[p];
+                final int currentLen = sub.length;
+                if (currentLen < dst + c) {
+                    final int newLength = ArrayUtil.oversize(dst + c, Integer.BYTES);
+                    breaker.addEstimateBytesAndMaybeBreak((long) (newLength) * Integer.BYTES, BREAKER_LABEL);
+                    sub = values[p] = Arrays.copyOf(sub, newLength);
+                    breaker.addWithoutBreaking((long) -currentLen * Integer.BYTES);
+                }
+                final int base = p * PartitionedHashTable.PARTITION_WRITE_BATCH;
+                for (int i = 0; i < c; i++) {
+                    sub[dst + i] = (int) buffer[shiftedIds[base + i] & 0xFFFF];
+                }
+            }
+        }
+
+        private void splitLongs(short[] shiftedIds, int[] partitionCounts, int[] partitionOffsets) {
+            final long[][] values = longValues;
+            for (int p = 0; p < PartitionedHashTable.NUM_PARTITIONS; p++) {
+                final int c = partitionCounts[p];
+                if (c == 0) {
+                    continue;
+                }
+                final int dst = partitionOffsets[p];
+                long[] sub = values[p];
+                if (sub.length < dst + c) {
+                    final int newLength = ArrayUtil.oversize(dst + c, Long.BYTES);
+                    breaker.addEstimateBytesAndMaybeBreak((long) (newLength - sub.length) * Long.BYTES, BREAKER_LABEL);
+                    sub = values[p] = Arrays.copyOf(sub, newLength);
+                }
+                final int base = p * PartitionedHashTable.PARTITION_WRITE_BATCH;
+                for (int i = 0; i < c; i++) {
+                    sub[dst + i] = buffer[shiftedIds[base + i] & 0xFFFF];
+                }
+            }
+        }
+
+        private void migrateToLongs() {
+            this.longValues = new long[PartitionedHashTable.NUM_PARTITIONS][];
+            for (int p = 0; p < PartitionedHashTable.NUM_PARTITIONS; p++) {
+                final int[] ints = intValues[p];
+                breaker.addEstimateBytesAndMaybeBreak((long) ints.length * Long.BYTES, BREAKER_LABEL);
+                final long[] longs = new long[ints.length];
+                for (int i = 0; i < ints.length; i++) {
+                    longs[i] = ints[i];
+                }
+                longValues[p] = longs;
+                intValues[p] = null;
+                breaker.addWithoutBreaking(-(long) longs.length * Integer.BYTES);
+            }
+            this.intValues = null;
+        }
+
+        @Override
+        public PartitionedGroupingState finish() {
+            var state = new CountPartitionedGroupingState(breaker, intValues, longValues);
+            intValues = null;
+            longValues = null;
+            return state;
+        }
+
+        static long usedBytes(int[][] values) {
+            if (values == null) {
+                return 0L;
+            }
+            long usedBytes = 0;
+            for (var v : values) {
+                if (v != null) {
+                    usedBytes += (long) v.length * Integer.BYTES;
+                }
+            }
+            return usedBytes;
+        }
+
+        static long usedBytes(long[][] values) {
+            if (values == null) {
+                return 0;
+            }
+            long usedBytes = 0;
+            for (var v : values) {
+                if (v != null) {
+                    usedBytes += (long) v.length * Long.BYTES;
+                }
+            }
+            return usedBytes;
+        }
+
+        @Override
+        public void close() {
+            long bytes = usedBytes(intValues) + usedBytes(longValues);
+            longValues = null;
+            intValues = null;
+            breaker.addWithoutBreaking(-bytes);
+        }
+    }
+
+    @Override
+    public GroupingStatePartitioner splitPartition(CircuitBreaker breaker, int estimateSizePerPartition) {
+        return new CountGroupingStatePartitioner(breaker, counts, estimateSizePerPartition);
+    }
+
+    @Override
+    public void combinePartition(PartitionedGroupingState partitioned, int partition, int[] mergedIds, int length, int maxGroupId) {
+        if (length == 0) {
+            return;
+        }
+        final CountPartitionedGroupingState state = (CountPartitionedGroupingState) partitioned;
+        if (counts.size() <= maxGroupId) {
+            counts = driverContext.bigArrays().grow(counts, maxGroupId);
+        }
+        final int[] ints = state.intValues != null ? state.intValues[partition] : null;
+        final long[] longs = state.longValues != null ? state.longValues[partition] : null;
+        assert ints != null || longs != null : "partition already released";
+        if (ints != null) {
+            for (int i = 0; i < length; i++) {
+                counts.increment(mergedIds[i], ints[i]);
+            }
+        } else {
+            for (int i = 0; i < length; i++) {
+                counts.increment(mergedIds[i], longs[i]);
+            }
+        }
     }
 }

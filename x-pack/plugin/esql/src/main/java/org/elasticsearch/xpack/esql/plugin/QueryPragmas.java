@@ -244,7 +244,11 @@ public final class QueryPragmas implements Writeable {
     }
 
     public int exchangeBufferSize() {
-        return EXCHANGE_BUFFER_SIZE.get(settings);
+        if (settings.hasValue(EXCHANGE_BUFFER_SIZE.getKey())) {
+            return EXCHANGE_BUFFER_SIZE.get(settings);
+        } else {
+            return Math.max(EsExecutors.allocatedProcessors(settings) * 5, 10);
+        }
     }
 
     public int concurrentExchangeClients() {

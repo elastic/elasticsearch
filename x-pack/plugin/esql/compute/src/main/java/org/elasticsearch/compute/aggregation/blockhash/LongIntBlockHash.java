@@ -7,10 +7,12 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongLongHashTable;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -24,6 +26,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 import java.util.List;
 
@@ -570,5 +573,58 @@ public final class LongIntBlockHash extends BlockHash {
             + ", size="
             + hash.ramBytesUsed()
             + "b}";
+    }
+
+    @Override
+    public boolean supportClear() {
+        return hash instanceof LongLongSwissHash;
+    }
+
+    @Override
+    public void clear() {
+        if (hash instanceof LongLongSwissHash swiss) {
+            swiss.clear();
+            seenBlocks = false;
+            return;
+        }
+        super.clear();
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+            return;
+        }
+        super.ensureCapacity(size);
+    }
+
+    @Override
+    public boolean supportPartition() {
+        return hash instanceof LongLongSwissHash;
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return swiss.splitPartition(breaker, partitionSplitter);
+        }
+        return super.splitPartition(breaker, partitionSplitter);
+    }
+
+    @Override
+    public boolean combinePartition(
+        PartitionedHashTable.PartitionedHashKeys keys,
+        int partitionIndex,
+        int totalSizeAcrossPartitions,
+        int[] resultIds
+    ) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return swiss.combinePartition(keys, partitionIndex, totalSizeAcrossPartitions, resultIds);
+        }
+        return super.combinePartition(keys, partitionIndex, totalSizeAcrossPartitions, resultIds);
     }
 }

@@ -12,11 +12,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class HashAggregationOperatorStatusTests extends AbstractWireSerializingTestCase<HashAggregationOperator.Status> {
     public static HashAggregationOperator.Status simple() {
-        return new HashAggregationOperator.Status(500012, 200012, 123, 111, 222, 180017, 2);
+        return new HashAggregationOperator.Status(500012, 200012, 123, 111, 222, 180017, 2, List.of());
     }
 
     public static String simpleToJson() {
@@ -53,7 +55,8 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            List.of()
         );
     }
 
@@ -83,7 +86,8 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
             rowsReceived,
             rowsEmitted,
             emitNanos,
-            emitCount
+            emitCount,
+            List.of()
         );
     }
 }

@@ -12,8 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.CountGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.FilteredGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
@@ -36,7 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -260,15 +263,9 @@ public class HashAggregationOperator implements Operator {
                 return new HashAggregationOperator(
                     aggregatorMode,
                     aggregators,
-                    () -> wrapBlockHash(
-                        driverContext,
-                        BlockHash.buildCategorizeBlockHash(
-                            groups,
-                            aggregatorMode,
-                            driverContext.blockFactory(),
-                            analysisRegistry,
-                            maxPageSize
-                        )
+                    dc -> wrapBlockHash(
+                        dc,
+                        BlockHash.buildCategorizeBlockHash(groups, aggregatorMode, dc.blockFactory(), analysisRegistry, maxPageSize)
                     ),
                     Integer.MAX_VALUE, // disable partial emit for CATEGORIZE. it doesn't support it.
                     1.0,
@@ -277,16 +274,32 @@ public class HashAggregationOperator implements Operator {
                     driverContext
                 );
             }
-            return new HashAggregationOperator(
-                aggregatorMode,
-                aggregators,
-                () -> wrapBlockHash(driverContext, BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, false)),
-                partialEmitKeysThreshold,
-                partialEmitUniquenessThreshold,
-                maxPageSize,
-                topAggregation,
-                driverContext
-            );
+            // Final-mode operators are built on a forked context with their own local breaker so
+            // that tryPromote can adopt them as-is as a worker of ParallelHashAggregationOperator:
+            // their state can then be handed between threads without racing the driver's
+            // single-threaded local breaker.
+            final boolean forked = aggregatorMode.isOutputPartial() == false;
+            final DriverContext operatorContext = forked ? driverContext.forkDriverContext() : driverContext;
+            boolean success = false;
+            try {
+                HashAggregationOperator op = new HashAggregationOperator(
+                    aggregatorMode,
+                    aggregators,
+                    dc -> wrapBlockHash(driverContext, BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, false)),
+                    partialEmitKeysThreshold,
+                    partialEmitUniquenessThreshold,
+                    maxPageSize,
+                    topAggregation,
+                    operatorContext
+                );
+                op.ownsDriverContext = forked;
+                success = true;
+                return op;
+            } finally {
+                if (success == false && forked) {
+                    driverContext.releaseChildBlockFactory(operatorContext.blockFactory());
+                }
+            }
         }
 
         protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
@@ -303,14 +316,24 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    protected final Supplier<BlockHash> blockHashSupplier;
+    protected final Function<DriverContext, BlockHash> blockHashSupplier;
     protected final AggregatorMode aggregatorMode;
     protected final List<GroupingAggregator.Factory> aggregatorFactories;
     protected final List<GroupingAggregator> aggregators;
     protected final int partialEmitKeysThreshold;
     protected final double partialEmitUniquenessThreshold;
+    protected final boolean supportPartitioning;
 
     protected final DriverContext driverContext;
+
+    /**
+     * True when this operator was built on a context forked from the driver's, i.e. it owns its own
+     * local breaker. The operator then releases that context on close and re-parents output pages so
+     * that they can outlive it. This is a prerequisite for adoption by
+     * {@link ParallelHashAggregationOperator}: adopted state is handed between threads, which the
+     * driver's shared single-threaded local breaker does not allow.
+     */
+    boolean ownsDriverContext = false;
 
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
@@ -362,7 +385,7 @@ public class HashAggregationOperator implements Operator {
     public HashAggregationOperator(
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
-        Supplier<BlockHash> blockHashSupplier,
+        Function<DriverContext, BlockHash> blockHashSupplier,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
         int maxPageSize,
@@ -383,7 +406,7 @@ public class HashAggregationOperator implements Operator {
         this.topAggregation = topAggregation;
         boolean success = false;
         try {
-            this.blockHash = blockHashSupplier.get();
+            this.blockHash = blockHashSupplier.apply(driverContext);
             for (GroupingAggregator.Factory a : aggregatorFactories) {
                 var groupingAggregator = a.apply(driverContext);
                 assert groupingAggregator.mode() == aggregatorMode : groupingAggregator.mode() + " != " + aggregatorMode;
@@ -395,6 +418,24 @@ public class HashAggregationOperator implements Operator {
                 close();
             }
         }
+        supportPartitioning = blockHash.supportPartition()
+            && aggregators.stream().allMatch(agg -> agg.aggregatorFunction().supportPartitioning());
+    }
+
+    HashAggregationOperator spawnWorker(DriverContext workerDriverContext) {
+        HashAggregationOperator op = new HashAggregationOperator(
+            aggregatorMode,
+            aggregatorFactories,
+            blockHashSupplier,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            maxPageSize,
+            topAggregation,
+            workerDriverContext
+        );
+        // the caller forks the context for this operator; closing this operator releases it
+        op.ownsDriverContext = true;
+        return op;
     }
 
     @Override
@@ -491,6 +532,10 @@ public class HashAggregationOperator implements Operator {
         }
         Page p = output.next();
         rowsEmitted += p.getPositionCount();
+        if (ownsDriverContext) {
+            // this operator's local breaker dies with it; re-parent so pages can outlive the operator
+            p.allowPassingToDifferentDriver();
+        }
         return p;
     }
 
@@ -505,11 +550,19 @@ public class HashAggregationOperator implements Operator {
 
     private void maybeReinitializeAfterPeriodicallyEmitted() {
         if (rowsReceived > 0 && rowsAddedInCurrentBatch == 0) {
-            blockHash.close();
-            blockHash = null;
-            blockHash = blockHashSupplier.get();
+            if (blockHash.supportClear()) {
+                blockHash.clear();
+            } else {
+                blockHash.close();
+                blockHash = null;
+                blockHash = blockHashSupplier.apply(driverContext);
+            }
             for (int i = 0; i < aggregators.size(); i++) {
-                Releasables.close(aggregators.set(i, aggregatorFactories.get(i).apply(driverContext)));
+                if (aggregators.get(i).aggregatorFunction() instanceof CountGroupingAggregatorFunction count) {
+                    count.clear();
+                } else {
+                    Releasables.close(aggregators.set(i, aggregatorFactories.get(i).apply(driverContext)));
+                }
             }
         }
     }
@@ -591,18 +644,38 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(blockHash, () -> Releasables.close(aggregators), output);
+        Releasables.close(blockHash, () -> Releasables.close(aggregators), output, this::releaseForkedContext);
+    }
+
+    private void releaseForkedContext() {
+        if (ownsDriverContext) {
+            driverContext.releaseChildBlockFactory(driverContext.blockFactory());
+        }
     }
 
     @Override
     public Operator.Status status() {
-        return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount);
+        return new Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount, List.of());
     }
 
     protected static void checkState(boolean condition, String msg) {
         if (condition == false) {
             throw new IllegalArgumentException(msg);
         }
+    }
+
+    @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        if (aggregatorMode.isOutputPartial() == false
+            && ownsDriverContext
+            && supportPartitioning
+            && blockHash.numKeys() >= ParallelHashAggregationOperator.PARTITION_THRESHOLD) {
+            int maxWorkers = Math.min(ParallelHashAggregationOperator.MAX_WORKERS, EsExecutors.allocatedProcessors(Settings.EMPTY));
+            var newOp = new ParallelHashAggregationOperator(driverContext, this, maxWorkers, this::spawnWorker);
+            Releasables.close(this);
+            return newOp;
+        }
+        return this;
     }
 
     @Override
@@ -630,6 +703,10 @@ public class HashAggregationOperator implements Operator {
             "esql_hash_operator_status_emit_count"
         );
 
+        private static final TransportVersion ESQL_HASH_OPERATOR_STATUS_EXTRA_FIELDS = TransportVersion.fromName(
+            "esql_hash_operator_status_extra_fields"
+        );
+
         /**
          * Nanoseconds this operator has spent hashing grouping keys.
          */
@@ -655,6 +732,8 @@ public class HashAggregationOperator implements Operator {
 
         protected final long emitCount;
 
+        protected final List<ExtraStatus> extraFields;
+
         /**
          * Build.
          *
@@ -665,6 +744,7 @@ public class HashAggregationOperator implements Operator {
          * @param rowsEmitted      Count of rows this operator has emitted.
          * @param emitNanos        Nanoseconds this operator has spent emitting the output.
          * @param emitCount        Count of times this operator has emitted output.
+         * @param extraFields      the extra status such as time-series or partitioning can be attached to enrich the status
          */
         public Status(
             long hashNanos,
@@ -673,7 +753,8 @@ public class HashAggregationOperator implements Operator {
             long rowsReceived,
             long rowsEmitted,
             long emitNanos,
-            long emitCount
+            long emitCount,
+            List<ExtraStatus> extraFields
         ) {
             this.hashNanos = hashNanos;
             this.aggregationNanos = aggregationNanos;
@@ -682,6 +763,7 @@ public class HashAggregationOperator implements Operator {
             this.rowsEmitted = rowsEmitted;
             this.emitNanos = emitNanos;
             this.emitCount = emitCount;
+            this.extraFields = extraFields;
         }
 
         protected Status(StreamInput in) throws IOException {
@@ -700,6 +782,11 @@ public class HashAggregationOperator implements Operator {
             } else {
                 emitCount = 0;
             }
+            if (in.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EXTRA_FIELDS)) {
+                extraFields = in.readNamedWriteableCollectionAsList(Status.ExtraStatus.class);
+            } else {
+                extraFields = List.of();
+            }
         }
 
         @Override
@@ -714,6 +801,9 @@ public class HashAggregationOperator implements Operator {
             }
             if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EMIT_COUNT)) {
                 out.writeVLong(emitCount);
+            }
+            if (out.getTransportVersion().supports(ESQL_HASH_OPERATOR_STATUS_EXTRA_FIELDS)) {
+                out.writeNamedWriteableCollection(extraFields);
             }
         }
 
@@ -771,6 +861,10 @@ public class HashAggregationOperator implements Operator {
             return emitCount;
         }
 
+        public List<ExtraStatus> extraFields() {
+            return extraFields;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -792,6 +886,9 @@ public class HashAggregationOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
             }
+            for (ExtraStatus ef : extraFields) {
+                ef.toXContent(builder, params);
+            }
             return builder.endObject();
 
         }
@@ -807,12 +904,13 @@ public class HashAggregationOperator implements Operator {
                 && rowsReceived == status.rowsReceived
                 && rowsEmitted == status.rowsEmitted
                 && emitNanos == status.emitNanos
-                && emitCount == status.emitCount;
+                && emitCount == status.emitCount
+                && Objects.equals(extraFields, status.extraFields);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount);
+            return Objects.hash(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos, emitCount, extraFields);
         }
 
         @Override

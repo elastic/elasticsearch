@@ -333,7 +333,10 @@ public class LocalExecutionPlanner {
         PhysicalPlan localPhysicalPlan,
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
-        final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
+        AggregateExec aggregateExec = (AggregateExec) localPhysicalPlan.collectFirstChildren(p -> p instanceof AggregateExec)
+            .stream()
+            .findAny()
+            .orElse(null);
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -343,7 +346,7 @@ public class LocalExecutionPlanner {
             blockFactory,
             foldCtx,
             plannerSettings,
-            timeSeries,
+            aggregateExec,
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
@@ -369,7 +372,8 @@ public class LocalExecutionPlanner {
                     context.shardContexts,
                     physicalOperation,
                     statusInterval,
-                    settings
+                    settings,
+                    parallelWorkerExecutor
                 ),
                 context.driverParallelism().get()
             )
@@ -2483,7 +2487,7 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
-        boolean timeSeries,
+        AggregateExec aggregateExec,
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
@@ -2498,7 +2502,11 @@ public class LocalExecutionPlanner {
         }
 
         DataPartitioning.AutoStrategy autoPartitioningStrategy() {
-            return timeSeries ? DataPartitioning.AutoStrategy.DEFAULT_TIME_SERIES : DataPartitioning.AutoStrategy.DEFAULT;
+            if (aggregateExec instanceof TimeSeriesAggregateExec) {
+                return DataPartitioning.AutoStrategy.DEFAULT_TIME_SERIES;
+            } else {
+                return DataPartitioning.AutoStrategy.DEFAULT;
+            }
         }
 
         int pageSize(PhysicalPlan node, Integer estimatedRowSize) {
@@ -2511,7 +2519,7 @@ public class LocalExecutionPlanner {
             if (queryPragmas.pageSize() != 0) {
                 return queryPragmas.pageSize();
             }
-            if (timeSeries && node instanceof EsQueryExec) {
+            if (aggregateExec instanceof TimeSeriesAggregateExec && node instanceof EsQueryExec) {
                 return TimeSeriesSourceOperator.pageSize(estimatedRowSize, plannerSettings.valuesLoadingJumboSize().getBytes());
             } else {
                 return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
@@ -2528,7 +2536,8 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        Settings settings
+        Settings settings,
+        Executor executor
     ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
@@ -2543,6 +2552,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.maxOverReservedBytes()
             );
             var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
+            driverContext.executor = executor;
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

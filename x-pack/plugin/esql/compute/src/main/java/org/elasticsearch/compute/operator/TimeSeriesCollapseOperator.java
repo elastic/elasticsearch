@@ -189,13 +189,18 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(AggregatorMode.SINGLE, aggregators(state), blockHash, Integer.MAX_VALUE, 1.0, maxPageSize, null, driverContext);
+        super(AggregatorMode.SINGLE, aggregators(state), dc -> blockHash.get(), Integer.MAX_VALUE, 1.0, maxPageSize, null, driverContext);
         this.groups = groups;
         this.valueChannel = valueChannel;
         this.stepChannel = stepChannel;
         this.maxPageSize = maxPageSize;
         this.outputBlockCount = outputBlockCount(groups, valueChannel, stepChannel);
         this.state = state;
+    }
+
+    @Override
+    public Operator tryPromote(DriverContext driverContext) {
+        return this;
     }
 
     @Override

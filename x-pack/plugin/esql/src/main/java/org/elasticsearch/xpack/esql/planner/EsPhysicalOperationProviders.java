@@ -558,9 +558,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
         int taskConcurrency = context.queryPragmas().taskConcurrency();
-        if (context.timeSeries()) {
-            // Time-series aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
-            taskConcurrency = Math.min(taskConcurrency, Math.max(EsExecutors.allocatedProcessors(context.settings()), 2));
+        if (context.aggregateExec() != null) {
+            // Aggregation is CPU-bound and cache-sensitive; cap concurrency at the number of processors.
+            taskConcurrency = Math.min(Math.max(EsExecutors.allocatedProcessors(context.settings()), 2), taskConcurrency);
         }
         if (sorts != null && sorts.isEmpty() == false) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
@@ -611,7 +611,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // A no-limit scan (e.g. STATS) visits every matching doc, so it shares the cost-threshold rule with count and
             // TopN: cheap -> SEGMENT, scan-heavy -> DOC (implicit-limit stays SHARD; time-series keeps its own strategy).
             long minCostForDoc = context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE);
-            var autoStrategy = context.timeSeries()
+            var autoStrategy = context.aggregateExec() instanceof TimeSeriesAggregateExec
                 ? context.autoPartitioningStrategy()
                 : LuceneSourceOperator.Factory.autoStrategy(minCostForDoc);
             luceneFactory = new LuceneSourceOperator.Factory(

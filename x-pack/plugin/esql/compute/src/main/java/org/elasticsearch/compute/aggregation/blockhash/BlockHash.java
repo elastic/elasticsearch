@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.Int3Hash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
@@ -316,5 +318,37 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public static long hashOrdToGroupNullReserved(long ord) {
         return hashOrdToGroup(ord) + 1;
+    }
+
+    public boolean supportClear() {
+        return false;
+    }
+
+    public void clear() {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    public void ensureCapacity(int size) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    public boolean supportPartition() {
+        return false;
+    }
+
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    public boolean combinePartition(
+        PartitionedHashTable.PartitionedHashKeys keys,
+        int partitionIndex,
+        int totalSizeAcrossPartitions,
+        int[] resultIds
+    ) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
     }
 }

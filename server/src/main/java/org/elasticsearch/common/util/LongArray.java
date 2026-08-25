@@ -58,4 +58,14 @@ public interface LongArray extends BigArray, Writeable {
      */
     void set(long index, byte[] buf, int offset, int len);
 
+    default void clear() {
+        fill(0, size(), 0L);
+    }
+
+    default void bulkGet(long fromIndex, long[] dest, int destOffset, int length) {
+        for (int i = 0; i < length; i++) {
+            dest[destOffset + i] = get(fromIndex + i);
+        }
+    }
+
 }

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,6 +100,8 @@ public class DriverContext {
      */
     private final List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
 
+    public Executor executor;
+
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
         this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
@@ -132,11 +135,29 @@ public class DriverContext {
         return bigArrays;
     }
 
+    private @Nullable DriverContext forkParent;
+
+    public DriverContext forkDriverContext() {
+        DriverContext forked = new DriverContext(
+            bigArrays,
+            createChildBlockFactory(),
+            this.localBreakerSettings,
+            driverDescription,
+            warningsMode
+        );
+        forked.forkParent = this;
+        return forked;
+    }
+
     /**
      * The {@link CircuitBreaker} to use to track memory.
      */
     public CircuitBreaker breaker() {
         return blockFactory.breaker();
+    }
+
+    public CircuitBreaker globalBreaker() {
+        return blockFactory.parent().breaker();
     }
 
     public LocalCircuitBreaker.SizeSettings localBreakerSettings() {
@@ -240,6 +261,10 @@ public class DriverContext {
      * operators from other threads.
      */
     public void addWarning(String warning) {
+        if (forkParent != null) {
+            forkParent.addWarning(warning);
+            return;
+        }
         assert warningsSnapshot == null;
         warnings.add(warning);
     }

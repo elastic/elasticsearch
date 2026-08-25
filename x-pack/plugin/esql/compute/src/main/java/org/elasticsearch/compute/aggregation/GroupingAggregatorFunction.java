@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -228,4 +230,24 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();
+
+    default boolean supportPartitioning() {
+        return false;
+    }
+
+    default GroupingStatePartitioner splitPartition(CircuitBreaker breaker, int estimateSizePerPartition) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    default void combinePartition(PartitionedGroupingState partitioned, int partition, int[] mergedIds, int length, int maxGroupId) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    interface PartitionedGroupingState extends Releasable {
+        void releasePartition(int partition);
+    }
+
+    interface GroupingStatePartitioner extends PartitionedHashTable.PartitionSplitter {
+        PartitionedGroupingState finish();
+    }
 }

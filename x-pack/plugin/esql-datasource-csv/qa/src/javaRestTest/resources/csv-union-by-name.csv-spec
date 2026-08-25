@@ -37,6 +37,7 @@ FROM employees_multifile_ubn_union
 | SORT name ASC
 | LIMIT 10
 ;
+warningRegex:declared column \[city\] is not present in some source files
 
 name:keyword | age:long | city:keyword
 alice        | 30       | null
@@ -57,6 +58,7 @@ FROM employees_multifile_ubn_union
 | SORT name ASC
 | LIMIT 10
 ;
+warningRegex:declared column \[city\] is not present in some source files
 
 name:keyword | city:keyword
 alice        | null

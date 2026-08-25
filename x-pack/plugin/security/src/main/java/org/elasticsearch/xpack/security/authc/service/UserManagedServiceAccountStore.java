@@ -224,7 +224,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
                     request,
                     new ContextPreservingActionListener<>(
                         contextSupplier,
-                        listener.map(accounts -> narrowToServiceName(accounts, namespace, serviceName))
+                        listener.map(accounts -> maybeFilterByServiceName(accounts, namespace, serviceName))
                     ),
                     hit -> {
                         final Map<String, Object> source = hit.getSourceAsMap();
@@ -259,7 +259,7 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
      * A service name given without a namespace could only be matched by a leading wildcard over every stored
      * principal, so it is applied to the parsed accounts instead of to the query.
      */
-    private static List<UserManagedServiceAccount> narrowToServiceName(
+    private static List<UserManagedServiceAccount> maybeFilterByServiceName(
         Collection<UserManagedServiceAccount> accounts,
         @Nullable String namespace,
         @Nullable String serviceName

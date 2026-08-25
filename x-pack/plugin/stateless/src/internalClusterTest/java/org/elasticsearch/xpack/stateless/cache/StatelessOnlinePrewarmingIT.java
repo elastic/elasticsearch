@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -125,9 +127,11 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         // this is the executor Lucene uses to fetch data from the object store in the cache in an on-demand manner
         // (e.g. when a reader is opened or when a search operation is executed)
         String shardReadThreadPool = StatelessPlugin.SHARD_READ_THREAD_POOL;
+        String fillVbccThreadPool = StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long preRefreshCompletedFillVbccTasks = getNumberOfCompletedTasks(threadPool, fillVbccThreadPool);
         long preRefreshCompletedRefreshTasks = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         for (int i = 0; i < 20; i++) {
             indexDocs(indexName, 1000);
@@ -140,7 +144,13 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         }
         flush(indexName);
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preRefreshCompletedRefreshTasks);
-        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, preRefreshCompletedDownloadTasks);
+        assertNoRunningAndQueueTasks(
+            threadPool,
+            shardReadThreadPool,
+            preRefreshCompletedDownloadTasks,
+            fillVbccThreadPool,
+            preRefreshCompletedFillVbccTasks
+        );
 
         IndexShard indexShard = findSearchShard(indexName);
         var searchDirectory = SearchDirectory.unwrapDirectory(indexShard.store().directory());
@@ -202,6 +212,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         assertThat(bytesWarmedAfterSecondPrewarming, is(bytesWarmedAfterFirstPrewarming));
 
         long downloadTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long fillVbccTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, fillVbccThreadPool);
         long refreshTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         // let's create some more segments and trigger prewarming via a search operation
         for (int i = 0; i < 5; i++) {
@@ -210,7 +221,13 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         }
         flush(indexName);
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, refreshTasksAfterPrewarming);
-        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, downloadTasksAfterPrewarming);
+        assertNoRunningAndQueueTasks(
+            threadPool,
+            shardReadThreadPool,
+            downloadTasksAfterPrewarming,
+            fillVbccThreadPool,
+            fillVbccTasksAfterPrewarming
+        );
 
         logger.info("-> searching index after additional indexing");
         // clear the cache to make sure prewarming doesn't race with readers opening
@@ -268,16 +285,37 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
     private static void assertNoRunningAndQueueTasks(ThreadPool threadPool, String executorName, long previouslyObservedCompletedTasks)
         throws Exception {
         assertBusy(() -> {
-            final ThreadPoolStats.Stats stats = threadPool.stats()
-                .stats()
-                .stream()
-                .filter(s -> s.name().equals(executorName))
-                .findFirst()
-                .orElse(null);
+            final ThreadPoolStats.Stats stats = executorStats(threadPool, executorName);
             assertThat(stats, is(notNullValue()));
             assertThat(stats.completed(), greaterThan(previouslyObservedCompletedTasks));
             assertThat(stats.active() + stats.queue(), is(0));
         });
+    }
+
+    private static void assertNoRunningAndQueueTasks(
+        ThreadPool threadPool,
+        String shardReadThreadPool,
+        long shardReadCompletedBaseline,
+        String fillVbccThreadPool,
+        long fillVbccCompletedBaseline
+    ) throws Exception {
+        assertBusy(() -> {
+            final ThreadPoolStats.Stats shardReadStats = executorStats(threadPool, shardReadThreadPool);
+            final ThreadPoolStats.Stats fillVbccStats = executorStats(threadPool, fillVbccThreadPool);
+            assertThat(shardReadStats, is(notNullValue()));
+            assertThat(fillVbccStats, is(notNullValue()));
+
+            long executorTasksCompleted = shardReadStats.completed() + fillVbccStats.completed();
+            long executorTasksBaseline = shardReadCompletedBaseline + fillVbccCompletedBaseline;
+            assertThat(executorTasksCompleted, greaterThan(executorTasksBaseline));
+
+            assertThat(shardReadStats.active() + shardReadStats.queue(), is(0));
+            assertThat(fillVbccStats.active() + fillVbccStats.queue(), is(0));
+        });
+    }
+
+    private static ThreadPoolStats.Stats executorStats(ThreadPool threadPool, String executorName) {
+        return threadPool.stats().stats().stream().filter(s -> s.name().equals(executorName)).findFirst().orElse(null);
     }
 
     private static void assertContainsMeasurement(

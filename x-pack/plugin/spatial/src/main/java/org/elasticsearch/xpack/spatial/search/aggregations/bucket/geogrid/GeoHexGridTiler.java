@@ -240,7 +240,7 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
         private final GeoBoundingBox bbox;
         private final GeoHexVisitor visitor;
         private final int resolution;
-        private static final double FACTOR = 0.37;
+        private static final double FACTOR = 0.39;
 
         BoundedGeoHexGridTiler(int resolution, GeoBoundingBox bbox) {
             super(resolution);
@@ -260,9 +260,9 @@ public abstract class GeoHexGridTiler extends GeoGridTiler {
          * For this reason the filter needs to be expanded to cover all descendent cells.
          *
          * This is done by taking the H3 cells at two corners, and expanding the filter width
-         * by 35% of the max width of those cells, and filter height by 35% of the max height of those cells.
+         * by 39% of the max width of those cells, and filter height by 39% of the max height of those cells.
          *
-         * The inflation factor of 35% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
+         * The inflation factor of 39% has been verified using test GeoHexTilerTests#testLargeShapeWithBounds
          */
         static GeoBoundingBox inflateBbox(int precision, GeoBoundingBox bbox, double factor) {
             final Rectangle minMin = H3CartesianUtil.toBoundingBox(H3.geoToH3(bbox.bottom(), bbox.left(), precision));

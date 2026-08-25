@@ -121,10 +121,14 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
             var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            // A window holding no observations divides 0 by 0, which PromQL reports as NaN rather than dropping the
+            // series, so the division must preserve non-finite results.
             return new Div(
                 source(),
                 ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM),
-                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT),
+                null,
+                true
             );
         }
         return null;

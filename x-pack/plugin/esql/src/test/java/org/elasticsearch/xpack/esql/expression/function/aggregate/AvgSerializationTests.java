@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,7 +29,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class AvgSerializationTests extends AbstractExpressionSerializationTests<Avg> {
     @Override
     protected Avg createTestInstance() {
-        return new Avg(randomSource(), randomChild(), randomChild(), randomChild(), randomChild());
+        return new Avg(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), randomBoolean());
+    }
+
+    /**
+     * The non-finite flag is ignored by {@link Avg#equals} (mirroring the scalar {@code Div}), so the generic
+     * round-trip cannot observe it; this asserts explicitly that it survives a current-version round-trip.
+     */
+    public void testAllowNonFiniteSurvivesCurrentVersionRoundTrip() throws IOException {
+        Avg lenient = new Avg(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), true);
+        assertTrue(copyInstance(lenient).allowNonFinite());
+
+        Avg strict = new Avg(randomSource(), randomChild(), randomChild(), randomChild(), randomChild(), false);
+        assertFalse(copyInstance(strict).allowNonFinite());
     }
 
     @Override
@@ -69,6 +83,16 @@ public class AvgSerializationTests extends AbstractExpressionSerializationTests<
         @Override
         protected NodeInfo<? extends Expression> info() {
             return NodeInfo.create(this, OldAvg::new, field(), filter());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            // Model an older Avg serialized at the current wire version: it predates non-finite support, so it writes
+            // the strict flag to remain a valid current-version stream that the current Avg reader can consume.
+            if (out.getTransportVersion().supports(NonFiniteSupport.ESQL_PROMQL_NON_FINITE_MATH)) {
+                out.writeBoolean(false);
+            }
         }
 
         @Override

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -37,16 +39,24 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
-public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport, NonFiniteSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Avg.class).unary(Avg::new).name("avg");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .acrossSeries(Avg::new)
+        // PromQL requires IEEE-754 semantics, so the across-series average preserves non-finite results.
+        .acrossSeries((source, field) -> new Avg(source, field, true))
         .description("Calculates the average of the values across the input vector.")
         .example("avg(http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
         .name("avg");
     private final Expression summationMode;
+
+    /**
+     * When {@code true}, the surrogate division preserves non-finite ({@code NaN}/{@code ±Inf}) results instead of
+     * rejecting them to {@code null}. Set only by the PromQL translation; native ES|QL {@code AVG} uses the default
+     * strict (finite-only) form.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -84,12 +94,21 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
             description = "Expression that outputs values to average."
         ) Expression field
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL);
+        this(source, field, false);
+    }
+
+    public Avg(Source source, Expression field, boolean allowNonFinite) {
+        this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL, allowNonFinite);
     }
 
     public Avg(Source source, Expression field, Expression filter, Expression window, Expression summationMode) {
+        this(source, field, filter, window, summationMode, false);
+    }
+
+    public Avg(Source source, Expression field, Expression filter, Expression window, Expression summationMode, boolean allowNonFinite) {
         super(source, field, filter, window, List.of(summationMode));
         this.summationMode = summationMode;
+        this.allowNonFinite = allowNonFinite;
     }
 
     public Expression summationMode() {
@@ -116,7 +135,8 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            readSummationMode(in)
+            readSummationMode(in),
+            NonFiniteSupport.readNonFinite(in)
         );
     }
 
@@ -126,8 +146,24 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeNonFinite(out);
+    }
+
+    @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Avg(source(), field(), filter(), window(), summationMode, false);
     }
 
     @Override
@@ -137,17 +173,17 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
 
     @Override
     protected NodeInfo<Avg> info() {
-        return NodeInfo.create(this, Avg::new, field(), filter(), window(), summationMode);
+        return NodeInfo.create(this, Avg::new, field(), filter(), window(), summationMode, allowNonFinite);
     }
 
     @Override
     public Avg replaceChildren(List<Expression> newChildren) {
-        return new Avg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Avg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), allowNonFinite);
     }
 
     @Override
     public Avg withFilter(Expression filter) {
-        return new Avg(source(), field(), filter, window(), summationMode);
+        return new Avg(source(), field(), filter, window(), summationMode, allowNonFinite);
     }
 
     @Override
@@ -158,11 +194,19 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
             return new Div(
                 s,
                 new Sum(s, field, filter(), window(), summationMode).surrogate(),
-                new Count(s, field, filter(), window()).surrogate()
+                new Count(s, field, filter(), window()).surrogate(),
+                null,
+                allowNonFinite
             );
         }
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
-            return new Div(s, new Sum(s, field, filter(), window(), summationMode).surrogate(), Count.AggregateMetricDoubleSurrogate(this));
+            return new Div(
+                s,
+                new Sum(s, field, filter(), window(), summationMode).surrogate(),
+                Count.AggregateMetricDoubleSurrogate(this),
+                null,
+                allowNonFinite
+            );
         }
         if (field.foldable()) {
             return new MvAvg(s, field);
@@ -171,6 +215,12 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
         // Avg always returns double, and Sum(int) already accumulates as long (Which would require many big values to overflow),
         // so the cast is only necessary for long.
         Expression sumField = field.dataType() == DataType.LONG ? new ToDouble(s, field) : field;
-        return new Div(s, new Sum(s, sumField, filter(), window(), summationMode), new Count(s, field, filter(), window()), dataType());
+        return new Div(
+            s,
+            new Sum(s, sumField, filter(), window(), summationMode),
+            new Count(s, field, filter(), window()),
+            dataType(),
+            allowNonFinite
+        );
     }
 }

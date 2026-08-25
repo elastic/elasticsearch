@@ -175,12 +175,14 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 responseHeaderPreservingListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
                 return;
             }
-            // Apply cross-project search mode to IndicesOptions before creating the factory
+            // Apply cross-project search mode to IndicesOptions before creating the factory.
+            // Preview runs under the caller's live credential (not the stored config envelope).
+            final CloudCredential callerCredential = cloudCredentialManager.extractCloudManagedCredential(threadPool.getThreadContext());
             DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
                 previewDatafeedConfig,
-                crossProjectModeDecider
+                crossProjectModeDecider,
+                callerCredential != null
             );
-            final CloudCredential callerCredential = cloudCredentialManager.extractCloudManagedCredential(threadPool.getThreadContext());
             final Client previewClient = cloudCredentialManager.wrapClient(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 callerCredential

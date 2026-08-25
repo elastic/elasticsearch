@@ -141,6 +141,10 @@ setup:
 
 ---
 "Put an outlier_detection job on the mixed cluster":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable analytics job state — must run exactly once"
+
   - do:
       ml.put_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"

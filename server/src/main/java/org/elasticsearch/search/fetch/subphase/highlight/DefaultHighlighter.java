@@ -20,12 +20,15 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.cost.HighlightAutomatonCostEstimator;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
@@ -44,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -51,6 +55,30 @@ import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighte
 public class DefaultHighlighter implements Highlighter {
 
     public static final String NAME = "unified";
+
+    /**
+     * Key into {@link FieldHighlightContext#cache} for the {@link AtomicLong} that accumulates the
+     * bytes charged to the circuit breaker for automata rebuilt by the {@code UnifiedHighlighter}
+     * (see {@link #buildHighlighter}). {@link HighlightPhase} drains this holder and refunds the
+     * breaker when the fetch-phase processor closes.
+     */
+    static final String BREAKER_BYTES_CACHE_KEY = DefaultHighlighter.class.getName() + "#breakerBytes";
+
+    /**
+     * Returns the {@link AtomicLong} holder tracking accumulated highlight breaker charges for this
+     * search, creating it on first access.
+     */
+    static AtomicLong breakerBytesHolder(Map<String, Object> cache) {
+        return (AtomicLong) cache.computeIfAbsent(BREAKER_BYTES_CACHE_KEY, k -> new AtomicLong());
+    }
+
+    private static long saturatingAdd(long a, long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (ArithmeticException e) {
+            return Long.MAX_VALUE;
+        }
+    }
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
@@ -155,15 +183,46 @@ public class DefaultHighlighter implements Highlighter {
         builder.withFormatter(passageFormatter);
 
         Set<String> matchedFields = fieldContext.field.fieldOptions().matchedFields();
+        List<Predicate<String>> extractionPasses;
         if (matchedFields != null && matchedFields.isEmpty() == false) {
             // Masked fields require that the default field matcher is used
             if (fieldContext.field.fieldOptions().requireFieldMatch() == false) {
                 throw new IllegalArgumentException("Matched fields are not supported when [require_field_match] is set to [false]");
             }
             builder.withMaskedFieldsFunc((fieldName) -> fieldName.equals(fieldContext.fieldName) ? matchedFields : Collections.emptySet());
+
+            // Mirror UnifiedHighlighter's one-pass-per-masked-field-plus-original-field extraction.
+            extractionPasses = new ArrayList<>(matchedFields.size() + 1);
+            for (String maskedField : matchedFields) {
+                extractionPasses.add(maskedField::equals);
+            }
+            extractionPasses.add(fieldContext.fieldName::equals);
         } else {
-            builder.withFieldMatcher(fieldMatcher(fieldContext));
+            Predicate<String> fieldMatcher = fieldMatcher(fieldContext);
+            builder.withFieldMatcher(fieldMatcher);
+            extractionPasses = List.of(fieldMatcher);
         }
+
+        CircuitBreaker breaker = fieldContext.context.getSearchExecutionContext().getCircuitBreaker();
+        if (breaker != null) {
+            boolean weightMatchesEffective = CustomUnifiedHighlighter.isWeightMatchesEffective(
+                weightMatchesEnabled,
+                fieldContext.field.fieldOptions().requireFieldMatch(),
+                fieldContext.query
+            );
+            long bytes = 0L;
+            for (Predicate<String> passFieldMatcher : extractionPasses) {
+                bytes = saturatingAdd(
+                    bytes,
+                    new HighlightAutomatonCostEstimator(fieldContext.query, passFieldMatcher, weightMatchesEffective).estimate()
+                );
+            }
+            if (bytes > 0) {
+                breaker.addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_HIGHLIGHT);
+                breakerBytesHolder(fieldContext.cache).accumulateAndGet(bytes, DefaultHighlighter::saturatingAdd);
+            }
+        }
+
         return new CustomUnifiedHighlighter(
             builder,
             offsetSource,

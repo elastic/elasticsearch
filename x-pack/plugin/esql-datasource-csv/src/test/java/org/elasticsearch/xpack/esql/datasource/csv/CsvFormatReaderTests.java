@@ -1684,6 +1684,42 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the initial sample (rows 1..N) is all-numeric but later rows contain text, the inferred
+     * schema must widen that column to KEYWORD so the text values are readable without errors.
+     * A tiny {@code schema_sample_size=2} makes "hello" appear after the sample window.
+     */
+    public void testInferredSchemaWidensOnPostSampleTextConflict() throws IOException {
+        // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
+        String csv = "id\n1\n2\nhello\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(1, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals(
+            "column inferred as INTEGER from the first 2 rows must widen to KEYWORD when row 3 is text",
+            DataType.KEYWORD,
+            schema.get(0).dataType()
+        );
+
+        // Verify the text row is readable as KEYWORD (not null-filled or skipped).
+        List<String> values = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    values.add(block.getBytesRef(i, scratch).utf8ToString());
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of("1", "2", "hello"), values);
+    }
+
     /** A clean and a quoted-padded numeric in the same column both parse to the same value. */
     public void testMixedCleanAndPaddedNumerics() throws IOException {
         String csv = "id:integer\n5\n\" 5 \"\n";

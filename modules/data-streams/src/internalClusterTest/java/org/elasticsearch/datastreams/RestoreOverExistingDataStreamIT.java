@@ -301,10 +301,10 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final RestoreTarget restoreTarget = resolveRestoreTarget();
 
         final DataStream mismatchedDestination = restoreTarget.target().destinationDataStream().copy().setName("other-ds").build();
-        // the mismatch is a well-formedness check on the arguments, unrelated to cluster state, so it is rejected synchronously rather
-        // than via the returned future
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
+        // DataStreamRestoreTarget's constructor rejects this, so it throws synchronously, right when the mismatched target is constructed,
+        // rather than via the returned future
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> restoreOverExistingDataStreamFuture(restoreTarget.withDestination(mismatchedDestination))
         );
         assertThat(e.getMessage(), containsString("guarded restore only supports restoring a data stream over one of the same name"));
@@ -358,8 +358,8 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final RestoreTarget restoreTarget = resolveRestoreTarget();
 
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> restoreService().restoreOverExistingDataStreams(
                 ProjectId.DEFAULT,
                 restoreTarget.snapshot(),
@@ -400,8 +400,8 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             );
 
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> restoreService().restoreOverExistingDataStreams(
                 ProjectId.DEFAULT,
                 restoreTarget.snapshot(),

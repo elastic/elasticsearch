@@ -588,6 +588,42 @@ public final class RestoreService implements ClusterStateApplier {
         DataStream snapshotDataStream,
         Map<String, SnapshotIndex> snapshotIndices
     ) {
+        public DataStreamRestoreTarget {
+            if (destinationDataStream.getName().equals(snapshotDataStream.getName()) == false) {
+                throw new IllegalArgumentException(
+                    "cannot restore data stream ["
+                        + snapshotDataStream.getName()
+                        + "] over data stream ["
+                        + destinationDataStream.getName()
+                        + "] because a guarded restore only supports restoring a data stream over one of the same name"
+                );
+            }
+            final Set<String> expectedIndexNames = Stream.concat(
+                snapshotDataStream.getIndices().stream(),
+                snapshotDataStream.getFailureIndices().stream()
+            ).map(Index::getName).collect(Collectors.toSet());
+            if (snapshotIndices.keySet().equals(expectedIndexNames) == false) {
+                throw new IllegalArgumentException(
+                    "cannot restore data stream ["
+                        + destinationDataStream.getName()
+                        + "] because the supplied indices to restore do not exactly match its backing and failure-store indices"
+                );
+            }
+            for (Map.Entry<String, SnapshotIndex> entry : snapshotIndices.entrySet()) {
+                final SnapshotIndex snapshotIndex = entry.getValue();
+                if (entry.getKey().equals(snapshotIndex.indexId().getName()) == false
+                    || entry.getKey().equals(snapshotIndex.metadata().getIndex().getName()) == false) {
+                    throw new IllegalArgumentException(
+                        "cannot restore data stream ["
+                            + destinationDataStream.getName()
+                            + "] because index ["
+                            + entry.getKey()
+                            + "] does not match the name of its supplied IndexId or IndexMetadata"
+                    );
+                }
+            }
+        }
+
         /**
          * The repository-side identity and metadata of a single index within a snapshot, neither of which is derivable from the
          * {@link DataStream}'s own {@link Index} references: {@link IndexId} is a repository-generated identifier distinct from the
@@ -635,14 +671,19 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStreamAlias> snapshotDataStreamAliases,
         ActionListener<RestoreCompletionResponse> listener
     ) {
-        validateGuardedDataStreamTargets(snapshot, targets);
-
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
         final Map<String, DataStreamRestoreTarget> guardedDataStreamTargets = new HashMap<>();
         final List<DataStream> dataStreamsToRestore = new ArrayList<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
         for (DataStreamRestoreTarget target : targets) {
-            guardedDataStreamTargets.put(target.destinationDataStream().getName(), target);
+            if (guardedDataStreamTargets.put(target.destinationDataStream().getName(), target) != null) {
+                throw new SnapshotRestoreException(
+                    snapshot,
+                    "cannot restore data stream ["
+                        + target.destinationDataStream().getName()
+                        + "] because it is targeted by more than one restore target"
+                );
+            }
             dataStreamsToRestore.add(target.snapshotDataStream());
             for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.snapshotIndices().entrySet()) {
                 indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
@@ -685,69 +726,6 @@ public final class RestoreService implements ClusterStateApplier {
                 guardedDataStreamTargets
             )
         );
-    }
-
-    /**
-     * Validates that every {@link DataStreamRestoreTarget} is internally well-formed before any of it is flattened into the shared
-     * {@code indicesToRestore}/{@code dataStreamsToRestore}/{@code guardedDataStreamTargets} collections {@link
-     * #restoreOverExistingDataStreams} builds from {@code targets}. This exists because that flattening step trusts its inputs: it
-     * silently overwrites a duplicate destination name in {@code guardedDataStreamTargets} (a {@code Map}), while still unconditionally
-     * adding the earlier, now-invisible target's data stream and indices to {@code dataStreamsToRestore}/{@code indicesToRestore} (plain
-     * collections). Without this check, a malformed or duplicate earlier target could have its snapshot data stream and indices restored
-     * for real while completely escaping the identity, template, and conflict validation in
-     * {@code RestoreSnapshotStateTask#validateAndDeleteGuardedDataStreamTargets}, which only ever sees the one target that survived the
-     * overwrite. This is unrelated to cluster state, so it is checked once here, synchronously and up front, rather than inside the
-     * {@link ClusterStateUpdateTask}.
-     */
-    private static void validateGuardedDataStreamTargets(Snapshot snapshot, List<DataStreamRestoreTarget> targets) {
-        final Set<String> seenDestinationNames = new HashSet<>();
-        for (DataStreamRestoreTarget target : targets) {
-            final String destinationName = target.destinationDataStream().getName();
-            final String snapshotName = target.snapshotDataStream().getName();
-            if (destinationName.equals(snapshotName) == false) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "cannot restore data stream ["
-                        + snapshotName
-                        + "] over data stream ["
-                        + destinationName
-                        + "] because a guarded restore only supports restoring a data stream over one of the same name"
-                );
-            }
-            if (seenDestinationNames.add(destinationName) == false) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "cannot restore data stream [" + destinationName + "] because it is targeted by more than one restore target"
-                );
-            }
-
-            final Set<String> expectedIndexNames = Stream.concat(
-                target.snapshotDataStream().getIndices().stream(),
-                target.snapshotDataStream().getFailureIndices().stream()
-            ).map(Index::getName).collect(Collectors.toSet());
-            if (target.snapshotIndices().keySet().equals(expectedIndexNames) == false) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "cannot restore data stream ["
-                        + destinationName
-                        + "] because the supplied indices to restore do not exactly match its backing and failure-store indices"
-                );
-            }
-            for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.snapshotIndices().entrySet()) {
-                final DataStreamRestoreTarget.SnapshotIndex snapshotIndex = entry.getValue();
-                if (entry.getKey().equals(snapshotIndex.indexId().getName()) == false
-                    || entry.getKey().equals(snapshotIndex.metadata().getIndex().getName()) == false) {
-                    throw new SnapshotRestoreException(
-                        snapshot,
-                        "cannot restore data stream ["
-                            + destinationName
-                            + "] because index ["
-                            + entry.getKey()
-                            + "] does not match the name of its supplied IndexId or IndexMetadata"
-                    );
-                }
-            }
-        }
     }
 
     private void validateDataStreamTemplatesExistAndWarnIfMissing(

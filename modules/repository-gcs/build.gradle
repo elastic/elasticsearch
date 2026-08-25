@@ -21,17 +21,20 @@ esplugin {
   classname = 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
+def guavaVersion = '33.6.0-jre'
+
 dependencies {
   // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.71.0'
   implementation 'com.google.cloud:google-cloud-storage:2.71.0'
   implementation 'com.google.cloud:google-cloud-core:2.73.0'
   implementation 'com.google.cloud:google-cloud-core-http:2.73.0'
-  // google-cloud-storage exposes methods whose signatures carry checker-framework @NonNull type annotations on
-  // Guava types (ImmutableMap/ImmutableSet). JDK 25 javac needs those classes on the compile classpath to attach
-  // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
-  // compile-classpath ban is relaxed for this module in elasticsearch.forbidden-dependencies; our own code must not
-  // use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
-  implementation 'com.google.guava:guava:33.6.0-jre'
+  // Guava is a runtime dependency of google-cloud-storage. We deliberately keep it off the compile-classpath
+  // configuration: as an implementation dependency it would be visible to IntelliJ, which autosuggests Guava
+  // classes and inevitably leads to direct usages sneaking in. google-cloud-storage method signatures do carry
+  // checker-framework @NonNull type annotations on Guava ImmutableMap/ImmutableSet types, and JDK 25 javac must
+  // resolve those classes to attach the annotations, so Guava is added to the javac classpath only, via the
+  // detached guavaAnnotations configuration below. Our own code must not use Guava directly.
+  runtimeOnly "com.google.guava:guava:${guavaVersion}"
   runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
@@ -68,6 +71,17 @@ dependencies {
 
   testImplementation project(':test:fixtures:gcs-fixture')
   yamlRestTestImplementation project(':test:fixtures:gcs-fixture')
+}
+
+// See the Guava note in the dependencies block. Guava is added to javac's classpath only, via this detached
+// configuration, so the @NonNull type annotations on google-cloud-storage method signatures resolve during
+// compilation. It stays off the compile-classpath configuration, so it is invisible to IntelliJ and remains
+// covered by the forbidden-dependencies compile-classpath ban, while our code must not use Guava directly.
+def guavaAnnotations = configurations.detachedConfiguration(
+  dependencies.create("com.google.guava:guava:${guavaVersion}")
+)
+tasks.withType(JavaCompile).configureEach {
+  classpath += guavaAnnotations
 }
 
 restResources {

@@ -29,10 +29,12 @@ subprojects {
   }
   pluginManager.withPlugin('java') {
     List<String> forbiddenGroups = FORBIDDEN_DEPENDENCY_GROUPS
-    if (project.path in [':modules:repository-gcs', ':x-pack:plugin:esql-datasource-gcs', ':qa:vector']) {
+    if (project.path in [':x-pack:plugin:esql-datasource-gcs', ':qa:vector']) {
       // google-cloud-storage signatures carry checker-framework @NonNull type annotations on Guava types.
       // JDK 25 javac requires those classes on the compile classpath to attach the annotations, so Guava is
       // allowed at compile time here. These modules still must not use Guava directly.
+      // repository-gcs instead adds Guava to the javac classpath via a detached configuration (see its
+      // build.gradle), keeping it off the compile-classpath configuration so the ban below still applies.
       forbiddenGroups = forbiddenGroups - 'com.google.guava'
     }
     checkDeps(configurations.compileClasspath, forbiddenGroups)

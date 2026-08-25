@@ -935,7 +935,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
         // handle the tail
         for (; i < q.length; i++) {
-            sum += q[i] * d[i];
+            sum = fma(q[i], d[i], sum);
         }
 
         return sum;
@@ -1910,10 +1910,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sqDist2 += diff2 * diff2;
             sqDist3 += diff3 * diff3;
             float res = originalResidual[i];
-            proj0 = Math.fma(diff0, res, proj0);
-            proj1 = Math.fma(diff1, res, proj1);
-            proj2 = Math.fma(diff2, res, proj2);
-            proj3 = Math.fma(diff3, res, proj3);
+            proj0 = fma(diff0, res, proj0);
+            proj1 = fma(diff1, res, proj1);
+            proj2 = fma(diff2, res, proj2);
+            proj3 = fma(diff3, res, proj3);
         }
 
         distances[0] = sqDist0 + soarLambda * proj0 * proj0 / rnorm;

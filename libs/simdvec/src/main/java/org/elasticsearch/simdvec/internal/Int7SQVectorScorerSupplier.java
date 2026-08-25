@@ -38,6 +38,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Int7SQVectorScorerSupplier(IndexInput input, LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
         this.input = input;
@@ -63,7 +64,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
         long queryByteOffset = (long) firstOrd * vectorTotalBytes;
         input.seek(queryByteOffset);
-        return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch::getScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, query -> {
             float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
             long[] offsets = offsetsScratch.get(numNodes);
@@ -71,29 +72,35 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 offsets[i] = (long) ordinals[i] * vectorTotalBytes;
             }
 
-            float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+            maxScore[0] = Float.NEGATIVE_INFINITY;
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
                 vectorTotalBytes,
                 numNodes,
-                addrsScratch::get,
+                addrsScratch,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, queryOffsetValue, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
-                // fallback to per-vector scorer
-                for (int i = 0; i < numNodes; i++) {
-                    input.seek(offsets[i]);
-                    scores[i] = IndexInputUtils.withSlice(input, vectorTotalBytes, secondScratch::getScratch, vector -> {
-                        float vectorOffsetValue = vector.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
-                        var score = scoreFromSegments(query, queryOffsetValue, vector, vectorOffsetValue);
-                        maxScore[0] = Math.max(maxScore[0], score);
-                        return score;
-                    });
-                }
+                maxScore[0] = scorePerVectorFallback(scores, numNodes, query, offsets, queryOffsetValue);
             }
             return maxScore[0];
         });
+    }
+
+    private float scorePerVectorFallback(float[] scores, int numNodes, MemorySegment query, long[] offsets, float queryOffsetValue)
+        throws IOException {
+        float maxScore = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < numNodes; i++) {
+            final int idx = i;
+            input.seek(offsets[idx]);
+            IndexInputUtils.withVoidSlice(input, vectorTotalBytes, secondScratch, vector -> {
+                float vectorOffsetValue = vector.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
+                scores[idx] = scoreFromSegments(query, queryOffsetValue, vector, vectorOffsetValue);
+            });
+            maxScore = Math.max(maxScore, scores[idx]);
+        }
+        return maxScore;
     }
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
@@ -101,10 +108,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         long secondByteOffset = (long) secondOrd * vectorTotalBytes;
 
         input.seek(firstByteOffset);
-        return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch::getScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, firstScratch, firstSeg -> {
             float firstOffsetValue = firstSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
             input.seek(secondByteOffset);
-            return IndexInputUtils.withSlice(input, vectorTotalBytes, secondScratch::getScratch, secondSeg -> {
+            return IndexInputUtils.withFloatSlice(input, vectorTotalBytes, secondScratch, secondSeg -> {
                 float secondOffsetValue = secondSeg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
                 return scoreFromSegments(firstSeg, firstOffsetValue, secondSeg, secondOffsetValue);
             });

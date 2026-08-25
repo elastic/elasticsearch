@@ -464,25 +464,25 @@ public class TsidBuilder {
     }
 
     /**
-     * The legacy multi-prefix-byte layout, mirroring the array {@link #buildMultiBytePrefixTsid} fills
-     * in place. Capacity is driven by {@code dimensionCount} but the returned length by
-     * {@code valueSimilarityByteCount}; array values collapsing onto one path make them differ, leaving
-     * trailing bytes outside the returned slice. Do not conflate the two.
+     * The legacy multi-prefix-byte layout: a name-similarity byte, {@code valueSimilarityByteCount}
+     * value-similarity bytes, then the 16-byte full hash. Equivalent to the array
+     * {@link #buildMultiBytePrefixTsid} fills in place, except that this sizes exactly — that one is
+     * sized for the worst case because it does not know the final byte count until it has written them.
      */
     static BytesRef writeMultiBytePrefixTsid(
         byte nameSimilarityByte,
         byte[] valueSimilarityBytes,
         int valueSimilarityByteCount,
-        int dimensionCount,
         MurmurHash3.Hash128 fullHash
     ) {
-        final byte[] tsid = new byte[1 + Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensionCount) + FULL_HASH_BYTES];
+        assert valueSimilarityByteCount <= MAX_TSID_VALUE_SIMILARITY_FIELDS : valueSimilarityByteCount;
+        final byte[] tsid = new byte[1 + valueSimilarityByteCount + FULL_HASH_BYTES];
         int index = 0;
         tsid[index++] = nameSimilarityByte;
         System.arraycopy(valueSimilarityBytes, 0, tsid, index, valueSimilarityByteCount);
         index += valueSimilarityByteCount;
-        index = writeHash128(fullHash, tsid, index);
-        return new BytesRef(tsid, 0, index);
+        writeHash128(fullHash, tsid, index);
+        return new BytesRef(tsid);
     }
 
     private static int writeHash128(MurmurHash3.Hash128 hash128, byte[] buffer, int index) {

@@ -27,8 +27,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.hamcrest.Matchers.equalTo;
@@ -365,8 +367,14 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
             try (XContentBuilder b = XContentFactory.jsonBuilder()) {
                 b.startObject();
                 int dims = randomIntBetween(1, 5);
+                // Random names can collide; a duplicate JSON key is rejected by the reference parser, so
+                // skip repeats rather than emitting a document neither path accepts.
+                Set<String> usedKeys = new HashSet<>();
                 for (int d = 0; d < dims; d++) {
                     String key = "dim." + randomAlphaOfLengthBetween(1, 6);
+                    if (usedKeys.add(key) == false) {
+                        continue;
+                    }
                     switch (randomInt(3)) {
                         case 0 -> b.field(key, randomAlphaOfLengthBetween(1, 16));
                         case 1 -> b.field(key, randomInt());

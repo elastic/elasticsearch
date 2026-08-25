@@ -200,7 +200,7 @@ abstract class ColumnarTsidAccumulator {
             byte nameSimilarityByte = TsidBuilder.similarityByte(finalizeNameHash(row, count));
             int emitted = valueSimilarityCount[row];
             System.arraycopy(valueSimilarityBytes, row * TsidBuilder.MAX_TSID_VALUE_SIMILARITY_FIELDS, rowValueBytes, 0, emitted);
-            return TsidBuilder.writeMultiBytePrefixTsid(nameSimilarityByte, rowValueBytes, emitted, count, fullHash);
+            return TsidBuilder.writeMultiBytePrefixTsid(nameSimilarityByte, rowValueBytes, emitted, fullHash);
         }
     }
 }

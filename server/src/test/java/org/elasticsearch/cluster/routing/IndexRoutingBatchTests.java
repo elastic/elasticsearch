@@ -215,6 +215,36 @@ public class IndexRoutingBatchTests extends ESTestCase {
         }
     }
 
+    public void testBatchPostProcessWithoutBatchRoutingThrows() throws IOException {
+        List<BytesReference> sources = List.of(toJson(Map.of("dim.host", "n1")), toJson(Map.of("dim.host", "n2")));
+        EscfBatch escfBatch = EscfEncoder.encode(sources, XContentType.JSON);
+
+        // Routed per request: no batch hashes were recorded.
+        var perRequestRouted = forIndexDimensions("dim.*");
+        IndexRequest[] requests = new IndexRequest[2];
+        for (int i = 0; i < 2; i++) {
+            requests[i] = requestFrom(sources.get(i));
+            perRequestRouted.preProcess(requests[i]);
+            perRequestRouted.indexShard(requests[i]);
+        }
+        expectThrows(IllegalStateException.class, () -> perRequestRouted.postProcess(requests));
+
+        // Not routed at all.
+        var notRouted = forIndexDimensions("dim.*");
+        expectThrows(IllegalStateException.class, () -> notRouted.postProcess(requests));
+
+        // Routed as a batch, but post-processed twice: the recorded hashes are consumed by the first call.
+        var batchRouted = forIndexDimensions("dim.*");
+        IndexRequest[] batchRequests = new IndexRequest[2];
+        for (int i = 0; i < 2; i++) {
+            batchRequests[i] = requestFrom(sources.get(i));
+            batchRouted.preProcess(batchRequests[i]);
+        }
+        batchRouted.indexShard(batchRequests, escfBatch);
+        batchRouted.postProcess(batchRequests);
+        expectThrows(IllegalStateException.class, () -> batchRouted.postProcess(batchRequests));
+    }
+
     /**
      * A request with an explicit routing must throw {@link IllegalArgumentException} for
      * {@code ForIndexDimensions}, matching the per-request {@code checkNoRouting} behavior.

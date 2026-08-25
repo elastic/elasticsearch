@@ -105,7 +105,6 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         }
     }
 
-    /** Rows in one batch with different dimension counts exercise per-row tail parity independently. */
     public void testMixedDimensionCountsInOneBatch() {
         List<List<Dim>> rows = new ArrayList<>();
         for (int n = 1; n <= 6; n++) {
@@ -118,10 +117,6 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         assertAccumulatorMatchesTsidBuilder(rows);
     }
 
-    /**
-     * Repeated values on one path (an array dimension) must contribute one value-similarity byte, not
-     * one per element, while still folding every value into the full hash.
-     */
     public void testArrayValuesShareOnePathGroup() {
         for (int arrayLength : new int[] { 2, 3, 5, 7 }) {
             List<Dim> row = new ArrayList<>();
@@ -133,10 +128,6 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         }
     }
 
-    /**
-     * More distinct paths than {@link TsidBuilder#MAX_TSID_VALUE_SIMILARITY_FIELDS}, so the
-     * value-similarity cap binds and the multi-byte layout's emitted count is below its capacity.
-     */
     public void testMoreDistinctPathsThanSimilarityCap() {
         List<Dim> row = new ArrayList<>();
         for (int i = 0; i < TsidBuilder.MAX_TSID_VALUE_SIMILARITY_FIELDS + 3; i++) {
@@ -145,10 +136,6 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         assertAccumulatorMatchesTsidBuilder(List.of(row));
     }
 
-    /**
-     * An array long enough to fill the similarity cap on a single path: the multi-byte layout emits
-     * one byte while the backing array is sized for four, so returned length and capacity diverge.
-     */
     public void testSingleArrayPathLongerThanSimilarityCap() {
         List<Dim> row = new ArrayList<>();
         for (int i = 0; i < TsidBuilder.MAX_TSID_VALUE_SIMILARITY_FIELDS + 2; i++) {
@@ -165,9 +152,8 @@ public class ColumnarTsidAccumulatorTests extends ESTestCase {
         assertAccumulatorMatchesTsidBuilder(List.of(List.of(randomDim(TsidBuilder.PROMETHEUS_LABEL_FIELD), randomDim("dim.host"))));
     }
 
-    /** OTel outranks Prometheus when both are present, regardless of sorted order. */
     public void testOtelTakesPrecedenceOverPrometheus() {
-        List<Dim> row = List.of(
+        List<Dim> row = shuffledList(
             randomDim(TsidBuilder.OTEL_METRIC_FIELD),
             randomDim(TsidBuilder.PROMETHEUS_LABEL_FIELD),
             randomDim("dim.host")

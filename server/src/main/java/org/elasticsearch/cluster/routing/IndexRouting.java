@@ -467,18 +467,19 @@ public abstract class IndexRouting {
 
         @Override
         public void postProcess(IndexRequest[] requests) {
-            if (batchHashes != null) {
-                assert batchHashes.length == requests.length
-                    : "batchHashes.length " + batchHashes.length + " != requests.length " + requests.length;
-                for (int i = 0; i < requests.length; i++) {
-                    doPostProcess(requests[i], batchHashes[i]);
-                }
-                batchHashes = null;
-            } else {
-                for (IndexRequest r : requests) {
-                    postProcess(r);
-                }
+            if (batchHashes == null || batchHashes.length != requests.length) {
+                throw new IllegalStateException(
+                    "batch postProcess requires the hashes recorded by indexShard(IndexRequest[], SourceBatch) for the same "
+                        + requests.length
+                        + " requests, but "
+                        + (batchHashes == null ? "none were recorded" : "found " + batchHashes.length)
+                        + "; batch pre-process, routing and post-process must be used together"
+                );
             }
+            for (int i = 0; i < requests.length; i++) {
+                doPostProcess(requests[i], batchHashes[i]);
+            }
+            batchHashes = null;
         }
 
         private void doPostProcess(IndexRequest indexRequest, int hash) {

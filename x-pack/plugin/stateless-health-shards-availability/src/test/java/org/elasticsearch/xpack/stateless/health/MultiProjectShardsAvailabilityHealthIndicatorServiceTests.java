@@ -136,24 +136,19 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
                 // The primary (and maybe replica) shards are still initialising
-                // TODO - RANDOMISE
                 case INITIALIZING_SHARDS -> {
-                    var metadata = indexMetadata(randomIndexName(), 1, 1);
+                    int replicaCount = randomBoolean() ? 1 : 0;
+                    var metadata = indexMetadata(randomIndexName(), 1, replicaCount);
                     var shardId = new ShardId(metadata.getIndex(), 0);
                     var created = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
-                    indices.add(
-                        new IndexSetup(
-                            metadata,
-                            IndexRoutingTable.builder(metadata.getIndex())
-                                .addShard(
-                                    shardRouting(shardId, true, UNASSIGNED, RecoverySource.EmptyStoreRecoverySource.INSTANCE, created)
-                                )
-                                .addShard(shardRouting(shardId, false, UNASSIGNED, RecoverySource.PeerRecoverySource.INSTANCE, created))
-                                .build()
-                        )
-                    );
+                    var builder = IndexRoutingTable.builder(metadata.getIndex())
+                        .addShard(shardRouting(shardId, true, UNASSIGNED, RecoverySource.EmptyStoreRecoverySource.INSTANCE, created));
                     creatingPrimaries++;
-                    creatingReplicas++;
+                    if (replicaCount == 1) {
+                        builder.addShard(shardRouting(shardId, false, UNASSIGNED, RecoverySource.PeerRecoverySource.INSTANCE, created));
+                        creatingReplicas++;
+                    }
+                    indices.add(new IndexSetup(metadata, builder.build()));
                 }
                 // The primary is started, but the replica is still unassigned. As long as this is within the
                 // health.shards_availability.replica_unassigned_buffer_time then the indicator is green.

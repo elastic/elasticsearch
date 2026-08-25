@@ -39,7 +39,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * physical name is the header column name; for <em>headerless</em> text the physical name is the positional alias
  * the reader assigns ({@code col0}, {@code col1}, …), so declared names there still bind by name. For
  * <em>columnar</em> formats (Parquet/ORC) the physical name comes from the footer. A declared name the file does
- * not supply reads null with a warning; fewer declared columns than the file leaves the extras unread. For columnar
+ * not supply reads null (text formats emit a warning; columnar formats read null silently); fewer declared columns than
+ * the file leaves the extras unread. For columnar
  * formats a declared type that differs from the file's reconciled type is rejected at resolution.
  *
  * <p><b>Type is a plain String here on purpose.</b> {@link Dataset} lives in {@code server} and must not

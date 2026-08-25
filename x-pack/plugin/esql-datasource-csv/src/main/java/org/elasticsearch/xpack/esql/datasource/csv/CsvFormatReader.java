@@ -926,8 +926,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Maps each position of a pinned declared schema to the raw field index it reads, so a declared {@code path}
-     * binds the same column it binds under {@code dynamic:true}. Returns {@code null} for a pinned inferred schema
+     * Maps each position of a pinned declared schema to the raw field index it reads, so each declared column
+     * binds the file column it names regardless of its position. Returns {@code null} for a pinned inferred schema
      * ({@link #declaredProvenanceBinding} is false) — the caller then keeps the positional contract.
      * <p>
      * Headerless files self-bind: the physical name IS the position ({@code col4} -> field 4), so no file content is
@@ -936,7 +936,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *
      * @param headerFields the file's header names, or {@code null} for a headerless file
      */
-    private int[] declaredPathFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
+    private int[] declaredFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
         if (declaredProvenanceBinding == false || readSchema == null) {
             return null;
         }
@@ -1753,8 +1753,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
-        // Raw field index per declared column, or null for the positional contract. Set only when a path was
-        // declared; see declaredPathFieldIndexes.
+        // Raw field index per declared column, or null for the positional contract. Set when provenance is DECLARED;
+        // see declaredFieldIndexes.
         int[] schemaFieldIndex = null;
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -1786,7 +1786,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (options.headerRow() == false && declaredProvenanceBinding) {
                 // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file
                 // content and runs on EVERY split — macro-splits past the first stay correctly bound.
-                schemaFieldIndex = declaredPathFieldIndexes(readSchema, null, object);
+                schemaFieldIndex = declaredFieldIndexes(readSchema, null, object);
             } else if (options.headerRow() && declaredProvenanceBinding && context.firstSplit() == false) {
                 // This read does not own the file's start, so the header is not in front of it. Bind by name
                 // against the header columns whoever cut the file up read once and passed down. Without them
@@ -1795,7 +1795,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 List<String> headerColumns = context.fileHeaderColumns();
                 if (headerColumns == null) {
                     throw new IllegalStateException(
-                        "headered path-bound read of ["
+                        "headered declared-provenance read of ["
                             + object.path()
                             + "] reached a non-first split without the file's header columns; cannot bind the declared "
                             + "schema by name"
@@ -1980,7 +1980,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             normalised[i] = headerNames[i] == null ? null : headerNames[i].trim();
         }
         rejectDuplicateHeaderNames(normalised, object);
-        return declaredPathFieldIndexes(readSchema, normalised, object);
+        return declaredFieldIndexes(readSchema, normalised, object);
     }
 
     /**
@@ -2010,12 +2010,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             throw new IllegalArgumentException(
                 "pinned schema has "
                     + readSchema.size()
-                    + " columns but the header of ["
+                    + " columns but ["
                     + object.path()
                     + "] has only "
                     + fields.length
-                    + "; the file has fewer columns than the pinned schema (it may have drifted)"
-                    + " — for a headerless file set header_row=false"
+                    + " — the file may have drifted (or set header_row=false if the file has no header row)"
             );
         }
         return null;
@@ -2947,24 +2946,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final SkipWarnings skipWarnings;
         private List<Attribute> schema;
         /**
-         * Raw field index per pinned-schema position, or {@code null} when the schema binds positionally (no
-         * {@code path} declared). Lets a declared {@code path} read the column it names rather than the column
-         * that happens to sit at its declaration position.
+         * Raw field index per pinned-schema position, or {@code null} when the schema binds positionally (provenance
+         * is not DECLARED). Lets a declared column read the column it names rather than the column that happens to sit
+         * at its declaration position.
          */
         @Nullable
         private final int[] schemaFieldIndex;
         private int[] projectedIdx;
         /**
-         * Widest row this schema accepts before it reads as drift. A positional declaration binds the file's leading
-         * columns 1:1, so a wider row means the file does not match the declaration — fail loudly. A declared
-         * {@code path} binds BY NAME, so a wider file is the intended case (declare 5 columns of a 105-column file)
-         * and only rows too narrow to hold a bound index matter — those the short-row handling already covers.
+         * Widest row this schema accepts before it reads as drift. A positional (inferred provenance) schema binds the
+         * file's leading columns 1:1, so a wider row means the file does not match the declaration — fail loudly. A
+         * declared-provenance schema binds BY NAME, so a wider file is the intended case (declare 5 columns of a
+         * 105-column file) and only rows too narrow to hold a bound index matter — those the short-row handling covers.
          */
         private int rowWidthLimit;
         /**
          * One past the widest raw field index any projected column binds — the addressable length of
-         * {@link #sourceToBufferIndex}. Equals the schema size under positional binding; a declared {@code path} can
-         * push it beyond that (bind {@code col100} of a 105-column file) or leave it short of the file's width.
+         * {@link #sourceToBufferIndex}. Equals the schema size under positional binding; a declared-provenance column
+         * can push it beyond that (bind {@code col100} of a 105-column file) or leave it short of the file's width.
          */
         private int sourceIndexBound;
         private DataType[] projectedTypes;

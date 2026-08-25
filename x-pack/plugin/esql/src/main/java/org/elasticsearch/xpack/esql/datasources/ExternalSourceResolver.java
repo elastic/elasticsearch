@@ -2606,8 +2606,8 @@ public class ExternalSourceResolver {
 
         // Partition columns are path-derived (no file I/O), so strict mode surfaces them exactly like the inferred
         // path does. One divergence: the inferred path SHADOWS a physical column that collides with a partition key
-        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema
-        // — text formats bind positionally — so silently dropping a declared column would silently re-bind the rest.
+        // (partition wins, Spark/DuckDB semantics), but under strict the declaration drives the reader's file schema,
+        // so silently dropping a declared column could silently mis-bind reads.
         // A declared column colliding with a partition key is rejected instead: partition columns need no declaring.
         // Cheap no-I/O guard first (partition collision); strict skips only rejectUncoercibleFileTypedRetypes against
         // the unified schema, which needs an inferred schema strict never reads — the anchor-footer check below covers it.
@@ -2684,7 +2684,7 @@ public class ExternalSourceResolver {
     /**
      * Rejects a declared column that collides with a hive partition key, for BOTH strict and non-strict declarations. A
      * partition column is path-derived (the partition value is the same for every row of a file) and needs no declaring;
-     * declaring one either silently re-binds the positional text columns (strict) or overlays/retypes the partition
+     * declaring one either conflicts with the declared schema's by-name binding (strict) or overlays/retypes the partition
      * attribute against the value the injector stamps with the partition's own type (non-strict) — a silent misbind
      * either way. Checks both the declared logical name and its {@code path} physical, since the shadowed physical
      * column is the partition value too. No-op when the dataset is not partitioned.

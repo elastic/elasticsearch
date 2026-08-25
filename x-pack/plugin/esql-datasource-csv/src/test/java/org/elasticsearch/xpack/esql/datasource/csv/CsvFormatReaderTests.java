@@ -3497,7 +3497,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             ).close()
         );
         assertThat(e.getMessage(), Matchers.containsString("pinned schema has 3 columns"));
-        assertThat(e.getMessage(), Matchers.containsString("] has only 2"));
+        assertThat(e.getMessage(), Matchers.containsString("] has only 2 —"));
 
         // A 2-column pinned schema matches the two real columns and reads.
         List<Attribute> exact = List.of(
@@ -6500,7 +6500,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * `ts` declares `path: "col2"` but sits first, so positional binding would hand it col0 (a WatchID) and the date
      * parse would fail.
      */
-    public void testDeclaredPathBindingAgreesWithPositionalWhenDeclarationIsInFileOrder() throws Exception {
+    public void testDeclaredProvenanceBindingAgreesWithPositionalWhenDeclarationIsInFileOrder() throws Exception {
         StorageObject object = createStorageObject("7,alpha\n8,beta\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
@@ -6909,7 +6909,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     // from the file so positional binding would return a different (and wrong) column.
 
     /** By-name binding through the bracket multi-value walker: declared out of file order, bound to the right cells. */
-    public void testDeclaredPathBindingThroughBracketWalker() throws Exception {
+    public void testDeclaredProvenanceBindingThroughBracketWalker() throws Exception {
         StorageObject object = createStorageObject("100,[a,b]\n200,[c]\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, names raw field 1
@@ -6938,7 +6938,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /** By-name binding through the ALL-stripe harvest path (statsColumnScope ALL): the harvest reads each raw field. */
-    public void testDeclaredPathBindingThroughAllStripeScope() throws Exception {
+    public void testDeclaredProvenanceBindingThroughAllStripeScope() throws Exception {
         StorageObject object = createStorageObject("7,alpha,3.5\n8,beta,4.5\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE),  // declared first, raw field 2
@@ -7001,7 +7001,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /** By-name binding through the direct-to-block walker (direct-block enabled, projected stats scope). */
-    public void testDeclaredPathBindingThroughDirectBlockWalker() throws Exception {
+    public void testDeclaredProvenanceBindingThroughDirectBlockWalker() throws Exception {
         StorageObject object = createStorageObject("11,gamma\n12,delta\n");
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD), // declared first, raw field 1

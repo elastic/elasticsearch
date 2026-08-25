@@ -52,8 +52,9 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         try {
             assertThat(blocks[0].getPositionCount(), equalTo(2)); // position 1 dropped
         } finally {
-            for (Block b : blocks)
+            for (Block b : blocks) {
                 b.close();
+            }
         }
     }
 
@@ -76,10 +77,12 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
             assertThat(col1[0].getPositionCount(), equalTo(2));
             assertThat(col2[0].getPositionCount(), equalTo(2));
         } finally {
-            for (Block b : col1)
+            for (Block b : col1) {
                 b.close();
-            for (Block b : col2)
+            }
+            for (Block b : col2) {
                 b.close();
+            }
         }
     }
 
@@ -99,8 +102,9 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         try {
             assertThat(blocks[0].getPositionCount(), equalTo(0));
         } finally {
-            for (Block b : blocks)
+            for (Block b : blocks) {
                 b.close();
+            }
         }
     }
 
@@ -132,8 +136,9 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
             assertThat(filtered.getValueCount(1), equalTo(1));            // row 2: single value 30
             assertThat(filtered.getInt(filtered.getFirstValueIndex(1)), equalTo(30));
         } finally {
-            for (Block b : blocks)
+            for (Block b : blocks) {
                 b.close();
+            }
         }
     }
 
@@ -153,8 +158,9 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
             assertSame(original, filtered[0]); // no copy made when there are no failures
             assertThat(filtered[0].getPositionCount(), equalTo(3));
         } finally {
-            for (Block b : filtered)
+            for (Block b : filtered) {
                 b.close();
+            }
         }
     }
 

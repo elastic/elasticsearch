@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Source operator that retrieves data from external sources (Iceberg tables, Parquet files, etc.).
@@ -55,19 +56,30 @@ public class AsyncExternalSourceOperator extends SourceOperator {
      * proxy: a query with several external-source scans records one observation per scan.
      */
     private final long operatorStartNanos = System.nanoTime();
+    /**
+     * Where drained reader warnings go — always the driver context's structured warning sink in production.
+     * See {@link #emitPendingWarnings()} for why emitting to {@link HeaderWarning} instead loses them.
+     */
+    private final Consumer<String> warningSink;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
     private long processNanos;
 
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer) {
-        this(buffer, ExternalSourceMetrics.NOOP, null);
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, Consumer<String> warningSink) {
+        this(buffer, ExternalSourceMetrics.NOOP, null, warningSink);
     }
 
-    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, ExternalSourceMetrics externalSourceMetrics, String scheme) {
+    public AsyncExternalSourceOperator(
+        AsyncExternalSourceBuffer buffer,
+        ExternalSourceMetrics externalSourceMetrics,
+        String scheme,
+        Consumer<String> warningSink
+    ) {
         this.buffer = buffer;
         this.externalSourceMetrics = externalSourceMetrics == null ? ExternalSourceMetrics.NOOP : externalSourceMetrics;
         this.scheme = scheme;
+        this.warningSink = warningSink;
     }
 
     @Override
@@ -159,18 +171,20 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     /**
-     * Drains the buffer's recorded partial-results warnings and re-emits them via {@link HeaderWarning}.
-     * The driver invokes {@link #close()} on its own thread during teardown — the same thread whose
-     * response headers {@code DriverRunner} collects into the client response. The producer records these
-     * off a forked reader / parse-worker thread whose own response headers are never merged back, so the
-     * re-emission must happen here, on the driver thread, for the warning to reach the client (see #835).
-     * This mirrors how {@link org.elasticsearch.compute.operator.AsyncOperator} flushes a
-     * {@code ResponseHeadersCollector} from its {@code close()}.
+     * Drains the warnings the producer recorded off a forked reader / parse-worker thread, whose own response
+     * headers are never merged back, and hands them to {@link #warningSink}.
+     * <p>
+     * The sink must be the driver context's structured warning sink, not {@link HeaderWarning}: ES|QL delivers
+     * driver warnings through {@code DriverCompletionInfo.warnings} (replayed onto the response in
+     * {@code TransportEsqlQueryAction}), and {@code ExchangeService} therefore strips raw {@code Warning}
+     * headers off the thread context on every page fetch. A warning emitted only into the thread context here
+     * survives by luck — whether a strip has run, and whether the driver's completion listener happens to fire
+     * on a context still holding it — which is how these warnings went intermittently missing (#153187).
      */
     private void emitPendingWarnings() {
         String warning;
         while ((warning = buffer.pollWarning()) != null) {
-            HeaderWarning.addWarning(warning);
+            warningSink.accept(warning);
         }
     }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -129,16 +128,20 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 rowLimit,
                 sliceQueue,
                 driverContext.blockFactory(),
-                informationalWarningBudget
+                informationalWarningBudget,
+                driverContext::addWarning
             );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
         try {
+            // Record into the driver context's structured sink, not HeaderWarning: ExchangeService strips raw
+            // Warning headers off the thread context, so a header emitted here reaches the client only by
+            // luck (#153187).
             Consumer<String> warnSink = msg -> {
                 String toEmit = informationalWarningBudget.accept(msg);
                 if (toEmit != null) {
-                    HeaderWarning.addWarning(toEmit);
+                    driverContext.addWarning(toEmit);
                 }
             };
             FormatReadContext ctx = FormatReadContext.builder()
@@ -247,6 +250,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final ExternalSliceQueue sliceQueue;
         private final BlockFactory blockFactory;
         private final InformationalWarningBudget warningBudget;
+        /** Structured per-driver warning sink; see the {@code warnSink} note in {@link #get(DriverContext)}. */
+        private final Consumer<String> warningSink;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
         private StoragePath currentSplitPath;
@@ -261,7 +266,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             int rowLimit,
             ExternalSliceQueue sliceQueue,
             BlockFactory blockFactory,
-            InformationalWarningBudget warningBudget
+            InformationalWarningBudget warningBudget,
+            Consumer<String> warningSink
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
@@ -273,6 +279,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.sliceQueue = sliceQueue;
             this.blockFactory = blockFactory;
             this.warningBudget = warningBudget;
+            this.warningSink = warningSink;
         }
 
         @Override
@@ -337,7 +344,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 Consumer<String> warnSink = msg -> {
                     String toEmit = warningBudget.accept(msg);
                     if (toEmit != null) {
-                        HeaderWarning.addWarning(toEmit);
+                        warningSink.accept(toEmit);
                     }
                 };
                 FormatReadContext ctx = FormatReadContext.builder()

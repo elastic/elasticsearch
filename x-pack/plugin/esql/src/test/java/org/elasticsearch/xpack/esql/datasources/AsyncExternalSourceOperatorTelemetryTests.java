@@ -72,7 +72,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         // at close and records it as the parse.duration observation.
         buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 0L, TimeUnit.MILLISECONDS.toNanos(42L)));
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3a");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3a", w -> {});
 
         Page page = operator.getOutput();
         assertNotNull("the buffered page must be emitted", page);
@@ -126,7 +126,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.incSplitsProcessed();
         buffer.addPage(createTestPage(1, 1));
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3", w -> {});
         Page page = operator.getOutput();
         assertNotNull(page);
         page.releaseBlocks();
@@ -151,7 +151,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         buffer.setSplitsTotal(10);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3", w -> {});
         assertNull(operator.getOutput());
         operator.close();
 
@@ -171,7 +171,7 @@ public class AsyncExternalSourceOperatorTelemetryTests extends ESTestCase {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
         buffer.finish(true);
 
-        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3");
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, metrics, "s3", w -> {});
         assertNull(operator.getOutput());
         operator.close();
 

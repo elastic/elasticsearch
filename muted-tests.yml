@@ -283,15 +283,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRelocateHollowableShardWithConnectionFailure
   issue: https://github.com/elastic/elasticsearch/issues/153156
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testNdjsonBadDateTokenHonorsErrorPolicyMatchingColumnar
-  issue: https://github.com/elastic/elasticsearch/issues/153158
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSourceRelocationAndTargetRestart
   issue: https://github.com/elastic/elasticsearch/issues/153173
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  method: testColumnarBadDateTokenNullsCellEagerAndDeferred
-  issue: https://github.com/elastic/elasticsearch/issues/153187
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841
@@ -340,9 +334,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:inlinestats.afterWhere}
   issue: https://github.com/elastic/elasticsearch/issues/152591
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCoercionWarningFloodIT
-  method: testDeclaredCoercionWarningsStayBoundedAcrossFanOut
-  issue: https://github.com/elastic/elasticsearch/issues/154023
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/152498

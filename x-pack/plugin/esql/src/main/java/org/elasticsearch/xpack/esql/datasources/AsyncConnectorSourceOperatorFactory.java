@@ -107,7 +107,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
-        return new AsyncExternalSourceOperator(buffer);
+        return new AsyncExternalSourceOperator(buffer, driverContext::addWarning);
     }
 
     /**

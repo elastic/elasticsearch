@@ -220,6 +220,7 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
     IndexVersion minIndexVersion() {
         // Before this version, dense vector doc values are stored big-endian, but VectorEncoderDecoder.decodeBFloat16DenseVector
         // always decodes little-endian. We cannot use bfloat16 prior to this index version.
+        // TODO: Set to MINIMUM_COMPATIBLE once https://github.com/elastic/elasticsearch/issues/157696 is fixed
         return DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
     }
 

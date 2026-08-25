@@ -140,10 +140,19 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
 
     /**
      * The oldest index version that this test's randomly generated field configurations are valid on.
-     * {@link #testFetchEmbeddingsFieldsOldIndexVersions()} picks a random version between this and
-     * {@link IndexVersion#current()}, exclusive of current.
      */
     abstract IndexVersion minIndexVersion();
+
+    /**
+     * The oldest index version that this test can create an index on, accounting for both the randomly generated field configurations
+     * ({@link #minIndexVersion()}) and the index settings under test.
+     * {@link #testFetchEmbeddingsFieldsOldIndexVersions()} picks a random version between this and {@link IndexVersion#current()},
+     * exclusive of current.
+     */
+    private IndexVersion effectiveMinIndexVersion() {
+        // index.mapping.exclude_source_vectors was settable only on/after this index version
+        return excludeSourceVectors ? IndexVersion.max(minIndexVersion(), IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT) : minIndexVersion();
+    }
 
     /**
      * @param message a description of the assertion context for failure messages
@@ -181,13 +190,9 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
 
     public void testFetchEmbeddingsFieldsOldIndexVersions() throws Exception {
         for (int i = 0; i < 20; i++) {
-            IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion(), IndexVersionUtils.getPreviousVersion());
-            while (indexVersion.before(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT) && excludeSourceVectors) {
-                // index.mapping.exclude_source_vectors was settable only on/after this index version
-                indexVersion = IndexVersionUtils.randomVersionBetween(minIndexVersion(), IndexVersionUtils.getPreviousVersion());
-            }
-
-            fetchEmbeddingsFieldsTestCase(indexVersion);
+            fetchEmbeddingsFieldsTestCase(
+                IndexVersionUtils.randomVersionBetween(effectiveMinIndexVersion(), IndexVersionUtils.getPreviousVersion())
+            );
         }
     }
 
@@ -220,6 +225,14 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
     // TODO: Add no field value test
 
     void fetchEmbeddingsFieldsTestCase(IndexVersion indexVersion) throws Exception {
+        if (excludeSourceVectors) {
+            // index.mapping.exclude_source_vectors was settable only on/after this index version
+            assertTrue(
+                "Cannot set [" + INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey() + "] on index version [" + indexVersion + "]",
+                indexVersion.onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT)
+            );
+        }
+
         indexName = randomIndexName();
         assertAcked(
             prepareCreate(indexName, Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)).setMapping(

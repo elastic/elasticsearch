@@ -354,6 +354,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 
 convertStringToBaseIndexGroup5
 required_capability: base_conversion
+required_capability: fn_to_long_fix_double_to_long_overflow
 
   FROM  base_conversion
 | WHERE group == 5

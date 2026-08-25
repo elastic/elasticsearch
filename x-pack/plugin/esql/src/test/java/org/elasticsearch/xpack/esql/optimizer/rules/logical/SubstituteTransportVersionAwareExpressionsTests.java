@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
@@ -73,6 +75,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_MAX_MIN = TransportVersion.fromName("esql_promql_non_finite_max_min");
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_AVG = TransportVersion.fromName("esql_promql_non_finite_avg");
     private static final TransportVersion ESQL_PROMQL_NON_FINITE_STDDEV = TransportVersion.fromName("esql_promql_non_finite_stddev");
+    private static final TransportVersion ESQL_PROMQL_NON_FINITE_PERCENTILE = TransportVersion.fromName("esql_promql_non_finite_percentile");
 
     public void testSumNotReplacedWithOldVersion() {
         Expression field = getFieldAttribute("f", DataType.LONG);
@@ -289,6 +292,45 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     }
 
     /**
+     * The lenient (PromQL) {@code Percentile}, whose aggregator accepts non-finite observations, is downgraded to its
+     * strict variant on a cluster that predates non-finite support, matching the other aggregations. The t-digest
+     * compression must survive the downgrade, since it is unrelated to non-finite handling.
+     */
+    public void testNonFinitePercentileDowngradedWithOldVersion() {
+        Percentile lenient = lenientPercentile(true);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        Expression downgraded = SubstituteTransportVersionAwareExpressions.rule(lenient, oldVersion);
+        assertThat(downgraded, instanceOf(Percentile.class));
+        assertFalse(((Percentile) downgraded).allowNonFinite());
+        assertEquals(lenient.tDigestStateCompression(), ((Percentile) downgraded).tDigestStateCompression(), 0.0);
+        assertSame(downgraded, SubstituteTransportVersionAwareExpressions.rule(downgraded, oldVersion));
+    }
+
+    public void testNonFinitePercentileNotChangedWithCurrentVersion() {
+        Percentile lenient = lenientPercentile(true);
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_PROMQL_NON_FINITE_PERCENTILE);
+        assertSame(lenient, SubstituteTransportVersionAwareExpressions.rule(lenient, newVersion));
+    }
+
+    public void testStrictPercentileUnchangedWithOldVersion() {
+        Percentile strict = lenientPercentile(false);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        assertSame(strict, SubstituteTransportVersionAwareExpressions.rule(strict, oldVersion));
+    }
+
+    private static Percentile lenientPercentile(boolean allowNonFinite) {
+        return new Percentile(
+            EMPTY,
+            getFieldAttribute("f", DataType.DOUBLE),
+            Literal.TRUE,
+            AggregateFunction.NO_WINDOW,
+            new Literal(EMPTY, 50.0, DataType.DOUBLE),
+            QuantileStates.DEFAULT_COMPRESSION,
+            allowNonFinite
+        );
+    }
+
+    /**
      * Arithmetic operations that carry a {@link org.elasticsearch.xpack.esql.session.Configuration} must keep it when
      * downgraded to the strict variant.
      */
@@ -350,6 +392,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertVariantsDiffer(new Min(EMPTY, f, true), new Min(EMPTY, f, false));
         assertVariantsDiffer(new StdDev(EMPTY, f, true), new StdDev(EMPTY, f, false));
         assertVariantsDiffer(new Variance(EMPTY, f, true), new Variance(EMPTY, f, false));
+        assertVariantsDiffer(lenientPercentile(true), lenientPercentile(false));
     }
 
     /**

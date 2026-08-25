@@ -39,6 +39,50 @@ public class TsidBuilderTests extends ESTestCase {
         return IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
     }
 
+    /**
+     * A builder reused via {@link TsidBuilder#reset()} — as {@code DimensionsExtractor} does on the
+     * batch path — must produce exactly what a fresh builder would, since state carried across builds
+     * (the hasher, and the multi-byte layout's value-similarity staging buffer) outlives a single
+     * build. The second shape is array-valued, so its dimension count exceeds the number of
+     * value-similarity bytes it emits and the backing array is deliberately larger than the returned
+     * slice.
+     */
+    public void testReusedBuilderMatchesFreshBuilder() {
+        for (IndexVersion version : List.of(randomMultiplePrefixBytesVersion(), randomSinglePrefixByteVersion())) {
+            TsidBuilder reused = TsidBuilder.newBuilder();
+
+            // Fills every value-similarity slot: 5 distinct paths against a cap of 4.
+            BytesRef first = addDistinctPaths(reused).buildTsid(version);
+            assertThat(first, equalTo(addDistinctPaths(TsidBuilder.newBuilder()).buildTsid(version)));
+
+            // 5 dimensions collapsing onto 1 path, so only one value-similarity byte is emitted.
+            reused.reset();
+            BytesRef second = addRepeatedPath(reused).buildTsid(version);
+            assertThat(second, equalTo(addRepeatedPath(TsidBuilder.newBuilder()).buildTsid(version)));
+            assertThat(second, not(equalTo(first)));
+
+            // And back again, so the shrink/grow transition is covered in both directions.
+            reused.reset();
+            assertThat(addDistinctPaths(reused).buildTsid(version), equalTo(first));
+        }
+    }
+
+    private static TsidBuilder addDistinctPaths(TsidBuilder builder) {
+        return builder.addStringDimension("a", "1")
+            .addStringDimension("b", "2")
+            .addStringDimension("c", "3")
+            .addStringDimension("d", "4")
+            .addStringDimension("e", "5");
+    }
+
+    private static TsidBuilder addRepeatedPath(TsidBuilder builder) {
+        return builder.addStringDimension("a", "1")
+            .addStringDimension("a", "2")
+            .addStringDimension("a", "3")
+            .addStringDimension("a", "4")
+            .addStringDimension("a", "5");
+    }
+
     public void testAddDimensions() {
         TsidBuilder builder = TsidBuilder.newBuilder()
             .addStringDimension("test_string", "hello")

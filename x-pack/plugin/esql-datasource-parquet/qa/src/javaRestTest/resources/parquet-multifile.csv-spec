@@ -144,6 +144,42 @@ charlie      | paris
 dave         | london
 ;
 
+// ===== Pushed filters on a column one file does not have =====
+// Under union_by_name a file missing the predicate column never registers a block under that
+// name in the filter evaluator: classifyPredicateColumns only marks a column as a predicate
+// column when the file schema has it. The conjunct therefore bails to the all-survive sentinel
+// and FilterExec decides the rows downstream. Both cases below are green with and without the
+// elastic/elasticsearch#157313 fix - they are end-to-end pins on the user-visible answer, not
+// regression tests for that bug.
+
+parquetUbnFilterOnFileAMissingColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE city == "paris"
+| KEEP name, city
+| SORT name ASC;
+
+name:keyword | city:keyword
+charlie      | paris
+;
+
+parquetUbnFilterOnFileBMissingColumn
+required_capability: dataset_in_from_command
+required_capability: external_source_read_schema
+dataset: employees_multifile_ubn_union: "{{employees_multifile_ubn}}" WITH {"schema_resolution": "union_by_name"}
+
+FROM employees_multifile_ubn_union
+| WHERE score > 90.0
+| KEEP name, score
+| SORT name ASC;
+
+name:keyword | score:double
+bob          | 92.0
+;
+
 // ===== FIRST_FILE_WINS on divergent Parquet schemas =====
 // Anchor: parquet_ubn_a.parquet (lex-smallest) — schema [name, age:integer, score:double]
 // File B is read through anchor's schema: name maps OK, age (int64 → int32) is incompatible

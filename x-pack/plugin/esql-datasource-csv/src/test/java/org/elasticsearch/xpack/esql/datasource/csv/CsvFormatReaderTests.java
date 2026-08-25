@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -28,10 +29,10 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -70,6 +71,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -1682,6 +1685,42 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * When the initial sample (rows 1..N) is all-numeric but later rows contain text, the inferred
+     * schema must widen that column to KEYWORD so the text values are readable without errors.
+     * A tiny {@code schema_sample_size=2} makes "hello" appear after the sample window.
+     */
+    public void testInferredSchemaWidensOnPostSampleTextConflict() throws IOException {
+        // Rows 1-2 are numeric (inferred as INTEGER from sample). Row 3 is text — contradicts INTEGER.
+        String csv = "id\n1\n2\nhello\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("schema_sample_size", 2));
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(1, schema.size());
+        assertEquals("id", schema.get(0).name());
+        assertEquals(
+            "column inferred as INTEGER from the first 2 rows must widen to KEYWORD when row 3 is text",
+            DataType.KEYWORD,
+            schema.get(0).dataType()
+        );
+
+        // Verify the text row is readable as KEYWORD (not null-filled or skipped).
+        List<String> values = new ArrayList<>();
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < page.getPositionCount(); i++) {
+                    values.add(block.getBytesRef(i, scratch).utf8ToString());
+                }
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(List.of("1", "2", "hello"), values);
+    }
+
     /** A clean and a quoted-padded numeric in the same column both parse to the same value. */
     public void testMixedCleanAndPaddedNumerics() throws IOException {
         String csv = "id:integer\n5\n\" 5 \"\n";
@@ -2940,17 +2979,32 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "0"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "-1"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_size must be positive"));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
+        // Distinct from the out-of-range cases above: both are now IllegalArgumentException, so only the
+        // message separates "unparseable" from "parsed but rejected".
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_size", "abc"))
+        );
+        assertThat(e.getMessage(), containsString("Invalid integer value [abc]"));
     }
 
     // --- Multi-value bracket syntax tests ---
@@ -8317,11 +8371,11 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * Regression: the Jackson hot data path enforces
-     * {@code max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
+     * {@code external_max_record_size} via the upstream {@link CsvRecordCappingInputStream}. An oversized record
      * trips the cap during the {@link java.io.BufferedReader} bulk fill (potentially before any individual
      * row has been emitted), the {@link CsvRecordTooLargeException} propagates as an {@link IOException},
      * and the outer {@code CsvBatchIterator.hasNext()} wraps it in a {@link RuntimeException} whose cause
-     * chain carries the original {@code "max_record_size [N]"} message.
+     * chain carries the original {@code "external_max_record_size [N]"} message.
      */
     public void testJacksonBulkPathPropagatesMaxRecordSizeError() {
         int maxRecordBytes = 32;
@@ -8350,7 +8404,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             rootCause = rootCause.getCause();
         }
         assertTrue("expected a CsvRecordTooLargeException in the cause chain, got: " + ex, rootCause instanceof CsvRecordTooLargeException);
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**
@@ -8396,7 +8450,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "lenient policy must still abort with the cap exception in the cause chain, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**
@@ -8404,7 +8458,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * direct-block kill-switch off ({@code withDirectBlockEnabled(false)}) AND the no-trim default,
      * {@code jacksonGrammarApplies()} is false, so a non-direct read reroutes onto the house per-record path
      * ({@code newCsvIterator} on {@link CsvLogicalRecordReader}) rather than the stream-fatal Jackson bulk
-     * path. That path enforces {@code max_record_size} via {@link CsvLogicalRecordReader#addBytes}, an exact
+     * path. That path enforces {@code external_max_record_size} via {@link CsvLogicalRecordReader#addBytes}, an exact
      * RECOVERABLE per-record check, so under a lenient policy the oversized record is skipped and the
      * surrounding rows read intact — the opposite of the trim=true bulk arm's destructive abort.
      */
@@ -8539,7 +8593,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             "inferred-schema reads must engage the fast path after sampling and enforce the per-record cap, got: " + ex,
             rootCause instanceof CsvRecordTooLargeException
         );
-        assertThat(rootCause.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
+        assertThat(rootCause.getMessage(), Matchers.containsString("external_max_record_size [" + maxRecordBytes + "]"));
     }
 
     /**

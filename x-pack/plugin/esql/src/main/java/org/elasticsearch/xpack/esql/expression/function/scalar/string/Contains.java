@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -48,7 +49,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Contains function, given a string 'a' and a substring 'b', returns true if the substring 'b' is in 'a'.
  */
-public class Contains extends EsqlScalarFunction implements OptionalArgument, TranslationAware.SingleValueTranslationAware {
+public class Contains extends EsqlScalarFunction implements OptionalArgument, TranslationAware.SingleValueTranslationAware, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Contains", Contains::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Contains.class).binary(Contains::new).name("contains");
 

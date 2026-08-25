@@ -18,13 +18,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.store.DirectoryType;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.zstd.ZstdCompressionMode;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -52,12 +50,13 @@ import java.util.concurrent.TimeUnit;
 /**
  * Measures Zstd decompression throughput across different IndexInput backing stores.
  * All compressed blocks are written sequentially into a single file (mimicking Lucene's
- * stored fields .fdt layout). Exercises the three decompression code paths:
- * - NIOFS: heap copy via copyAndDecompress
+ * stored fields .fdt layout). Exercises the decompression code paths:
+ * - NIO: heap copy via copyAndDecompress
  * - MMAP: zero-copy via MemorySegmentAccessInput
  * - SNAP: zero-copy via DirectAccessInput (blob-cache backed)
+ * - STATELESS_INDEX_LOCAL: heap copy, via a ReopeningIndexInput that implements neither (opt in with -p)
  *
- * By default uses random (incompressible) data. To benchmark with real compressible data,
+ * <p>Uses random (incompressible) data by default. To benchmark with real compressible data,
  * pass -DdataFile=/path/to/file (e.g. a Project Gutenberg text file).
  */
 @Fork(value = 1, jvmArgsPrepend = { "--enable-native-access=ALL-UNNAMED", "--add-modules=jdk.incubator.vector" })
@@ -71,8 +70,10 @@ public class ZstdDecompressBenchmark {
     private static final int NUM_BLOCKS = 256;
     private static final String FILE_NAME = "blocks.dat";
 
-    @Param({ "NIOFS", "MMAP", "SNAP" })
-    String directoryType;
+    // Listed explicitly to avoid pulling STATELESS_INDEX_LOCAL: this directory type is expensive (it brings up a
+    // node environment and blob cache per instance). Run it explicitly with -p directoryType=STATELESS_INDEX_LOCAL.
+    @Param({ "NIO", "MMAP", "SNAP" })
+    DirectoryType directoryType;
 
     @Param({ "4096", "16384" })
     int blockSize;
@@ -139,7 +140,7 @@ public class ZstdDecompressBenchmark {
     @TearDown(Level.Trial)
     public void tearDown() throws IOException {
         IOUtils.close(input, dir);
-        deleteRecursive(tempDir);
+        IOUtils.rm(tempDir);
     }
 
     /** Decompresses all blocks sequentially, reporting per-block throughput. */
@@ -167,12 +168,7 @@ public class ZstdDecompressBenchmark {
     }
 
     private Directory newDirectory() throws IOException {
-        return switch (directoryType) {
-            case "NIOFS" -> new NIOFSDirectory(Files.createDirectories(tempDir.resolve("data")));
-            case "MMAP" -> new MMapDirectory(Files.createDirectories(tempDir.resolve("data")));
-            case "SNAP" -> SearchableSnapshotDirectoryFactory.newDirectory(Files.createDirectories(tempDir.resolve("data")));
-            default -> throw new IllegalArgumentException("Unknown directory type: " + directoryType);
-        };
+        return directoryType.newDirectory(Files.createDirectories(tempDir.resolve("data")));
     }
 
     private static byte[] compress(ZstdCompressionMode mode, byte[] data) throws IOException {
@@ -181,16 +177,5 @@ public class ZstdDecompressBenchmark {
         compressor.compress(new ByteBuffersDataInput(List.of(ByteBuffer.wrap(data))), compressedOutput);
         compressor.close();
         return compressedOutput.toArrayCopy();
-    }
-
-    private static void deleteRecursive(Path path) throws IOException {
-        if (Files.isDirectory(path)) {
-            try (var stream = Files.list(path)) {
-                for (Path child : stream.toList()) {
-                    deleteRecursive(child);
-                }
-            }
-        }
-        Files.deleteIfExists(path);
     }
 }

@@ -718,6 +718,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(keywordMapper.toString(), equalTo(expected));
     }
 
+    /**
+     * normalizer → FALLBACK synthetic source mode. When ignore_above also fires (Malformed result),
+     * FallbackPostMapper must commit the pre-capture so synthetic source can reconstruct the original value.
+     */
+    public void testNormalizerSyntheticSourceIgnoreAboveCommitsPrecapture() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .field("normalizer", "lowercase")
+                    .field("normalizer_skip_store_original_value", false)
+                    .field("ignore_above", 5)
+            )
+        );
+        assertEquals("{\"field\":\"AbCDef\"}", syntheticSource(mapperService.documentMapper(), b -> b.field("field", "AbCDef")));
+    }
+
     public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
@@ -1058,6 +1074,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             )
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
+    }
+
+    public void testUsesMultivaluedBinaryDocValues() throws IOException {
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        KeywordFieldMapper.KeywordFieldType columnarMultivalue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            columnarSettings,
+            fieldMapping(b -> b.field("type", "keyword"))
+        ).fieldType("field");
+        assertTrue(columnarMultivalue.usesMultivaluedBinaryDocValues());
+
+        KeywordFieldMapper.KeywordFieldType columnarSingleValue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            columnarSettings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
+        ).fieldType("field");
+        assertFalse(columnarSingleValue.usesMultivaluedBinaryDocValues());
+
+        KeywordFieldMapper.KeywordFieldType standardMultivalue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            fieldMapping(b -> b.field("type", "keyword"))
+        ).fieldType("field");
+        assertFalse(standardMultivalue.usesMultivaluedBinaryDocValues());
     }
 
     /**

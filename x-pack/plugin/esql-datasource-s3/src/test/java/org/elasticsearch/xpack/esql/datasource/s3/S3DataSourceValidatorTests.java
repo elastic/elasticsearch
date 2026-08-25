@@ -155,7 +155,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsDeprecatedWorkloadIdentityWhenDisabled() {
@@ -164,7 +164,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
         assertWarnings("auth value [workload_identity] is deprecated; the canonical value is [managed_identity]");
     }
 
@@ -200,7 +200,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
@@ -214,7 +214,7 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
             "us-east-1"
         );
         var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
-        assertThat(e.getMessage(), containsString("esql.datasource.federated_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
@@ -285,19 +285,73 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     }
 
     public void testValidateDatasetPartitionDetectionInvalid() {
-        expectThrows(
+        ValidationException e = expectThrows(
             ValidationException.class,
             () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "banana"))
         );
+        // One actionable message, not that message plus Enum.valueOf's raw "No enum constant ...".
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), not(containsString("No enum constant")));
     }
 
     public void testValidateDatasetPartitionDetectionAllValues() {
-        for (String strategy : new String[] { "auto", "hive", "template", "none", "AUTO", "HIVE", "TEMPLATE", "NONE" }) {
+        for (String strategy : new String[] { "auto", "hive", "none", "AUTO", "HIVE", "NONE" }) {
             assertEquals(
                 strategy,
                 validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy)).get("partition_detection")
             );
         }
+        // template carries its path template with it; on its own it would be a strategy that detects nothing.
+        for (String strategy : new String[] { "template", "TEMPLATE" }) {
+            assertEquals(
+                strategy,
+                validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", strategy, "partition_path", "{year}"))
+                    .get("partition_detection")
+            );
+        }
+    }
+
+    /**
+     * The three combinations in which one of the partition settings would be silently ignored. Rejected at
+     * registration only — {@code PartitionConfig.fromConfig} still resolves them leniently so datasets stored
+     * before this validation existed keep reading.
+     */
+    public void testValidateDatasetRejectsSilentlyIgnoredPartitionSettings() {
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "template"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "false"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "partition_path", "{year}"))
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("hive_partitioning", "false", "partition_path", "{year}"))
+        );
+        // hive never reads a path template, so storing one would store a setting that does nothing.
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "partition_path", "{year}"))
+        );
+    }
+
+    /** hive_partitioning:true asserts nothing — it is the default — so it never contradicts a strategy. */
+    public void testValidateDatasetAcceptsHivePartitioningTrueWithAnyStrategy() {
+        assertEquals(
+            "hive",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "hive", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
+        assertEquals(
+            "none",
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("partition_detection", "none", "hive_partitioning", "true"))
+                .get("partition_detection")
+        );
     }
 
     public void testValidateDatasetSchemeCaseInsensitive() {
@@ -351,8 +405,17 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
     public void testValidateDatasetSchemaSampleSize() {
         assertEquals(50, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 50)).get("schema_sample_size"));
         expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 0)));
-        // upper bound: SCHEMA_SAMPLE_SIZE_MAX = 1000
-        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)));
+        // The bound must admit the readers' own default (20000); it used to stop at 1000, which made every value
+        // from 1001 up -- including the default -- unregisterable. See FileDataSourceValidatorSampleSizeBoundTests.
+        assertEquals(1001, validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 1001)).get("schema_sample_size"));
+        assertEquals(
+            20_000,
+            validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_000)).get("schema_sample_size")
+        );
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("schema_sample_size", 20_001))
+        );
     }
 
     public void testValidateDatasetSchemaSampleSizeNonNumber() {

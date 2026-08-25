@@ -398,19 +398,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
-        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
+        // Sometimes explicitly set the setting to its default value, which doubles as a test for the setting being registered.
         if (randomBoolean()) {
-            builder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
-                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getDefault(Settings.EMPTY)
-            );
-        }
-        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
-        if (randomBoolean()) {
-            builder.put(
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getKey(),
-                StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING.getDefault(Settings.EMPTY)
-            );
+            var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
+            builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
         return builder;
     }

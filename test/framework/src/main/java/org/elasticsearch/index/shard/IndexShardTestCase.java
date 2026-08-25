@@ -39,7 +39,9 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.Index;
@@ -101,6 +103,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -129,8 +133,6 @@ import static org.mockito.Mockito.doAnswer;
  * {@link #newStartedShard()} for a good starting points
  */
 public abstract class IndexShardTestCase extends ESTestCase {
-
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
 
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
@@ -167,6 +169,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected Executor writeExecutor;
     protected long primaryTerm;
 
+    // Temp dirs backing the shards created by a single test, removed in tearDown rather than only at suite end so that
+    // repeated runs (e.g. -Dtests.iters) do not accumulate temp dirs and exhaust the per-suite temp-name limit.
+    private final List<Path> shardTempDirs = new ArrayList<>();
+
+    private Path createShardTempDir() {
+        Path dir = createTempDir();
+        shardTempDirs.add(dir);
+        return dir;
+    }
+
     public static void addMockCloseImplementation(IndexShard shard) throws IOException {
         doAnswer(invocation -> {
             final ActionListener<Void> listener = invocation.getArgument(3);
@@ -179,7 +191,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
     public void setUpShardTestResources() throws Exception {
         Settings settings = threadPoolSettings();
         threadPool = setUpThreadPool(settings);
-        nodeEnvironment = newNodeEnvironment(settings);
+        // Build the node environment on temp dirs tracked for per-test removal (see shardTempDirs) instead of
+        // newNodeEnvironment's suite-scoped ones, so repeated runs do not accumulate temp dirs.
+        final Settings envSettings = Settings.builder()
+            .put(settings)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createShardTempDir().toAbsolutePath())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createShardTempDir().toAbsolutePath().toString())
+            .build();
+        nodeEnvironment = new NodeEnvironment(envSettings, TestEnvironment.newEnvironment(envSettings));
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             ClusterSettings.createBuiltInClusterSettings(settings),
@@ -197,11 +216,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
         );
     }
 
-    @Override
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     protected ThreadPool setUpThreadPool(Settings settings) {
         return new TestThreadPool(getClass().getName(), settings);
     }
@@ -209,11 +223,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     @After
     public void tearDownShardTestResources() throws Exception {
         IOUtils.close(nodeEnvironment, this::tearDownThreadPool);
-    }
-
-    @Override
-    public final void tearDown() throws Exception {
-        super.tearDown();
+        IOUtils.rm(shardTempDirs.toArray(new Path[0]));
     }
 
     protected void tearDownThreadPool() {
@@ -523,7 +533,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     ) throws IOException {
         // add node id as name to settings for proper logging
         final ShardId shardId = routing.shardId();
-        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createShardTempDir());
         ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
         return newShard(
             routing,
@@ -534,7 +544,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             globalCheckpointSyncer,
             retentionLeaseSyncer,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             searchListeners,
             listeners
         );
@@ -649,7 +659,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             IndexCache indexCache = new IndexCache(DisabledQueryCache.INSTANCE, null);
             MapperService mapperService = MapperTestUtils.newMapperService(
                 xContentRegistry(),
-                createTempDir(),
+                createShardTempDir(),
                 indexSettings.getSettings(),
                 routing.getIndexName()
             );
@@ -755,7 +765,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             engineFactory,
             current.getGlobalCheckpointSyncer(),
             current.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             Collections.emptyList(),
             listeners
         );
@@ -1246,7 +1256,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         } else {
             final long seqNo = shard.getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
-            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id);
+            result = shard.applyDeleteOperationOnReplica(seqNo, shard.getOperationPrimaryTerm(), 0L, id, null);
             shard.sync(); // advance local checkpoint
         }
         return result;

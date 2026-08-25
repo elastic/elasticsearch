@@ -20,6 +20,7 @@ import org.elasticsearch.foreign.processor.model.ScalarFieldModel;
 import org.elasticsearch.foreign.processor.model.StructInterfaceModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
 import org.elasticsearch.foreign.processor.model.StructRecordModel;
+import org.elasticsearch.foreign.processor.model.UpcallModel;
 
 import java.lang.classfile.ClassBuilder;
 import java.lang.classfile.ClassFile;
@@ -39,6 +40,7 @@ import javax.lang.model.element.TypeElement;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Addressable;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Arena;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_ArenaAdapter;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_Charset;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemoryLayoutArray;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_MemorySegment;
@@ -52,6 +54,7 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_long;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.CD_void;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_ArenaAdapter_allocate;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.MTD_Arena_ofAuto;
+import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitPushUtf16LEConstant;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.emitValueLayout;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClassDesc;
 import static org.elasticsearch.foreign.processor.ClassWriterUtil.slotWidth;
@@ -89,7 +92,9 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of(LinkerHelper.class.getName());
     private static final ClassDesc CD_LinkerAdapter = ClassDesc.of("org.elasticsearch.foreign.adapter.LinkerAdapter"); // not a dependency
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of(LoaderHelper.class.getName());
+    private static final ClassDesc CD_System = ClassDesc.of("java.lang.System");
     private static final ClassDesc CD_Objects = ClassDesc.of("java.util.Objects");
+    private static final ClassDesc CD_Math = ClassDesc.of("java.lang.Math");
     private static final ClassDesc CD_IllegalArgumentException = ClassDesc.of("java.lang.IllegalArgumentException");
 
     /**
@@ -100,6 +105,7 @@ class ImplClassWriter {
 
     private static final MethodTypeDesc MTD_byteSize = MethodTypeDesc.of(CD_long);
     private static final MethodTypeDesc MTD_checkFromIndexSize = MethodTypeDesc.of(CD_long, CD_long, CD_long, CD_long);
+    private static final MethodTypeDesc MTD_ceilDiv = MethodTypeDesc.of(CD_long, CD_long, CD_long);
     private static final MethodTypeDesc MTD_desiredAssertionStatus = MethodTypeDesc.of(CD_boolean);
     private static final MethodTypeDesc MTD_FunctionDescriptor_ofVoid = MethodTypeDesc.of(CD_FunctionDescriptor, CD_MemoryLayoutArray);
     private static final MethodTypeDesc MTD_FunctionDescriptor_of = MethodTypeDesc.of(
@@ -129,7 +135,28 @@ class ImplClassWriter {
     private static final MethodTypeDesc MTD_Arena_ofConfined = MethodTypeDesc.of(CD_Arena);
     private static final MethodTypeDesc MTD_Arena_close = MethodTypeDesc.of(CD_void);
     private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString = MethodTypeDesc.of(CD_MemorySegment, CD_Arena, CD_String);
-    private static final MethodTypeDesc MTD_critical = MethodTypeDesc.of(CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_MemorySegmentAdapter_allocateString_charset = MethodTypeDesc.of(
+        CD_MemorySegment,
+        CD_Arena,
+        CD_String,
+        CD_Charset
+    );
+    private static final MethodTypeDesc MTD_criticalWith = MethodTypeDesc.of(CD_LinkerOptionArray, CD_LinkerOptionArray);
+    private static final MethodTypeDesc MTD_captureState = MethodTypeDesc.of(CD_MemorySegment);
+    private static final MethodTypeDesc MTD_upcallHandle = MethodTypeDesc.of(
+        CD_MethodHandle,
+        CD_Lookup,
+        CD_Class,
+        CD_String,
+        CD_FunctionDescriptor
+    );
+    private static final MethodTypeDesc MTD_upcallStub = MethodTypeDesc.of(
+        CD_MemorySegment,
+        CD_MethodHandle,
+        CD_Object,
+        CD_FunctionDescriptor,
+        CD_Arena
+    );
 
     private final Filer filer;
     private final int classFileVersion;
@@ -148,8 +175,8 @@ class ImplClassWriter {
         // Generate $Pack for record structs and $Impl for interface structs
         for (StructModel struct : model.structs()) {
             switch (struct) {
-                case StructRecordModel r -> packWriter.generate(model, r, sourceElement);
-                case StructInterfaceModel i -> structImplWriter.generate(model, i, sourceElement);
+                case StructRecordModel r -> packWriter.generate(model, struct, sourceElement);
+                case StructInterfaceModel i -> structImplWriter.generate(model, struct, sourceElement);
             }
         }
 
@@ -177,13 +204,23 @@ class ImplClassWriter {
                 cb.withInterfaceSymbols(superDesc);
             }
 
-            // MethodHandle fields: one per @Function method
+            // MethodHandle fields: one per @Function method, plus a FunctionDescriptor/MethodHandle
+            // pair per @Upcall-typed parameter.
             for (var nm : functionMethods) {
-                cb.withField(
-                    fieldNames.get(nm),
-                    CD_MethodHandle,
-                    fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
-                );
+                String fieldName = fieldNames.get(nm);
+                cb.withField(fieldName, CD_MethodHandle, fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL));
+                for (UpcallModel upcall : nm.upcalls()) {
+                    cb.withField(
+                        upcallFdFieldName(fieldName, upcall),
+                        CD_FunctionDescriptor,
+                        fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
+                    );
+                    cb.withField(
+                        upcallMhFieldName(fieldName, upcall),
+                        CD_MethodHandle,
+                        fb -> fb.withFlags(AccessFlag.PRIVATE, AccessFlag.STATIC, AccessFlag.FINAL)
+                    );
+                }
             }
 
             // Backs the `assert`s emitted for @VectorSegment/@MatrixSegment(aligned = true) checks.
@@ -196,18 +233,22 @@ class ImplClassWriter {
             // <clinit>: load the library, resolve the assertions flag, and initialize each MethodHandle field
             cb.withMethodBody("<clinit>", MethodTypeDesc.of(CD_void), ClassFile.ACC_STATIC, clinit -> {
                 if (model.libraryName().isEmpty() == false) {
-                    emitLoadLibrary(clinit, model.libraryName());
+                    emitLoadLibrary(clinit, model.libraryName(), model.system());
                 }
                 emitAssertionsDisabledInit(clinit, generatedDesc);
                 for (var nm : functionMethods) {
+                    String fieldName = fieldNames.get(nm);
                     emitMhFieldInit(
                         clinit,
                         generatedDesc,
                         nm,
                         model.symbolResolverClassName(),
                         model.methodHandleResolverClassName(),
-                        fieldNames.get(nm)
+                        fieldName
                     );
+                    for (UpcallModel upcall : nm.upcalls()) {
+                        emitUpcallFieldInit(clinit, generatedDesc, upcall, fieldName);
+                    }
                 }
                 clinit.return_();
             });
@@ -266,13 +307,37 @@ class ImplClassWriter {
         return fieldNames;
     }
 
+    /**
+     * Field-name base shared by a method's downcall {@code MethodHandle} field and its per-upcall
+     * fields, derived by stripping the {@code $mh} suffix that every {@code fieldName} produced by
+     * {@link #computeFieldNames} ends with.
+     */
+    private static String upcallFieldBase(String fieldName) {
+        assert fieldName.endsWith("$mh");
+        return fieldName.substring(0, fieldName.length() - "$mh".length());
+    }
+
+    /** Name of the static {@code FunctionDescriptor} field for the SAM of an {@code @Upcall} parameter. */
+    private static String upcallFdFieldName(String fieldName, UpcallModel upcall) {
+        return upcallFieldBase(fieldName) + "$upcall" + upcall.paramIndex() + "Fd";
+    }
+
+    /** Name of the static {@code MethodHandle} field for the SAM of an {@code @Upcall} parameter. */
+    private static String upcallMhFieldName(String fieldName, UpcallModel upcall) {
+        return upcallFieldBase(fieldName) + "$upcall" + upcall.paramIndex() + "Mh";
+    }
+
     // -------------------------------------------------------------------------
     // <clinit> helpers
     // -------------------------------------------------------------------------
 
-    private static void emitLoadLibrary(CodeBuilder cb, String libName) {
+    private static void emitLoadLibrary(CodeBuilder cb, String libName, boolean system) {
         cb.ldc(libName);
-        cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        if (system) {
+            cb.invokestatic(CD_System, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        } else {
+            cb.invokestatic(CD_LoaderHelper, "loadLibrary", MethodTypeDesc.of(CD_void, CD_String));
+        }
     }
 
     /**
@@ -296,7 +361,7 @@ class ImplClassWriter {
     /**
      * Resolves the native symbol via {@link org.elasticsearch.foreign.SymbolResolver} and
      * {@link org.elasticsearch.foreign.MethodHandleResolver}, then stores the resulting
-     * {@code MethodHandle} in the static field identified by {@code fieldName}. Handles {@code @CaptureErrno},
+     * {@code MethodHandle} in the static field identified by {@code fieldName}. Handles {@code @CaptureSystemError},
      * {@code @Variadic}, and {@code @Critical} options.
      *
      * <p>The generated bytecode is equivalent to:
@@ -364,6 +429,32 @@ class ImplClassWriter {
         cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
     }
 
+    /**
+     * Builds the SAM's {@code FunctionDescriptor} and, from it, the upcall {@code MethodHandle} via
+     * {@code LinkerHelper.upcallHandle(MethodHandles.lookup(), <SamType>.class, "<samMethod>", fd)},
+     * storing both in the callback's dedicated static fields.
+     *
+     * <p>The generated bytecode is equivalent to:
+     * <pre>{@code
+     * foo$upcall1Fd = FunctionDescriptor.of(...);
+     * foo$upcall1Mh = LinkerHelper.upcallHandle(MethodHandles.lookup(), SamType.class, "samMethod", foo$upcall1Fd);
+     * }</pre>
+     */
+    private static void emitUpcallFieldInit(CodeBuilder cb, ClassDesc generatedDesc, UpcallModel upcall, String fieldName) {
+        String fdFieldName = upcallFdFieldName(fieldName, upcall);
+        String mhFieldName = upcallMhFieldName(fieldName, upcall);
+
+        emitFunctionDescriptor(cb, upcall.returnType(), upcall.paramTypes());
+        cb.putstatic(generatedDesc, fdFieldName, CD_FunctionDescriptor);
+
+        cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
+        cb.ldc(ClassDesc.of(upcall.samQualifiedName()));
+        cb.ldc(upcall.samMethodName());
+        cb.getstatic(generatedDesc, fdFieldName, CD_FunctionDescriptor);
+        cb.invokestatic(CD_LinkerHelper, "upcallHandle", MTD_upcallHandle);
+        cb.putstatic(generatedDesc, mhFieldName, CD_MethodHandle);
+    }
+
     private static void emitFunctionDescriptor(CodeBuilder cb, NativeType returnType, List<NativeType> paramTypes) {
         if (returnType == NativeType.VOID) {
             emitParamLayoutArray(cb, paramTypes);
@@ -387,43 +478,27 @@ class ImplClassWriter {
     }
 
     /**
-     * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}. For
-     * {@code @Critical} the array is built by {@code LinkerAdapter.critical()}. Otherwise the
-     * array is assembled inline with a {@code captureCallState("errno")} entry for
-     * {@code @CaptureErrno} and/or a {@code firstVariadicArg(N)} entry for {@code @Variadic}
-     * (empty when neither applies).
+     * Emits the {@code Linker.Option[]} array passed to {@code linker.downcallHandle}.
+     *
+     * <p>The array is assembled inline with a {@code captureCallState(...)} entry for
+     * {@code @CaptureSystemError} — {@code "errno"} or {@code "GetLastError"} depending on the
+     * method's resolved {@link MethodModel.CapturedError} channel — and/or a
+     * {@code firstVariadicArg(N)} entry for {@code @Variadic}. When the method is {@code @Critical},
+     * that array (possibly empty) is passed to {@code LinkerAdapter.criticalWith()}, which prepends
+     * the critical option on JDK 22+ and returns the array unchanged on JDK 21.
      */
     private static void emitLinkerOptions(CodeBuilder cb, MethodModel nm) {
-        if (nm.isCritical()) {
-            cb.invokestatic(CD_LinkerAdapter, "critical", MTD_critical);
-            return;
-        }
-        boolean captureErrno = nm.capturesErrno();
+        MethodModel.CapturedError capturedError = nm.capturedError();
+        boolean capture = capturedError != MethodModel.CapturedError.NONE;
         boolean variadic = nm.firstVariadicArg() >= 0;
-        int size = (captureErrno ? 1 : 0) + (variadic ? 1 : 0);
+        boolean critical = nm.isCritical();
+
+        int size = (capture ? 1 : 0) + (variadic ? 1 : 0);
         cb.loadConstant(size);
         cb.anewarray(CD_LinkerOption);
         int idx = 0;
-        if (captureErrno) {
-            // Linker.Option.captureCallState is declared as varargs (String...), so its actual
-            // JVM descriptor is ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;. Build the
-            // one-element array explicitly. Linker.Option is an interface, so invokestatic must
-            // mark isInterface=true.
-            cb.dup();
-            cb.loadConstant(idx++);
-            cb.iconst_1();
-            cb.anewarray(CD_String);
-            cb.dup();
-            cb.iconst_0();
-            cb.ldc("errno");
-            cb.aastore();
-            cb.invokestatic(
-                CD_LinkerOption,
-                "captureCallState",
-                MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
-                true
-            );
-            cb.aastore();
+        if (capture) {
+            emitCaptureCallStateOption(cb, idx++, captureStateName(capturedError));
         }
         if (variadic) {
             cb.dup();
@@ -431,6 +506,56 @@ class ImplClassWriter {
             cb.loadConstant(nm.firstVariadicArg());
             cb.invokestatic(CD_LinkerOption, "firstVariadicArg", MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("I")), true);
             cb.aastore();
+        }
+
+        if (critical) {
+            cb.invokestatic(CD_LinkerAdapter, "criticalWith", MTD_criticalWith);
+        }
+    }
+
+    /**
+     * Emits {@code arr[idx] = Linker.Option.captureCallState(stateName)} onto an array already on
+     * the stack. {@code Linker.Option.captureCallState} is declared as varargs ({@code String...}),
+     * so its actual JVM descriptor is {@code ([Ljava/lang/String;)Ljava/lang/foreign/Linker$Option;}.
+     * Build the one-element array explicitly. {@code Linker.Option} is an interface, so
+     * {@code invokestatic} must mark {@code isInterface=true}.
+     */
+    private static void emitCaptureCallStateOption(CodeBuilder cb, int idx, String stateName) {
+        cb.dup();
+        cb.loadConstant(idx);
+        cb.iconst_1();
+        cb.anewarray(CD_String);
+        cb.dup();
+        cb.iconst_0();
+        cb.ldc(stateName);
+        cb.aastore();
+        cb.invokestatic(
+            CD_LinkerOption,
+            "captureCallState",
+            MethodTypeDesc.of(CD_LinkerOption, ClassDesc.ofDescriptor("[Ljava/lang/String;")),
+            true
+        );
+        cb.aastore();
+    }
+
+    /** The {@code Linker.Option.captureCallState} group element name for the resolved capture channel. */
+    private static String captureStateName(MethodModel.CapturedError capturedError) {
+        return switch (capturedError) {
+            case ERRNO -> "errno";
+            case GET_LAST_ERROR -> "GetLastError";
+            case NONE -> throw new AssertionError("no capture state name for NONE");
+        };
+    }
+
+    /**
+     * Pushes the shared system-error capture segment onto the stack — as the leading
+     * {@code invokeExact} argument that receives the captured {@code errno}/{@code GetLastError} value.
+     * A single buffer serves both channels (only one is live per platform). Emits nothing for
+     * {@link MethodModel.CapturedError#NONE}.
+     */
+    private static void emitCaptureStateSegment(CodeBuilder cb, MethodModel.CapturedError capturedError) {
+        if (capturedError != MethodModel.CapturedError.NONE) {
+            cb.invokestatic(CD_LinkerHelper, "systemErrorState", MTD_captureState);
         }
     }
 
@@ -449,8 +574,11 @@ class ImplClassWriter {
         cb.withMethodBody(nm.methodName(), buildJavaMethodDesc(nm, libraryPrefix), accessFlag, code -> {
             emitBoundsChecks(code, generatedDesc, nm);
             boolean hasStringParams = nm.paramTypes().contains(NativeType.STRING);
+            boolean hasUpcalls = nm.upcalls().isEmpty() == false;
             if (hasStringParams) {
                 emitNativeFunctionMethodWithStringParams(code, generatedDesc, nm, fieldName);
+            } else if (hasUpcalls) {
+                emitNativeFunctionMethodWithUpcalls(code, generatedDesc, nm, fieldName);
             } else {
                 code.trying(tryBlock -> {
                     emitInvokeExact(tryBlock, generatedDesc, nm, fieldName);
@@ -512,11 +640,7 @@ class ImplClassWriter {
         emitLongParamLoad(cb, paramTypes.get(check.countParamIndex()), slots[check.countParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
-        // ceil(count * elementBits / 8): round the bit count up to whole bytes via (bits + 7) / 8
-        cb.ldc(7L);
-        cb.ladd();
-        cb.ldc(8L);
-        cb.ldiv();
+        emitCeilDivBy8(cb);
         emitCheckFromIndexSize(cb, slots[check.segParamIndex()]);
         if (check.aligned()) {
             emitAlignmentAssert(cb, generatedDesc, slots[check.segParamIndex()], check.elementBits() / 8);
@@ -540,14 +664,10 @@ class ImplClassWriter {
         // fromIndex arg for checkFromIndexSize
         cb.lconst_0();
 
-        // ceil(cols * elementBits / 8): round the per-row bit count up to whole bytes via (bits + 7) / 8
         emitLongParamLoad(cb, paramTypes.get(check.colsParamIndex()), slots[check.colsParamIndex()]);
         cb.ldc((long) check.elementBits());
         cb.lmul();
-        cb.ldc(7L);
-        cb.ladd();
-        cb.ldc(8L);
-        cb.ldiv();
+        emitCeilDivBy8(cb);
         if (check.hasPaddingBytes()) {
             emitPaddingBytesRelationalCheck(cb, paramTypes, slots, check);
             emitLongParamLoad(cb, paramTypes.get(check.paddingBytesParamIndex()), slots[check.paddingBytesParamIndex()]);
@@ -579,6 +699,12 @@ class ImplClassWriter {
         cb.invokespecial(CD_IllegalArgumentException, "<init>", MethodTypeDesc.of(CD_void, CD_String));
         cb.athrow();
         cb.labelBinding(paddingOk);
+    }
+
+    /** Converts a bit count on the stack into a whole-byte count, rounding up: {@code Math.ceilDiv(bits, 8)}. */
+    private static void emitCeilDivBy8(CodeBuilder cb) {
+        cb.ldc(8L);
+        cb.invokestatic(CD_Math, "ceilDiv", MTD_ceilDiv);
     }
 
     /** Stack on entry: {@code [0L, size]}. Pushes {@code segment.byteSize()}, calls the check, discards the result. */
@@ -631,7 +757,10 @@ class ImplClassWriter {
     /**
      * Generates a method body that marshals {@code String} parameters to native memory before the call.
      * Opens a confined {@code Arena} per call, allocates each {@code String} param via
-     * {@code MemorySegmentUtil.allocateString}, and closes the arena in both normal and exception paths.
+     * {@code MemorySegmentAdapter.allocateString}, and closes the arena in both normal and exception paths.
+     * Parameters annotated {@code @WideString} (per {@link MethodModel#wideStringParamIndices()}) are
+     * allocated via the charset-aware {@code allocateString(Arena, String, Charset)} overload with
+     * {@code StandardCharsets.UTF_16LE}; all other {@code String} params use the plain UTF-8 overload.
      *
      * <p>Local variable layout (slots):
      * <ul>
@@ -667,11 +796,13 @@ class ImplClassWriter {
         code.astore(arenaSlot);
 
         code.trying(tryBlock -> {
-            // Marshal each String param: MemorySegment $sN = MemorySegmentUtil.allocateString(arena, strN)
+            // Marshal each String param: MemorySegment $sN = MemorySegmentAdapter.allocateString(arena, strN)
             int slot = 1;
             int marshaledSlot = arenaSlot + 1;
+            int paramIndex = 0;
             for (NativeType paramType : paramTypes) {
                 if (paramType == NativeType.STRING) {
+                    boolean wide = nm.wideStringParamIndices().contains(paramIndex);
                     var notNull = tryBlock.newLabel();
                     var end = tryBlock.newLabel();
                     tryBlock.aload(slot);
@@ -681,19 +812,23 @@ class ImplClassWriter {
                     tryBlock.labelBinding(notNull);
                     tryBlock.aload(arenaSlot);
                     tryBlock.aload(slot);
-                    tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    if (wide) {
+                        emitPushUtf16LEConstant(tryBlock);
+                        tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString_charset);
+                    } else {
+                        tryBlock.invokestatic(CD_MemorySegmentAdapter, "allocateString", MTD_MemorySegmentAdapter_allocateString);
+                    }
                     tryBlock.labelBinding(end);
                     tryBlock.astore(marshaledSlot);
                     marshaledSlot++;
                 }
                 slot += slotWidth(paramType);
+                paramIndex++;
             }
 
             // Push method handle, then all params (String params → their marshaled MemorySegment slots)
             tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
-            if (nm.capturesErrno()) {
-                tryBlock.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);
-            }
+            emitCaptureStateSegment(tryBlock, nm.capturedError());
             slot = 1;
             marshaledSlot = arenaSlot + 1;
             for (NativeType paramType : paramTypes) {
@@ -732,6 +867,58 @@ class ImplClassWriter {
         }));
     }
 
+    /**
+     * Generates a method body for a method with one or more {@code @Upcall}-typed parameters.
+     * Before the downcall try block, installs a global-lifetime FFM upcall stub for each callback
+     * parameter via {@code LinkerHelper.upcallStub(mh, instance, fd, Arena.global())} and stores
+     * the resulting {@code MemorySegment} in a local. Each {@code UPCALL} parameter slot is
+     * replaced by its stub segment in the downcall.
+     */
+    private static void emitNativeFunctionMethodWithUpcalls(CodeBuilder code, ClassDesc generatedDesc, MethodModel nm, String fieldName) {
+        List<NativeType> paramTypes = nm.paramTypes();
+        int[] slots = computeParamSlots(paramTypes);
+
+        int nextSlot = 1;
+        for (NativeType t : paramTypes) {
+            nextSlot += slotWidth(t);
+        }
+
+        // Install a global-lifetime stub for each callback param and stash its MemorySegment.
+        Map<Integer, Integer> stubSlots = new HashMap<>();
+        for (UpcallModel upcall : nm.upcalls()) {
+            code.getstatic(generatedDesc, upcallMhFieldName(fieldName, upcall), CD_MethodHandle);
+            code.aload(slots[upcall.paramIndex()]);
+            code.getstatic(generatedDesc, upcallFdFieldName(fieldName, upcall), CD_FunctionDescriptor);
+            code.invokestatic(CD_Arena, "global", MTD_Arena_ofConfined, true);
+            code.invokestatic(CD_LinkerHelper, "upcallStub", MTD_upcallStub);
+            int stubSlot = nextSlot++;
+            code.astore(stubSlot);
+            stubSlots.put(upcall.paramIndex(), stubSlot);
+        }
+
+        code.trying(tryBlock -> {
+            tryBlock.getstatic(generatedDesc, fieldName, CD_MethodHandle);
+            emitCaptureStateSegment(tryBlock, nm.capturedError());
+            for (int i = 0; i < paramTypes.size(); i++) {
+                NativeType t = paramTypes.get(i);
+                if (t == NativeType.UPCALL) {
+                    tryBlock.aload(stubSlots.get(i));
+                } else {
+                    emitLoadParam(tryBlock, t, slots[i]);
+                }
+            }
+            tryBlock.invokevirtual(CD_MethodHandle, "invokeExact", buildInvokeExactDesc(nm));
+            emitTypedReturn(tryBlock, nm.returnType());
+        }, catchBuilder -> catchBuilder.catchingAll(catchBlock -> {
+            // throw new AssertionError(t) — stack on entry: [t]
+            catchBlock.new_(CD_AssertionError);
+            catchBlock.dup_x1();
+            catchBlock.swap();
+            catchBlock.invokespecial(CD_AssertionError, "<init>", MethodTypeDesc.of(CD_void, CD_Object));
+            catchBlock.athrow();
+        }));
+    }
+
     /** Stores the top-of-stack value (of the given native type) into a local variable slot. */
     private static void emitStore(CodeBuilder cb, NativeType type, int slot) {
         switch (type) {
@@ -757,15 +944,13 @@ class ImplClassWriter {
     }
 
     /**
-     * Invokes the native function through its downcall MethodHandle. Prepends {@code ERRNO_STATE}
-     * when {@code @CaptureErrno} is present.
+     * Invokes the native function through its downcall MethodHandle. When {@code @CaptureSystemError}
+     * is present, prepends the shared capture-state segment from {@code LinkerHelper.systemErrorState()}.
      */
     private static void emitInvokeExact(CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm, String fieldName) {
         cb.getstatic(generatedDesc, fieldName, CD_MethodHandle);
 
-        if (nm.capturesErrno()) {
-            cb.getstatic(CD_LinkerHelper, "ERRNO_STATE", CD_MemorySegment);
-        }
+        emitCaptureStateSegment(cb, nm.capturedError());
 
         int slot = 1;
         for (var paramType : nm.paramTypes()) {
@@ -864,7 +1049,8 @@ class ImplClassWriter {
             return;
         }
 
-        // Resolve the target struct and its array field from the model
+        // Resolve the target struct and its array field from the model. Only field shape is used
+        // below, which is platform-independent.
         StructModel targetStruct = model.structs()
             .stream()
             .filter(s -> s.simpleName().equals(nm.structReturnSimpleName()))
@@ -989,33 +1175,51 @@ class ImplClassWriter {
     // Descriptor helpers
     // -------------------------------------------------------------------------
 
-    /** Builds the Java-facing method descriptor, using Java types for all parameters and the return type. */
+    /**
+     * Builds the Java-facing method descriptor, using Java types for all parameters and the return
+     * type. An {@code @Upcall}-typed parameter keeps its declared callback interface type (resolved
+     * from {@link MethodModel#upcalls()} by parameter index) rather than the {@code UPCALL}
+     * marshaling type.
+     */
     private static MethodTypeDesc buildJavaMethodDesc(MethodModel nm, String libraryPrefix) {
         List<NativeType> paramTypes = nm.paramTypes();
         List<String> paramStructNames = nm.paramStructSimpleNames();
+        Map<Integer, String> upcallSamByIndex = new HashMap<>();
+        for (UpcallModel upcall : nm.upcalls()) {
+            upcallSamByIndex.put(upcall.paramIndex(), upcall.samQualifiedName());
+        }
         List<ClassDesc> paramDescs = new ArrayList<>();
         for (int i = 0; i < paramTypes.size(); i++) {
-            paramDescs.add(javaClassDescForParam(paramTypes.get(i), paramStructNames.get(i), libraryPrefix));
+            NativeType paramType = paramTypes.get(i);
+            ClassDesc desc;
+            if (paramType == NativeType.UPCALL) {
+                desc = ClassDesc.of(upcallSamByIndex.get(i));
+            } else {
+                desc = javaClassDescForParam(paramType, paramStructNames.get(i), libraryPrefix);
+            }
+            paramDescs.add(desc);
         }
         return MethodTypeDesc.of(javaClassDesc(nm.returnType()), paramDescs);
     }
 
     private static ClassDesc javaClassDescForParam(NativeType paramType, String structSimpleName, String libraryPrefix) {
         if (paramType == NativeType.ADDRESSABLE && structSimpleName != null) {
-            // Param is a struct interface that may not extend Addressable; use the struct interface type
-            // in the Java method descriptor so callers can pass the struct directly.
+            // Param is a struct interface, or a record/class implementing Addressable, that isn't
+            // declared as the literal Addressable type; use its own type in the Java method
+            // descriptor so callers can pass it directly.
             return ClassDesc.of(libraryPrefix + "$" + structSimpleName);
         }
         return javaClassDesc(paramType);
     }
 
     /**
-     * Builds the native-side descriptor for {@code MethodHandle.invokeExact}. When {@code @CaptureErrno}
-     * is present, prepends {@code MemorySegment} (for {@code ERRNO_STATE}).
+     * Builds the native-side descriptor for {@code MethodHandle.invokeExact}. When
+     * {@code @CaptureSystemError} is present, prepends {@code MemorySegment} (obtained at call-time
+     * from {@code LinkerHelper.systemErrorState()}).
      */
     private static MethodTypeDesc buildInvokeExactDesc(MethodModel nm) {
         List<ClassDesc> paramDescs = new ArrayList<>();
-        if (nm.capturesErrno()) {
+        if (nm.capturedError() != MethodModel.CapturedError.NONE) {
             paramDescs.add(CD_MemorySegment);
         }
         for (var paramType : nm.paramTypes()) {
@@ -1037,7 +1241,7 @@ class ImplClassWriter {
     private static ClassDesc nativeClassDesc(NativeType type) {
         return switch (type) {
             case VOID -> CD_void;
-            case ADDRESS, STRING -> CD_MemorySegment;
+            case ADDRESS, STRING, UPCALL -> CD_MemorySegment;
             case ADDRESSABLE -> CD_long;
             default -> primitiveClassDesc(type);
         };

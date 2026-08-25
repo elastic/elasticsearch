@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -59,7 +61,9 @@ public interface TableCatalog extends ExternalSourceFactory, Closeable {
         try {
             return metadata(location, config);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+            // Types the catalog's I/O failure as client-caused and keeps its diagnosis rather than replacing it with
+            // a constant. Same rule as FileSourceFactory#resolveMetadata.
+            throw new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(location, e), e);
         }
     }
 

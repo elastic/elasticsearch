@@ -24,6 +24,7 @@ import java.net.URI;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Represents the settings for a Llama chat completion service. Extends {@link LlamaServiceSettings}, which carries the
@@ -45,7 +46,7 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
      */
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             Builder::new
         );

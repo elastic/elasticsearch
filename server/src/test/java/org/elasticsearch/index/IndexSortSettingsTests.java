@@ -136,7 +136,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(IndexSettings.SLICE_ENABLED.getKey(), true)
 
-            .putList("index.sort.field", SliceIndexing.PARAM_NAME, "field1")
+            .putList("index.sort.field", SliceIndexing.FIELD_NAME, "field1")
             .putList("index.sort.order", "desc", "asc")
             .putList("index.sort.mode", "max", "min")
             .putList("index.sort.missing", "_first", "_last")

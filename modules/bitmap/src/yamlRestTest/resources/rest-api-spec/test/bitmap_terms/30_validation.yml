@@ -1,0 +1,198 @@
+---
+"bitmap_terms rejects invalid fields and values":
+
+  # One index carrying every field shape the rejections need, so this exercises them all without
+  # paying for an index per case.
+  - do:
+      indices.create:
+        index: test_bitmap_validation
+        body:
+          mappings:
+            properties:
+              num:
+                type: integer
+              big:
+                type: long
+              kw:
+                type: keyword
+              dbl:
+                type: double
+              shrt:
+                type: short
+              num_no_index:
+                type: integer
+                index: false
+              big_no_index:
+                type: long
+                index: false
+
+  # --- unsupported field types -------------------------------------------------------------------
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: kw
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+  # Numeric, but only integer and long carry a bitmap-compatible term or point encoding.
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: dbl
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: shrt
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: does_not_exist
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+  # --- fields with indexing disabled -------------------------------------------------------------
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: num_no_index
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: big_no_index
+              value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+
+  # --- bitmaps holding negative values -----------------------------------------------------------
+  # Roaring bitmaps order values as unsigned, so a value with its sign bit set iterates last rather
+  # than first as a signed value would. That disagrees with the signed ordering of the field's points
+  # and terms, so such a bitmap is rejected rather than silently mismatched — at both widths.
+
+  # 32-bit bitmap {5, -1}
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OjAAAAIAAAAAAAAA//8AABgAAAAaAAAABQD//w=="
+
+  # 32-bit bitmap whose only value is negative, i.e. 2^31 read as unsigned
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "OjAAAAEAAAAAgAAAEAAAAAAA"
+
+  # 64-bit bitmap {1000000000001, -5}
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: big
+              value: "AgAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ/////zowAAABAAAA//8AABAAAAD7/w=="
+
+  # --- mismatched bitmap width -------------------------------------------------------------------
+
+  # A 32-bit bitmap sent to a long field: the leading bytes would be read as a 64-bit bucket count.
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: big
+              value: "OzAAAAEAAAoAAQAFAAoA"
+
+  # A 64-bit bitmap sent to an integer field: the leading bucket count is not a valid 32-bit cookie.
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
+
+  # --- malformed values --------------------------------------------------------------------------
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "this is not base64!!"
+
+  # Valid base64, but not a serialized bitmap.
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: num
+              value: "AQIDBAUGBwgJCg=="
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: big
+              value: "AQIDBAUGBwgJCg=="
+
+  # A valid 64-bit bitmap followed by trailing bytes.
+  - do:
+      catch: bad_request
+      search:
+        index: test_bitmap_validation
+        body:
+          query:
+            bitmap_terms:
+              field: big
+              value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzD///8="

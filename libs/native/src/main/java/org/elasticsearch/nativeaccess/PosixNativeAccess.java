@@ -14,7 +14,6 @@ import org.elasticsearch.nativeaccess.jdk.PosixMappedSegment;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
-import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -31,7 +30,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
-    protected final VectorSimilarityFunctions vectorDistance;
+    protected final SimdVecLibrary vectorDistance;
     protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
@@ -39,7 +38,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
+        this.vectorDistance = vectorSimilarityFunctionsOrNull();
         this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
@@ -70,13 +69,15 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
-    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
-        if (isNativeVectorLibSupported()) {
-            var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
-            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-            return lib;
+    static SimdVecLibrary vectorSimilarityFunctionsOrNull() {
+        if (isNativeVectorLibSupported() == false) {
+            return null;
         }
-        return null;
+        var lib = SimdVecLibrary.tryLoad().orElse(null);
+        if (lib != null) {
+            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
+        }
+        return lib;
     }
 
     static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
@@ -151,7 +152,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     @Override
     public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
 
         int fd = libc.open(path.toAbsolutePath().toString(), O_RDONLY);
         if (fd == -1) {
@@ -190,7 +191,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
             return;
         }
 
-        var stats = libc.newStat64(constants.statStructSize(), constants.statStructSizeOffset(), constants.statStructBlocksOffset());
+        var stats = libc.newStat64();
         if (libc.fstat64(fd, stats) != 0) {
             logger.warn("Could not get stats for file [" + file + "] to preallocate size: " + libc.strerror(libc.errno()));
         } else {
@@ -207,7 +208,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
-    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
         return Optional.ofNullable(vectorDistance);
     }
 
@@ -230,7 +231,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
+        return Runtime.version().feature() >= 22 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
     }
 
     static boolean isNativeRustLibSupported() {

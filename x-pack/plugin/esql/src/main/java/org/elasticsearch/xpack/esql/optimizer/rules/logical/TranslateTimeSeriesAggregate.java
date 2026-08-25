@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.apache.lucene.util.MathUtil;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -33,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -56,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -166,8 +166,6 @@ import java.util.function.Consumer;
  */
 public final class TranslateTimeSeriesAggregate extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
-    static final int MAX_SUB_BUCKETS = 128;
-
     @Override
     protected boolean skipResolved() {
         return false;
@@ -175,6 +173,14 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
+        LogicalPlan translated = translate(inputAggregate, context);
+        if (translated == inputAggregate) {
+            return translated;
+        }
+        return usePackDimsAgg(translated, context);
+    }
+
+    LogicalPlan translate(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
         if (inputAggregate.resolved() == false) {
             return inputAggregate;
         }
@@ -291,7 +297,19 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             if (group instanceof Attribute || group instanceof Alias) {
                 NamedExpression g = (NamedExpression) group;
                 if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
+                    var firstPassBucket = g instanceof Attribute ? timeBucket.toAttribute() : timeBucket;
+                    // use different name for bucket in the first pass if conflict
+                    if (firstPassBucket instanceof Alias alias
+                        && aggregate.child().output().stream().anyMatch(a -> a.name().equals(alias.name()))) {
+                        firstPassBucket = new Alias(
+                            timeBucket.source(),
+                            Attribute.rawTemporaryName(timeBucket.name(), "time_bucket"),
+                            Alias.unwrap(firstPassBucket),
+                            firstPassBucket.id()
+                        );
+                    }
+                    firstPassGroupings.add(firstPassBucket);
+                    secondPassGroupings.add(new Alias(group.source(), g.name(), firstPassBucket.toAttribute(), g.id()));
                 } else {
                     var unwrapped = Alias.unwrap(g);
                     if (unwrapped instanceof Attribute a) {
@@ -321,24 +339,11 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         if (userBucket == null) {
             userBucket = (Bucket) Alias.unwrap(timeBucket);
         }
-        Bucket internalBucket = computeInternalBucket(userBucket, firstPassAggs);
-        if (internalBucket != null && internalBucket != userBucket) {
-            // Replace the user bucket with the finer-grained internal bucket in the first-pass groupings
-            for (int i = 0; i < firstPassGroupings.size(); i++) {
-                Expression g = firstPassGroupings.get(i);
-                if (g instanceof Alias a && Alias.unwrap(a) instanceof Bucket) {
-                    firstPassGroupings.set(i, new Alias(a.source(), a.name(), internalBucket, a.id()));
-                } else if (g instanceof Attribute attr && timeBucket != null && attr.id().equals(timeBucket.id())) {
-                    firstPassGroupings.set(i, new Alias(timeBucket.source(), timeBucket.name(), internalBucket, timeBucket.id()));
-                }
-            }
-        }
         final var firstPhase = new TimeSeriesAggregate(
             aggregate.source(),
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            internalBucket != null ? internalBucket : userBucket,
             userBucket,
             aggregate.timestamp(),
             aggregate.origin()
@@ -360,7 +365,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             );
             Alias packedGrouping = PackDims.newPackedGrouping(aggregate.source(), packDims.packed());
             secondPassGroupings.add(packedGrouping);
-            Aggregate secondPhase = new Aggregate(
+
+            // Drop second-pass aggs whose names collide with user groupings before building Aggregate/Project.
+            // PackDims would otherwise emit Project[[alias, grouping]]; optimizer RemoveStatsOverride cannot fix that.
+            shadowAggsOverriddenByGroupings(aggregate, context, secondPassAggs);
+
+            var secondPhase = new Aggregate(
                 aggregate.source(),
                 packDims,
                 secondPassGroupings,
@@ -384,6 +394,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         }
     }
 
+    private static void shadowAggsOverriddenByGroupings(
+        TimeSeriesAggregate inputAggregate,
+        AnalyzerContext context,
+        List<NamedExpression> secondPassAggs
+    ) {
+        var aggsThenGroupings = new ArrayList<NamedExpression>(secondPassAggs.size() + inputAggregate.groupings().size());
+        aggsThenGroupings.addAll(secondPassAggs);
+        for (var g : inputAggregate.groupings()) {
+            aggsThenGroupings.add(Expressions.attribute(g));
+        }
+
+        List<NamedExpression> unique = RemoveStatsOverride.keepLastNamedExpression(
+            aggsThenGroupings,
+            context.deferredHeaderWarnings()::add
+        );
+
+        Set<NameId> originalAggIds = secondPassAggs.stream().map(NamedExpression::id).collect(Collectors.toUnmodifiableSet());
+
+        secondPassAggs.clear();
+        secondPassAggs.addAll(unique.stream().filter(e -> originalAggIds.contains(e.id())).toList());
+    }
+
     private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {
         return (TimeSeriesAggregate) aggregate.transformExpressionsOnly(TimeSeriesAggregateFunction.class, aggFunc -> {
             if (aggFunc instanceof SurrogateExpression) {
@@ -394,16 +426,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return aggFunc;
         }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
-    }
-
-    private void addBucket(
-        NamedExpression timeBucket,
-        NamedExpression group,
-        List<Expression> firstPassGroupings,
-        List<Expression> secondPassGroupings
-    ) {
-        firstPassGroupings.add(timeBucket);
-        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
     }
 
     private void addAttribute(
@@ -467,95 +489,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         if (hasWindow == false) {
             return;
         }
-        // Validate against the user-visible output bucket, not the internal (possibly GCD-sized) bucket
-        final Bucket outputBucket = agg.outputTimeBucket() != null ? agg.outputTimeBucket() : agg.timeBucket();
-        final long bucketInMillis = getTimeBucketInMillis(outputBucket);
+        final long bucketInMillis = getTimeBucketInMillis(agg.timeBucket());
         if (bucketInMillis <= 0) {
             throw new IllegalArgumentException(
                 "Using a window in aggregation [" + agg.sourceText() + "] requires a time bucket in groupings"
             );
         }
-    }
-
-    /**
-     * Computes a finer-grained internal bucket when window is not an exact multiple of the user bucket.
-     * The internal bucket size is the GCD of the user bucket and all window durations, ensuring that
-     * both the window and the user bucket are exact multiples of the internal bucket.
-     * Returns the original bucket when no sub-bucketing is needed, or null if no bucket is provided.
-     */
-    Bucket computeInternalBucket(Bucket userBucket, List<NamedExpression> aggregates) {
-        if (userBucket == null) {
-            return null;
-        }
-        if (userBucket.buckets().foldable() == false || (userBucket.buckets().fold(FoldContext.small()) instanceof Duration) == false) {
-            return userBucket;
-        }
-        long bucketMillis = ((Duration) userBucket.buckets().fold(FoldContext.small())).toMillis();
-        if (bucketMillis <= 0) {
-            return userBucket;
-        }
-        long gcdMillis = bucketMillis;
-        boolean hasSmallWindow = false;
-        boolean hasNonMultipleWindow = false;
-        List<String> windowSourceTexts = new ArrayList<>();
-        for (NamedExpression ne : aggregates) {
-            if (Alias.unwrap(ne) instanceof AggregateFunction af && af.hasWindow()) {
-                Expression window = af.window();
-                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
-                    long windowMillis = d.toMillis();
-                    if (windowMillis > 0) {
-                        windowSourceTexts.add(window.sourceText());
-                        if (windowMillis < bucketMillis) {
-                            hasSmallWindow = true;
-                        } else {
-                            gcdMillis = MathUtil.gcd(gcdMillis, windowMillis);
-                            if (windowMillis % bucketMillis != 0) {
-                                hasNonMultipleWindow = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (hasSmallWindow && hasNonMultipleWindow) {
-            throw new IllegalArgumentException(
-                "Combining windows smaller than the time bucket with non-multiple windows in the same aggregation is not supported"
-            );
-        }
-        if (hasSmallWindow) {
-            return userBucket;
-        }
-        if (hasNonMultipleWindow == false || gcdMillis == bucketMillis) {
-            return userBucket;
-        }
-        long subBuckets = bucketMillis / gcdMillis;
-        if (subBuckets > MAX_SUB_BUCKETS) {
-            String windowSizes = windowSourceTexts.stream().distinct().toList().toString();
-            throw new IllegalArgumentException(
-                "The window "
-                    + windowSizes
-                    + " and bucket ["
-                    + userBucket.buckets().sourceText()
-                    + "] combination requires ["
-                    + subBuckets
-                    + "] internal sub-buckets of size ["
-                    + TimeValue.timeValueMillis(gcdMillis)
-                    + "] per output bucket, which exceeds the limit of ["
-                    + MAX_SUB_BUCKETS
-                    + "]; use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
-            );
-        }
-        Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
-        return new Bucket(
-            userBucket.source(),
-            userBucket.field(),
-            gcdInterval,
-            null,
-            null,
-            userBucket.configuration(),
-            userBucket.offset(),
-            userBucket.roundingConfiguration()
-        );
     }
 
     private long getTimeBucketInMillis(final Bucket bucket) {
@@ -618,4 +557,28 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         });
     }
 
+    static LogicalPlan usePackDimsAgg(LogicalPlan plan, AnalyzerContext context) {
+        if (context.minimumVersion().supports(PackDimsAgg.PACK_DIMS_AGG_VERSION) == false) {
+            return plan;
+        }
+        return plan.transformDown(PackDims.class, packDims -> {
+            if (packDims.child() instanceof TimeSeriesAggregate aggs) {
+                List<NamedExpression> newAggregates = new ArrayList<>();
+                List<Attribute> dims = new ArrayList<>();
+                for (NamedExpression agg : aggs.aggregates()) {
+                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction fn) {
+                        if (fn instanceof DimensionValues dv) {
+                            dims.add((Attribute) dv.field());
+                        } else {
+                            newAggregates.add(agg);
+                        }
+                    }
+                }
+                Attribute packed = packDims.packed();
+                newAggregates.add(new Alias(packDims.source(), packed.name(), PackDimsAgg.create(aggs.source(), dims), packed.id()));
+                return aggs.with(aggs.child(), aggs.groupings(), mergeExpressions(newAggregates, aggs.groupings()));
+            }
+            return packDims;
+        });
+    }
 }

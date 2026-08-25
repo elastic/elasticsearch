@@ -92,21 +92,23 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
       BytesRef toUnitScratch = new BytesRef();
       BytesRef fromUnitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (toUnitBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (toUnitBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
               warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
               result.appendNull();
               continue position;
+        }
+        if (fromUnitBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
         }
         switch (fromUnitBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -114,10 +116,11 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (dateBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (dateBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -161,7 +164,7 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

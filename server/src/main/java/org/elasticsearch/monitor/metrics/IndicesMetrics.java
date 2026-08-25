@@ -89,7 +89,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         for (IndexMode indexMode : availableModes) {
             String name = indexMode.getName();
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".total",
                     "total number of " + name + " indices",
                     "unit",
@@ -97,7 +97,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".docs.total",
                     "total documents of " + name + " indices",
                     "unit",
@@ -105,7 +105,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".size",
                     "total size in bytes of " + name + " indices",
                     "bytes",
@@ -114,7 +114,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
             // query (count, took, failures) - use gauges as shards can be removed
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".query.total",
                     "current queries of " + name + " indices",
                     "unit",
@@ -122,7 +122,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".query.time",
                     "current query time of " + name + " indices",
                     "ms",
@@ -130,7 +130,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".query.failure.total",
                     "current query failures of " + name + " indices",
                     "unit",
@@ -139,7 +139,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
             // fetch (count, took, failures) - use gauges as shards can be removed
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".fetch.total",
                     "current fetches of " + name + " indices",
                     "unit",
@@ -147,7 +147,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".fetch.time",
                     "current fetch time of " + name + " indices",
                     "ms",
@@ -155,7 +155,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".fetch.failure.total",
                     "current fetch failures of " + name + " indices",
                     "unit",
@@ -164,7 +164,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
             // indexing
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".indexing.total",
                     "current indexing operations of " + name + " indices",
                     "unit",
@@ -172,7 +172,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".indexing.time",
                     "current indexing time of " + name + " indices",
                     "ms",
@@ -180,7 +180,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".indexing.failure.total",
                     "current indexing failures of " + name + " indices",
                     "unit",
@@ -188,7 +188,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
                 )
             );
             metrics.add(
-                registry.registerLongGauge(
+                registry.registerLongAsyncGauge(
                     "es.indices." + name + ".indexing.failure.version_conflict.total",
                     "current indexing failures due to version conflict of " + name + " indices",
                     "unit",
@@ -197,7 +197,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
         }
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 FIELD_INFOS_CACHED_CURRENT_METRIC_NAME,
                 "Unique FieldInfo instances retained by the per-shard FieldInfo cache across all shards on this node; "
                     + "deduped count of "
@@ -209,7 +209,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 FIELD_INFOS_CURRENT_METRIC_NAME,
                 "Raw count of FieldInfo instances summed across every segment of every shard on this node, before " + "deduplication",
                 "unit",
@@ -217,14 +217,14 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             )
         );
         metrics.add(
-            registry.registerLongGauge(
+            registry.registerLongAsyncGauge(
                 MAPPING_FIELDS_CURRENT_METRIC_NAME,
                 "Total fields defined in the index mappings of all shards on this node",
                 "unit",
                 () -> new LongWithAttributes(getTotalMappingFieldCount(cache.indicesService))
             )
         );
-        metrics.add(registry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
+        metrics.add(registry.registerLongAsyncGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
             if (clusterService.lifecycleState() != STARTED) {
                 return null;
             }
@@ -318,19 +318,22 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         return count;
     }
 
-    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService) {
+    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService, IndexMode[] availableModes) {
         Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-        for (IndexMode mode : IndexMode.availableModes()) {
+        for (IndexMode mode : availableModes) {
             stats.put(mode, new IndexStats());
         }
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.isSystem()) {
-                    continue; // skip system indices
+                    continue;
                 }
                 final ShardRouting shardRouting = indexShard.routingEntry();
                 final IndexMode indexMode = indexShard.indexSettings().getMode();
                 final IndexStats indexStats = stats.get(indexMode);
+                if (indexStats == null) {
+                    continue;
+                }
                 try {
                     if (shardRouting.primary() && shardRouting.recoverySource() == null) {
                         if (shardRouting.shardId().id() == 0) {
@@ -370,7 +373,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
 
         @Override
         protected Map<IndexMode, IndexStats> refresh() {
-            return refresh ? getStatsWithoutCache(indicesService) : getNoRefresh();
+            return refresh ? getStatsWithoutCache(indicesService, IndexMode.availableModes()) : getNoRefresh();
         }
 
         @Override

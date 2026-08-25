@@ -108,17 +108,11 @@ public class HistogramGroupByIT extends ContinuousTestCase {
         var destIterator = hits.iterator();
 
         while (sourceIterator.hasNext() && destIterator.hasNext()) {
-            var bucket = sourceIterator.next();
+            var bucket = nextNonEmptyAggregationBucket(sourceIterator, iteration);
             var searchHit = destIterator.next();
             var source = (Map<String, Object>) searchHit.get("_source");
 
             long transformBucketKey = ((Integer) extractValue("metric", source)).longValue();
-
-            // aggs return buckets with 0 doc_count while composite aggs skip over them
-            while ((Integer) bucket.get("doc_count") == 0) {
-                assertTrue(sourceIterator.hasNext());
-                bucket = sourceIterator.next();
-            }
             long bucketKey = ((Double) bucket.get("key")).longValue();
 
             // test correctness, the results from the aggregation and the results from the transform should be the same
@@ -151,8 +145,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
             }
         }
 
-        assertFalse(sourceIterator.hasNext());
-        assertFalse(destIterator.hasNext());
+        assertAggregationAndDestinationIteratorsExhausted(sourceIterator, destIterator, iteration);
     }
 
 }

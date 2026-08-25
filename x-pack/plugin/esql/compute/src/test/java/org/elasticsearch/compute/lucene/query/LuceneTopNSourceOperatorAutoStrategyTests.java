@@ -33,6 +33,7 @@ import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.util.List;
@@ -59,10 +60,9 @@ public class LuceneTopNSourceOperatorAutoStrategyTests extends ESTestCase {
     private Directory directory;
     private IndexReader reader;
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void closeIndex() throws Exception {
         IOUtils.close(reader, directory);
-        super.tearDown();
     }
 
     private static String kw(int i) {

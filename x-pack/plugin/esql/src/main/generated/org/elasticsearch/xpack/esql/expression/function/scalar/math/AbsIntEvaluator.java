@@ -61,10 +61,11 @@ public final class AbsIntEvaluator implements ExpressionEvaluator {
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (fieldValBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -111,7 +112,7 @@ public final class AbsIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

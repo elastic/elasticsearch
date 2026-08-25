@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149533
-summary: Anchor CSV row errors on the parser fault offset
-type: enhancement

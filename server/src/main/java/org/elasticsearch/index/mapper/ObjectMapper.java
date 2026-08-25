@@ -19,11 +19,11 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -50,8 +50,6 @@ import java.util.stream.Stream;
 public class ObjectMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
-    static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
-
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
@@ -108,6 +106,12 @@ public class ObjectMapper extends Mapper {
             DynamicFieldsBuilder getDynamicFieldsBuilder() {
                 return DynamicFieldsBuilder.DYNAMIC_RUNTIME;
             }
+        },
+        FLATTENED {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_FLATTENED;
+            }
         };
 
         DynamicFieldsBuilder getDynamicFieldsBuilder() {
@@ -117,11 +121,19 @@ public class ObjectMapper extends Mapper {
         /**
          * Get the root-level dynamic setting for a Mapping
          *
-         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}
+         * If no dynamic settings are explicitly configured, we default to {@link #TRUE}, unless the implicit flattened
+         * {@code _unmapped} sink is present, in which case unmapped fields default to being absorbed ({@link #FLATTENED}).
          */
         static Dynamic getRootDynamic(MappingLookup mappingLookup) {
             Dynamic rootDynamic = mappingLookup.getMapping().getRoot().dynamic;
-            return rootDynamic == null ? Defaults.DYNAMIC : rootDynamic;
+            if (rootDynamic != null) {
+                return rootDynamic;
+            }
+            if (mappingLookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME) instanceof FlattenedFieldMapper sink
+                && sink.isUnmappedSink()) {
+                return FLATTENED;
+            }
+            return Defaults.DYNAMIC;
         }
     }
 
@@ -986,12 +998,14 @@ public class ObjectMapper extends Mapper {
 
         int count = 0;
         for (Mapper mapper : sortedMappers) {
-            if ((mapper instanceof MetadataFieldMapper) == false) {
-                if (count++ == 0) {
-                    builder.startObject("properties");
-                }
-                mapper.toXContent(builder, params);
+            // The implicit _unmapped sink is injected on every mapping-source parse, so it must never be serialized back out.
+            if (mapper instanceof MetadataFieldMapper || (mapper instanceof FlattenedFieldMapper flattened && flattened.isUnmappedSink())) {
+                continue;
             }
+            if (count++ == 0) {
+                builder.startObject("properties");
+            }
+            mapper.toXContent(builder, params);
         }
         if (count > 0) {
             builder.endObject();

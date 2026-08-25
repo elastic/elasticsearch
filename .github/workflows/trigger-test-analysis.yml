@@ -18,21 +18,73 @@ jobs:
       (
         github.event.label.name == 'needs:risk' ||
         github.event.label.name == '>test-failure' ||
-        github.event.label.name == 'Team:Delivery' ||
-        github.event.label.name == 'Team:Core/Infra'
+        startsWith(github.event.label.name, 'Team:')
       )
     concurrency:
       group: test-analysis-${{ github.event.issue.number }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
+      - name: Check if analysis was already triggered
+        id: check-processed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const reactionContent = 'eyes';
+
+            const reactions = await github.paginate(
+              github.rest.reactions.listForIssue,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+              }
+            );
+
+            const alreadyReacted = reactions.some(
+              (reaction) =>
+                reaction.content === reactionContent &&
+                reaction.user?.type === 'Bot'
+            );
+
+            if (alreadyReacted) {
+              core.info(`Issue #${issue.number} already has a :${reactionContent}: reaction from a bot; skipping analysis`);
+            }
+
+            core.setOutput('alreadyProcessed', alreadyReacted);
+
+      - name: Determine team-based analysis config
+        id: team-config
+        if: steps.check-processed.outputs.alreadyProcessed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Teams that do NOT want the analysis posted as an issue comment.
+            // Every other team gets the comment by default.
+            const ANALYSIS_COMMENT_OPTOUT_TEAMS = ['Team:Analytics'];
+
+            // Teams that want the `needs:risk` triage label updated based on
+            // the analysis result. Every other team is left untouched.
+            const TRIAGE_LABEL_OPTIN_TEAMS = ['Team:Core/Infra'];
+
+            const issueLabels = context.payload.issue.labels.map((label) => label.name);
+
+            const commentOptedOut = issueLabels.some((label) => ANALYSIS_COMMENT_OPTOUT_TEAMS.includes(label));
+            const labelUpdateOptedIn = issueLabels.some((label) => TRIAGE_LABEL_OPTIN_TEAMS.includes(label));
+
+            core.setOutput('reportToPr', !commentOptedOut);
+            core.setOutput('updateNeedsRiskLabel', labelUpdateOptedIn);
+
       - name: Trigger Buildkite pipeline
+        if: steps.check-processed.outputs.alreadyProcessed != 'true'
         env:
           BUILDKITE_API_TOKEN: ${{ secrets.BUILDKITE_API_TOKEN }}
           ISSUE_URL:    ${{ github.event.issue.html_url }}
           ISSUE_TITLE:  ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          REPORT_TO_PR: ${{ contains(github.event.issue.labels.*.name, 'Team:Delivery') || contains(github.event.issue.labels.*.name, 'Team:Core/Infra') }}
+          REPORT_TO_PR: ${{ steps.team-config.outputs.reportToPr }}
+          UPDATE_NEEDS_RISK_LABEL: ${{ steps.team-config.outputs.updateNeedsRiskLabel }}
         run: |
           set -euo pipefail
 
@@ -44,6 +96,7 @@ jobs:
             --arg num   "$ISSUE_NUMBER" \
             --argjson report "$REPORT_TO_PR" \
             --argjson dryRun "$DRY_RUN" \
+            --argjson updateLabel "$UPDATE_NEEDS_RISK_LABEL" \
             '{
               branch:  "main",
               commit:  "HEAD",
@@ -53,7 +106,7 @@ jobs:
                 WORKFLOW: "test-analysis",
                 REPORT_TO_PR: ($report | tostring),
                 DRY_RUN: ($dryRun | tostring),
-                UPDATE_NEEDS_RISK_LABEL: ($report | tostring)
+                UPDATE_NEEDS_RISK_LABEL: ($updateLabel | tostring)
               }
             }')
 
@@ -64,26 +117,19 @@ jobs:
             --header "Content-Type: application/json" \
             --data "$BODY"
 
-      - name: Mark issue as processed (:eyes:)
+      - name: "Mark issue as processed (:eyes: reaction)"
+        if: steps.check-processed.outputs.alreadyProcessed != 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const issue = context.payload.issue;
-            const marker = ':eyes:';
-            const body = issue.body || '';
+            const reactionContent = 'eyes';
 
-            if (body.includes(marker)) {
-              core.info(`Issue #${issue.number} already marked with ${marker}`);
-              return;
-            }
-
-            const updated = body.length > 0 ? `${body}\n\n${marker}` : marker;
-
-            await github.rest.issues.update({
+            await github.rest.reactions.createForIssue({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: updated,
+              content: reactionContent,
             });
 
-            core.info(`Marked issue #${issue.number} with ${marker}`);
+            core.info(`Added :${reactionContent}: reaction to issue #${issue.number}`);

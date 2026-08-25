@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.slm.history;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -19,11 +22,15 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,7 +83,7 @@ public class SnapshotHistoryStore implements Closeable {
     /**
      * For unit testing, allows a more frequent flushInterval
      */
-    SnapshotHistoryStore(
+    public SnapshotHistoryStore(
         Client client,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -113,8 +120,8 @@ public class SnapshotHistoryStore implements Closeable {
                         );
                         throw new ElasticsearchException(e);
                     }
-                    if (logger.isTraceEnabled()) {
-                        logger.info(
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
                             "about to index: {}",
                             request.requests()
                                 .stream()
@@ -153,7 +160,12 @@ public class SnapshotHistoryStore implements Closeable {
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                     long items = request.numberOfActions();
-                    logger.error(() -> "failed to index " + items + " items into SLM history index", failure);
+                    logErrorOrWarning(
+                        logger,
+                        clusterService.state(),
+                        () -> "failed to index " + items + " items into SLM history index",
+                        failure
+                    );
                     listener.onFailure(failure);
                 }
             },
@@ -199,6 +211,22 @@ public class SnapshotHistoryStore implements Closeable {
             logger.warn("failed to shut down SLM history bulk processor after 10 seconds", e);
             Thread.currentThread().interrupt();
         }
+    }
+
+    // On node shutdown, some operations are expected to fail, we log a warning instead of error during node shutdown for those exceptions;
+    // also we expect some operations to fail due to backpressure, and these need not alert anyone either
+    public static void logErrorOrWarning(Logger logger, ClusterState clusterState, Supplier<?> failureMsgSupplier, Exception exception) {
+        final var cause = ExceptionsHelper.unwrapCause(exception);
+        final Level level;
+        if (cause instanceof CircuitBreakingException || cause instanceof EsRejectedExecutionException) {
+            level = Level.WARN;
+        } else if (PluginShutdownService.isLocalNodeShutdown(clusterState)) {
+            level = Level.WARN;
+        } else {
+            level = Level.ERROR;
+        }
+
+        logger.log(level, failureMsgSupplier, exception);
     }
 
     public void setSlmHistoryEnabled(boolean slmHistoryEnabled) {

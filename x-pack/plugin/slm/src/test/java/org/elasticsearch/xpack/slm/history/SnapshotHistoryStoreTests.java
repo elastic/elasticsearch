@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.slm.history;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -35,6 +38,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
@@ -167,6 +172,61 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             historyStore.putAsync(record);
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRetryOnEsRejectedExecutionException() throws Exception {
+        String policyId = randomAlphaOfLength(5);
+        SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
+        final long timestamp = randomNonNegativeLong();
+        String snapshotId = generateSnapshotName(policy.getName());
+        SnapshotHistoryItem record = SnapshotHistoryItem.creationSuccessRecord(timestamp, policy, snapshotId);
+
+        AtomicInteger attemptCount = new AtomicInteger(0);
+        CountDownLatch successLatch = new CountDownLatch(1);
+
+        // Use test-only constructor with short flushInterval for faster test
+        SnapshotHistoryStore retryHistoryStore = new SnapshotHistoryStore(
+            client,
+            clusterService,
+            threadPool,
+            ActionListener.wrap(response -> successLatch.countDown(), e -> {
+                // BulkProcessor2 will handle retries internally
+                if (attemptCount.get() < 3) {
+                    // First few attempts should fail with rejection
+                    if (e.getCause() instanceof EsRejectedExecutionException == false) {
+                        fail("Expected EsRejectedExecutionException on initial attempts");
+                    }
+                }
+            }),
+            TimeValue.timeValueMillis(100) // Short flush interval for faster test
+        );
+
+        client.setVerifier((action, request, listener) -> {
+            int currentAttempt = attemptCount.incrementAndGet();
+            assertThat(action, sameInstance(TransportBulkAction.TYPE));
+            assertThat(request, instanceOf(BulkRequest.class));
+
+            @SuppressWarnings("unchecked")
+            ActionListener<BulkResponse> bulkListener = (ActionListener<BulkResponse>) listener;
+
+            if (currentAttempt <= 2) {
+                // First 2 attempts fail with EsRejectedExecutionException
+                bulkListener.onFailure(new EsRejectedExecutionException("rejected"));
+            } else {
+                // Third attempt succeeds
+                bulkListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
+            }
+            return null;
+        });
+
+        retryHistoryStore.putAsync(record);
+
+        // Wait for success after retries
+        assertTrue("BulkProcessor2 should retry and eventually succeed", successLatch.await(10, TimeUnit.SECONDS));
+        assertEquals("Should have retried 3 times total", 3, attemptCount.get());
+
+        retryHistoryStore.close();
     }
 
     @SuppressWarnings("unchecked")

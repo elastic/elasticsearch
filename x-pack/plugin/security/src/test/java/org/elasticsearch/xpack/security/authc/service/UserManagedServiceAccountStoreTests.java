@@ -211,10 +211,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
     public void testGetByPrincipalFindsNothingForPrincipalsNoAccountCouldHold() {
         final String principal = randomFrom(
-            "elastic/fleet-server",       // the reserved namespace
-            "engineering",                // not a {namespace}/{service-name} pair
-            "engineering/deploy bot",     // outside the permitted character set
-            "_engineering/deploy_bot"     // does not start with a letter or digit
+            reservedNamespace() + "/fleet-server", // the reserved namespace, in any capitalization
+            "engineering",                         // not a {namespace}/{service-name} pair
+            "engineering/deploy bot",              // outside the permitted character set
+            "_engineering/deploy_bot"              // does not start with a letter or digit
         );
         assertThat(getByPrincipal(principal), nullValue());
         assertThat(getRequestCount.get(), equalTo(0));
@@ -311,7 +311,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     public void testPutAccountReportsEveryValidationErrorAtOnce() {
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
         store.putAccount(
-            new ServiceAccountId("elastic", "deploy bot"),
+            new ServiceAccountId(reservedNamespace(), "deploy bot"),
             List.of("a role name that is far too long".repeat(32)),
             true,
             RefreshPolicy.NONE,
@@ -381,7 +381,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
     public void testDeleteAccountRejectsAnIdNoAccountCouldHold() {
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        store.deleteAccount(new ServiceAccountId("elastic", "fleet-server"), RefreshPolicy.NONE, future);
+        store.deleteAccount(new ServiceAccountId(reservedNamespace(), "fleet-server"), RefreshPolicy.NONE, future);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(e.getMessage(), equalTo("the [elastic] namespace is reserved for built-in service accounts"));
@@ -449,7 +449,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
 
     public void testAStoredDocumentCannotClaimTheReservedNamespace() {
         // Principals are re-validated on read, so a document written by hand cannot shadow a built-in account.
-        respondToSearchWith(List.of(accountDocument("elastic/fleet-server", List.of(ROLE_A), true)));
+        respondToSearchWith(List.of(accountDocument(reservedNamespace() + "/fleet-server", List.of(ROLE_A), true)));
         assertThat(listAccounts(null, null), empty());
     }
 
@@ -464,7 +464,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
     }
 
     public void testListAccountsFindsNothingForIdsNoAccountCouldHold() {
-        assertThat(listAccounts("elastic", null), empty());
+        assertThat(listAccounts(reservedNamespace(), null), empty());
         assertThat(listAccounts("engineering*", null), empty());
         assertThat(listAccounts("engineering", "deploy*"), empty());
         assertThat(requests, empty());
@@ -499,6 +499,10 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final PlainActionFuture<Boolean> delete = new PlainActionFuture<>();
         store.deleteAccount(ACCOUNT_ID, RefreshPolicy.NONE, delete);
         assertThat(expectThrows(ElasticsearchException.class, delete::actionGet), is(unavailable));
+    }
+
+    private static String reservedNamespace() {
+        return randomFrom("elastic", "ELASTIC", "Elastic");
     }
 
     /**

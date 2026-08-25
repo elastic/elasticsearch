@@ -319,15 +319,16 @@ public class ValidationTests extends ESTestCase {
     }
 
     public void testUserManagedServiceAccountIdRejectsBuiltInNamespace() {
+        final String reserved = randomFrom("elastic", "ELASTIC", "Elastic", "eLaStIc");
         assertThat(
-            UserManagedServiceAccounts.validateNamespace("elastic").toString(),
+            UserManagedServiceAccounts.validateNamespace(reserved).toString(),
             containsString("the [elastic] namespace is reserved for built-in service accounts")
         );
         assertThat(
-            UserManagedServiceAccounts.validatePrincipal("elastic/" + randomUserManagedComponent()).toString(),
+            UserManagedServiceAccounts.validatePrincipal(reserved + "/" + randomUserManagedComponent()).toString(),
             containsString("reserved for built-in service accounts")
         );
-        // The reservation is on the exact namespace, not on anything resembling it
+        // Prefixes of the reserved name are a different namespace
         assertThat(UserManagedServiceAccounts.validateNamespace("elastic-team"), nullValue());
         assertThat(UserManagedServiceAccounts.validateServiceName("elastic"), nullValue());
     }
@@ -385,7 +386,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     private static String randomUserManagedComponent() {
-        return randomAlphaOfLength(1) + randomFrom("", "-", "_", randomAlphaOfLengthBetween(1, 20));
+        return randomAlphaOfLength(1) + randomFrom("-", "_") + randomFrom("", randomAlphaOfLengthBetween(1, 20));
     }
 
     private static char[] generateValidName(int length) {

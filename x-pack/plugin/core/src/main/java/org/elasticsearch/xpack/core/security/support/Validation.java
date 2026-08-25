@@ -290,7 +290,7 @@ public final class Validation {
         private UserManagedServiceAccounts() {}
 
         public static Error validateNamespace(String namespace) {
-            if (ServiceAccountSettings.BUILTIN_NAMESPACE.equals(namespace)) {
+            if (namespace != null && ServiceAccountSettings.BUILTIN_NAMESPACE.equalsIgnoreCase(namespace)) {
                 return new Error(
                     "the [" + ServiceAccountSettings.BUILTIN_NAMESPACE + "] namespace is reserved for built-in service accounts"
                 );

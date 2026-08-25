@@ -15,8 +15,9 @@ public final class ServiceAccountSettings {
     public static final String TOKEN_SOURCE_FIELD = "_token_source";
 
     /**
-     * The namespace of the built-in service accounts that ship with Elasticsearch. It is reserved: user-managed
-     * accounts may not be created in it, so a principal's namespace alone determines which kind of account it names.
+     * The namespace of the built-in service accounts that ship with Elasticsearch. It is reserved in any
+     * capitalization: user-managed accounts may not be created in {@code elastic}, {@code ELASTIC}, {@code Elastic}
+     * and so on, so a principal's namespace alone determines which kind of account it names.
      */
     public static final String BUILTIN_NAMESPACE = "elastic";
 

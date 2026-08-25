@@ -1,12 +1,20 @@
-area: "ILM, Data streams"
+area: "ILM"
 breaking:
-  area: "ILM, Data streams"
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
+  area: "ILM"
+  details: |-
+    A lookup index is supposed to be a unique single shard index and should never be rolled
+    over or manipulated in any other way by a lifecycle. For this reason, we change both
+    lifecycle features (data stream lifecycle and ILM) to skip lookup indices. The APIs that
+    are used to manage the lifecycle transitions of ILM will not accept lookup indices anymore.
+  impact: |-
+    Both lifecycle features (data stream lifecycle and ILM) will skip processing lookup indices.
+    This will make the lookup feature more resilient to a misconfiguration.
+    Furthermore, the APIs `POST /{index}/_ilm/retry` and `POST /_ilm/move/{index}` will return a
+    client error when a lookup index is used.
+
+  notable: true
   title: Lifecycle features skip lookup indices
-issues: []
+issues: [ 157133 ]
 pr: 157195
 summary: Lifecycle features skip lookup indices
-type: "breaking, bug"
+type: "breaking"

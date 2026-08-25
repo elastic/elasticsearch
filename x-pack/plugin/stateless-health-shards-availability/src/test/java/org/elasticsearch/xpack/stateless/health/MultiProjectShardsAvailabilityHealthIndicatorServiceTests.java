@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.IndexModule;
@@ -55,8 +56,10 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.health.HealthStatus.GREEN;
+import static org.elasticsearch.xpack.stateless.health.StatelessShardsAvailabilityHealthIndicatorService.ALL_REPLICAS_UNASSIGNED_IMPACT_ID;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -109,6 +112,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         int creatingPrimaries = 0;
         int creatingReplicas = 0;
         int restartingPrimaries = 0;
+        int restartingReplicas = 0;
         int unassignedPrimaries = 0;
 
         Set<ProjectId> projectIds = new HashSet<>();
@@ -182,20 +186,22 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     startedPrimaries++;
                     creatingReplicas++;
                 }
-                // The primary (and maybe replica) is unassigned because its node is restarting
-                // TODO -Randomise
+                // The primary (and maybe replica) is unassigned because its node is restarting.
                 case RESTARTING_NODE -> {
-                    var nodeId = randomNodeId();
-                    shutdowns.put(nodeId, restartShutdown(nodeId, 60));
-                    var metadata = indexMetadata(randomIndexName(), 1, 0);
+                    int replicaCount = randomBoolean() ? 1 : 0;
+                    var primaryNodeId = randomNodeId();
+                    shutdowns.put(primaryNodeId, restartShutdown(primaryNodeId, 60));
+                    var metadata = indexMetadata(randomIndexName(), 1, replicaCount);
                     var shardId = new ShardId(metadata.getIndex(), 0);
-                    indices.add(
-                        new IndexSetup(
-                            metadata,
-                            IndexRoutingTable.builder(metadata.getIndex()).addShard(restartingPrimary(shardId, nodeId)).build()
-                        )
-                    );
+                    var builder = IndexRoutingTable.builder(metadata.getIndex()).addShard(restartingShard(shardId, true, primaryNodeId));
                     restartingPrimaries++;
+                    if (replicaCount == 1) {
+                        var replicaNodeId = randomNodeId();
+                        shutdowns.put(replicaNodeId, restartShutdown(replicaNodeId, 60));
+                        builder.addShard(restartingShard(shardId, false, replicaNodeId));
+                        restartingReplicas++;
+                    }
+                    indices.add(new IndexSetup(metadata, builder.build()));
                 }
                 /*
                  * The mounted / searchable-snapshot primary is unassigned, but the original index
@@ -296,12 +302,23 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         // TODO - Assert symptom and diagnosis
 
         assertThat(assignment, result.status(), equalTo(GREEN));
-        assertThat(assignment, result.impacts(), empty());
+        if (restartingReplicas == 0) {
+            assertThat(assignment, result.impacts(), empty());
+        } else {
+            // Restarting replicas are unassigned, so stateless reports all_replicas_unassigned
+            // even though the indicator is green
+            assertThat(
+                assignment,
+                result.impacts().stream().map(HealthIndicatorImpact::id).toList(),
+                hasItem(ALL_REPLICAS_UNASSIGNED_IMPACT_ID)
+            );
+        }
         assertThat(assignment, details.get("started_primaries"), equalTo(startedPrimaries));
         assertThat(assignment, details.get("started_replicas"), equalTo(startedReplicas));
         assertThat(assignment, details.get("creating_primaries"), equalTo(creatingPrimaries));
         assertThat(assignment, details.get("creating_replicas"), equalTo(creatingReplicas));
         assertThat(assignment, details.get("restarting_primaries"), equalTo(restartingPrimaries));
+        assertThat(assignment, details.get("restarting_replicas"), equalTo(restartingReplicas));
         assertThat(assignment, details.get("unassigned_primaries"), equalTo(unassignedPrimaries));
         assertThat(assignment, details.get("unassigned_replicas"), equalTo(0));
         assertThat(assignment, details.get("indices_with_unavailable_primaries"), nullValue());
@@ -371,10 +388,8 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         return routing;
     }
 
-    private static ShardRouting restartingPrimary(ShardId shardId, String nodeId) {
-        // Must go STARTED then moveToUnassigned: a never-started primary is "creating", not "restarting".
-        // unassignedTimeNanos is System.nanoTime() (not wall-clock) so the 60s allocation delay has not elapsed.
-        return shardRouting(shardId, true, STARTED).moveToUnassigned(
+    private static ShardRouting restartingShard(ShardId shardId, boolean primary, String nodeId) {
+        return shardRouting(shardId, primary, STARTED).moveToUnassigned(
             new UnassignedInfo(
                 UnassignedInfo.Reason.NODE_RESTARTING,
                 null,

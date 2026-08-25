@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
@@ -48,13 +49,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
+import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.xpack.stateless.health.StatelessShardsAvailabilityHealthIndicatorService.ALL_REPLICAS_UNASSIGNED_IMPACT_ID;
 import static org.hamcrest.Matchers.empty;
@@ -114,6 +121,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         int restartingPrimaries = 0;
         int restartingReplicas = 0;
         int unassignedPrimaries = 0;
+        Set<String> diagnosedIndices = new TreeSet<>();
 
         Set<ProjectId> projectIds = new HashSet<>();
         while (projectIds.size() < projectCount) {
@@ -152,6 +160,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                         builder.addShard(shardRouting(shardId, false, UNASSIGNED, RecoverySource.PeerRecoverySource.INSTANCE, created));
                         creatingReplicas++;
                     }
+                    diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                     indices.add(new IndexSetup(metadata, builder.build()));
                 }
                 // The primary is started, but the replica is still unassigned. As long as this is within the
@@ -185,6 +194,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     );
                     startedPrimaries++;
                     creatingReplicas++;
+                    diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                 }
                 // The primary (and maybe replica) is unassigned because its node is restarting.
                 case RESTARTING_NODE -> {
@@ -249,6 +259,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     );
                     startedPrimaries++;
                     unassignedPrimaries++;
+                    diagnosedIndices.add(diagnosedIndex(projectId, mountedName));
                 }
                 // After resharding, shard 0 (the source) is fully started and still serves the data but
                 // shard 1 (the target) is unassigned with RESHARD_SPLIT recovery
@@ -283,6 +294,7 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
                     startedReplicas++;
                     creatingPrimaries++;
                     creatingReplicas++;
+                    diagnosedIndices.add(diagnosedIndex(projectId, metadata.getIndex().getName()));
                 }
             }
             projects.put(projectId, indices);
@@ -299,7 +311,27 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
         var details = ((SimpleHealthIndicatorDetails) result.details()).details();
         String assignment = "projects " + projectCases;
 
-        // TODO - Assert symptom and diagnosis
+        assertThat(
+            assignment,
+            result.symptom(),
+            equalTo(expectedSymptom(unassignedPrimaries, restartingPrimaries, creatingPrimaries, restartingReplicas, creatingReplicas))
+        );
+        if (diagnosedIndices.isEmpty()) {
+            assertThat(assignment, result.diagnosisList(), empty());
+        } else {
+            assertThat(
+                assignment,
+                result.diagnosisList(),
+                equalTo(
+                    List.of(
+                        new Diagnosis(
+                            ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                            List.of(new Diagnosis.Resource(INDEX, List.copyOf(diagnosedIndices)))
+                        )
+                    )
+                )
+            );
+        }
 
         assertThat(assignment, result.status(), equalTo(GREEN));
         if (restartingReplicas == 0) {
@@ -482,6 +514,58 @@ public class MultiProjectShardsAvailabilityHealthIndicatorServiceTests extends E
             new SystemIndices(List.of()),
             TestProjectResolvers.allProjects()
         );
+    }
+
+    private static String diagnosedIndex(ProjectId projectId, String indexName) {
+        return projectId.id() + "/" + indexName;
+    }
+
+    /**
+     * Mirrors {@code ShardAllocationStatus#getSymptom}. The mounted-snapshot extra sentence is only
+     * appended when there are unassigned searchable-snapshot primaries and no provisionally unavailable
+     * primaries ({@code creating_primaries}); mixed creating indices suppress that sentence.
+     */
+    private static String expectedSymptom(
+        int unassignedPrimaries,
+        int restartingPrimaries,
+        int creatingPrimaries,
+        int restartingReplicas,
+        int creatingReplicas
+    ) {
+        String parts = Stream.of(
+            shardPhrase(unassignedPrimaries, "unavailable primary shard", "unavailable primary shards"),
+            shardPhrase(restartingPrimaries, "restarting primary shard", "restarting primary shards"),
+            shardPhrase(creatingPrimaries, "creating primary shard", "creating primary shards"),
+            shardPhrase(0, "unavailable replica shard", "unavailable replica shards"),
+            shardPhrase(restartingReplicas, "restarting replica shard", "restarting replica shards"),
+            shardPhrase(creatingReplicas, "creating replica shard", "creating replica shards"),
+            shardPhrase(0, "initializing primary shard", "initializing primary shards"),
+            shardPhrase(0, "initializing replica shard", "initializing replica shards")
+        ).flatMap(Function.identity()).collect(Collectors.joining(", "));
+        var builder = new StringBuilder("This cluster has ");
+        if (parts.isEmpty()) {
+            builder.append("all shards available.");
+        } else {
+            builder.append(parts).append(".");
+        }
+        if (unassignedPrimaries > 0 && creatingPrimaries == 0) {
+            if (unassignedPrimaries == 1) {
+                builder.append(" This is a mounted shard and the original shard is available, so there are no data availability problems.");
+            } else {
+                builder.append(
+                    " These are mounted shards and the original shards are available, so there are no data availability problems."
+                );
+            }
+        }
+        return builder.toString();
+    }
+
+    private static Stream<String> shardPhrase(int count, String singular, String plural) {
+        return switch (count) {
+            case 0 -> Stream.empty();
+            case 1 -> Stream.of("1 " + singular);
+            default -> Stream.of(count + " " + plural);
+        };
     }
 
     private static String randomNodeId() {

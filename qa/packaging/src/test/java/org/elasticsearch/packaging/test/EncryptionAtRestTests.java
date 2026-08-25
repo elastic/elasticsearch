@@ -26,19 +26,12 @@ import static org.junit.Assume.assumeTrue;
 /**
  * Smoke tests that Elasticsearch functions correctly when its data directory lives on an encrypted block device.
  * <p>
- * This replaces the far more expensive {@code encryption-at-rest} periodic CI job, which copies the entire workspace
- * onto a dm-crypt/LUKS volume and runs the full functional test suite from there. The only property that job really
- * verifies is that Elasticsearch reads and writes correctly when its files sit on an encrypted filesystem, which is an
- * OS/filesystem concern rather than Elasticsearch logic. Exercising it as a packaging test gives us that same signal
- * for a fraction of the cost, and automatically fans out across every supported Linux distribution in the packaging
- * matrix.
- * <p>
- * The one genuine Elasticsearch-level interaction with encryption at rest is file preallocation: {@code fallocate(2)}
- * behaves differently (and is effectively unsupported) on dm-crypt volumes, which is why the {@code PreallocateTests}
- * unit test opts itself out of the {@code encryption-at-rest} environment. {@link #test30SharedCachePreallocation()}
- * provides the integration coverage that unit test cannot: it forces the searchable-snapshots shared blob cache — the
- * only production caller of preallocation — to create and preallocate its cache file on the encrypted mount, verifying
- * the native-preallocate-or-fallback path still yields a correctly sized file.
+ * The suite sets up a dm-crypt/LUKS loopback volume, points {@code path.data} at a directory on that mount, and
+ * verifies basic read/write and file-preallocation behaviour. Preallocation is the one area where Elasticsearch
+ * interacts directly with the underlying filesystem: {@code fallocate(2)} behaves differently on dm-crypt volumes,
+ * so {@link #test30SharedCachePreallocation()} exercises the native-preallocate-or-fallback path by forcing the
+ * searchable-snapshots shared blob cache to allocate its cache file on the encrypted mount and confirming the file
+ * reaches the expected size.
  * <p>
  * dm-crypt is Linux only, so the whole suite assumes a Linux archive installation.
  */
@@ -55,8 +48,7 @@ public class EncryptionAtRestTests extends PackagingTestCase {
 
     /**
      * Restricts the suite to Linux archive installations and builds a small dm-crypt/LUKS volume backed by a loopback
-     * file, mounted at {@link #mountPoint}. Elasticsearch's {@code path.data} is later pointed at a directory on this
-     * mount so that all shard data, translogs and cache files are written to the encrypted device.
+     * file, mounted at {@link #mountPoint}.
      */
     @BeforeClass
     public static void setUpEncryptedVolume() throws Exception {

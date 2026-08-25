@@ -265,11 +265,8 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_NULLABILITY,
             DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING,
             BBQ_DISK_BYTE_SUPPORT,
-            ASH_QUANTIZATION_TYPE_SUPPORT
+            ASH_QUANTIZATION_TYPE_SUPPORT,
+            DOC_VALUES_ON_FAILURE
         );
-        if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
-            features.add(DOC_VALUES_ON_FAILURE);
-        }
-        return Set.copyOf(features);
     }
 }

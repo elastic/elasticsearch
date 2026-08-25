@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -723,7 +723,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
         putTSDBIndexTemplate(List.of(DATASTREAM_NAME + "*"), jsonMappings);
         // Now we can push data into the data stream.
-        var bulk = client().prepareBulk();
+        var bulk = new ArrayList<IndexRequestBuilder>();
         for (int i = 0; i < NUM_DOCS; i++) {
             var document = dataGenerationHelper.generateDocument(Map.of());
             if (documents == null) {
@@ -732,7 +732,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             bulk.add(client().prepareIndex(DATASTREAM_NAME).setOpType(DocWriteRequest.OpType.CREATE).setSource(document));
             documents.add(document);
         }
-        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        indexRandom(true, false, true, false, bulk);
     }
 
     void checkWithin(Double actual, RateRange expected) {

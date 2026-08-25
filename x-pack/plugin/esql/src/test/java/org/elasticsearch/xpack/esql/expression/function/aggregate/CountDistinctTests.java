@@ -122,8 +122,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
             () -> IntStream.range(0, 1000).boxed().toList(),
             DataType.INTEGER,
             false,
-            true,
-            List.of()
+            true
         );
     }
 

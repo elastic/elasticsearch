@@ -146,8 +146,32 @@ public class PrometheusNonFiniteMathRestIT extends AbstractPrometheusRestIT {
 
     // ---------------------------------------------------------------------------------------------------------------
     // Across-series aggregations honor Prometheus/IEEE-754 non-finite semantics via the PromQL-only lenient aggregator
-    // path (max, min). See the matching csv-spec blocks (nonfinite_max_all_negative_infinity, etc.).
+    // path (sum, avg, max, min). See the matching csv-spec blocks (nonfinite_avg_propagates_infinity, etc.).
     // ---------------------------------------------------------------------------------------------------------------
+
+    /**
+     * The {@code sum} aggregator propagates non-finite inputs: two positive series multiplied by {@code Inf} both become
+     * {@code +Inf}, so their sum is {@code +Inf} rather than a dropped result.
+     */
+    public void testSumPropagatesPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_sum_pos", 5.0, 7.0);
+        assertSingleValue("sum(agg_sum_pos * Inf)", "+Inf");
+    }
+
+    /**
+     * The {@code sum} aggregator over a {@code +Inf} and a {@code -Inf} contribution yields {@code NaN} (IEEE-754
+     * {@code +Inf + -Inf}), matching Prometheus, rather than dropping the result.
+     */
+    public void testSumOfPositiveAndNegativeInfinityIsNaN() throws Exception {
+        ingestTwoSeries("agg_sum_mixed", 5.0, -7.0);
+        assertSingleValue("sum(agg_sum_mixed * Inf)", "NaN");
+    }
+
+    /** Prometheus {@code avg} propagates non-finite: the average of two {@code +Inf} series is {@code +Inf}. */
+    public void testAvgPropagatesPositiveInfinity() throws Exception {
+        ingestTwoSeries("agg_avg_pos", 5.0, 7.0);
+        assertSingleValue("avg(agg_avg_pos * Inf)", "+Inf");
+    }
 
     /** Prometheus {@code max} treats {@code -Inf} as an ordinary (smallest) value, so all-{@code -Inf} is {@code -Inf}. */
     public void testMaxOfAllNegativeInfinityIsNegativeInfinity() throws Exception {

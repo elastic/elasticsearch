@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -185,6 +186,26 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     }
 
     /**
+     * The lenient (PromQL) {@code Avg} whose surrogate preserves non-finite results is downgraded to its strict variant
+     * on a cluster that predates non-finite support, matching the scalar operators.
+     */
+    public void testNonFiniteAvgDowngradedWithOldVersion() {
+        assertNonFiniteMathDowngradedAndIdempotent(new Avg(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true));
+    }
+
+    public void testNonFiniteAvgNotChangedWithCurrentVersion() {
+        Expression lenient = new Avg(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        assertSame(lenient, SubstituteTransportVersionAwareExpressions.rule(lenient, newVersion));
+    }
+
+    public void testStrictAvgUnchangedWithOldVersion() {
+        Expression strict = new Avg(EMPTY, getFieldAttribute("f", DataType.DOUBLE), false);
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MATH);
+        assertSame(strict, SubstituteTransportVersionAwareExpressions.rule(strict, oldVersion));
+    }
+
+    /**
      * The lenient (PromQL) {@code Max}/{@code Min}, which use Prometheus non-finite semantics, are downgraded to their
      * strict variants on a cluster that predates non-finite support, matching the scalar operators.
      */
@@ -259,6 +280,7 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         assertVariantsDiffer(new Div(EMPTY, f, g, DataType.DOUBLE, true), new Div(EMPTY, f, g, DataType.DOUBLE, false));
         assertVariantsDiffer(new Mod(EMPTY, f, g, true), new Mod(EMPTY, f, g, false));
         assertVariantsDiffer(new Round(EMPTY, f, null, true), new Round(EMPTY, f, null, false));
+        assertVariantsDiffer(new Avg(EMPTY, f, true), new Avg(EMPTY, f, false));
         assertVariantsDiffer(new Max(EMPTY, f, true), new Max(EMPTY, f, false));
         assertVariantsDiffer(new Min(EMPTY, f, true), new Min(EMPTY, f, false));
     }

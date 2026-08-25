@@ -9,7 +9,6 @@ package org.elasticsearch.multi_cluster;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.function.Supplier;
 
@@ -32,7 +31,10 @@ class Clusters {
     private static final String CCS_COMPAT_VERSION = System.getProperty("tests.ccs_compat_version");
 
     static ElasticsearchCluster remoteCluster() {
-        boolean detached = ESRestTestCase.isOldClusterDetachedVersion();
+        // Whether the old cluster version is not one of the released versions, but a detached build. In that case the Git ref has to be
+        // specified via the {@code tests.bwc.refspec.main} system property. This mirrors ESRestTestCase#isOldClusterDetachedVersion, which
+        // is not accessible from this package on this branch.
+        boolean detached = System.getProperty("tests.bwc.refspec.main") != null;
         return ElasticsearchCluster.local()
             .name("remote-cluster")
             // The default distribution is required both for security/trial licensing and because a cluster pinned to a

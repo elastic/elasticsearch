@@ -87,6 +87,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.PostRecoveryMerger;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoveryGate;
@@ -748,6 +749,8 @@ public class StatelessPlugin extends Plugin
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        settings.put(PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY.getKey(), TimeValue.timeValueMinutes(5));
+
         return settings.build();
     }
 
@@ -1343,7 +1346,7 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
             StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
-            StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE,
+            StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
@@ -1467,7 +1470,8 @@ public class StatelessPlugin extends Plugin
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INTERVAL,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_THRESHOLD,
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_REMOVAL_THRESHOLD,
-            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN
+            UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
+            PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY
         );
     }
 
@@ -1627,7 +1631,7 @@ public class StatelessPlugin extends Plugin
                     translogConfig.getBigArrays(),
                     translogConfig.getBufferSize(),
                     translogConfig.getDiskIoBufferPool(),
-                    (operation, seqNo, location) -> replicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                    replicator.listenerFor(translogConfig.getShardId()),
                     false // translog is replicated to the object store, no need fsync that
                 );
 

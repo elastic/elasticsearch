@@ -267,7 +267,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
         ).get();
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(100, 120);
         indexRandom(
             true,
             false,
@@ -291,12 +291,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         ensureGreen(TaskResultsService.TASK_INDEX);
 
+        // Reindex should take about 60s, but be regularly active
+        final float requestsPerSecond = numDocs / 60f;
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
+            .setRequestsPerSecond(requestsPerSecond);
         request.getSearchRequest().source().size(1);
 
         final CountDownLatch listenerDone = new CountDownLatch(1);

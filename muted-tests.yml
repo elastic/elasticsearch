@@ -544,9 +544,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/156004
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/155593
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecUnmappedNullifyIT
   method: test {csv-spec:unmapped-nullify.statsNullifiedFirst}
   issue: https://github.com/elastic/elasticsearch/issues/156026

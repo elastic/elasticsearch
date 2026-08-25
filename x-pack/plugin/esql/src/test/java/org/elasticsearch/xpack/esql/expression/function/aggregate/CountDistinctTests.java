@@ -117,13 +117,7 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
     }
 
     private static TestCaseSupplier.TypedDataSupplier manyInts(String name) {
-        return new TestCaseSupplier.TypedDataSupplier(
-            name,
-            () -> IntStream.range(0, 1000).boxed().toList(),
-            DataType.INTEGER,
-            false,
-            true
-        );
+        return new TestCaseSupplier.TypedDataSupplier(name, () -> IntStream.range(0, 1000).boxed().toList(), DataType.INTEGER, false, true);
     }
 
     @Override

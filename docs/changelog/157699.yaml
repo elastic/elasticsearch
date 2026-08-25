@@ -1,0 +1,8 @@
+area: ES|QL
+issues:
+ - 153187
+ - 153158
+ - 154023
+pr: 157699
+summary: Deliver external-source warnings through the driver warning channel
+type: bug

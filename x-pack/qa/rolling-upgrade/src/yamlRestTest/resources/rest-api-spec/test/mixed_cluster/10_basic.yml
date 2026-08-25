@@ -1,5 +1,9 @@
 ---
 "Start scroll in mixed cluster on upgraded node that we will continue after upgrade":
+  - skip:
+      cluster_features: ["rolling_upgrade.first_mixed_cluster"]
+      reason: "Creates durable state (upgraded_scroll index + scroll_id) — must run exactly once"
+
   - do:
       indices.create:
         index: upgraded_scroll

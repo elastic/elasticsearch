@@ -213,6 +213,6 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
                 : BigInteger.valueOf(value.longValue() ^ Long.MIN_VALUE);
             return unsignedValue.min(BigInteger.valueOf(Integer.MAX_VALUE)).intValueExact();
         }
-        return Math.clamp(((Number) precision.data()).longValue(), 0, Integer.MAX_VALUE);
+        return Math.toIntExact(Math.max(0L, Math.min(((Number) precision.data()).longValue(), Integer.MAX_VALUE)));
     }
 }

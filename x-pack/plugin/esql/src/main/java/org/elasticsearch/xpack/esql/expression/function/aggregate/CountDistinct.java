@@ -238,7 +238,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
                 : NumericUtils.unsignedLongAsBigInteger(value.longValue());
             return unsignedValue.min(BigInteger.valueOf(Integer.MAX_VALUE)).intValueExact();
         }
-        return Math.clamp(value.longValue(), 0, Integer.MAX_VALUE);
+        return Math.toIntExact(Math.max(0L, Math.min(value.longValue(), Integer.MAX_VALUE)));
     }
 
     public Expression surrogate() {

@@ -146,8 +146,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
 
                 assert batchedCompoundCommit == null
                     || batchedCompoundCommit.lastCompoundCommit()
-                    .primaryTermAndGeneration()
-                    .onOrBefore(compoundCommit.primaryTermAndGeneration());
+                        .primaryTermAndGeneration()
+                        .onOrBefore(compoundCommit.primaryTermAndGeneration());
 
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);

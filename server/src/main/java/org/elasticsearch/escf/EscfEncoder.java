@@ -58,7 +58,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
     private final boolean allowSimd;
 
     public EscfEncoder() {
-        this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        this(BytesRefRecycler.NON_RECYCLING_INSTANCE, true);
     }
 
     public EscfEncoder(Recycler<BytesRef> recycler) {
@@ -66,10 +66,10 @@ public final class EscfEncoder implements SourceBatchEncoder {
     }
 
     /**
-     * Package-private constructor used by tests to disable the SIMD path and obtain a Jackson
+     * Constructor used by tests and benchmarks to disable the SIMD path and obtain a Jackson
      * baseline for differential comparison.
      */
-    EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
+    public EscfEncoder(Recycler<BytesRef> recycler, boolean allowSimd) {
         this.backend = new EscfBatchBuilder(recycler);
         this.allowSimd = allowSimd;
     }

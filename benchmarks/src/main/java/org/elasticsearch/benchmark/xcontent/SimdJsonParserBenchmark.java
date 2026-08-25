@@ -31,9 +31,6 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -42,13 +39,12 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 /**
  * Compares simdjson-backed vs Jackson-backed parsing through the full {@link EscfEncoder} pipeline,
  * matching the actual bulk indexing usage pattern: parse, flatten, stage into columnar row buffer,
- * commit, and build the batch.
+ * commit, and build the partition.
  *
  * <p>Benchmark methods exercise the same documents through different parser paths:
  * <ul>
  *   <li>{@code simdJsonEncode} — uses the default {@link EscfEncoder} which dispatches to the
  *       direct walker (SIMD stage 1 + fused walk) for eligible documents.</li>
- *   <li>{@code simdJsonDirectEncode} — uses the batch API with the direct walker.</li>
  *   <li>{@code jacksonEncode} — uses an {@link EscfEncoder} with SIMD disabled, forcing all
  *       documents through Jackson's {@code ESUTF8StreamJsonParser}.</li>
  * </ul>
@@ -77,19 +73,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @State(Scope.Thread)
 public class SimdJsonParserBenchmark {
 
-    private static final MethodHandle ESCF_ENCODER_CTOR;
-    static {
-        try {
-            var lookup = MethodHandles.privateLookupIn(EscfEncoder.class, MethodHandles.lookup());
-            ESCF_ENCODER_CTOR = lookup.findConstructor(
-                EscfEncoder.class,
-                MethodType.methodType(void.class, org.elasticsearch.common.recycler.Recycler.class, boolean.class)
-            );
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
     @Param({ "10000" })
     private int docCount;
 
@@ -100,10 +83,6 @@ public class SimdJsonParserBenchmark {
     private String shape;
 
     private BytesReference[] docs;
-
-    private byte[] batchBuffer;
-    private int[] batchOffsets;
-    private int[] batchLens;
 
     @Setup
     public void setUp() {
@@ -119,19 +98,6 @@ public class SimdJsonParserBenchmark {
             minLen = Math.min(minLen, raw.length);
             maxLen = Math.max(maxLen, raw.length);
             totalLen += raw.length;
-        }
-
-        batchOffsets = new int[docCount];
-        batchLens = new int[docCount];
-        batchBuffer = new byte[(int) totalLen];
-        int pos = 0;
-        for (int i = 0; i < docCount; i++) {
-            byte[] raw = docs[i].toBytesRef().bytes;
-            int len = docs[i].length();
-            batchOffsets[i] = pos;
-            batchLens[i] = len;
-            System.arraycopy(raw, 0, batchBuffer, pos, len);
-            pos += len;
         }
 
         boolean nativeAvailable;
@@ -156,7 +122,7 @@ public class SimdJsonParserBenchmark {
 
     @Benchmark
     public int jacksonEncode() throws IOException {
-        try (EscfEncoder encoder = newEncoder(false)) {
+        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE, false)) {
             for (BytesReference doc : docs) {
                 encoder.parseToScratch(doc, XContentType.JSON, LeafSink.NO_OP);
                 encoder.commitScratchTo(0);
@@ -174,29 +140,9 @@ public class SimdJsonParserBenchmark {
                 encoder.parseToScratch(doc, XContentType.JSON, LeafSink.NO_OP);
                 encoder.commitScratchTo(0);
             }
-            EscfEncoder.releaseWalkerNames();
             try (EscfBatch batch = encoder.buildPartition(0)) {
                 return batch.schema().leafCount();
             }
-        }
-    }
-
-    @Benchmark
-    public int simdJsonBatchEncode() throws IOException {
-        try (EscfEncoder encoder = new EscfEncoder(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            encoder.parseBatchDirect(batchBuffer, batchOffsets, batchLens, docCount, 0, LeafSink.NO_OP);
-            EscfEncoder.releaseWalkerNames();
-            try (EscfBatch batch = encoder.buildPartition(0)) {
-                return batch.schema().leafCount();
-            }
-        }
-    }
-
-    private static EscfEncoder newEncoder(boolean allowSimd) {
-        try {
-            return (EscfEncoder) ESCF_ENCODER_CTOR.invoke(BytesRefRecycler.NON_RECYCLING_INSTANCE, allowSimd);
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
         }
     }
 

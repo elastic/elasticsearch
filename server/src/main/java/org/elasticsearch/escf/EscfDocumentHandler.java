@@ -122,7 +122,11 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void longField(String fieldName, long value, boolean fitsInt, byte[] srcBuf, int srcOff, int srcLen) {
         if (kvDepth > 0) {
-            kvWriter.writeLongField(fieldName, value, fitsInt);
+            if (fitsInt) {
+                kvWriter.writeIntField(fieldName, (int) value);
+            } else {
+                kvWriter.writeLongField(fieldName, value);
+            }
             return;
         }
         byte type = fitsInt ? SourceValueType.INT : SourceValueType.LONG;
@@ -154,7 +158,11 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     @Override
     public void doubleField(String fieldName, double value, boolean fitsFloat, byte[] srcBuf, int srcOff, int srcLen) {
         if (kvDepth > 0) {
-            kvWriter.writeDoubleField(fieldName, value, fitsFloat);
+            if (fitsFloat) {
+                kvWriter.writeFloatField(fieldName, (float) value);
+            } else {
+                kvWriter.writeDoubleField(fieldName, value);
+            }
             return;
         }
         byte type = fitsFloat ? SourceValueType.FLOAT : SourceValueType.DOUBLE;

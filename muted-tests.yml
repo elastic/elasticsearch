@@ -504,3 +504,6 @@ tests:
 - class: org.elasticsearch.search.SearchWithRejectionsIT
   method: testScrollContextSurvivesQueueRejection
   issue: https://github.com/elastic/elasticsearch/issues/157416
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=ml/bucket_count_ks_test_agg/Test bucket count ks test with empty alternatives}
+  issue: https://github.com/elastic/elasticsearch/issues/157577

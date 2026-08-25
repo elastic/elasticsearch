@@ -1,5 +1,12 @@
 area: "ILM, Data streams"
+breaking:
+  area: "ILM, Data streams"
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Lifecycle features skip lookup indices
 issues: []
 pr: 157195
 summary: Lifecycle features skip lookup indices
-type: bug
+type: "breaking, bug"

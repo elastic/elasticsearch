@@ -968,7 +968,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (int i = 0; i < schemaFieldIndex.length; i++) {
             if (schemaFieldIndex[i] == ABSENT_FIELD) {
                 String name = readSchema.get(i).name();
-                warningSink.accept("declared column [" + name + "] is not present in some source files and reads null there");
+                warningSink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
             }
         }
     }

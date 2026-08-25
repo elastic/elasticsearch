@@ -7,30 +7,22 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
 
 /**
  * Dedicated logical node for PromQL {@code histogram_quantile()} over classic histograms.
  * The function consumes the cumulative bucket counts identified by the {@code le} label and
  * produces the same label set as its child except for {@code le}.
  */
-public final class HistogramQuantile extends PromqlFunctionCall {
-    public static final String LE_LABEL = "le";
-
+public final class HistogramQuantile extends HistogramFunctionCall {
     private final Expression quantile;
-    private List<Attribute> output;
 
     public HistogramQuantile(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child, definition, parameters);
@@ -39,6 +31,11 @@ public final class HistogramQuantile extends PromqlFunctionCall {
 
     public Expression quantile() {
         return quantile;
+    }
+
+    @Override
+    public Expression buildAggregateFunction(Expression count, Expression upperBound) {
+        return new PromqlHistogramQuantile(source(), count, upperBound, quantile);
     }
 
     @Override
@@ -51,39 +48,4 @@ public final class HistogramQuantile extends PromqlFunctionCall {
         return new HistogramQuantile(source(), newChild, definition(), parameters());
     }
 
-    @Override
-    public List<Attribute> output() {
-        if (output == null) {
-            output = child().output()
-                .stream()
-                .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()) || LE_LABEL.equals(labelName(attr)) == false)
-                .toList();
-        }
-        return output;
-    }
-
-    @Override
-    public FunctionType functionType() {
-        return FunctionType.HISTOGRAM;
-    }
-
-    @Override
-    public boolean isIdentityTransparent() {
-        // Reshapes labels (drops `le`) but is not a grouping boundary for relabel placement: a relabel below it still
-        // feeds the enclosing aggregation.
-        return true;
-    }
-
-    private static String labelName(Attribute attribute) {
-        String fieldName;
-        if (attribute instanceof FieldAttribute fieldAttribute) {
-            fieldName = fieldAttribute.fieldName().string();
-        } else {
-            fieldName = attribute.name();
-        }
-        if (fieldName.startsWith(PROMETHEUS_LABELS_PREFIX)) {
-            return fieldName.substring(PROMETHEUS_LABELS_PREFIX.length());
-        }
-        return fieldName;
-    }
 }

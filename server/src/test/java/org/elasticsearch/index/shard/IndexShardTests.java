@@ -1727,7 +1727,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 new InternalEngineFactory(),
                 NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             );
             AtomicBoolean failureCallbackTriggered = new AtomicBoolean(false);
             shard.addShardFailureCallback((ig) -> failureCallbackTriggered.set(true));
@@ -2860,7 +2860,7 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.getEngineFactory(),
             shard.getGlobalCheckpointSyncer(),
             shard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
@@ -2993,7 +2993,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         recoverShardFromStore(newShard);
@@ -3127,7 +3127,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         recoverShardFromStore(newShard);
@@ -4080,7 +4080,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         try (var mockLog = MockLog.capture(IndexShard.class)) {
@@ -4166,7 +4166,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         final IndexShardRecoveryException exception1 = expectThrows(
@@ -4199,7 +4199,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         final IndexShardRecoveryException exception2 = expectThrows(
@@ -4252,7 +4252,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
 
         Store.MetadataSnapshot storeFileMetadatas = newShard.snapshotStoreMetadata();
@@ -6029,7 +6029,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             fakeClock,
             Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:
@@ -6180,7 +6180,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new InternalEngineFactory(),
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
-            EMPTY_EVENT_LISTENER,
+            IndexEventListener.NOOP,
             fakeClock,
             Collections.emptyList(),
             // Use a listener to advance the fake clock once per indexing operation:

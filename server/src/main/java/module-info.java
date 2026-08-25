@@ -150,7 +150,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.support.nodes;
     exports org.elasticsearch.action.support.local;
     exports org.elasticsearch.action.support.replication;
-    exports org.elasticsearch.action.support.single.instance;
     exports org.elasticsearch.action.support.single.shard;
     exports org.elasticsearch.action.support.tasks;
     exports org.elasticsearch.action.termvectors;
@@ -230,7 +229,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent;
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
-    exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
     exports org.elasticsearch.escf;
     exports org.elasticsearch.features;

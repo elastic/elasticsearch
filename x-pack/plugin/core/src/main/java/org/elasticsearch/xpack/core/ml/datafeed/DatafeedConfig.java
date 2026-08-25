@@ -120,6 +120,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final TransportVersion DATAFEED_CLOUD_INTERNAL_CREDENTIAL = TransportVersion.fromName(
         "datafeed_cloud_internal_credential"
     );
+    static final TransportVersion DATAFEED_FORCE_REKEYING = TransportVersion.fromName("datafeed_force_rekeying");
 
     /**
      * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment.
@@ -151,6 +152,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public static ElasticsearchStatusException projectRoutingRequiresCpsException() {
         return new ElasticsearchStatusException(PROJECT_ROUTING_REQUIRES_CPS_MESSAGE, RestStatus.BAD_REQUEST);
+    }
+
+    public static final String FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE =
+        "_force_rekeying requires a cloud-authenticated caller and an environment that supports cross-project calls";
+
+    public static ElasticsearchStatusException forceRekeyingRequiresCpsAndCloudAuthException() {
+        return new ElasticsearchStatusException(FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE, RestStatus.BAD_REQUEST);
     }
 
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser

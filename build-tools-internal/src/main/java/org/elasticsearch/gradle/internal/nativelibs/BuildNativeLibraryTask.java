@@ -43,18 +43,23 @@ import java.util.List;
 import javax.inject.Inject;
 
 /**
- * Runs a native library's own build and exposes the result in the {@code <os>-<arch>/} layout that
+ * Runs a native library build and exposes the result in the {@code <os>-<arch>/} layout that
  * the distribution and test JVMs expect. The build itself is declared by the consumer: which command
- * to run, and which of its outputs to gather where.
+ * to run, and which of its outputs to gather.
  *
  * <p>In {@code docker} mode the command runs inside the toolchain image with the source directory
  * mounted, typically cross-compiling every platform into the build's own tree, which
  * {@link #getCollect()} then gathers. In {@code host} mode the command runs directly and is expected
  * to write where it belongs, so there is usually nothing to gather.
  */
-public abstract class BuildNativeLibsTask extends DefaultTask {
+public abstract class BuildNativeLibraryTask extends DefaultTask {
 
-    private static final Logger LOGGER = Logging.getLogger(BuildNativeLibsTask.class);
+    private static final Logger LOGGER = Logging.getLogger(BuildNativeLibraryTask.class);
+
+    /** "Do not build" mode: the library is expected to come from its published artifact. */
+    static final String PUBLISHED_MODE = "artifactory";
+    public static final String DOCKER_MODE = "docker";
+    public static final String HOST_MODE = "host";
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -63,7 +68,7 @@ public abstract class BuildNativeLibsTask extends DefaultTask {
     /**
      * The native source directory: working directory for a {@code host} build, mount point for a
      * {@code docker} one, and the base for resolving {@link #getCollect()} sources. Not itself an
-     * input for up-to-date checking — that role belongs to {@link #getSourceFiles()}.
+     * input for up-to-date checking: that role belongs to {@link #getSourceFiles()}.
      */
     @Internal
     public abstract DirectoryProperty getNativeDir();
@@ -118,8 +123,12 @@ public abstract class BuildNativeLibsTask extends DefaultTask {
         outputDir.mkdirs();
 
         switch (mode) {
-            case "docker" -> buildDocker(nativeDir, outputDir);
-            case "host" -> buildHost(nativeDir, outputDir);
+            case DOCKER_MODE -> buildDocker(nativeDir, outputDir);
+            case HOST_MODE -> buildHost(nativeDir, outputDir);
+            case PUBLISHED_MODE -> throw new GradleException(
+                "This library is configured to come from its published artifact. Select a build mode "
+                    + "('docker' for every platform, 'host' for the current one) to build it from source."
+            );
             default -> throw new GradleException("Unknown mode: '" + mode + "'. Expected 'docker' or 'host'.");
         }
     }
@@ -163,10 +172,9 @@ public abstract class BuildNativeLibsTask extends DefaultTask {
     }
 
     /**
-     * Fails if the build produced nothing for the current host. The build commands are external and
-     * report success without necessarily having written anything, and consumers filter the published
-     * artifact for this platform, so an empty output would surface much later as a missing library
-     * rather than a build failure.
+     * Fails if the build produced nothing for the current host. External build commands can report
+     * success without writing anything, which would otherwise surface much later as a missing
+     * library rather than as a build failure.
      */
     static void verifyOutput(File outputDir) {
         Path platformDir = outputDir.toPath().resolve(hostPlatform());

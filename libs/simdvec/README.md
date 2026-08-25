@@ -93,10 +93,10 @@ from Artifactory. Set the `VEC_NATIVE_BUILD` environment variable:
 
 ```bash
 # Cross-compile all platforms in Docker (CI mode)
-VEC_NATIVE_BUILD=docker ./gradlew :libs:simdvec:buildVecNative
+VEC_NATIVE_BUILD=docker ./gradlew :libs:simdvec:buildNativeLibrary
 
 # Build for the host platform only (dev iteration)
-VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:buildVecNative
+VEC_NATIVE_BUILD=host ./gradlew :libs:simdvec:buildNativeLibrary
 ```
 
 When `VEC_NATIVE_BUILD` is unset (or set to `artifactory`), the binary is

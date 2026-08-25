@@ -7,13 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.nativelibs.BuildNativeLibsTask
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.foreign-api'
 apply plugin: 'java-test-fixtures'
+apply plugin: 'elasticsearch.native-library-build'
 
 dependencies {
   implementation project(':libs:lucene-store')
@@ -61,40 +61,21 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 }
 
 // --- Native library build (libvec) ---
-// VEC_NATIVE_BUILD controls how the native C++ library is obtained:
-//   'artifactory' (default) — binary fetched from Artifactory by :libs:native:native-libraries
-//   'docker'                — cross-compiled for all platforms inside the Docker toolchain
-//   'host'                  — compiled for the current platform using the host compiler
-def nativeBuildMode = providers.environmentVariable('VEC_NATIVE_BUILD').orElse('artifactory')
+// Set VEC_NATIVE_BUILD=docker to cross-compile every platform in the toolchain image, or
+// VEC_NATIVE_BUILD=host to build the current platform only. Unset, the published artifact is used.
+nativeLibraryBuild {
+  modeEnvironmentVariable = 'VEC_NATIVE_BUILD'
+  sourceDir = layout.projectDirectory.dir('native')
+  sources = ['src/vec/**', 'Makefile']
+  toolchainImage = 'docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3'
+  forwardedEnvironment = ['CLANG_CXX']
 
-if (nativeBuildMode.get() != 'artifactory') {
-  def nativeLibsDir = layout.buildDirectory.dir('native-libs')
+  dockerCommand = ['make', 'all']
+  collect = [
+    'build/libs/vec/shared/aarch64/libvec.dylib': 'darwin-aarch64/libvec.dylib',
+    'build/libs/vec/shared/aarch64/libvec.so'   : 'linux-aarch64/libvec.so',
+    'build/libs/vec/shared/amd64/libvec.so'     : 'linux-x64/libvec.so',
+  ]
 
-  def buildVecNative = tasks.register('buildVecNative', BuildNativeLibsTask) {
-    group = 'native'
-    description = 'Builds libvec from source into the platform layout consumed by extractLibs'
-    sourceFiles.from(fileTree('native') { include 'src/vec/**', 'Makefile' })
-    nativeDir.set(layout.projectDirectory.dir('native'))
-    mode.set(nativeBuildMode)
-    toolchainImage.set('docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3')
-    outputDir.set(nativeLibsDir)
-
-    // cross-compiles every platform into the Makefile's own tree, which is then gathered below
-    dockerCommand.set(['make', 'all'])
-    collect.put('build/libs/vec/shared/aarch64/libvec.dylib', 'darwin-aarch64/libvec.dylib')
-    collect.put('build/libs/vec/shared/aarch64/libvec.so', 'linux-aarch64/libvec.so')
-    collect.put('build/libs/vec/shared/amd64/libvec.so', 'linux-x64/libvec.so')
-
-    // builds the current platform straight into the destination, so there is nothing to gather
-    hostCommand.set(nativeLibsDir.map { dest -> ['make', 'local-install', "DEST=${dest.asFile.absolutePath}".toString()] })
-
-    environment.putAll(providers.environmentVariable('CLANG_CXX').map { [CLANG_CXX: it] }.orElse([:]))
-  }
-
-  configurations.consumable('nativeVecLibs') {
-    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-  }
-  artifacts {
-    nativeVecLibs buildVecNative.flatMap { it.outputDir }
-  }
+  hostCommand { outputDir -> ['make', 'local-install', "DEST=${outputDir.asFile}"] }
 }

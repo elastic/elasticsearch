@@ -29,18 +29,18 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
-public class BuildNativeLibsTaskTests {
+public class BuildNativeLibraryTaskTests {
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     private Project project;
-    private BuildNativeLibsTask task;
+    private BuildNativeLibraryTask task;
 
     @Before
     public void setUp() {
         project = ProjectBuilder.builder().build();
-        task = project.getTasks().create("buildNativeLibs", BuildNativeLibsTask.class);
+        task = project.getTasks().create("buildNativeLibs", BuildNativeLibraryTask.class);
     }
 
     @Test
@@ -61,7 +61,7 @@ public class BuildNativeLibsTaskTests {
      */
     @Test
     public void testHostPlatformShapeAndConsistency() {
-        String platform = BuildNativeLibsTask.hostPlatform();
+        String platform = BuildNativeLibraryTask.hostPlatform();
         assertTrue("unexpected host platform: " + platform, platform.matches("^(darwin|linux|windows)-(x64|aarch64)$"));
         assertEquals(OS.current().javaOsReference + "-" + Architecture.current().javaClassifier, platform);
     }
@@ -126,8 +126,8 @@ public class BuildNativeLibsTaskTests {
     public void testVerifyOutputThrowsWhenNothingProduced() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");
 
-        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibsTask.verifyOutput(outputDir));
-        assertTrue(ex.getMessage().contains(BuildNativeLibsTask.hostPlatform()));
+        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir));
+        assertTrue(ex.getMessage().contains(BuildNativeLibraryTask.hostPlatform()));
         assertTrue(ex.getMessage().contains("<empty>"));
     }
 
@@ -138,18 +138,18 @@ public class BuildNativeLibsTaskTests {
         Files.createDirectories(wrongPlace.getParent());
         Files.writeString(wrongPlace, "binary");
 
-        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibsTask.verifyOutput(outputDir));
+        GradleException ex = assertThrows(GradleException.class, () -> BuildNativeLibraryTask.verifyOutput(outputDir));
         assertTrue(ex.getMessage().contains("some-other-platform/libfoo.so"));
     }
 
     @Test
     public void testVerifyOutputPassesWhenHostPlatformPopulated() throws IOException {
         File outputDir = temporaryFolder.newFolder("output");
-        Path produced = outputDir.toPath().resolve(BuildNativeLibsTask.hostPlatform()).resolve("libfoo.so");
+        Path produced = outputDir.toPath().resolve(BuildNativeLibraryTask.hostPlatform()).resolve("libfoo.so");
         Files.createDirectories(produced.getParent());
         Files.writeString(produced, "binary");
 
-        BuildNativeLibsTask.verifyOutput(outputDir);
+        BuildNativeLibraryTask.verifyOutput(outputDir);
     }
 
     @Test
@@ -161,14 +161,14 @@ public class BuildNativeLibsTaskTests {
         Path dest = destDir.toPath().resolve("platform/lib.so");
         Files.writeString(source, "binary-content");
 
-        BuildNativeLibsTask.copyBuildOutput(source, dest);
+        BuildNativeLibraryTask.copyBuildOutput(source, dest);
 
         assertTrue(Files.exists(dest));
         assertEquals("binary-content", Files.readString(dest));
 
         // Overwrite with new content
         Files.writeString(source, "updated-binary");
-        BuildNativeLibsTask.copyBuildOutput(source, dest);
+        BuildNativeLibraryTask.copyBuildOutput(source, dest);
         assertEquals("updated-binary", Files.readString(dest));
     }
 }

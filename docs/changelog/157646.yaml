@@ -1,0 +1,5 @@
+area: Network
+issues: []
+pr: 157646
+summary: Release aggregated HTTP chunks on exception
+type: bug

@@ -11,15 +11,20 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
+
 /**
  * Interface for KNN queries that support post-filtering with retry.
- * Implemented by both HNSW ({@link ESKnnFloatVectorQuery}, {@link ESKnnByteVectorQuery})
- * and IVF ({@link IVFKnnFloatVectorQuery}) queries.
+ * Implemented by the HNSW query classes ({@link ESKnnFloatVectorQuery},
+ * {@link ESKnnByteVectorQuery}, and their diversifying-children variants).
  */
 public interface PostFilterableKnnQuery {
 
@@ -65,38 +70,63 @@ public interface PostFilterableKnnQuery {
         return POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - selectivity) / selectivity);
     }
 
+    record OversampledParams(int scaledK, int scaledNumCands) {}
+
+    /**
+     * Sizes round 1 of a post-filter search from the target {@code k}, the configured
+     * {@code numCands} and the estimated filter {@code selectivity}.
+     * <p>
+     * {@code scaledK} follows the binomial-variance model in {@link #POST_FILTER_OVERSAMPLE_Z_SCORE}:
+     * enough candidates that, after the filter drops a {@code (1 - selectivity)} fraction, {@code k}
+     * still survives with high probability, clamped below by {@link #POST_FILTER_OVERSAMPLE_FLOOR}×
+     * and above by {@code NUM_CANDS_LIMIT}. {@code scaledNumCands} keeps the exploration budget at
+     * least as wide as {@code scaledK}, otherwise the search cannot surface that many candidates,
+     * without exceeding {@code NUM_CANDS_LIMIT}.
+     */
+    static OversampledParams computeOversampledParams(int k, int numCands, float selectivity) {
+        double zMargin = zMargin(k, selectivity);
+        int scaledK = (int) Math.clamp(
+            Math.ceil((k + zMargin) / selectivity),
+            Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
+        );
+        int scaledNumCands = Math.clamp(numCands, scaledK, NUM_CANDS_LIMIT);
+        return new OversampledParams(scaledK, scaledNumCands);
+    }
+
     /**
      * Creates a new query for the next retry round.
      * <p>
      * For HNSW: {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
-     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocs}
+     * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocsPerLeaf}
      * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
      * <p>
      * For IVF: {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
-     * during posting-list iteration; {@code seedDocs} are ignored.
+     * during posting-list iteration; {@code seedDocsPerLeaf} are ignored.
      *
      * @param reader           the index reader
-     * @param excludedDocs     all docs returned across previous rounds, sorted (skip from results)
-     * @param seedDocs         topdocs from all leaves to be used as starting points for knn search
+     * @param excludedDocs     all docs returned across previous rounds, flat and sorted (skip from results)
+     * @param seedDocsPerLeaf  per-leaf seed doc IDs (global doc IDs, sorted ascending within each leaf),
+     *                         indexed by leaf ordinal, used as starting points for the knn search
      * @param remainingK       how many top results we aim to return after retrying
      */
-    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK);
+    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[][] seedDocsPerLeaf, int remainingK);
 
     /**
-     * Reconstructs the KNN query for the augmented pre-filter fallback used by
-     * {@link PostFilterKnnQuery} when post-filtering yields some — but fewer than {@code k} —
-     * results. The returned query keeps the implementor's original filter as a pre-filter,
-     * combined with an {@link ExcludeDocsQuery} over {@code excludedDocs} so already-collected
-     * docs are not visited again, and asks for {@code remainingK} results.
-     * <p>
-     * Unlike {@link #createRetryQuery}, no seed docs are passed — the fallback switches modes
-     * from post-filter to pre-filter, so HNSW graph seeding does not apply.
-     *
-     * @param reader        the index reader
-     * @param excludedDocs  docs already collected by the post-filter rounds, sorted
-     * @param remainingK    how many additional top results we aim to return ({@code k - collected})
+     * @return true if {@code seedDocsPerLeaf} contains at least one seed doc in any leaf, i.e. there is
+     * something to seed the retry search with.
      */
-    Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK);
+    static boolean hasSeeds(int[][] seedDocsPerLeaf) {
+        if (seedDocsPerLeaf == null) {
+            return false;
+        }
+        for (int[] leafSeeds : seedDocsPerLeaf) {
+            if (leafSeeds != null && leafSeeds.length > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide
@@ -117,9 +147,34 @@ public interface PostFilterableKnnQuery {
     int numCands();
 
     /**
-     * Per-leaf docs collected during first round of post-filtering, used by the retry round.
+     * Per-leaf candidate docs collected during the delegate's {@code mergeLeafResults}, indexed
+     * by leaf ordinal. Each non-null entry contains the full candidate pool for that leaf with
+     * global doc IDs and scores. The orchestrator walks each leaf to partition candidates into
+     * filter-matching and filtered-out sets without per-doc {@code subIndex} lookups.
+     * <p>
+     * Never returns {@code null}: implementations that have not run yet return an empty per-leaf
+     * array (every entry {@code null}), so the orchestrator can iterate without a null check.
      */
-    default int[] getTrackedDocs() {
-        return new int[0];
+    default ScoreDoc[][] getPostFilterCandidates() {
+        return new ScoreDoc[0][];
+    }
+
+    /**
+     * Groups arbitrary-order per-leaf {@link TopDocs} into a {@code ScoreDoc[][]} indexed by
+     * leaf ordinal. Lucene's {@code AbstractKnnVectorQuery} passes {@code mergeLeafResults} an
+     * array sourced from {@code HashMap.values()} whose iteration order is unspecified, so this
+     * method resolves each entry's leaf via {@link ReaderUtil#subIndex}.
+     * <p>
+     * Each leaf's {@link ScoreDoc} array is cloned so the orchestrator can sort it in place
+     * without mutating the delegate's {@link TopDocs}.
+     */
+    static ScoreDoc[][] buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
+        ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
+        for (TopDocs td : perLeafResults) {
+            if (td.scoreDocs.length == 0) continue;
+            int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
+            perLeafCandidates[leafOrd] = td.scoreDocs.clone();
+        }
+        return perLeafCandidates;
     }
 }

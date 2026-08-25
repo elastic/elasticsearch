@@ -94,8 +94,12 @@ export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 # secrets live in Vault at secret/ci/elastic-elasticsearch/agentic-workflows.
 if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   # LiteLLM API key — the bundled models.json resolves it automatically.
-  ELASTIC_LITELLM_API_KEY=$(vault_with_retry read -field=litellm_token secret/ci/elastic-elasticsearch/agentic-workflows)
-  export ELASTIC_LITELLM_API_KEY
+  OPENROUTER_API_KEY=$(vault_with_retry read -field=openrouter_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export OPENROUTER_API_KEY
+
+  # Cursor API key — the fallback when litellm is not available.
+  CURSOR_ACCESS_TOKEN=$(vault_with_retry read -field=cursor_token secret/ci/elastic-elasticsearch/agentic-workflows)
+  export CURSOR_ACCESS_TOKEN
 
   # Read-only Buildkite token for the agent's bk_* tools. The bundled
   # buildkite-jobs extension reads BUILDKITE_API_TOKEN, so alias it here
@@ -123,28 +127,52 @@ if [[ "${USE_ARCHIMEDES:-}" == "true" ]]; then
   export GH_TOKEN="${GH_ADMIN_TOKEN}"
   unset GH_ADMIN_TOKEN
 
-  # Bootstrap archimedes, upgrading if the installed version is behind the
-  # latest release. bootstrap.sh is fetched from the same release tag so the
-  # installer and the binary are always in sync.
+  # Bootstrap archimedes. Two paths:
+  #
+  # 1. ARCHIMEDES_REF is set → install directly from that branch/tag/sha of
+  #    ARCHIMEDES_REPO, bypassing the release lookup entirely. Used for testing
+  #    unreleased archimedes changes end to end against this pipeline; the
+  #    version-cache gate is deliberately bypassed so a warm agent that still
+  #    has "latest" cached is reinstalled from the requested ref instead. Also
+  #    fetches bootstrap.sh itself from that ref (not from the latest release
+  #    tag) so an ARCHIMEDES_REF-only change lands without needing a release
+  #    cut first. ARCHIMEDES_REF is exported here so the piped bootstrap.sh
+  #    sees it and takes its own ARCHIMEDES_REF install path (which is where
+  #    the ref-under-test guardrail — routing obs docs to a per-ref experiment
+  #    index — lives).
+  #
+  # 2. otherwise → resolve the latest release tag and install it, upgrading if
+  #    the installed version is behind. bootstrap.sh is fetched from that same
+  #    tag ref so the installer and the binary are always in sync.
   ARCHIMEDES_REPO="${ARCHIMEDES_REPO:-elastic/elasticsearch-infra}"
-  _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
-  if [ -z "${_archimedes_latest_tag:-}" ] || [ "${_archimedes_latest_tag}" = "null" ]; then
-    _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases" \
-      --jq '[.[] | select(.tag_name | startswith("archimedes-"))] | sort_by(.created_at) | last | .tag_name' 2>/dev/null || echo "")
-  fi
-  _archimedes_latest_ver="${_archimedes_latest_tag#archimedes-v}"
-  _archimedes_installed_ver=$(archimedes version 2>/dev/null || echo "none")
-  if [[ "${_archimedes_installed_ver}" != "${_archimedes_latest_ver}" ]]; then
-    echo "--- Bootstrapping archimedes (latest release: ${_archimedes_latest_tag:-unknown}, installed: ${_archimedes_installed_ver})"
-    if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${_archimedes_latest_tag}" \
+  if [[ -n "${ARCHIMEDES_REF:-}" ]]; then
+    export ARCHIMEDES_REF
+    echo "--- Bootstrapping archimedes from ref ${ARCHIMEDES_REF} (ARCHIMEDES_REPO=${ARCHIMEDES_REPO})"
+    if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${ARCHIMEDES_REF}" \
            -H "Accept: application/vnd.github.raw+json" | bash -s; then
-      echo "archimedes bootstrap failed" >&2
+      echo "archimedes bootstrap from ref '${ARCHIMEDES_REF}' failed" >&2
       exit 1
     fi
   else
-    echo "archimedes ${_archimedes_installed_ver} already up to date"
+    _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
+    if [ -z "${_archimedes_latest_tag:-}" ] || [ "${_archimedes_latest_tag}" = "null" ]; then
+      _archimedes_latest_tag=$(gh api "repos/${ARCHIMEDES_REPO}/releases" \
+        --jq '[.[] | select(.tag_name | startswith("archimedes-"))] | sort_by(.created_at) | last | .tag_name' 2>/dev/null || echo "")
+    fi
+    _archimedes_latest_ver="${_archimedes_latest_tag#archimedes-v}"
+    _archimedes_installed_ver=$(archimedes version 2>/dev/null || echo "none")
+    if [[ "${_archimedes_installed_ver}" != "${_archimedes_latest_ver}" ]]; then
+      echo "--- Bootstrapping archimedes (latest release: ${_archimedes_latest_tag:-unknown}, installed: ${_archimedes_installed_ver})"
+      if ! gh api "repos/${ARCHIMEDES_REPO}/contents/archimedes/bootstrap.sh?ref=${_archimedes_latest_tag}" \
+             -H "Accept: application/vnd.github.raw+json" | bash -s; then
+        echo "archimedes bootstrap failed" >&2
+        exit 1
+      fi
+    else
+      echo "archimedes ${_archimedes_installed_ver} already up to date"
+    fi
+    unset _archimedes_latest_tag _archimedes_latest_ver _archimedes_installed_ver
   fi
-  unset _archimedes_latest_tag _archimedes_latest_ver _archimedes_installed_ver
 
   # No external nono CLI bootstrap needed: archimedes sandboxes itself in-process
   # via the bundled nono-ts SDK. The `archimedes ci` entry point applies the

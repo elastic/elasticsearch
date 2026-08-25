@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -262,7 +261,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize("node-1", allocationId.getId(), 0).moveToStarted(0);
         when(shardRoutingTable.primaryShard()).thenReturn(targetShardRouting);
 
@@ -386,7 +386,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize("node-1", allocationId.getId(), 0).moveToStarted(0);
         when(shardRoutingTable.primaryShard()).thenReturn(targetShardRouting);
 
@@ -517,7 +518,8 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             recoverySource,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         ).initialize("node-1", allocationId.getId(), 0).moveToStarted(0);
         when(shardRoutingTable.primaryShard()).thenReturn(targetShardRouting);
 
@@ -555,18 +557,35 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         return clusterService;
     }
 
-    private static class TestReplicationRequest extends ReplicationRequest<TestReplicationRequest> {
+    private static class TestReplicationRequest extends ReplicationRequest<TestReplicationRequest>
+        implements
+            ReshardSplitAwareReplicationRequest {
+
+        private final SplitShardCountSummary splitShardCountSummary;
 
         TestReplicationRequest(ShardId shardId) {
-            super(shardId, SplitShardCountSummary.UNSET);
+            this(shardId, SplitShardCountSummary.UNSET);
         }
 
         TestReplicationRequest(ShardId shardId, SplitShardCountSummary splitSummary) {
-            super(shardId, splitSummary);
+            super(shardId);
+            this.splitShardCountSummary = splitSummary;
         }
 
         TestReplicationRequest(org.elasticsearch.common.io.stream.StreamInput in) throws IOException {
             super(in);
+            this.splitShardCountSummary = readReshardSplitAwareSummary(in, legacySplitShardCountSummary);
+        }
+
+        @Override
+        public SplitShardCountSummary splitShardCountSummary() {
+            return splitShardCountSummary;
+        }
+
+        @Override
+        public void writeTo(org.elasticsearch.common.io.stream.StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeReshardSplitAwareSummary(out, splitShardCountSummary);
         }
 
         @Override
@@ -598,7 +617,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
                 mock(IndicesService.class),
                 mock(ThreadPool.class),
                 mock(ShardStateAction.class),
-                new ActionFilters(new HashSet<>()),
+                ActionFilters.EMPTY,
                 TestReplicationRequest::new,
                 TestReplicationRequest::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,

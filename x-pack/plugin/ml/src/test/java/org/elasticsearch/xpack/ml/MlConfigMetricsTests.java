@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
-import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncGauge;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -61,10 +61,8 @@ public class MlConfigMetricsTests extends ESTestCase {
     private Supplier<Collection<LongWithAttributes>> authTypeObserver;
     private Supplier<Collection<LongWithAttributes>> projectRoutingObserver;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMlConfigMetricsTestDeps() throws Exception {
         threadPool = createThreadPool(
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
@@ -76,17 +74,15 @@ public class MlConfigMetricsTests extends ESTestCase {
         projectRoutingObserver = captureLongsGauge(meterRegistry, "es.ml.datafeeds.cps.project_routing.current");
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         threadPool.close();
-        super.tearDown();
     }
 
     public void testComputeCountsShouldBucketMixedConfigs() {
         assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig> configs = List.of(
             datafeed("flat", null, null, null),
             datafeed("local", ProjectRoutingResolver.LOCAL_ONLY, null, null),
@@ -129,7 +125,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         mockMasterClusterState();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig.Builder> builders = List.of(
             datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null),
             datafeedBuilder("legacy", null, null, Map.of("Authorization", "ApiKey abc"))
@@ -172,7 +168,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         stubExpandDatafeedConfigs(List.of(datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null)));
 
         MlConfigMetrics metrics = new MlConfigMetrics(meterRegistry, clusterService, threadPool, datafeedConfigProvider, settings);
@@ -192,7 +188,7 @@ public class MlConfigMetricsTests extends ESTestCase {
         Settings settings = cpsMasterSettings();
         when(clusterService.state()).thenAnswer(invocation -> masterClusterState());
 
-        PersistedCloudCredential uiamCredential = new PersistedCloudCredential("key-1", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential uiamCredential = PersistedCloudCredential.plaintext("key-1", new SecureString("secret".toCharArray()));
         List<DatafeedConfig.Builder> builders = List.of(datafeedBuilder("uiam", ProjectRoutingResolver.LOCAL_ONLY, uiamCredential, null));
 
         // Simulate the response arriving after this node lost mastership mid-flight: flip the
@@ -313,9 +309,9 @@ public class MlConfigMetricsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static Supplier<LongWithAttributes> captureLongGauge(MeterRegistry meterRegistry, String metricName) {
         AtomicReference<Supplier<LongWithAttributes>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
+        when(meterRegistry.registerLongAsyncGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
-            return mock(LongGauge.class);
+            return mock(LongAsyncGauge.class);
         });
         return () -> observer.get().get();
     }
@@ -323,9 +319,9 @@ public class MlConfigMetricsTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private static Supplier<Collection<LongWithAttributes>> captureLongsGauge(MeterRegistry meterRegistry, String metricName) {
         AtomicReference<Supplier<Collection<LongWithAttributes>>> observer = new AtomicReference<>();
-        when(meterRegistry.registerLongsGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
+        when(meterRegistry.registerLongsAsyncGauge(eq(metricName), anyString(), anyString(), any())).thenAnswer(invocation -> {
             observer.set(invocation.getArgument(3));
-            return mock(LongGauge.class);
+            return mock(LongAsyncGauge.class);
         });
         return () -> observer.get().get();
     }

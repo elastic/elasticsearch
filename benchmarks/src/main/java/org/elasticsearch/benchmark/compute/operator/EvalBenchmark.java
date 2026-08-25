@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -403,6 +404,28 @@ public class EvalBenchmark {
                 checkMvMinExpected(this, actual);
             }
         },
+        MV_MIN_WITH_NULLS("mv_min_with_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvMinEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvMinWithNullsExpected(this, actual);
+            }
+        },
+        ABS_BLOCK_SOME_NULLS("abs_block_some_nulls") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return absEvaluator();
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkAbsBlockSomeNullsExpected(this, actual);
+            }
+        },
         ROUND_TO_4_VIA_CASE("round_to_4_via_case") {
             @Override
             ExpressionEvaluator evaluator() {
@@ -456,6 +479,50 @@ public class EvalBenchmark {
             @Override
             void checkExpected(Page actual) {
                 checkRlikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_PREFIX_SINGLE("mv_like_prefix_single") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_PREFIX_MULTI("mv_like_prefix_multi") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_GENERAL_SINGLE("mv_like_general_single") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f?o*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
+            }
+        },
+        MV_LIKE_GENERAL_MULTI("mv_like_general_multi") {
+            @Override
+            ExpressionEvaluator evaluator() {
+                return mvLikeEvaluator("f?o*");
+            }
+
+            @Override
+            void checkExpected(Page actual) {
+                checkMvLikeExpected(this, actual);
             }
         },
         TO_LOWER("to_lower") {
@@ -915,6 +982,23 @@ public class EvalBenchmark {
         return EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
     }
 
+    private static ExpressionEvaluator mvLikeEvaluator(String pattern) {
+        FieldAttribute keywordField = keywordField();
+        MvLike mvLike = new MvLike(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD));
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, mvLike, layout(keywordField)).get(driverContext);
+    }
+
+    private static void checkMvLikeExpected(Operation operation, Page actual) {
+        // Both the single- and multi-valued blocks are built so that the pattern matches at even positions.
+        BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            boolean expected = i % 2 == 0;
+            if (v.getBoolean(i) != expected) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+            }
+        }
+    }
+
     private static ExpressionEvaluator rlikeLongPatternEvaluator() {
         FieldAttribute keywordField = keywordField();
         // More complex pattern — exercises a larger DFA than the existing "rlike" case.
@@ -1346,6 +1430,45 @@ public class EvalBenchmark {
         }
     }
 
+    private static void checkMvMinWithNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != i) {
+                    throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
+    private static void checkAbsBlockSomeNullsExpected(Operation operation, Page actual) {
+        LongBlock b = actual.getBlock(1);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            if (i % 8 == 0) {
+                if (b.isNull(i) == false) {
+                    throw new AssertionError("[" + operation + "] expected null at position [" + i + "]");
+                }
+            } else {
+                if (b.isNull(i)) {
+                    throw new AssertionError("[" + operation + "] unexpected null at position [" + i + "]");
+                }
+                long expected = i * 100_000L;
+                long got = b.getLong(b.getFirstValueIndex(i));
+                if (got != expected) {
+                    throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + got + "]");
+                }
+            }
+        }
+    }
+
     private static void checkReplaceConstExpected(Operation operation, Page actual) {
         BytesRef expected0 = new BytesRef("X");
         BytesRef expected1 = new BytesRef("bar");
@@ -1609,6 +1732,32 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
+            case MV_MIN_WITH_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendLong(i);
+                        builder.appendLong(i + 1);
+                        builder.appendLong(i + 2);
+                        builder.endPositionEntry();
+                    }
+                }
+                yield new Page(builder.build());
+            }
+            case ABS_BLOCK_SOME_NULLS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 8 == 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendLong(i * 100_000L);
+                    }
+                }
+                yield new Page(builder.build());
+            }
             case STARTS_WITH_VAR -> {
                 var str = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 var prefix = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
@@ -1638,6 +1787,28 @@ public class EvalBenchmark {
                     builder.appendBytesRef(values[i % 2]);
                 }
                 yield new Page(builder.build().asBlock());
+            }
+            case MV_LIKE_PREFIX_SINGLE, MV_LIKE_GENERAL_SINGLE -> {
+                // Single-valued, vector-backed keyword block: the pattern ("f*" / "f?o*") matches "foo" at even positions.
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(values[i % 2]);
+                }
+                yield new Page(builder.build().asBlock());
+            }
+            case MV_LIKE_PREFIX_MULTI, MV_LIKE_GENERAL_MULTI -> {
+                // Multi-valued keyword block: two values per position, the matching value present only at even positions.
+                var builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                BytesRef[] first = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                BytesRef second = new BytesRef("zzz");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.beginPositionEntry();
+                    builder.appendBytesRef(first[i % 2]);
+                    builder.appendBytesRef(second);
+                    builder.endPositionEntry();
+                }
+                yield new Page(builder.build());
             }
             case TO_LOWER_ORDS, TO_UPPER_ORDS -> {
                 var bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);

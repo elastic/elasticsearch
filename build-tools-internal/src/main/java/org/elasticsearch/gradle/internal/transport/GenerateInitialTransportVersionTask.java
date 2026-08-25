@@ -56,11 +56,25 @@ public abstract class GenerateInitialTransportVersionTask extends DefaultTask {
             var newUpperBound = new TransportVersionUpperBound(upperBoundName, initialDefinitionName, id);
             resources.writeUpperBound(newUpperBound);
 
+            Version currentVersion = getCurrentVersion().get();
+            String currentUpperBoundName = getUpperBoundName(currentVersion);
             if (stackVersion.getRevision() == 0) {
-                Version currentVersion = getCurrentVersion().get();
-                String currentUpperBoundName = getUpperBoundName(currentVersion);
-                var currentUpperBound = new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id);
-                resources.writeUpperBound(currentUpperBound);
+                // a minor creates a new base, which the current branch must also point at
+                resources.writeUpperBound(new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id));
+            } else if (currentUpperBoundName.equals(upperBoundName) == false) {
+                // A patch adds an id to an existing base. If the current branch's upper bound still points into that
+                // same base, that patch id is now the latest id for the base, which the current branch cannot adopt:
+                // ids in the current upper bound must be base ids so that generating a transport version here keeps
+                // creating a new base. Reserve the next base for the current branch instead, held by a placeholder
+                // definition. This is the case when no transport version has been added to the current branch since
+                // the minor being patched was branched, ie the current upper bound is that minor's initial version.
+                TransportVersionUpperBound currentUpperBound = resources.getUpperBoundFromGitBase(currentUpperBoundName);
+                if (currentUpperBound != null && currentUpperBound.definitionId().base() == id.base()) {
+                    var reservedId = TransportVersionId.fromInt(id.base() + 1000);
+                    String reservedName = "placeholder_" + currentVersion;
+                    resources.writeDefinition(new TransportVersionDefinition(reservedName, List.of(reservedId), false));
+                    resources.writeUpperBound(new TransportVersionUpperBound(currentUpperBoundName, reservedName, reservedId));
+                }
             }
         }
     }

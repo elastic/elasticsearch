@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.SettingsScope;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -37,6 +39,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.RATE_LIMIT;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
@@ -138,7 +141,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         ConfigurationParseContext context
     ) {
         var rateLimitSettings = removeFromMapOrDefaultEmpty(serviceSettingsMap, FIELD_NAME);
-        var requestsPerMinute = extractOptionalPositiveLong(rateLimitSettings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
+        var requestsPerMinute = extractOptionalPositiveLong(rateLimitSettings, REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT, validationException);
 
         if (ConfigurationParseContext.isRequestContext(context) && rateLimitSettings.isEmpty() == false) {
             validationException.addValidationError(
@@ -164,22 +167,49 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
      */
     public static void rejectRateLimitFieldForRequestContext(
         Map<String, Object> map,
-        String scope,
+        SettingsScope scope,
         String service,
         TaskType taskType,
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
         if (ConfigurationParseContext.isRequestContext(context) && map.containsKey(FIELD_NAME)) {
-            validationException.addValidationError(
-                Strings.format(
-                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
-                    scope,
-                    service,
-                    taskType.toString()
-                )
-            );
+            validationException.addValidationError(rateLimitNotPermittedError(scope, service, taskType));
         }
+    }
+
+    /**
+     * Declares a {@link #FIELD_NAME} field on the given parser that rejects the field with an {@link ElasticsearchParseException} when
+     * parsing in the {@link ConfigurationParseContext#REQUEST} context. Intended for services that do not permit user-supplied rate
+     * limits, so that supplying the field produces a descriptive error rather than an unknown-field parse error. In any other context
+     * the field is not declared, leaving it to the parser's unknown-field handling.
+     * @param parser the parser on which to declare the field
+     * @param scope the scope of the settings, used for error messaging
+     * @param service the name of the service, used for error messaging
+     * @param taskType the task type, used for error messaging
+     * @param context the context of the configuration parsing, used to determine if the rejecting field should be declared
+     */
+    public static <V> void declareUnsupportedRateLimitField(
+        AbstractObjectParser<V, ConfigurationParseContext> parser,
+        SettingsScope scope,
+        String service,
+        TaskType taskType,
+        ConfigurationParseContext context
+    ) {
+        if (context == ConfigurationParseContext.REQUEST) {
+            parser.declareObject((builder, v) -> {}, (p, c) -> {
+                throw new ElasticsearchParseException(rateLimitNotPermittedError(scope, service, taskType));
+            }, new ParseField(FIELD_NAME));
+        }
+    }
+
+    private static String rateLimitNotPermittedError(SettingsScope scope, String service, TaskType taskType) {
+        return Strings.format(
+            "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
+            scope,
+            service,
+            taskType.toString()
+        );
     }
 
     public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -50,6 +51,13 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
+        if (plan instanceof TimeSeriesAggregate) {
+            // If both f1 and f2 are missing, this rule rewrites `STATS f(f1), f(f2)` as
+            // `STATS f(v0), f(v0)`, where `v0` is null. Because the rewritten aggregations
+            // are identical, they are treated as `STATS f(v0)`, causing an intermediate
+            // output mismatch.
+            return plan;
+        }
         var lookupFieldsBuilder = AttributeSet.builder();
         var externalFieldsBuilder = AttributeSet.builder();
         Map<Attribute, Expression> attrToConstant = new HashMap<>();

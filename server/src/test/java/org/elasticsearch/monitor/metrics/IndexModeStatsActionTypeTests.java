@@ -10,6 +10,8 @@
 package org.elasticsearch.monitor.metrics;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -18,10 +20,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
@@ -34,11 +38,6 @@ public class IndexModeStatsActionTypeTests extends ESTestCase {
         }
     }
 
-    /**
-     * Verifies that modes introduced after a given transport version are silently filtered when
-     * serializing to an older node. Tests each version boundary independently: before
-     * {@link IndexMode#COLUMNAR_INDEX_MODES_ADDED} and before {@link IndexMode#VECTORDB_DOCUMENT_INDEX_MODE}.
-     */
     public void testNodeResponseStatsFilteredByTransportVersion() throws IOException {
         final List<TransportVersion> boundaries = List.of(
             TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED, true),
@@ -54,6 +53,32 @@ public class IndexModeStatsActionTypeTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testStatsNPEWhenModeAbsentFromCoordinatorMap() {
+        final long numDocs = randomLongBetween(1, Long.MAX_VALUE / IndexMode.values().length);
+        final IndexMode excludedMode = randomFrom(IndexMode.values());
+        final Map<IndexMode, IndexStats> allModeStats = new EnumMap<>(IndexMode.class);
+        for (IndexMode mode : IndexMode.values()) {
+            final IndexStats s = new IndexStats();
+            s.numDocs = numDocs;
+            allModeStats.put(mode, s);
+        }
+        final DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        final var nodeResponse = new IndexModeStatsActionType.NodeResponse(node, allModeStats);
+        final IndexMode[] subset = Arrays.stream(IndexMode.values()).filter(m -> m != excludedMode).toArray(IndexMode[]::new);
+        final var statsResponse = new IndexModeStatsActionType.StatsResponse(
+            ClusterName.DEFAULT,
+            List.of(nodeResponse),
+            List.<FailedNodeException>of(),
+            subset
+        );
+        final Map<IndexMode, IndexStats> result = statsResponse.stats();
+        for (IndexMode mode : subset) {
+            assertThat(result, hasKey(mode));
+            assertThat(result.get(mode).numDocs(), equalTo(numDocs));
+        }
+        assertThat(result, not(hasKey(excludedMode)));
     }
 
     private static Map<IndexMode, IndexStats> serializeAndReadStats(IndexMode[] modes, TransportVersion version) throws IOException {

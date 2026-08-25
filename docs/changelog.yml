@@ -93,6 +93,7 @@ pivot:
     "CAT APIs": ":Data Management/CAT APIs"
     CCR: ":Distributed Indexing/CCR"
     CCS: ":Search Foundations/CCS"
+    Columnar: ":StorageEngine/Columnar"
     CRUD: ":Distributed Indexing/CRUD"
     Client: ":Security/Client"
     "Cluster coordination": ":Distributed Coordination/Cluster Coordination"
@@ -296,8 +297,6 @@ bundle:
   directory: docs/changelog
   # Output directory for bundled changelog files
   output_directory: docs/releases
-  # Whether to resolve (copy contents) by default
-  resolve: true
   # Optional: default GitHub repo name applied to all profiles that do not specify their own.
   # Used by the {changelog} directive to generate correct PR/issue links when the product ID
   # differs from the GitHub repository name. Can be overridden per profile.
@@ -312,7 +311,7 @@ bundle:
     - elastic/kibana
     - elastic/roadmap
   # Optional: control auto-population of release-date for all profiles by default.
-  release_dates: false
+  release_dates: true
   # Optional: default description text for bundles. Supports {version}, {lifecycle}, {owner}, and {repo} placeholders.
   # Use YAML literal block scalar (|) for multiline descriptions. See docs/contribute/changelog.md for examples.
   # description: |
@@ -332,7 +331,7 @@ bundle:
     #   # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
     #   products: "elasticsearch {version} {lifecycle}"
     #   # Output filename ({version} is substituted at runtime)
-      output: "elasticsearch-{version}.yaml"
+      output: "elasticsearch/elasticsearch-{version}.yaml"
     #   # Optional: override the products array written to the bundle output.
       output_products: "elasticsearch {version}"
     #   # Optional: profile-specific description (overrides bundle.description)
@@ -341,9 +340,8 @@ bundle:
 
     # Example: Serverless release profile (filter by promotion report, PR, or issue list)
     serverless-release:
-      output: "serverless-{version}.yaml"
+      output: "cloud-serverless/elasticsearch-{version}.yaml"
       output_products: "cloud-serverless {version}"
-    #   # Feature IDs to hide when bundling with this profile (accepts string or list)
-    #   hide_features:
-    #     - feature-flag-1
-    #     - feature-flag-2
+      # Feature IDs to hide when bundling with this profile (accepts string or list)
+      hide_features:
+        - data-federation

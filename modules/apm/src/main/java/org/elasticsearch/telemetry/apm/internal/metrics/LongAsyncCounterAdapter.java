@@ -12,8 +12,6 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongCounter;
 
-import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
@@ -22,9 +20,9 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableLongCounter> implements LongAsyncCounter {
+class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableLongCounter> implements LongAsyncCounter {
 
-    public LongAsyncCounterAdapter(
+    LongAsyncCounterAdapter(
         Meter meter,
         String name,
         String description,
@@ -49,7 +47,7 @@ public class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableL
                 .counterBuilder(name)
                 .setDescription(description)
                 .setUnit(unit)
-                .buildWithCallback(OtelHelper.longMeasurementCallback(name, observer));
+                .buildWithCallback(OtelHelper.longCounterMeasurementCallback(name, observer));
         }
     }
 }

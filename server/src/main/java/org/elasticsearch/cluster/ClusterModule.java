@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancingWeightsFa
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.RecoveryDirectCancellationCallback;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -581,6 +582,12 @@ public class ClusterModule extends AbstractModule {
 
     public AllocationService getAllocationService() {
         return allocationService;
+    }
+
+    public void registerRecoveryDirectCancellationCallback(RecoveryDirectCancellationCallback recoveryDirectCancellationCallback) {
+        if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
+            desiredBalanceShardsAllocator.setRecoveryDirectCancellationCallback(recoveryDirectCancellationCallback);
+        }
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -307,7 +308,8 @@ public final class FetchPhase {
             ? bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes)
             : bytes -> {
                 if (bytes > 0) {
-                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, "script_field");
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
                     scriptFieldsBreakerBytes[0] += bytes;
                 }
             };
@@ -337,7 +339,7 @@ public final class FetchPhase {
         final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
-        StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadStoreMetrics()) {
+        StreamingFetchPhaseDocsIterator docsIterator = new StreamingFetchPhaseDocsIterator(context.currentThreadDirectoryMetricsCapture()) {
 
             LeafReaderContext ctx;
             LeafNestedDocuments leafNestedDocuments;
@@ -347,7 +349,7 @@ public final class FetchPhase {
 
             IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
                 locallyAccumulatedBytes[0] += bytes;
-                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
+                if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
                     addRequestBreakerBytes(locallyAccumulatedBytes[0]);
                     locallyAccumulatedBytes[0] = 0;
                 }
@@ -365,7 +367,7 @@ public final class FetchPhase {
                     this.ctx = ctx;
                     this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                     this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
-                    this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                    this.leafSourceLoader = sourceLoader.leaf(ctx, docsInLeaf);
                     this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
 
                     fieldLookupProvider.setNextReader(ctx);
@@ -435,16 +437,17 @@ public final class FetchPhase {
         ActionListener<SearchHitsWithSizeBytes> wrappedListener = new ActionListener<>() {
             @Override
             public void onResponse(SearchHitsWithSizeBytes result) {
-                context.addFetchThreadsBytesRead(docsIterator.getStoreBytesRead());
+                context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 buildListener.onResponse(null);
                 listener.onResponse(result);
             }
 
             @Override
             public void onFailure(Exception e) {
+                context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                 long leakedBytes = docsIterator.getRequestBreakerBytes();
                 if (leakedBytes > 0) {
-                    context.circuitBreaker().addWithoutBreaking(-leakedBytes);
+                    context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
                 }
                 buildListener.onFailure(e);
                 listener.onFailure(e);
@@ -554,13 +557,14 @@ public final class FetchPhase {
                         onFailure(e);
                         return;
                     }
-                    context.addFetchThreadsBytesRead(docsIterator.getStoreBytesRead());
+                    context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     buildListener.onResponse(null);
                     mainBuildListener.onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     Releasables.closeWhileHandlingException(lastChunkBytes);
 

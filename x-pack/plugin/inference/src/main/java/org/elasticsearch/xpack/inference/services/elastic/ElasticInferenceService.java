@@ -260,7 +260,9 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                     inputs.getRequest().toolChoice(),
                     inputs.getRequest().tools(),
                     inputs.getRequest().topP(),
-                    mergedReasoning
+                    mergedReasoning,
+                    inputs.getRequest().cacheControl(),
+                    inputs.getRequest().sessionId()
                 ),
                 inputs.stream()
             );
@@ -271,6 +273,16 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     @Override
     protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionCacheControl() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsChatCompletionSessionId() {
         return true;
     }
 
@@ -326,7 +338,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 (ElasticInferenceServiceDenseEmbeddingsModel) model,
                 getCurrentTraceInfo(),
                 listener.delegateFailureAndWrap(
-                    (delegate, action) -> action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, delegate)
+                    (delegate, action) -> action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, delegate)
                 )
             );
         } else {
@@ -391,7 +403,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 getCurrentTraceInfo(),
                 request.listener()
                     .delegateFailureAndWrap(
-                        (delegate, action) -> action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, delegate)
+                        (delegate, action) -> action.execute(
+                            new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                            timeout,
+                            delegate
+                        )
                     )
             );
         }

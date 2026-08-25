@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -482,7 +483,6 @@ public class ExternalSourceResolver {
         String path = paths.get(index);
         Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
-        boolean hivePartitioning = isHivePartitioningEnabled(config);
         // null => legacy eager for every path; non-null => eager only for listed paths.
         boolean requiresStats = pathsRequiringStats == null || pathsRequiringStats.contains(path);
         DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
@@ -493,7 +493,7 @@ public class ExternalSourceResolver {
         // the data node stamp _id from that column rather than the synthetic (file+row-position) identity.
         DeclaredReadSpec declaredReadSpec = declaredReadSpecOf(declaredMapping);
 
-        resolveSource(path, config, hints, hivePartitioning, declaredMapping, requiresStats, ActionListener.wrap(resolvedSource -> {
+        resolveSource(path, config, hints, declaredMapping, requiresStats, ActionListener.wrap(resolvedSource -> {
             // Strict is built directly from the declaration inside resolveSource; non-strict infers first and then
             // overlays the declaration onto the resolved result (works the same for single- and multi-file).
             ExternalSourceResolution.ResolvedSource finalSource = declaredMapping != null && isDeclaredSchema(declaredMapping) == false
@@ -507,9 +507,10 @@ public class ExternalSourceResolver {
 
     /**
      * Reproduces the previous loop's error contract: a cancelled query surfaces {@link TaskCancelledException}
-     * unwrapped (so the client sees a clean 4xx rather than a generic 500), {@link IllegalArgumentException} and
-     * {@link UnsupportedOperationException} (client-caused) propagate unwrapped, and any other failure is wrapped in
-     * an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
+     * unwrapped (so the client sees a clean 4xx rather than a generic 500), a client-caused
+     * {@link IllegalArgumentException} is recovered from the cause chain (it can arrive wrapped -- see below) and
+     * surfaced unchanged, {@link UnsupportedOperationException} propagates unwrapped, and any other failure is
+     * wrapped in an {@link ElasticsearchException} carrying the path and detail. A footer read can fail <em>because</em> the
      * query was cancelled mid-read and arrive wrapped (e.g. the schema cache wraps loader failures), so the
      * cancellation state is consulted directly rather than matched on the exception type.
      * <p>
@@ -521,7 +522,8 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception e) {
+    // Package-private so the client-status recovery gate below can be tested directly.
+    RuntimeException mapResolveFailure(String path, Exception e) {
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return tce;
@@ -565,14 +567,40 @@ public class ExternalSourceResolver {
             wrapped.initCause(rejected);
             return wrapped;
         }
-        if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
+        // A breaker trip carries its own 429 and must survive a wrapper for the same reason: ParsedFooterCache
+        // raises it during resolution, and the boundary already treats it as a status carrier alongside the two
+        // above (see ExternalFailures). Unwrapped rather than re-wrapped -- the type's byte counts are the payload.
+        CircuitBreakingException breaking = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        if (breaking != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, breaking.getMessage(), e);
+            return breaking;
+        }
+        // Recover a client error from behind a wrapper, the same way the 503 and 429 arms above do. Resolution
+        // runs inside Cache#computeIfAbsent on the cacheable rail, which reports a loader failure as an
+        // ExecutionException -- so without this a correctly-typed 400 reached the client as a 500, and only on
+        // that rail, making the status depend on whether the provider happened to be cacheable. Recovering at the
+        // boundary rather than auditing every wrap site means a wrapper introduced later cannot silently
+        // reintroduce the same masking.
+        IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);
+        if (clientError != null) {
+            recordDiscoveryFailure();
+            LOGGER.error("Failed to resolve external source [{}]: {}", path, clientError.getMessage(), e);
+            return clientError;
+        }
+        if (e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             return (RuntimeException) e;
         }
         recordDiscoveryFailure();
         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        // rootDetail, not getMessage: the arm above recovers a buried IllegalArgumentException by type, but the
+        // file-metadata rail raises a plain IOException that no type-specific arm claims, and it arrives inside the
+        // cache's ExecutionException whose message is the cause's toString(). Reading the top message there would
+        // print "java.io.IOException: Object not found: ..." at the user. Status is unchanged -- this is the same
+        // catch-all, only better worded.
+        String detail = ExternalFailures.rootDetail(e);
         return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
     }
 
@@ -580,14 +608,13 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
         @Nullable DatasetMapping declaredMapping,
         boolean requiresStats,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
     ) {
         LOGGER.debug("Resolving external source: path=[{}]", path);
         try {
-            resolveSourceInner(path, config, hints, hivePartitioning, declaredMapping, requiresStats, listener);
+            resolveSourceInner(path, config, hints, declaredMapping, requiresStats, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -597,7 +624,6 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
         @Nullable DatasetMapping declaredMapping,
         boolean requiresStats,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
@@ -607,7 +633,7 @@ public class ExternalSourceResolver {
         throwIfCancelled();
 
         if (GlobExpander.isMultiFile(path)) {
-            resolveMultiFileSource(path, config, hints, hivePartitioning, declaredMapping, requiresStats, listener);
+            resolveMultiFileSource(path, config, hints, declaredMapping, requiresStats, listener);
         } else {
             resolveSingleFileSource(path, config, declaredMapping, listener);
         }
@@ -688,7 +714,6 @@ public class ExternalSourceResolver {
         String path,
         Map<String, Object> config,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
         @Nullable DatasetMapping declaredMapping,
         boolean requiresStats,
         ActionListener<ExternalSourceResolution.ResolvedSource> listener
@@ -700,7 +725,7 @@ public class ExternalSourceResolver {
         // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate
         // declared-type coercibility. The non-strict overlay is applied by the caller after this returns.
         if (isDeclaredSchema(declaredMapping)) {
-            listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, hivePartitioning, config, declaredMapping));
+            listener.onResponse(resolveStrictMultiFile(path, storagePath, provider, hints, config, declaredMapping));
             return;
         }
 
@@ -711,7 +736,7 @@ public class ExternalSourceResolver {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             long discoveryStartNanos = System.nanoTime();
-            FileList raw = GlobExpander.expand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
             recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
             if (raw.fileCount() == 0) {
                 throw new IllegalArgumentException("Glob pattern matched no files: " + path);
@@ -723,9 +748,9 @@ public class ExternalSourceResolver {
         FileList listing;
         long discoveryStartNanos = System.nanoTime();
         if (cacheable) {
-            listing = cachedListing(path, storagePath, provider, hints, hivePartitioning, config);
+            listing = cachedListing(path, storagePath, provider, hints, config);
         } else {
-            listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+            listing = expandAndCompact(path, provider, hints, config, storagePath);
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
 
@@ -974,18 +999,18 @@ public class ExternalSourceResolver {
         String path,
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
+        Map<String, Object> config,
         StoragePath storagePath
     ) throws Exception {
         int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
         int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-        return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
+        return GlobExpander.expandAndCompact(path, provider, hints, config, storagePath, maxDiscoveredFiles, maxGlobExpansion);
     }
 
     /**
      * Looks up, or computes and caches, the compacted listing for a cacheable provider. The cache-key build and the
      * compute lambda are kept together on purpose: the discriminator folded into the key must describe exactly the
-     * {@code (path, hints, hivePartitioning)} the lambda expands, or a filtered query's narrowed listing can be
+     * {@code (path, hints)} the lambda expands, or a filtered query's narrowed listing can be
      * served to a later unfiltered one. Every cacheable resolution rail routes through here so that pairing lives in
      * one place. See {@link ListingCacheKey}.
      */
@@ -994,7 +1019,6 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
         Map<String, Object> config
     ) throws Exception {
         ListingCacheKey listingKey = ListingCacheKey.build(
@@ -1002,9 +1026,9 @@ public class ExternalSourceResolver {
             storagePath.host(),
             storagePath.path(),
             config,
-            GlobExpander.listingCacheDiscriminator(path, hints, hivePartitioning)
+            GlobExpander.listingCacheDiscriminator(path, hints, config)
         );
-        return cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath));
+        return cacheService.getOrComputeListing(listingKey, k -> expandAndCompact(path, provider, hints, config, storagePath));
     }
 
     /**
@@ -1203,9 +1227,11 @@ public class ExternalSourceResolver {
      * {@code ndjson} and qualifies. The {@code formatName() -> findByName} round-trip deliberately
      * unwraps {@code CompressionDelegatingFormatReader} to the inner reader, whose
      * {@code aggregatePushdownSupport} is the authoritative one (the wrapper does not forward it).
-     * Any resolution failure refuses: the registry throws {@code QlIllegalArgumentException} (not
-     * {@code java.lang.IllegalArgumentException}) on an unregistered extension, and the aggregate is an
-     * optimization that must never turn a resolvable read into a throw — hence the broad catch.
+     * Any resolution failure refuses rather than throws: the registry rejects an unregistered extension
+     * with an {@link IllegalArgumentException}, and the aggregate is an optimization that must never turn
+     * a resolvable read into a throw — hence the broad catch. The catch is deliberately broad and must
+     * stay so: it is the refusal that matters here, not the exception type, and narrowing it to the type
+     * the registry happens to throw today would re-couple this gate to that choice.
      */
     private boolean datasetAggregateSafeForFormat(FileList listing, Map<String, Object> config) {
         try {
@@ -1948,15 +1974,16 @@ public class ExternalSourceResolver {
         return merged;
     }
 
-    private static boolean isHivePartitioningEnabled(Map<String, Object> config) {
-        if (config == null) {
-            return true;
-        }
-        Object value = config.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
-        if (value == null) {
-            return true;
-        }
-        return "false".equalsIgnoreCase(value.toString()) == false;
+    /**
+     * Surfaces the last factory failure after every claiming factory has been tried. The
+     * {@link IllegalArgumentException} wrapper is what types a factory failure as client-caused, so it stays; only
+     * its message changes. It used to be the constant "Failed to resolve metadata for [path]", which reported a
+     * missing object, a wrong format, a truncated footer and an empty file with one identical sentence — and the
+     * factories already build that same sentence one level down, so the wrapper also duplicated it. It now carries
+     * the diagnosis instead; see {@link ExternalFailures#resolutionFailureMessage}.
+     */
+    private static RuntimeException lastFactoryFailure(String path, Exception lastFailure) {
+        return new IllegalArgumentException(ExternalFailures.resolutionFailureMessage(path, lastFailure), lastFailure);
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
@@ -1991,18 +2018,36 @@ public class ExternalSourceResolver {
             }
         }
         if (lastFailure != null) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
+            throw lastFactoryFailure(path, lastFailure);
         }
-        var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
-        throw new UnsupportedOperationException(
-            "No handler found for source at path ["
-                + path
-                + "]. "
-                + "Please ensure the appropriate data source plugin is installed. "
-                + "Known handlers: ["
-                + sources
-                + "]."
-        );
+        throw noReaderError(path);
+    }
+
+    /**
+     * Builds the failure for a path that no factory claimed. The cause is always format resolution, never a missing
+     * storage plugin: {@link #resolveSingleSource} and {@link #resolveSingleSourceAsync} both validate the scheme
+     * against {@link DataSourceCapabilities} first, so an unsupported scheme has already failed with its own message
+     * by the time we get here. What is left is an object whose extension names no registered format, or which carries
+     * no extension to name one with.
+     * <p>
+     * The message itself is built by {@link FormatReaderRegistry#unreadableObject}, which sources the vocabulary
+     * from the registry's own maps — the same maps {@code canHandle} consults, so the advice cannot drift from what
+     * actually claims. It is deliberately NOT {@code sourceFactories().keySet()}: that key set aliases the single
+     * catch-all file factory under every format name alongside catalog types, so it reads as a handler list while
+     * being neither the formats a user may name nor anything they can act on.
+     * <p>
+     * An {@link IllegalArgumentException}, so this maps to 400 like its sibling {@link UnsupportedSchemeException}.
+     */
+    private IllegalArgumentException noReaderError(String path) {
+        String objectName;
+        try {
+            objectName = StoragePath.of(path).objectName();
+        } catch (IllegalArgumentException e) {
+            objectName = "";
+        }
+        // The full location is the display path: the caller asked for a glob or a dataset resource, and
+        // quoting back only the object name would lose what they wrote.
+        return dataSourceModule.formatReaderRegistry().unreadableObject(path, objectName);
     }
 
     /**
@@ -2037,7 +2082,10 @@ public class ExternalSourceResolver {
 
         List<ExternalSourceFactory> candidates = new ArrayList<>();
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
-            if (factory.canHandle(path)) {
+            // Config-aware, like the synchronous resolveSingleSource: an explicit `format` names the reader
+            // directly, so it must claim a resource whose extension alone says nothing. Every multi-file resolve
+            // reaches here, so the path-only form would make `format` a no-op for all of them.
+            if (factory.canHandle(path, config)) {
                 candidates.add(factory);
             }
         }
@@ -2048,7 +2096,7 @@ public class ExternalSourceResolver {
      * Tries each claiming factory in order, asynchronously. On a factory failure (sync throw from dispatch or async
      * {@code onFailure}) it records the failure and advances to the next candidate, mirroring the synchronous
      * fall-through in {@link #resolveSingleSource}. When no candidate remains it fails with the last recorded error,
-     * or a "no handler" error if none claimed the path.
+     * or the unreadable-object error if none claimed the path.
      */
     private void resolveWithFactory(
         String path,
@@ -2061,21 +2109,10 @@ public class ExternalSourceResolver {
     ) {
         if (index >= candidates.size()) {
             if (lastFailure != null) {
-                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+                listener.onFailure(lastFactoryFailure(path, lastFailure));
                 return;
             }
-            var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
-            listener.onFailure(
-                new UnsupportedOperationException(
-                    "No handler found for source at path ["
-                        + path
-                        + "]. "
-                        + "Please ensure the appropriate data source plugin is installed. "
-                        + "Known handlers: ["
-                        + sources
-                        + "]."
-                )
-            );
+            listener.onFailure(noReaderError(path));
             return;
         }
         ExternalSourceFactory factory = candidates.get(index);
@@ -2199,7 +2236,7 @@ public class ExternalSourceResolver {
                 enrichedSchema.add(attr);
             } else if (shadowedColumns.contains(attr.name()) == false) {
                 // Partition (path-derived) value wins; the physical column is hidden (Spark/DuckDB
-                // semantics). The escape hatch to read the physical column is hive_partitioning:false.
+                // semantics). The escape hatch to read the physical column is partition_detection: none.
                 shadowedColumns.add(attr.name());
             }
         }
@@ -2241,7 +2278,7 @@ public class ExternalSourceResolver {
      * Emits one client-facing response-header WARN per physical column that a same-named Hive
      * partition key shadows. Shadowing follows Spark (SPARK-27356) and DuckDB: the partition
      * (path-derived) value wins and the physical column is hidden. The warning lets clients notice
-     * silent data substitution and points at the {@code hive_partitioning: false} escape hatch.
+     * silent data substitution and points at the {@code partition_detection: none} escape hatch.
      * <p>
      * Delegates to {@link SkipWarnings}, which emits the summary once on the first detail. Every
      * caller reachable from {@link #resolve}'s async schema-resolution chain (which runs on
@@ -2260,7 +2297,8 @@ public class ExternalSourceResolver {
         }
         SkipWarnings warnings = new SkipWarnings(
             "one or more physical columns are shadowed by same-named Hive partition keys; "
-                + "the partition (path-derived) value is used. Set hive_partitioning to false to read the physical column instead.",
+                + "the partition (path-derived) value is used. Set partition_detection to none to read the physical "
+                + "column instead.",
             warningSink
         );
         for (String name : shadowedColumns) {
@@ -2530,7 +2568,6 @@ public class ExternalSourceResolver {
         StoragePath storagePath,
         StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
-        boolean hivePartitioning,
         Map<String, Object> config,
         DatasetMapping declaredMapping
     ) throws Exception {
@@ -2541,11 +2578,11 @@ public class ExternalSourceResolver {
         if (path.indexOf(',') >= 0) {
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
-            listing = GlobExpander.expand(path, provider, hints, hivePartitioning, maxDiscoveredFiles, maxGlobExpansion);
+            listing = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
         } else if (isCacheable(provider)) {
-            listing = cachedListing(path, storagePath, provider, hints, hivePartitioning, config);
+            listing = cachedListing(path, storagePath, provider, hints, config);
         } else {
-            listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
+            listing = expandAndCompact(path, provider, hints, config, storagePath);
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {

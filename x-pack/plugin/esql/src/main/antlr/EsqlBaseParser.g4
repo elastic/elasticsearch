@@ -80,8 +80,9 @@ processingCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? dedupCommand
+    | dedupCommand
     | {this.isDevVersion()}? highlightCommand
+    | {this.isDevVersion()}? denseVectorCommand
     ;
 
 whereCommand
@@ -392,7 +393,7 @@ lookupCommand
     ;
 
 dedupCommand
-    : DEV_DEDUP
+    : DEDUP
     ;
 
 highlightCommand
@@ -434,4 +435,8 @@ mmrCommand
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+denseVectorCommand
+    : DEV_DENSE_VECTOR qualifiedNames commandNamedParameters
     ;

@@ -19,12 +19,15 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92PanamaInt7VectorsScorer;
 import org.elasticsearch.simdvec.internal.PanamaFlatVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.OnHeapES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaOptimizedScalarQuantization;
 import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
 import java.io.IOException;
@@ -97,6 +100,11 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     @Override
     public FlatVectorsScorer newFlatVectorsScorer() {
         return new PanamaFlatVectorScorer();
+    }
+
+    @Override
+    public OptimizedScalarQuantization newOptimizedScalarQuantization() {
+        return new PanamaOptimizedScalarQuantization();
     }
 
     @Override

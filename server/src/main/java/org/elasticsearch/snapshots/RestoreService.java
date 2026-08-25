@@ -1688,17 +1688,15 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(snapshot, "project [" + projectId + "] does not exist");
             }
 
-            if (guardedDataStreamTargets.isEmpty() == false) {
-                // A guarded restore over an existing data stream supplies its own restore UUID, so an existing RestoreInProgress entry
-                // with that UUID means this call is a retry of an already-applied guarded restore: treat
-                // it as a no-op rather than re-validating, re-deleting, or re-mutating anything. An ordinary restore's restoreUUID is
-                // always freshly random, so this can never match for it.
-                if (RestoreInProgress.get(currentState).get(restoreUUID) != null) {
-                    // execute() returns without ever calling allocationService.reroute(), so the reroute half of the
-                    // AllocationActionListener contract must be completed explicitly or the listener would never resolve.
-                    listener.reroute().onResponse(null);
-                    return currentState;
-                }
+            // A restore over an existing data stream supplies its own restore UUID, so an existing RestoreInProgress entry with that UUID
+            // means this call is a retry of an already-applied guarded restore. We should treat it as a no-op rather than re-validating,
+            // re-deleting, or re-mutating anything. An ordinary restore's restoreUUID is always freshly random, so this never matches for
+            // it.
+            if (RestoreInProgress.get(currentState).get(restoreUUID) != null) {
+                // execute() returns without ever calling allocationService.reroute(), so the reroute half of the
+                // AllocationActionListener contract must be completed explicitly or the listener would never resolve.
+                listener.reroute().onResponse(null);
+                return currentState;
             }
 
             // Check if the snapshot to restore is currently being deleted

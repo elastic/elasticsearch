@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.simdvec;
 
 import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Function;

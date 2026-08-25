@@ -7,16 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
-import org.elasticsearch.nativeaccess.BBQTestUtils;
-import org.elasticsearch.nativeaccess.GuardPageAllocator;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -26,10 +22,10 @@ import java.lang.foreign.ValueLayout;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.nativeaccess.SimdVecLibrary.SimilarityFunction.DOT_PRODUCT;
-import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.notSupportedMsg;
-import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.platformMsg;
-import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.supported;
+import static org.elasticsearch.simdvec.SimdVecLibrary.SimilarityFunction.DOT_PRODUCT;
+import static org.elasticsearch.simdvec.SimdVecLibraryTests.notSupportedMsg;
+import static org.elasticsearch.simdvec.SimdVecLibraryTests.platformMsg;
+import static org.elasticsearch.simdvec.SimdVecLibraryTests.supported;
 
 /**
  * Tests that the native BBQ vector kernels do not read past the end of their input buffers.
@@ -44,7 +40,7 @@ import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.supported;
  * possible number of bytes over after the kernels' whole-chunk loop, rather than the round dimension
  * counts the other BBQ tests use.
  */
-public class JDKVectorLibraryBBQGuardPageTests extends ESTestCase {
+public class SimdVecLibraryBBQGuardPageTests extends ESTestCase {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("guard-page-test");
@@ -68,7 +64,7 @@ public class JDKVectorLibraryBBQGuardPageTests extends ESTestCase {
     private final byte maxDocValue;
     private final byte maxQueryValue;
 
-    public JDKVectorLibraryBBQGuardPageTests(SimdVecLibrary.BBQType type) {
+    public SimdVecLibraryBBQGuardPageTests(SimdVecLibrary.BBQType type) {
         this.type = type;
         this.maxDocValue = (byte) ((1 << type.dataBits()) - 1);
         this.maxQueryValue = (byte) ((1 << type.queryBits()) - 1);
@@ -86,7 +82,7 @@ public class JDKVectorLibraryBBQGuardPageTests extends ESTestCase {
 
         var simdVecSupported = supported();
         if (simdVecSupported) {
-            var vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
+            var vectorSimilarityFunctions = SimdVecLibrary.instance();
             assertTrue("native vector library must be available on [" + platformMsg() + "]", vectorSimilarityFunctions.isPresent());
             library = vectorSimilarityFunctions.get();
         }

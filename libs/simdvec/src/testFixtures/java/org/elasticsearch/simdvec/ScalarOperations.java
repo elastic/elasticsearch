@@ -7,9 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
-
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+package org.elasticsearch.simdvec;
 
 public class ScalarOperations {
 

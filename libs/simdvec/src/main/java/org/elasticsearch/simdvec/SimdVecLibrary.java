@@ -7,8 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.simdvec;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.LibraryProvider;
@@ -22,8 +23,8 @@ import org.elasticsearch.logging.Logger;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.nativeaccess.SimdVecChecks.validateBulkOffsets;
-import static org.elasticsearch.nativeaccess.SimdVecChecks.validateBulkSparse;
+import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkOffsets;
+import static org.elasticsearch.simdvec.SimdVecChecks.validateBulkSparse;
 
 /**
  * Class providing vector similarity functions.
@@ -123,26 +124,59 @@ public abstract class SimdVecLibrary {
     }
 
     /**
-     * Loads the native vector library, or returns an empty {@code Optional} if this host CPU/OS does not
-     * support vector functions. Callers have already established that the library is supported here.
+     * System property that opts out of loading the native vector library. Kept under the original
+     * {@code nativeaccess} name for backward compatibility with existing deployments.
      */
-    static Optional<SimdVecLibrary> tryLoad() {
+    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
+
+    private static final SimdVecLibrary INSTANCE = load();
+
+    /**
+     * Returns the native vector library, or an empty {@code Optional} if this host CPU/OS does not
+     * support it, or if the user has explicitly disabled it via
+     * {@code -D} {@value #ENABLE_JDK_VECTOR_LIBRARY} {@code =false}.
+     */
+    public static Optional<SimdVecLibrary> instance() {
+        return Optional.ofNullable(INSTANCE);
+    }
+
+    /** Whether the host CPU/OS/JDK combination can run the native vector library. */
+    public static boolean isNativeVectorLibSupported() {
+        var supportedPlatform = Platform.current().equals(Platform.DARWIN_AARCH64)
+            || Platform.current().equals(Platform.LINUX_AARCH64)
+            || Platform.current().equals(Platform.LINUX_X64);
+        return Runtime.version().feature() >= 22 && supportedPlatform && checkEnableSystemProperty();
+    }
+
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
+    private static boolean checkEnableSystemProperty() {
+        return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
+    }
+
+    private static SimdVecLibrary load() {
+        if (isNativeVectorLibSupported() == false) {
+            return null;
+        }
+
         int capability = VecCaps.caps();
         if (capability < 0) {
             logger.warn("""
                 Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
                 enable them in your OS/Hypervisor/VM/container""");
-            return Optional.empty();
+            return null;
         }
 
         if (capability == 0) {
-            return Optional.empty();
+            return null;
         }
         var lib = LibraryProvider.lookupLibrary(SimdVecLibrary.class);
         // lookupLibrary must succeed here, we already checked requirements
         // (and loaded the native library to call vec_caps)
         assert lib != null;
-        return Optional.of(lib);
+        logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
+        return lib;
     }
 
     // --- INT7U: dot product and square distance ---

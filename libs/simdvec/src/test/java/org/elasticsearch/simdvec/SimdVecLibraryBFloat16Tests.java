@@ -7,14 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.simdvec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
-import org.elasticsearch.nativeaccess.SimdVecLibraryTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -28,7 +26,7 @@ import java.util.function.IntFunction;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
-public class JDKVectorLibraryBFloat16Tests extends SimdVecLibraryTests {
+public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
@@ -36,7 +34,7 @@ public class JDKVectorLibraryBFloat16Tests extends SimdVecLibraryTests {
     final SimdVecLibrary.BFloat16QueryType queryType;
     final float delta;
 
-    public JDKVectorLibraryBFloat16Tests(SimdVecLibrary.BFloat16QueryType queryType, SimdVecLibrary.SimilarityFunction function, int size) {
+    public SimdVecLibraryBFloat16Tests(SimdVecLibrary.BFloat16QueryType queryType, SimdVecLibrary.SimilarityFunction function, int size) {
         super(function, size);
         this.queryType = queryType;
         this.delta = 1e-2f * size; // scale the delta with the size, bfloat16 has less precision
@@ -67,7 +65,7 @@ public class JDKVectorLibraryBFloat16Tests extends SimdVecLibraryTests {
     }
 
     public void testRandomFloats() {
-        testBFloat16Vectors(JDKVectorLibraryBFloat16Tests::randomBFloat16Array);
+        testBFloat16Vectors(SimdVecLibraryBFloat16Tests::randomBFloat16Array);
     }
 
     private void testBFloat16Vectors(IntFunction<float[]> vectorGeneratorFunc) {

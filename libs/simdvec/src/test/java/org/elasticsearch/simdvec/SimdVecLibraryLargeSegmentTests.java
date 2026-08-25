@@ -7,12 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.simdvec;
 
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -22,8 +20,8 @@ import java.lang.foreign.ValueLayout;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
-import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.randomFloatArray;
-import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.supported;
+import static org.elasticsearch.simdvec.SimdVecLibraryTests.randomFloatArray;
+import static org.elasticsearch.simdvec.SimdVecLibraryTests.supported;
 
 /**
  * Tests that bulk-with-offsets scoring works correctly when the vectors
@@ -35,7 +33,7 @@ import static org.elasticsearch.nativeaccess.SimdVecLibraryTests.supported;
  * <p> These tests require sufficient direct memory (~2 GB) to be available.
  * If the allocation fails due to memory constraints, the test is skipped.
  */
-public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
+public class SimdVecLibraryLargeSegmentTests extends ESTestCase {
 
     static {
         NodeNamePatternConverter.setGlobalNodeName("test");
@@ -47,7 +45,7 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
     @BeforeClass
     public static void setup() {
         assumeTrue("Native vector functions not supported on this platform", supported());
-        functions = NativeAccess.instance().getVectorSimilarityFunctions().orElse(null);
+        functions = SimdVecLibrary.instance().orElse(null);
         assertNotNull("SimdVecLibrary was not able to load on a supported platform", functions);
     }
 

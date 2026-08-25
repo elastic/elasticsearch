@@ -426,9 +426,9 @@ public final class ParquetFixtureGenerator {
                 case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
                 case "date", "date_nanos" -> g.add(leafName, ((Number) value).longValue());
                 case "version" -> throw new IllegalArgumentException(
-                "column [" + leafName + "] declared [version]: Parquet has no version type -- it would read back as a keyword"
-            );
-            case "ip" -> g.add(leafName, value.toString());
+                    "column [" + leafName + "] declared [version]: Parquet has no version type -- it would read back as a keyword"
+                );
+                case "ip" -> g.add(leafName, value.toString());
                 default -> g.add(leafName, value.toString());
             }
         } catch (Exception e) {

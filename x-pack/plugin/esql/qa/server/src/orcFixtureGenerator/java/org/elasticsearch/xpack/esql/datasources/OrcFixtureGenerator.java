@@ -295,7 +295,9 @@ public final class OrcFixtureGenerator {
             case "boolean" -> TypeDescription.createList(TypeDescription.createBoolean());
             case "date" -> TypeDescription.createList(TypeDescription.createTimestampInstant());
             case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
-                "declared [" + type + "]: ORC has no unsigned integer type -- the column would be written as a "
+                "declared ["
+                    + type
+                    + "]: ORC has no unsigned integer type -- the column would be written as a "
                     + "signed value of the same width and read back with the wrong sign for large values"
             );
             case "date_nanos" -> throw new IllegalArgumentException(
@@ -315,7 +317,9 @@ public final class OrcFixtureGenerator {
             case "boolean" -> TypeDescription.createBoolean();
             case "date" -> TypeDescription.createTimestampInstant();
             case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
-                "declared [" + type + "]: ORC has no unsigned integer type -- the column would be written as a "
+                "declared ["
+                    + type
+                    + "]: ORC has no unsigned integer type -- the column would be written as a "
                     + "signed value of the same width and read back with the wrong sign for large values"
             );
             case "date_nanos" -> throw new IllegalArgumentException(
@@ -447,13 +451,7 @@ public final class OrcFixtureGenerator {
             // Fail loudly rather than writing a null. Swallowing this turned a missing type arm into a
             // column of nulls that no test can distinguish from genuinely absent data.
             throw new IllegalArgumentException(
-                "cannot write column ["
-                    + spec.name()
-                    + "] declared ["
-                    + spec.type()
-                    + "] with value ["
-                    + value
-                    + "]",
+                "cannot write column [" + spec.name() + "] declared [" + spec.type() + "] with value [" + value + "]",
                 e
             );
         }

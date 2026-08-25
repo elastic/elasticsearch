@@ -227,8 +227,8 @@ public final class NdJsonFixtureGenerator {
             return false;
         }
         return switch (type) {
-            case "integer", "short", "byte", "long", "double", "float", "half_float", "scaled_float", "boolean", "date",
-                "date_nanos" -> true;
+            case "integer", "short", "byte", "long", "double", "float", "half_float", "scaled_float", "boolean", "date", "date_nanos" ->
+                true;
             case "null", "n" -> false;
             default -> ((String) element).trim().isEmpty() == false;
         };

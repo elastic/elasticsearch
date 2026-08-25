@@ -9,10 +9,13 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -86,6 +90,19 @@ abstract class AbstractVectorFieldEmbeddingsFieldIT<C extends AbstractVectorFiel
 
     String indexName = null;
     List<C> vectorFields = new ArrayList<>();
+    final boolean excludeSourceVectors;
+
+    AbstractVectorFieldEmbeddingsFieldIT(@Name("excludeSourceVectors") boolean excludeSourceVectors) {
+        this.excludeSourceVectors = excludeSourceVectors;
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put(INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), excludeSourceVectors)
+            .build();
+    }
 
     @Override
     protected int minimumNumberOfShards() {

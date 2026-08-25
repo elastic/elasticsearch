@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.codec.vectors.BFloat16;
@@ -195,6 +198,15 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
             }
             return Base64.getEncoder().encodeToString(buf);
         }
+    }
+
+    @ParametersFactory(argumentFormatting = "excludeSourceVectors=%b")
+    public static Iterable<Object[]> parameters() {
+        return List.of(new Object[] { false }, new Object[] { true });
+    }
+
+    public DenseVectorFieldEmbeddingsFieldIT(@Name("excludeSourceVectors") boolean excludeSourceVectors) {
+        super(excludeSourceVectors);
     }
 
     @Override

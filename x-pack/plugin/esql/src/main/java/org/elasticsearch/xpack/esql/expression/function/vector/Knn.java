@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -78,7 +79,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
-public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
+public class Knn extends SingleFieldFullTextFunction
+    implements
+        OptionalArgument,
+        VectorFunction,
+        PostOptimizationVerificationAware,
+        ConfigurationFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
@@ -222,9 +228,13 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return filterExpressions;
     }
 
+    public Configuration configuration() {
+        return configuration;
+    }
+
     public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
-        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions(), configuration);
+        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions(), configuration());
     }
 
     public List<Number> queryAsObject() {
@@ -415,7 +425,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions, configuration);
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions, configuration());
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -457,7 +467,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             implicitK(),
             queryBuilder(),
             filterExpressions(),
-            configuration
+            configuration()
         );
     }
 
@@ -472,7 +482,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
             implicitK(),
             queryBuilder(),
             filterExpressions(),
-            configuration
+            configuration()
         );
     }
 

@@ -191,7 +191,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
     /**
-     *  When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
+     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
      */
     public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
 

@@ -28,6 +28,7 @@ import static jdk.incubator.vector.VectorOperators.GT;
 import static jdk.incubator.vector.VectorOperators.I2D;
 import static jdk.incubator.vector.VectorOperators.LE;
 import static jdk.incubator.vector.VectorOperators.LT;
+import static org.elasticsearch.simdvec.internal.vectorization.PanamaESVectorUtilSupport.fma;
 
 public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQuantizer {
 
@@ -67,7 +68,7 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
     }
 
     @Override
-    protected double calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
+    protected float calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
         final int limit = FLOAT_SPECIES.loopBound(absZF.length);
         FloatVector halfConst = FloatVector.broadcast(FLOAT_SPECIES, 0.5f);
 
@@ -76,13 +77,13 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector abs = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i).abs();
             abs.reinterpretAsInts().intoArray(absZF, i);
-            dotAcc = halfConst.fma(abs, dotAcc);
+            dotAcc = fma(halfConst, abs, dotAcc);
         }
         if (i < absZF.length) {
             var mask = FLOAT_SPECIES.indexInRange(i, absZF.length);
             FloatVector abs = FloatVector.fromArray(FLOAT_SPECIES, z, zOffset + i, mask).abs();
             abs.reinterpretAsInts().intoArray(absZF, i, mask.cast(INTEGER_SPECIES));
-            dotAcc = halfConst.fma(abs, dotAcc);
+            dotAcc = fma(halfConst, abs, dotAcc);
         }
         return dotAcc.reduceLanes(ADD);
     }
@@ -131,6 +132,7 @@ public final class PanamaAshSphericalScalarQuantizer extends AshSphericalScalarQ
         HALF_INTEGER_SPECIES = halfInteger;
     }
 
+    @Override
     protected void setGeneralOutput(float[] z, int zOffset, float[] out, int outOffset, int d, int nSteps, int bestStep, double bestMag) {
         if (HALF_FLOAT_SPECIES == null) {
             // uh oh, can't get half vector sizes for some reason, fallback

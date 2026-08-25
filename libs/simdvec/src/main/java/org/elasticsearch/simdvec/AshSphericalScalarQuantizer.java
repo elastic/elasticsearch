@@ -127,14 +127,13 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
      */
     private static final ThreadLocal<LSBRadixSorter> SORTER = ThreadLocal.withInitial(LSBRadixSorter::new);
 
-    protected double calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
+    protected float calculateBaseLevel(float[] z, int zOffset, int[] absZF) {
         // Base level: all dims at 0.5 -> cumDot = sum(0.5 * |z_j|), cumNormSq = 0.25 * d
-        // use doubles here, as small differences between steps can be significant
-        double dot = 0;
+        float dot = 0;
         for (int j = 0; j < absZF.length; j++) {
             float abs = Math.abs(z[zOffset + j]);
             absZF[j] = Float.floatToRawIntBits(abs);
-            dot = Math.fma(0.5, abs, dot);
+            dot = Math.fma(0.5f, abs, dot);
         }
         return dot;
     }
@@ -168,6 +167,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
         // this also allows us to use radix sort, which is faster and less branch-y than Arrays.sort
         SORTER.get().sort(31, absZF, d);
 
+        // use doubles here, as small differences between steps can be significant
         double normSq = 0.25 * d;
         double bestDot = dot;
         double bestNormSq = normSq;
@@ -252,6 +252,7 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
             firstNonZero++;
         }
 
+        // use doubles here, as small differences between steps can be significant
         double bestDot = baseDot;
         double bestNormSq = 0.25 * d;
         // The winning event fixes the threshold at bestStep / bestMag; step 0 means no event

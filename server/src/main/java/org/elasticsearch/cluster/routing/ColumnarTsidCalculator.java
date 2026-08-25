@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.document.column.LongTupleCursor;
+import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
@@ -37,10 +39,6 @@ import java.util.function.Predicate;
  * column, and columns visited in path-sorted order so each row's dimensions arrive already sorted.
  * Each value is folded straight into its row's {@link ColumnarTsidAccumulator} state, so nothing is
  * buffered between the scan and the finished tsids.
- *
- * <p>Value hash parity with the funnel: LONG → tag 1, DOUBLE → tag 2, BOOL → tag 3, STRING →
- * murmur3-128 of UTF-8 bytes, ARRAY/UNION → element-granular dispatch on the above, BINARY →
- * throws. NULL entries in UNION columns are skipped, identical to the per-document path.
  */
 public final class ColumnarTsidCalculator {
 
@@ -100,9 +98,11 @@ public final class ColumnarTsidCalculator {
         for (int leafIdx = 0; leafIdx < leafCount; leafIdx++) {
             String path = schema.getFullPath(leafIdx);
             if (isDimension.test(path)) {
-                // Rejected up front rather than on first present row, so the failure cannot arrive
-                // after some rows have already produced a tsid.
-                if (batch.column(leafIdx).kind() == EscfColumnKind.BINARY) {
+                // leafValueKind() is the element kind for an ARRAY column and the column's own kind
+                // otherwise, so one check rejects both a BINARY column and an array of BINARY before the
+                // scan. A BINARY value inside a UNION column is not visible here; addUnionRow rejects it.
+                byte leafKind = batch.column(leafIdx).leafValueKind();
+                if (leafKind == EscfColumnKind.BINARY) {
                     throw new IllegalArgumentException(
                         "Dimension column [" + path + "] has kind BINARY; JSON dimensions cannot produce binary values"
                     );
@@ -125,44 +125,82 @@ public final class ColumnarTsidCalculator {
         MurmurHash3.Hash128 valueHash
     ) {
         final byte kind = col.kind();
-        final PresentDocIterator it = col.presentDocs();
-        int r;
         switch (kind) {
+            // Scalar and ARRAY columns share one scan. The cursors are polymorphic across the two
+            // shapes — a scalar column yields one tuple per present row, an array column one tuple per
+            // element with the row id repeated — and either way the accumulator wants exactly that: one
+            // (row, value) pair at a time. leafValueKind() collapses the two, returning the column's own
+            // kind for a scalar and the element kind for an array.
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.ARRAY -> scanValues(
+                col,
+                col.leafValueKind(),
+                dc,
+                pathGroup,
+                accumulator,
+                valueHash
+            );
+            case EscfColumnKind.BOOL -> scanBoolColumn(col, dc, pathGroup, accumulator);
+            case EscfColumnKind.UNION -> scanUnionColumn(col, dc, pathGroup, accumulator, valueHash);
+            default -> throw new IllegalArgumentException("Unexpected column kind for tsid dimension: " + EscfColumnKind.name(kind));
+        }
+    }
+
+    private static void scanValues(
+        EscfColumn col,
+        byte valueKind,
+        DimColumn dc,
+        int pathGroup,
+        ColumnarTsidAccumulator accumulator,
+        MurmurHash3.Hash128 valueHash
+    ) {
+        switch (valueKind) {
             case EscfColumnKind.LONG -> {
-                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    add(accumulator, r, dc, pathGroup, TsidBuilder.LONG_VALUE_TAG, col.getLongValue(r));
+                LongTupleCursor cursor = col.longCursor();
+                int r;
+                while ((r = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    add(accumulator, r, dc, pathGroup, TsidBuilder.LONG_VALUE_TAG, cursor.longValue());
                 }
             }
             case EscfColumnKind.DOUBLE -> {
-                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    add(accumulator, r, dc, pathGroup, TsidBuilder.DOUBLE_VALUE_TAG, Double.doubleToLongBits(col.getDoubleValue(r)));
-                }
-            }
-            case EscfColumnKind.BOOL -> {
-                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    add(accumulator, r, dc, pathGroup, TsidBuilder.BOOLEAN_VALUE_TAG, col.getBooleanValue(r) ? 1L : 0L);
+                LongTupleCursor cursor = col.longCursor();
+                int r;
+                while ((r = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    long bits = Double.doubleToLongBits(Double.longBitsToDouble(cursor.longValue()));
+                    add(accumulator, r, dc, pathGroup, TsidBuilder.DOUBLE_VALUE_TAG, bits);
                 }
             }
             case EscfColumnKind.STRING -> {
-                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    // Raw UTF-8 bytes, no Text wrapper.
-                    BytesRef bytes = col.getBinaryValue(r);
+                ObjectTupleCursor<BytesRef> cursor = col.bytesRefCursor(false);
+                int r;
+                while ((r = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    BytesRef bytes = cursor.value();
                     TsidBuilder.hashStringValue(bytes.bytes, bytes.offset, bytes.length, valueHash);
                     add(accumulator, r, dc, pathGroup, valueHash.h1, valueHash.h2);
                 }
             }
-            case EscfColumnKind.ARRAY -> {
-                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    addArrayElements(col.getArrayValue(r), r, dc, pathGroup, accumulator, valueHash);
-                }
-            }
-            case EscfColumnKind.UNION -> {
-                while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    addUnionRow(col, r, dc, pathGroup, accumulator, valueHash);
-                }
-            }
-            // BINARY is rejected in resolveDimColumns, so it cannot reach here.
-            default -> throw new IllegalArgumentException("Unexpected column kind for tsid dimension: " + EscfColumnKind.name(kind));
+            default -> throw new IllegalArgumentException("Unexpected value kind for tsid dimension: " + EscfColumnKind.name(valueKind));
+        }
+    }
+
+    private static void scanBoolColumn(EscfColumn col, DimColumn dc, int pathGroup, ColumnarTsidAccumulator accumulator) {
+        PresentDocIterator it = col.presentDocs();
+        int r;
+        while ((r = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            add(accumulator, r, dc, pathGroup, TsidBuilder.BOOLEAN_VALUE_TAG, col.getBooleanValue(r) ? 1L : 0L);
+        }
+    }
+
+    private static void scanUnionColumn(
+        EscfColumn col,
+        DimColumn dc,
+        int pathGroup,
+        ColumnarTsidAccumulator accumulator,
+        MurmurHash3.Hash128 valueHash
+    ) {
+        ObjectTupleCursor<BytesRef> cursor = col.bytesRefCursor(false);
+        int r;
+        while ((r = cursor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            addUnionRow(col, r, cursor.value(), dc, pathGroup, accumulator, valueHash);
         }
     }
 
@@ -214,6 +252,7 @@ public final class ColumnarTsidCalculator {
     private static void addUnionRow(
         EscfColumn col,
         int row,
+        BytesRef payload,
         DimColumn dc,
         int pathGroup,
         ColumnarTsidAccumulator accumulator,
@@ -249,9 +288,8 @@ public final class ColumnarTsidCalculator {
             h1 = TsidBuilder.BOOLEAN_VALUE_TAG;
             h2 = 0L;
         } else if (typeByte == SourceValueType.STRING) {
-            // Raw UTF-8 bytes, no Text wrapper.
-            BytesRef bytes = col.getBinaryValue(row);
-            TsidBuilder.hashStringValue(bytes.bytes, bytes.offset, bytes.length, valueHash);
+            // Raw UTF-8 bytes straight off the cursor, no Text wrapper and no per-row slice.
+            TsidBuilder.hashStringValue(payload.bytes, payload.offset, payload.length, valueHash);
             h1 = valueHash.h1;
             h2 = valueHash.h2;
         } else if (typeByte == SourceValueType.BINARY) {

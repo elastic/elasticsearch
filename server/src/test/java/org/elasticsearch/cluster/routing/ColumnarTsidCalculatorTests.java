@@ -168,6 +168,62 @@ public class ColumnarTsidCalculatorTests extends ESTestCase {
         assertColumnarMatchesSourceParser(List.of(src0, src1), strategy);
     }
 
+    /** Numeric arrays: the LONG child takes the element cursor, the DOUBLE child the generic walk. */
+    public void testNumericArrayDimensions() throws IOException {
+        List<BytesReference> sources = new ArrayList<>();
+        for (int row = 0; row < 3; row++) {
+            try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                b.startObject();
+                b.array("dim.longs", 1_000_000_000L + row, 2_000_000_000L + row, -row);
+                b.array("dim.dbls", 0.5 + row, -1.5 - row);
+                b.field("dim.host", "n" + row);
+                b.endObject();
+                sources.add(BytesReference.bytes(b));
+            }
+        }
+        assertParityForBothLayouts(sources, "dim.*");
+    }
+
+    /**
+     * Arrays interleaved with absent and empty rows. The element cursors are driven by the element
+     * offsets rather than the validity bitset, and both an absent row and an empty array are
+     * zero-width there — so this pins that neither shifts a later row's elements onto the wrong row.
+     */
+    public void testSparseAndEmptyArrayDimensions() throws IOException {
+        for (boolean stringElements : new boolean[] { true, false }) {
+            List<BytesReference> sources = new ArrayList<>();
+            for (int row = 0; row < 6; row++) {
+                try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+                    b.startObject();
+                    // row 0: two elements, row 1: absent, row 2: empty, row 3: one element, row 4: absent,
+                    // row 5: three elements.
+                    switch (row) {
+                        case 0, 3, 5 -> {
+                            b.startArray("dim.arr");
+                            for (int i = 0; i <= row % 3; i++) {
+                                if (stringElements) {
+                                    b.value("r" + row + "e" + i);
+                                } else {
+                                    b.value(100L * row + i);
+                                }
+                            }
+                            b.endArray();
+                        }
+                        case 2 -> b.startArray("dim.arr").endArray();
+                        case 1, 4 -> {
+                            // dim.arr absent on this row
+                        }
+                        default -> throw new AssertionError("unhandled row " + row);
+                    }
+                    b.field("dim.host", "n" + row); // anchor: every row needs at least one dimension value
+                    b.endObject();
+                    sources.add(BytesReference.bytes(b));
+                }
+            }
+            assertParityForBothLayouts(sources, "dim.*");
+        }
+    }
+
     public void testArrayOrderSensitivity() throws IOException {
         // [a, b] must produce a different tsid from [b, a] at the same path.
         var strategy = forIndexDimensions("dim.*");

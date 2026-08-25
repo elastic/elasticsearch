@@ -72,6 +72,18 @@ public enum MurmurHash3 {
         }
     }
 
+    static class IntermediateResult {
+        int offset;
+        long h1;
+        long h2;
+
+        IntermediateResult(int offset, long h1, long h2) {
+            this.offset = offset;
+            this.h1 = h1;
+            this.h2 = h2;
+        }
+    }
+
     /** Index of the {@code h1} word within a murmur3-128 accumulator state. */
     public static final int STATE_H1 = 0;
     /** Index of the {@code h2} word within a murmur3-128 accumulator state. */
@@ -158,29 +170,28 @@ public enum MurmurHash3 {
         long h1 = seed;
         long h2 = seed;
 
-        // The block loop is written out here over scalar locals, and again in mixBlocks over a long[]
-        // state, so that this one-shot API (the hottest hashing entry point in the codebase) stays
-        // allocation-free rather than depending on escape analysis of a shared state array. Both
-        // copies are two calls to the same nextH1/nextH2, so the arithmetic itself exists once.
-        final int end = offset + (length & ~15);
+        if (length >= 16) {
+            IntermediateResult result = intermediateHash(key, offset, length, h1, h2);
+            h1 = result.h1;
+            h2 = result.h2;
+            offset = result.offset;
+        }
+
+        return finalizeHash(hash, key, offset, length, h1, h2);
+    }
+
+    static IntermediateResult intermediateHash(byte[] key, int offset, int length, long h1, long h2) {
+        final int len16 = length & 0xFFFFFFF0; // higher multiple of 16 that is lower than or equal to length
+        final int end = offset + len16;
         for (int i = offset; i < end; i += 16) {
             h1 = nextH1(h1, h2, ByteUtils.readLongLE(key, i));
             h2 = nextH2(h2, h1, ByteUtils.readLongLE(key, i + 8));
         }
 
-        // `end`, not `offset`: the tail starts after the last complete block. When length < 16 no
-        // block ran and end == offset, which is why no length guard is needed around the loop.
-        return finalizeHash(hash, key, end, length, h1, h2);
-    }
+        // Advance offset to the unprocessed tail of the data.
+        offset = end;
 
-    /**
-     * Initialises a murmur3-128 accumulator state held in {@code state[stateOffset]} ({@code h1}) and
-     * {@code state[stateOffset + 1]} ({@code h2}). A zero-filled array is already correctly
-     * initialised for seed 0, so this call can be skipped in that common case.
-     */
-    public static void initState(long[] state, int stateOffset, long seed) {
-        state[stateOffset + STATE_H1] = seed;
-        state[stateOffset + STATE_H2] = seed;
+        return new IntermediateResult(offset, h1, h2);
     }
 
     /**
@@ -220,41 +231,17 @@ public enum MurmurHash3 {
     }
 
     /**
-     * Mixes the leading {@code length & ~15} bytes of {@code key} from {@code offset} into the
-     * accumulator state at {@code stateOffset}.
-     *
-     * @return the offset just past the last complete block, i.e. where the unprocessed tail begins
-     */
-    public static int mixBlocks(byte[] key, int offset, int length, long[] state, int stateOffset) {
-        long h1 = state[stateOffset + STATE_H1];
-        long h2 = state[stateOffset + STATE_H2];
-        final int end = offset + (length & ~15);
-        for (int i = offset; i < end; i += 16) {
-            h1 = nextH1(h1, h2, ByteUtils.readLongLE(key, i));
-            h2 = nextH2(h2, h1, ByteUtils.readLongLE(key, i + 8));
-        }
-        state[stateOffset + STATE_H1] = h1;
-        state[stateOffset + STATE_H2] = h2;
-        return end;
-    }
-
-    /**
-     * Finalises a hash whose input length is an exact multiple of 16, so every byte has already been
-     * mixed as a complete block and there is no tail. Equivalent to
+     * Finalises an accumulator state whose input length is an exact multiple of 16, so every byte has
+     * already been mixed as a complete block and there is no tail. Equivalent to
      * {@link #finalizeHash} with {@code length % 16 == 0}, where the tail switch matches no case and
      * the remainder array is never read.
      *
      * @param length total number of <i>bytes</i> hashed, not the number of blocks. It is mixed into
      *               the result, so a wrong value silently yields a different hash.
      */
-    public static Hash128 finalizeAlignedHash(Hash128 hash, int length, long h1, long h2) {
-        assert (length & 15) == 0 : "not block aligned: " + length;
-        return finish(hash, length, h1, h2);
-    }
-
-    /** {@link #finalizeAlignedHash} reading {@code h1}/{@code h2} from an accumulator state. */
     public static Hash128 finalizeAlignedHash(Hash128 hash, int length, long[] state, int stateOffset) {
-        return finalizeAlignedHash(hash, length, state[stateOffset + STATE_H1], state[stateOffset + STATE_H2]);
+        assert (length & 15) == 0 : "not block aligned: " + length;
+        return finish(hash, length, state[stateOffset + STATE_H1], state[stateOffset + STATE_H2]);
     }
 
     /**

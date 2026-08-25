@@ -118,7 +118,9 @@ final class ColumnarTsidAccumulator {
                 bestValue[row * 2] = valueH1;
                 bestValue[row * 2 + 1] = valueH2;
             }
-        } else if (TsidBuilder.emitsValueSimilarityByte(valueSimilarityCount[row], pathGroup, lastPathGroup[row])) {
+            // Capped, and only the first value of each distinct path contributes — the same rule the row
+            // path applies by skipping a dimension whose path equals its predecessor's in sorted order.
+        } else if (valueSimilarityCount[row] < TsidBuilder.MAX_TSID_VALUE_SIMILARITY_FIELDS && pathGroup != lastPathGroup[row]) {
             int slot = row * TsidBuilder.MAX_TSID_VALUE_SIMILARITY_FIELDS + valueSimilarityCount[row]++;
             valueSimilarityBytes[slot] = TsidBuilder.similarityByte(valueH1, valueH2, scratch);
             lastPathGroup[row] = pathGroup;

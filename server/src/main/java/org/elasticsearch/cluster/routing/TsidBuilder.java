@@ -48,11 +48,6 @@ public class TsidBuilder {
     /** Size of the full 128-bit hash suffix shared by both tsid layouts. */
     private static final int FULL_HASH_BYTES = 16;
 
-    /**
-     * Type tags mixed into a dimension's value hash so that values of different types cannot collide.
-     * Shared with the columnar tsid path, which derives the same hashes from typed columns rather
-     * than from parsed JSON tokens.
-     */
     static final long LONG_VALUE_TAG = 1L;
     static final long DOUBLE_VALUE_TAG = 2L;
     static final long BOOLEAN_VALUE_TAG = 3L;
@@ -60,7 +55,10 @@ public class TsidBuilder {
     /** {@link #prefixByteRank} result for a path with no special meaning for the prefix byte. */
     static final int PREFIX_RANK_NONE = Integer.MAX_VALUE;
 
-    /** {@link #emitsValueSimilarityByte} sentinel meaning "no byte emitted yet". */
+    /**
+     * Sentinel for "no path group seen yet", used by the columnar path to identify the first value of
+     * each distinct dimension path — the row path recognises that by comparing adjacent path strings.
+     */
     static final int NO_PATH_GROUP = -1;
 
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
@@ -335,24 +333,20 @@ public class TsidBuilder {
         }
         final byte nameSimilarityByte = similarityByte(murmur3Hasher.digestHash(scratch));
 
-        // Similarity byte for the first value of each distinct path, capped. Dimensions are sorted, so
-        // equal paths are adjacent and a change counter identifies them.
+        // Similarity byte for the first value of each distinct path, capped.
         final byte[] valueSimilarityBytes = new byte[MAX_TSID_VALUE_SIMILARITY_FIELDS];
         int emitted = 0;
-        int pathGroup = NO_PATH_GROUP;
-        int lastPathGroup = NO_PATH_GROUP;
         String previousPath = null;
-        for (int i = 0; i < dimensions.size() && emitted < MAX_TSID_VALUE_SIMILARITY_FIELDS; i++) {
+        for (int i = 0; emitted < MAX_TSID_VALUE_SIMILARITY_FIELDS && i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
-            if (dim.path().equals(previousPath) == false) {
-                previousPath = dim.path();
-                pathGroup++;
+            String path = dim.path();
+            if (path.equals(previousPath)) {
+                // only add the first value for array fields
+                continue;
             }
-            if (emitsValueSimilarityByte(emitted, pathGroup, lastPathGroup)) {
-                MurmurHash3.Hash128 valueHash = dim.valueHash();
-                valueSimilarityBytes[emitted++] = similarityByte(valueHash.h1, valueHash.h2, scratch);
-                lastPathGroup = pathGroup;
-            }
+            MurmurHash3.Hash128 valueHash = dim.valueHash();
+            valueSimilarityBytes[emitted++] = similarityByte(valueHash.h1, valueHash.h2, scratch);
+            previousPath = path;
         }
 
         // Full hash over all names and values for uniqueness. Safe to reuse `scratch` here because the
@@ -478,18 +472,6 @@ public class TsidBuilder {
         assert (bestRank == PREFIX_RANK_NONE) == (nameSimilarityHash != null)
             : "name similarity hash must be supplied exactly when no special dimension is present";
         return bestRank == PREFIX_RANK_NONE ? similarityByte(nameSimilarityHash) : similarityByte(bestValueH1, bestValueH2, scratch);
-    }
-
-    /**
-     * Whether a dimension value contributes a value-similarity byte to the multi-byte layout. Sole
-     * definition of the {@link #MAX_TSID_VALUE_SIMILARITY_FIELDS} cap and of the rule that only the
-     * first value of an array-valued dimension contributes.
-     *
-     * <p>Callers present values in (path, insertion order) order and identify the path with a
-     * {@code pathGroup} id that is equal for consecutive values of the same path.
-     */
-    static boolean emitsValueSimilarityByte(int emitted, int pathGroup, int lastPathGroup) {
-        return emitted < MAX_TSID_VALUE_SIMILARITY_FIELDS && pathGroup != lastPathGroup;
     }
 
     /**

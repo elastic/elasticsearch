@@ -110,13 +110,18 @@ public class MurmurHash3AccumulatorTests extends ESTestCase {
         assertEquals(hasher.digestHash(), actual);
     }
 
-    /** {@code mixBlocks} over a byte array, with an arbitrary tail handed to {@code finalizeHash}. */
-    public void testMixBlocksMatchesHash128() {
+    /**
+     * A block-folded stream with an arbitrary (non-block-aligned) tail handed to the generic
+     * {@code finalizeHash} must still match {@code hash128} over the same bytes.
+     */
+    public void testBlockFoldWithArbitraryTailMatchesHash128() {
         byte[] bytes = randomByteArrayOfLength(randomIntBetween(0, 200));
         long[] state = new long[MurmurHash3.STATE_SIZE];
 
-        int tailOffset = MurmurHash3.mixBlocks(bytes, 0, bytes.length, state, 0);
-        assertEquals(bytes.length & ~15, tailOffset);
+        int tailOffset = bytes.length & ~15;
+        for (int i = 0; i < tailOffset; i += 16) {
+            MurmurHash3.mixBlock(state, 0, ByteUtils.readLongLE(bytes, i), ByteUtils.readLongLE(bytes, i + 8));
+        }
 
         MurmurHash3.Hash128 actual = MurmurHash3.finalizeHash(
             new MurmurHash3.Hash128(),
@@ -199,14 +204,21 @@ public class MurmurHash3AccumulatorTests extends ESTestCase {
         }
     }
 
-    /** A non-zero seed must be honoured, matching {@link Murmur3Hasher} with the same seed. */
-    public void testInitStateWithNonZeroSeed() {
+    /**
+     * Seed 0 is just the zero-filled state, which is what the columnar accumulator relies on. Any
+     * other seed is written into both state words; this pins that layout against {@code hash128}.
+     */
+    public void testNonZeroSeedViaSeededState() {
         long seed = randomLong();
-        byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 8) * 16);
+        int blocks = randomIntBetween(1, 8);
+        byte[] bytes = randomByteArrayOfLength(blocks * 16);
 
         long[] state = new long[MurmurHash3.STATE_SIZE];
-        MurmurHash3.initState(state, 0, seed);
-        MurmurHash3.mixBlocks(bytes, 0, bytes.length, state, 0);
+        state[MurmurHash3.STATE_H1] = seed;
+        state[MurmurHash3.STATE_H2] = seed;
+        for (int i = 0; i < blocks; i++) {
+            MurmurHash3.mixBlock(state, 0, ByteUtils.readLongLE(bytes, i * 16), ByteUtils.readLongLE(bytes, i * 16 + 8));
+        }
         MurmurHash3.Hash128 actual = MurmurHash3.finalizeAlignedHash(new MurmurHash3.Hash128(), bytes.length, state, 0);
 
         assertEquals(MurmurHash3.hash128(bytes, 0, bytes.length, seed, new MurmurHash3.Hash128()), actual);

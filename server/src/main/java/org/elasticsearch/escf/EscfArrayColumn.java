@@ -70,9 +70,13 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     /**
-     * Returns an element-granular {@link LongTupleCursor} over this array column's long element
-     * values. The child column must be an {@link EscfLongColumn}; throws
+     * Returns an element-granular {@link LongTupleCursor} over this array column's fixed-64 element
+     * values. The child column must be an {@link AbstractFixed64Column} (LONG or DOUBLE); throws
      * {@link UnsupportedOperationException} otherwise.
+     *
+     * <p>As with {@link AbstractFixed64Column#longCursor()}, the yielded {@code longValue()} is the
+     * <em>raw 64-bit stored word</em>: the long value for a {@link EscfLongColumn} child, and
+     * {@code Double.doubleToRawLongBits(d)} for a {@link EscfDoubleColumn} child.
      *
      * <p>For multi-valued rows the same row-id is returned once per element. Empty rows (zero-width
      * offset range) and absent rows (no elements) are skipped automatically.
@@ -81,13 +85,15 @@ final class EscfArrayColumn extends EscfColumn {
     // arrays. Add that when needed.
     @Override
     public LongTupleCursor longCursor() {
-        if (!(child instanceof EscfLongColumn longChild)) {
-            throw new UnsupportedOperationException("longCursor() requires a long child column, got: " + EscfColumnKind.name(child.kind()));
+        if (!(child instanceof AbstractFixed64Column fixedChild)) {
+            throw new UnsupportedOperationException(
+                "longCursor() requires a fixed-64 child column, got: " + EscfColumnKind.name(child.kind())
+            );
         }
         final int numRows = docCount;
         final int[] offs = rowOffsets.ints;
         final int base = rowOffsets.offset;
-        final AbstractFixed64Column.DenseLongValuesCursor values = longChild.longValuesCursor();
+        final AbstractFixed64Column.DenseLongValuesCursor values = fixedChild.longValuesCursor();
         final int startElem = offs[base];
         if (numRows > 0 && startElem > 0) {
             values.skip(startElem); // this window starts mid-child because sliceInternal keeps the child unsliced

@@ -47,6 +47,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -85,7 +86,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -287,11 +288,14 @@ public class KnnIndexTester {
                 String sliceField = args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null;
 
                 if (isAsh) {
-                    int bitsPerDim = args.quantizeBits() != null ? args.quantizeBits() : 2;
-                    int queryBits = args.queryQuantizeBits() != null
-                        ? args.queryQuantizeBits()
-                        : ESNextDiskASHVectorsFormat.DEFAULT_QUERY_BITS_PER_DIM;
+                    int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
+                    int queryBits = Objects.requireNonNullElse(
+                        args.queryQuantizeBits(),
+                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM
+                    );
+                    var ashConfig = IvfSegmentConfig.AshConfig.of(bitsPerDim, queryBits, args.projectedDimsFraction());
                     yield new ESNextDiskASHVectorsFormat(
+                        ashConfig,
                         args.ivfClusterSize(),
                         centroidsPerParentCluster,
                         elementType,
@@ -301,10 +305,7 @@ public class KnnIndexTester {
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        IvfMergeConfigResolver.useCodecDefault(),
-                        bitsPerDim,
-                        args.projectedDimsFraction(),
-                        queryBits
+                        IvfMergeConfigResolver.useCodecDefault()
                     );
                 } else {
                     var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
@@ -849,44 +850,18 @@ public class KnnIndexTester {
         switch (args.indexType()) {
             case IVF:
                 if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
-                    // ASH supports {1, 2, 3, 4, 8} for doc bits; query bits are independent
-                    if (args.quantizeBits() != null && !Set.of(1, 2, 3, 4, 8).contains(args.quantizeBits())) {
-                        throw new IllegalArgumentException(
-                            "ASH quantization supports 1, 2, 3, 4 or 8 bits, but got: " + args.quantizeBits()
-                        );
-                    }
+                    // AshConfig.of validates bitsPerDim, queryBitsPerDim, and projectedDimsFraction
+                    IvfSegmentConfig.AshConfig.of(
+                        Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
+                        Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+                        args.projectedDimsFraction()
+                    );
                 } else {
-                    if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
-                        throw new IllegalArgumentException(
-                            "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
-                        );
+                    if (args.quantizeBits() == null) {
+                        throw new IllegalArgumentException("IVF index type requires quantize_bits to be set");
                     }
-                    if (args.queryQuantizeBits() != null) {
-                        int docBits = args.quantizeBits();
-                        int queryBits = args.queryQuantizeBits();
-                        if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
-                            throw new IllegalArgumentException(
-                                "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
-                            );
-                        }
-                        if (docBits == 2 && queryBits != 4) {
-                            throw new IllegalArgumentException(
-                                "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
-                            );
-                        }
-                        if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
-                            throw new IllegalArgumentException(
-                                "IVF with "
-                                    + docBits
-                                    + "-bit document quantization requires query_quantize_bits "
-                                    + docBits
-                                    + ", but got: "
-                                    + queryBits
-                            );
-                        }
-                        // validate the combination is supported by the codec
-                        resolveQuantEncoding(docBits, queryBits);
-                    }
+                    // QuantEncoding.fromBits / fromDocAndQueryBits validates the combination
+                    resolveQuantEncoding(args.quantizeBits(), args.queryQuantizeBits());
                 }
                 break;
             case GPU_HNSW: {

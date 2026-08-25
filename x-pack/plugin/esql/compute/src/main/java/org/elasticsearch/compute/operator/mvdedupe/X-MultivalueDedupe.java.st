@@ -83,10 +83,13 @@ $endif$
         }
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
@@ -137,10 +140,13 @@ $endif$
         }
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
@@ -171,10 +177,13 @@ $endif$
         }
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
@@ -196,10 +205,13 @@ $endif$
     public $Type$Block sortToBlock(BlockFactory blockFactory, boolean ascending) {
         try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendNull();
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendNull();
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
@@ -224,13 +236,14 @@ $endif$
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             boolean sawNull = false;
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    sawNull = true;
+                    builder.appendInt(0);
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> {
-                        sawNull = true;
-                        builder.appendInt(0);
-                    }
                     case 1 -> {
 $if(BytesRef)$
                         BytesRef v = block.getBytesRef(first, work[0]);
@@ -261,10 +274,13 @@ $endif$
     public IntBlock hashLookup(BlockFactory blockFactory, $Hash$Table hash) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
             for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    builder.appendInt(0);
+                    continue;
+                }
                 int count = block.getValueCount(p);
                 int first = block.getFirstValueIndex(p);
                 switch (count) {
-                    case 0 -> builder.appendInt(0);
                     case 1 -> {
 $if(BytesRef)$
                         BytesRef v = block.getBytesRef(first, work[0]);
@@ -290,7 +306,7 @@ $endif$
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
+     * and then encodes the results into a {@code byte[]} which can be used for
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
@@ -312,10 +328,13 @@ $endif$
                     position++;
                 }
                 for (; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        encodeNull();
+                        continue;
+                    }
                     int count = block.getValueCount(position);
                     int first = block.getFirstValueIndex(position);
                     switch (count) {
-                        case 0 -> encodeNull();
                         case 1 -> {
 $if(BytesRef)$
                             BytesRef v = block.getBytesRef(first, work[0]);

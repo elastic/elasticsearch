@@ -703,6 +703,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         serviceAccountService.authenticateToken(newTokenFor(USER_MANAGED_ACCOUNT_ID), randomAlphaOfLengthBetween(3, 8), future);
         assertUnauthorized(future);
+        verify(userManagedServiceAccountStore).getByPrincipal(eq(USER_MANAGED_ACCOUNT_ID.asPrincipal()), any());
     }
 
     /**

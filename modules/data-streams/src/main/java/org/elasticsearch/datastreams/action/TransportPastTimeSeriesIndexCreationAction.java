@@ -471,7 +471,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             List<CoveredTimeWindow> coveredTimeWindows = new ArrayList<>();
             for (Index existingIndex : dataStream.getIndices()) {
                 IndexMetadata im = currentProject.index(existingIndex);
-                if (im == null || im.getIndexMode() != IndexMode.TIME_SERIES) {
+                if (im == null || IndexMode.isTsdb(im.getIndexMode()) == false) {
                     continue;
                 }
                 assert im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null : "TSDB indices always have start and end time";
@@ -525,7 +525,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             throw new IllegalArgumentException("Cannot create past TSDB backing index for system data stream [" + dataStreamName + "]");
         }
 
-        if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+        if (IndexMode.isTsdb(dataStream.getIndexMode()) == false) {
             throw new IllegalArgumentException(
                 "Cannot create past TSDB backing index for data stream ["
                     + dataStreamName
@@ -536,7 +536,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         }
         Index writeIndex = dataStream.getWriteIndex();
         IndexMetadata writeIndexMetadata = writeIndex == null ? null : project.index(writeIndex);
-        if (writeIndexMetadata == null || writeIndexMetadata.getIndexMode() != IndexMode.TIME_SERIES) {
+        if (writeIndexMetadata == null || IndexMode.isTsdb(writeIndexMetadata.getIndexMode()) == false) {
             throw new IllegalStateException(
                 "Cannot create past TSDB backing index for data stream ["
                     + dataStreamName

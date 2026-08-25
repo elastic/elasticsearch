@@ -12,7 +12,6 @@ module org.elasticsearch.inference {
     requires org.elasticsearch.xcore;
 
     requires org.apache.httpcomponents.httpclient;
-    requires org.apache.logging.log4j;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
@@ -46,6 +45,7 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference.services.elastic.ccm;
     exports org.elasticsearch.xpack.inference.services.elastic.authorization;
+    exports org.elasticsearch.xpack.inference.services.elastic.compatibility;
     exports org.elasticsearch.xpack.inference;
     exports org.elasticsearch.xpack.inference.action.task;
     exports org.elasticsearch.xpack.inference.telemetry;

@@ -183,6 +183,37 @@ public class EsqlTestUtilsTests extends ESTestCase {
         );
     }
 
+    public void testConvertSubqueryToRemoteIndicesBothClusterIndexIsRemoteOnly() {
+        // `languages` is an enrich source index ingested into BOTH clusters, so its subquery source must be rewritten to the remote-only
+        // `*:languages` to avoid double-counting rows, while the regular `sample_data` index uses `*:sample_data,sample_data`,
+        // unmapped-load.loadUnmappedFieldTypeConflictAcrossSubqueriesIsUnsupported is an example of this pattern.
+        String in = "FROM (FROM languages | EVAL x = 1), (FROM sample_data | EVAL x = 2) | KEEP x";
+        String out = "FROM (FROM *:languages | EVAL x = 1), (FROM *:sample_data,sample_data | EVAL x = 2) | KEEP x";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("languages")), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesBothClusterIndexMixedInSameSubquery() {
+        // A both-cluster index (`languages`) alongside a single-cluster index (`employees`) inside the same subquery FROM: only
+        // `languages` becomes remote-only. unmapped-load.loadMultiIndexPartialMultiFieldInSubquery is an example of this pattern
+        String in = "FROM (FROM employees, languages | WHERE emp_no == 10001) | KEEP emp_no";
+        String out = "FROM (FROM *:employees,employees, *:languages | WHERE emp_no == 10001) | KEEP emp_no";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("languages")), equalTo(out));
+    }
+
+    public void testConvertWhereInSubqueryBothClusterIndexIsRemoteOnly() {
+        // A both-cluster index inside a WHERE IN subquery body is also rewritten to remote-only.
+        String in = "FROM sample_data | WHERE client_ip IN (FROM clientips | KEEP client_ip) | KEEP message";
+        String out = "FROM *:sample_data,sample_data | WHERE client_ip IN (FROM *:clientips | KEEP client_ip) | KEEP message";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in, Set.of("clientips")), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesWithoutBothClusterSetIsUnchanged() {
+        // Regression guard: with no both-cluster indices declared, every source keeps the *:index,index form.
+        String in = "FROM (FROM languages | EVAL x = 1), (FROM sample_data | EVAL x = 2) | KEEP x";
+        String out = "FROM (FROM *:languages,languages | EVAL x = 1), (FROM *:sample_data,sample_data | EVAL x = 2) | KEEP x";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
     public void testConvertSubqueryToRemoteIndicesTsSubquery() {
         assertThat(
             EsqlTestUtils.convertSubqueryToRemoteIndices(

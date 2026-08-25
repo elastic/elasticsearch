@@ -12,9 +12,11 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
@@ -32,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -186,5 +189,36 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
             }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("[script] query does not support token [VALUE_NULL]"));
+    }
+
+    public void testReportedCost() throws IOException {
+        SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
+        FilterScript.LeafFactory leafFactory = docReader -> new FilterScript(Map.of(), null, docReader) {
+            @Override
+            public boolean execute() {
+                return false;
+            }
+        };
+        ScriptQueryBuilder.ScriptQuery query = new ScriptQueryBuilder.ScriptQuery(new Script("test"), leafFactory, lookup);
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                Scorer scorer = query.createWeight(contextSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f)
+                    .scorerSupplier(reader.leaves().getFirst())
+                    .get(DocIdSetIterator.NO_MORE_DOCS);
+                assertThat(scorer.iterator().cost(), greaterThan((long) DocIdSetIterator.NO_MORE_DOCS));
+            }
+        }
     }
 }

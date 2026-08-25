@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryType;
+import org.elasticsearch.simdvec.SimdVecLibrary.BFloat16QueryType;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 public class VectorScorerBFloat16BulkOperationBenchmarkTests extends BenchmarkTest {

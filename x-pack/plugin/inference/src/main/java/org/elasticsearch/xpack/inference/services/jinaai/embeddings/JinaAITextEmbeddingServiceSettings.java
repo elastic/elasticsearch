@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     /**
@@ -154,7 +155,7 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
      */
     private static class Update extends EmbeddingsUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(SERVICE_SETTINGS.toString(), Update::new);
 
         static {
             declareEmbeddingsUpdatableFields(PARSER);

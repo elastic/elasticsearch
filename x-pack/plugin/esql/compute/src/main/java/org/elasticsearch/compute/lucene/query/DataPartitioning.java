@@ -8,10 +8,11 @@
 package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Driver;
 
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * How we partition the data across {@link Driver}s. Each request forks into
@@ -60,12 +61,17 @@ public enum DataPartitioning {
 
     @FunctionalInterface
     public interface AutoStrategy {
-        Function<Query, LuceneSliceQueue.PartitioningStrategy> pickStrategy(int limit);
+        /**
+         * Given a {@code limit}, return a picker that chooses a {@link LuceneSliceQueue.PartitioningStrategy}
+         * per shard. The picker receives the shard's {@link ShardContext} (for index sort, field points
+         * and query cost) and the rewritten {@link Query}.
+         */
+        BiFunction<ShardContext, Query, LuceneSliceQueue.PartitioningStrategy> pickStrategy(int limit);
 
         AutoStrategy DEFAULT = LuceneSourceOperator.Factory::autoStrategy;
         AutoStrategy DEFAULT_TIME_SERIES = limit -> {
             if (limit == LuceneOperator.NO_LIMIT) {
-                return q -> LuceneSliceQueue.PartitioningStrategy.DOC;
+                return (ctx, q) -> LuceneSliceQueue.PartitioningStrategy.DOC;
             } else {
                 return DEFAULT.pickStrategy(limit);
             }

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfiguration;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Minimal {@link DataSourceConfiguration} for unauthenticated sources (HTTP/HTTPS and local files).
@@ -69,5 +70,10 @@ public final class NoAuthDataSourceConfiguration extends DataSourceConfiguration
     /** Returns {@code null} for empty input so callers treat a settings-less datasource as "no configuration". */
     public static NoAuthDataSourceConfiguration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new NoAuthDataSourceConfiguration(raw);
+    }
+
+    /** No secret fields exist here, so there is nothing to carry forward on an update; delegates unchanged. */
+    public static NoAuthDataSourceConfiguration fromMap(Map<String, Object> raw, Set<String> preexistingSecretKeys) {
+        return fromMap(raw);
     }
 }

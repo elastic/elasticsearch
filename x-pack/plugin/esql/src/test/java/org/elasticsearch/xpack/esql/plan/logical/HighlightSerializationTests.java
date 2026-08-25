@@ -26,32 +26,39 @@ public class HighlightSerializationTests extends AbstractLogicalPlanSerializatio
     protected Highlight createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
+        String prefix = randomPrefix();
         List<NamedExpression> fields = randomFields();
-        return new Highlight(source, child, Highlight.DEFAULT_PREFIX, randomQuery(), fields, randomNonNullOptions(), generatedFor(fields));
+        return new Highlight(source, child, prefix, randomQuery(), fields, randomNonNullOptions(), generatedFor(prefix, fields));
     }
 
     @Override
     protected Highlight mutateInstance(Highlight instance) throws IOException {
         LogicalPlan child = instance.child();
+        String prefix = instance.prefix();
         Expression query = instance.query();
         List<NamedExpression> fields = instance.fields();
         MapExpression options = instance.options();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> query = randomValueOtherThan(query, HighlightSerializationTests::randomQuery);
-            case 2 -> fields = randomValueOtherThan(fields, HighlightSerializationTests::randomFields);
-            case 3 -> options = randomValueOtherThan(options, HighlightSerializationTests::randomOptions);
+            case 1 -> prefix = randomValueOtherThan(prefix, HighlightSerializationTests::randomPrefix);
+            case 2 -> query = randomValueOtherThan(query, HighlightSerializationTests::randomQuery);
+            case 3 -> fields = randomValueOtherThan(fields, HighlightSerializationTests::randomFields);
+            case 4 -> options = randomValueOtherThan(options, HighlightSerializationTests::randomOptions);
         }
-        return new Highlight(instance.source(), child, Highlight.DEFAULT_PREFIX, query, fields, options, generatedFor(fields));
+        return new Highlight(instance.source(), child, prefix, query, fields, options, generatedFor(prefix, fields));
+    }
+
+    private static String randomPrefix() {
+        return randomFrom(Highlight.DEFAULT_PREFIX, "hl_", "h_", "");
     }
 
     private static List<NamedExpression> randomFields() {
         return randomList(1, 5, () -> randomReferenceAttribute(false));
     }
 
-    private static List<Attribute> generatedFor(List<NamedExpression> fields) {
-        return Highlight.generatedAttributesFor(Source.EMPTY, Highlight.DEFAULT_PREFIX, fields);
+    private static List<Attribute> generatedFor(String prefix, List<NamedExpression> fields) {
+        return Highlight.generatedAttributesFor(Source.EMPTY, prefix, fields);
     }
 
     // The query is nullable on the plan node (the bare form has no explicit query), so cover both cases.

@@ -16,7 +16,6 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.net.httpserver.HttpServer;
 
-import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -199,7 +198,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires dataset-in-from-command capability", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
     @After
@@ -334,7 +333,7 @@ public class S3ManagedIdentityAuthIT extends AbstractEsqlIntegTestCase {
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     /**

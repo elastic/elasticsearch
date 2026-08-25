@@ -11,11 +11,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -30,7 +34,9 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
@@ -41,13 +47,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
+import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobLocation;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -163,10 +174,16 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                 cacheFile = fakeNode.sharedCacheService.getCacheFile(
                     cacheKey,
                     regionSize + secondWarmedRegionLength,
-                    SharedBlobCacheService.CacheMissHandler.NOOP
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
                 );
             } else {
-                cacheFile = fakeNode.sharedCacheService.getCacheFile(cacheKey, regionSize, SharedBlobCacheService.CacheMissHandler.NOOP);
+                cacheFile = fakeNode.sharedCacheService.getCacheFile(
+                    cacheKey,
+                    regionSize,
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
+                );
             }
 
             long length = Math.min(regionSize, blobRange.fileLength() + blobRange.fileOffset());
@@ -238,6 +255,68 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
         }
     }
 
+    public void testOnlinePrewarmingStampsRegions() throws Exception {
+        final long primaryTerm = 1L;
+        final var capturingPolicy = new TimestampCapturingEvictionPolicy();
+        try (FakeStatelessNode fakeNode = createCapturingFakeNode(primaryTerm, capturingPolicy)) {
+            final int regionSize = fakeNode.sharedCacheService.getRegionSize();
+            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
+            fakeNode.searchDirectory.updateMetadata(Map.of("_0.si", new BlobFileRanges(siLocation, range)), regionSize * 2L);
+            // Mark the BCC as uploaded so the warming read routes through the (synthetic) object store container.
+            fakeNode.searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(primaryTerm, 1L));
+
+            IndexShard searchShard = mockSearchShard(fakeNode);
+            safeAwait((ActionListener<Void> l) -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
+
+            final var cacheKey = new FileCacheKey(fakeNode.shardId, primaryTerm, siLocation.blobName());
+            final long expected = BlobFileRanges.midpointMillisOrUnknownForCache(range);
+            final var captured = capturingPolicy.capturedTimestamps(cacheKey);
+            assertThat("online prewarming should have stamped two regions", captured, hasSize(2));
+            assertThat("every online-prewarmed region should carry the per-CC midpoint", captured, everyItem(equalTo(expected)));
+        }
+    }
+
+    private FakeStatelessNode createCapturingFakeNode(long primaryTerm, EvictionPolicy<FileCacheKey> capturingPolicy) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(8))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
+                    .build();
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                return new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    clusterSettings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    capturingPolicy,
+                    System::nanoTime,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {};
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                // Return synthetic bytes for any range request so warming actually populates a cache region.
+                return syntheticBytesContainer(innerContainer);
+            }
+        };
+    }
+
     private FakeStatelessNode createFakeNode(long primaryTerm, boolean failingCacheService) throws IOException {
         return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
@@ -257,7 +336,13 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client, threadPool) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(
+                    nodeSettings,
+                    sharedCacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -268,7 +353,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         LongConsumer bytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
                         Executor objectStoreFetchExecutor,
-                        String fileName
+                        String fileName,
+                        boolean speculativeFill
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -280,7 +366,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                             bytesReadFromIndexing,
                             cachePopulationReason,
                             objectStoreFetchExecutor,
-                            fileName
+                            fileName,
+                            speculativeFill
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -324,6 +411,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                             long blobLength,
                             RangeMissingHandler writer,
                             Executor fetchExecutor,
+                            long timestampMillis,
                             ActionListener<Boolean> listener
                         ) {
                             listener.onFailure(new IllegalStateException("oh no"));

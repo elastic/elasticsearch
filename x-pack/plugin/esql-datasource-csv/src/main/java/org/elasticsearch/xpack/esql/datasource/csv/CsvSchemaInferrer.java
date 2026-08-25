@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -57,13 +59,96 @@ public class CsvSchemaInferrer {
     private CsvSchemaInferrer() {}
 
     /**
+     * Widens an already-inferred schema against additional rows that were not part of the initial
+     * sample. Uses the same {@link #narrowCandidate} logic as {@link #inferSchema}, starting from
+     * the already-confirmed candidate types (every column is treated as confirmed, since the initial
+     * sample already committed to its type). Any column whose inferred type cannot parse a value in
+     * {@code additionalRows} is advanced through {@link #TYPE_CANDIDATES} toward KEYWORD.
+     * <p>
+     * Returns the same {@code schema} reference when no widening is needed (including when
+     * {@code additionalRows} is empty), and a new list otherwise.
+     *
+     * @param schema         the schema returned by a prior {@link #inferSchema} call
+     * @param additionalRows rows that were not included in the initial sample
+     * @param datetimeFormatter the same formatter used for the initial inference
+     */
+    static List<Attribute> widenSchema(List<Attribute> schema, List<String[]> additionalRows, @Nullable DateFormatter datetimeFormatter) {
+        if (additionalRows.isEmpty()) {
+            return schema;
+        }
+        int numCols = schema.size();
+        int[] candidateIdx = new int[numCols];
+        for (int col = 0; col < numCols; col++) {
+            DataType type = schema.get(col).dataType();
+            candidateIdx[col] = TYPE_CANDIDATES.length - 1; // default: KEYWORD
+            for (int i = 0; i < TYPE_CANDIDATES.length - 1; i++) {
+                if (TYPE_CANDIDATES[i] == type) {
+                    candidateIdx[col] = i;
+                    break;
+                }
+            }
+        }
+        int nonKeywordCount = 0;
+        for (int col = 0; col < numCols; col++) {
+            if (candidateIdx[col] < TYPE_CANDIDATES.length - 1) {
+                nonKeywordCount++;
+            }
+        }
+        boolean anyWidened = false;
+        outer: for (String[] row : additionalRows) {
+            for (int col = 0; col < numCols; col++) {
+                if (candidateIdx[col] >= TYPE_CANDIDATES.length - 1) {
+                    continue;
+                }
+                String value = col < row.length ? row[col] : null;
+                if (value != null) {
+                    value = value.trim();
+                }
+                if (value == null || value.isEmpty() || value.equalsIgnoreCase("null")) {
+                    continue;
+                }
+                // All columns are confirmed by the initial sample (confirmed=true).
+                int newIdx = narrowCandidate(candidateIdx[col], true, value, datetimeFormatter);
+                if (newIdx != candidateIdx[col]) {
+                    candidateIdx[col] = newIdx;
+                    anyWidened = true;
+                    if (newIdx >= TYPE_CANDIDATES.length - 1) {
+                        nonKeywordCount--;
+                    }
+                }
+            }
+            if (nonKeywordCount == 0) {
+                break outer;
+            }
+        }
+        if (anyWidened == false) {
+            return schema;
+        }
+        List<Attribute> widened = new ArrayList<>(numCols);
+        for (int col = 0; col < numCols; col++) {
+            Attribute original = schema.get(col);
+            DataType newType = TYPE_CANDIDATES[candidateIdx[col]];
+            if (newType != original.dataType()) {
+                widened.add(new ReferenceAttribute(Source.EMPTY, null, original.name(), newType, Nullability.TRUE, null, false));
+            } else {
+                widened.add(original);
+            }
+        }
+        return widened;
+    }
+
+    /**
      * Infers schema from column names and sample data rows.
      *
-     * @param columnNames header names (plain, without type annotations)
-     * @param sampleRows  sample data rows; each row is a string array of cell values
+     * @param columnNames       header names (plain, without type annotations)
+     * @param sampleRows        sample data rows; each row is a string array of cell values
+     * @param datetimeFormatter the file-level {@code datetime_format} parser, or null for ISO-8601. A column is
+     *                          inferred {@code DATETIME} only when this parser accepts its values, so inference sees
+     *                          the same dialect the reader will later parse with. Numeric candidates are tried first
+     *                          (see {@link #TYPE_CANDIDATES}), so an all-digit column stays numeric regardless.
      * @return list of attributes with inferred types
      */
-    static List<Attribute> inferSchema(String[] columnNames, List<String[]> sampleRows) {
+    static List<Attribute> inferSchema(String[] columnNames, List<String[]> sampleRows, @Nullable DateFormatter datetimeFormatter) {
         int numCols = columnNames.length;
         int[] candidateIdx = new int[numCols];
         // Whether the column's current candidate type was confirmed by at least one matching value
@@ -84,7 +169,7 @@ public class CsvSchemaInferrer {
                     continue;
                 }
                 seenValue[col] = true;
-                candidateIdx[col] = narrowCandidate(candidateIdx[col], typeConfirmed[col], value);
+                candidateIdx[col] = narrowCandidate(candidateIdx[col], typeConfirmed[col], value, datetimeFormatter);
                 typeConfirmed[col] = true;
             }
         }
@@ -105,9 +190,9 @@ public class CsvSchemaInferrer {
      * "42" is most likely a string column, not numeric).
      * For unconfirmed columns or numeric types, narrow one step at a time.
      */
-    private static int narrowCandidate(int currentIdx, boolean confirmed, String value) {
+    private static int narrowCandidate(int currentIdx, boolean confirmed, String value, @Nullable DateFormatter datetimeFormatter) {
         while (currentIdx < TYPE_CANDIDATES.length - 1) {
-            if (canParse(TYPE_CANDIDATES[currentIdx], value)) {
+            if (canParse(TYPE_CANDIDATES[currentIdx], value, datetimeFormatter)) {
                 return currentIdx;
             }
             DataType current = TYPE_CANDIDATES[currentIdx];
@@ -119,13 +204,13 @@ public class CsvSchemaInferrer {
         return currentIdx;
     }
 
-    private static boolean canParse(DataType type, String value) {
+    private static boolean canParse(DataType type, String value, @Nullable DateFormatter datetimeFormatter) {
         return switch (type) {
             case BOOLEAN -> Booleans.isBoolean(value.toLowerCase(Locale.ROOT));
             case INTEGER -> canParseInt(value);
             case LONG -> canParseLong(value);
             case DOUBLE -> canParseDouble(value);
-            case DATETIME -> canParseDatetime(value);
+            case DATETIME -> canParseDatetime(value, datetimeFormatter);
             default -> true;
         };
     }
@@ -157,7 +242,10 @@ public class CsvSchemaInferrer {
         }
     }
 
-    private static boolean canParseDatetime(String value) {
+    private static boolean canParseDatetime(String value, @Nullable DateFormatter datetimeFormatter) {
+        if (datetimeFormatter != null) {
+            return datetimeFormatter.tryParse(value) != null;
+        }
         try {
             DateUtils.asDateTime(value);
             return true;

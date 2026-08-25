@@ -102,12 +102,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
-            && Objects.equals(providedVisitRatio, that.providedVisitRatio);
+            && Objects.equals(providedVisitRatio, that.providedVisitRatio)
+            && Objects.equals(ivfQueryConfigResolver, that.ivfQueryConfigResolver);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio, ivfQueryConfigResolver);
     }
 
     @Override
@@ -135,6 +136,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
+        final LongAccumulator longAccumulator = indexSearcher.getIndexReader().leaves().size() > 1
+            ? new LongAccumulator(Long::max, LEAST_COMPETITIVE)
+            : null;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         float maxRescoreOversampleAcrossLeaves = 1f;
@@ -151,13 +155,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
             IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
                 IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
-                indexSearcher
+                longAccumulator
             );
 
-            if (resolved != null && resolved.usePrecondition()) {
-                preconditionQuery(context);
-            }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
+            // Preconditioning might differ per segment when they are calibrated, so, potentially,
+            // each carries its own preconditioner. The transform is therefore applied inside
+            // getLeafResults against that segment's own preconditioner, producing a segment-local
+            // query. The shared query field is never mutated, so segments that disagree on
+            // preconditioning (and the exact-rescore query) each see the correct vector.
+            final boolean usePrecondition = resolved != null && resolved.usePrecondition();
+            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio, usePrecondition));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -213,9 +220,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(new TotalHits(totalHitsValue, relation), mergedScoreDocs);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
+    private TopDocs searchLeaf(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
+    ) throws IOException {
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
         IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
         for (ScoreDoc scoreDoc : results.scoreDocs) {
             int globalDoc = scoreDoc.doc + ctx.docBase;
@@ -232,13 +244,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    abstract TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException;
+    abstract TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        IVFCollectorManager knnCollectorManager,
+        float visitRatio,
+        boolean usePrecondition
+    ) throws IOException;
 
-    abstract void preconditionQuery(LeafReaderContext context) throws IOException;
-
-    protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new IVFCollectorManager(k, searcher);
+    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
+        return new IVFCollectorManager(k, longAccumulator);
     }
 
     @Override
@@ -250,9 +265,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         private final int k;
         final LongAccumulator longAccumulator;
 
-        IVFCollectorManager(int k, IndexSearcher searcher) {
+        IVFCollectorManager(int k, LongAccumulator longAccumulator) {
             this.k = k;
-            longAccumulator = searcher.getIndexReader().leaves().size() > 1 ? new LongAccumulator(Long::max, LEAST_COMPETITIVE) : null;
+            this.longAccumulator = longAccumulator;
         }
 
         @Override

@@ -22,11 +22,21 @@
 * [`NOW`](../../functions-operators/date-time-functions/now.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/now.md
   :::
-% * [`RANGE_MAX`](../../functions-operators/date-time-functions/range_max.md)
-% * [`RANGE_MIN`](../../functions-operators/date-time-functions/range_min.md)
-% * [`RANGE_WITHIN`](../../functions-operators/date-time-functions/range_within.md)
-% * [`RANGE_CONTAINS`](../../functions-operators/date-time-functions/range_contains.md)
-% * [`RANGE_INTERSECTS`](../../functions-operators/date-time-functions/range_intersects.md)
+* [`RANGE_CONTAINS`](../../functions-operators/date-time-functions/range_contains.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/range_contains.md
+  :::
+* [`RANGE_INTERSECTS`](../../functions-operators/date-time-functions/range_intersects.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/range_intersects.md
+  :::
+* [`RANGE_MAX`](../../functions-operators/date-time-functions/range_max.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/range_max.md
+  :::
+* [`RANGE_MIN`](../../functions-operators/date-time-functions/range_min.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/range_min.md
+  :::
+* [`RANGE_WITHIN`](../../functions-operators/date-time-functions/range_within.md) {applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/range_within.md
+  :::
 * [`TRANGE`](../../functions-operators/date-time-functions/trange.md) {applies_to}`stack: ga 9.3`
   :::{include} ../generated/x-pack-esql/functions/briefSummary/trange.md
   :::

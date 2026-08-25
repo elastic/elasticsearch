@@ -12,14 +12,12 @@ package org.elasticsearch.benchmark.esql;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -27,12 +25,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -46,10 +41,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -89,28 +81,7 @@ public class MatchAtRuntimeBenchmark {
 
         Attribute field = new ReferenceAttribute(Source.EMPTY, "field", DataType.TEXT);
 
-        Configuration config = new Configuration(
-            DateUtils.UTC,
-            Instant.now(),
-            Locale.US,
-            null,
-            null,
-            new QueryPragmas(Settings.builder().put("runtime_lexical_search", "true").build()),
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            "",
-            false,
-            Map.of(),
-            System.nanoTime(),
-            false,
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
-            null,
-            null,
-            Map.of()
-        );
-
-        Expression expr = new Match(Source.EMPTY, field, Literal.text(Source.EMPTY, "abc"), null, config);
+        Expression expr = new Match(Source.EMPTY, field, Literal.text(Source.EMPTY, "abc"), null);
 
         // Build evaluator through the standard eval pipeline
         Layout.Builder layoutBuilder = new Layout.Builder();

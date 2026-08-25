@@ -7,35 +7,30 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.ArrayUtil;
+import com.carrotsearch.hppc.LongLongHashMap;
+
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.FirstDocIdGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.TimeSeriesGroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.WindowGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
@@ -47,6 +42,21 @@ import static java.util.stream.Collectors.joining;
  */
 public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
+    /**
+     * Default target rows per output page when chunking the operator's output, i.e. the default of the
+     * {@code esql.time_series.target_chunk_rows} setting. The operator slices its single emitted result into pages of
+     * about this many rows, bounding the size of each page. The same target applies to both partial/intermediate output
+     * (bounding pages sent to the coordinator) and final output (bounding the coordinator's peak memory during final
+     * evaluation and the page sizes handed to downstream operators). A {@code _tsid} may straddle a page boundary; the
+     * coordinator re-merges groups by key.
+     */
+    public static final int DEFAULT_TARGET_CHUNK_ROWS = 100_000;
+
+    /**
+     * @param targetChunkRows target number of rows per output page when chunking output. The operator slices its emitted
+     *        result into pages of about this many rows. The same target applies to both partial/intermediate and final
+     *        output.
+     */
     public record Factory(
         Rounding.Prepared timeBucket,
         boolean dateNanos,
@@ -54,7 +64,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
-        Rounding.Prepared outputTimeBucket
+        int targetChunkRows
     ) implements OperatorFactory {
 
         public Factory(
@@ -65,7 +75,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             List<GroupingAggregator.Factory> aggregators,
             int aggregationBatchSize
         ) {
-            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null);
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, Integer.MAX_VALUE);
         }
 
         @Override
@@ -90,7 +100,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     // Broken optimizations are allowed as the inputs are vectors.
                     return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
-                outputTimeBucket,
+                targetChunkRows,
                 driverContext
             );
         }
@@ -107,7 +117,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
-    private final Rounding.Prepared outputTimeBucket;
     private ExpandingGroups expandingGroups = null;
     private int numGroupsBeforeExpanding = -1;
 
@@ -117,135 +126,18 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
-        Rounding.Prepared outputTimeBucket,
+        int targetChunkRows,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
-        this.outputTimeBucket = outputTimeBucket;
     }
 
     @Override
     public void finish() {
         expandWindowBuckets();
         super.finish();
-    }
-
-    @Override
-    protected void emit() {
-        if (rowsAddedInCurrentBatch == 0) {
-            return;
-        }
-        if (needsOutputFiltering() == false) {
-            super.emit();
-            return;
-        }
-        TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
-        int[] outputPositions = computeOutputAlignedPositions(tsBlockHash);
-        if (outputPositions == null) {
-            super.emit();
-            return;
-        }
-        Block[] blocks = null;
-        Block[] outputKeys = null;
-        IntVector allSelected = null;
-        IntVector outputSelected = null;
-        long startInNanos = System.nanoTime();
-        boolean success = false;
-        boolean keysFiltered = false;
-        try {
-            allSelected = blockHash.nonEmpty();
-
-            Block[] fullKeys = blockHash.getKeys(allSelected);
-            outputKeys = new Block[fullKeys.length];
-            try {
-                for (int b = 0; b < fullKeys.length; b++) {
-                    outputKeys[b] = fullKeys[b].filter(false, outputPositions);
-                }
-                keysFiltered = true;
-            } finally {
-                Releasables.close(fullKeys);
-                if (keysFiltered == false) {
-                    Releasables.closeExpectNoException(outputKeys);
-                }
-            }
-
-            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(outputPositions.length)) {
-                for (int i = 0; i < outputPositions.length; i++) {
-                    builder.appendInt(i, outputPositions[i]);
-                }
-                outputSelected = builder.build();
-            }
-
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            int keyBlockCount = outputKeys.length;
-            blocks = new Block[keyBlockCount + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(outputKeys, 0, blocks, 0, outputKeys.length);
-            outputKeys = null;
-            int offset = keyBlockCount;
-
-            try (var ctx = evaluationContext(blockHash)) {
-                if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsCtx) {
-                    tsCtx.setAllGroupIds(allSelected);
-                }
-                for (int i = 0; i < aggregators.size(); i++) {
-                    try (
-                        var customizeSelected = customizeSelected(aggregators.get(i), outputSelected);
-                        var prepared = aggregators.get(i).prepareForEvaluate(customizeSelected, ctx)
-                    ) {
-                        prepared.evaluate(blocks, offset, customizeSelected);
-                    }
-                    offset += aggBlockCounts[i];
-                }
-                output = ReleasableIterator.single(new Page(blocks));
-                success = true;
-            }
-        } finally {
-            rowsAddedInCurrentBatch = 0;
-            Releasables.close(allSelected, outputSelected);
-            if (success == false) {
-                if (blocks != null) {
-                    Releasables.closeExpectNoException(blocks);
-                } else if (keysFiltered) {
-                    Releasables.closeExpectNoException(outputKeys);
-                }
-            }
-            emitNanos += System.nanoTime() - startInNanos;
-            emitCount++;
-        }
-    }
-
-    private boolean needsOutputFiltering() {
-        return aggregatorMode.isOutputPartial() == false && outputTimeBucket != null && blockHash instanceof TimeSeriesBlockHash;
-    }
-
-    private int[] computeOutputAlignedPositions(TimeSeriesBlockHash tsBlockHash) {
-        Rounding.Prepared optimizedOutput = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
-        int totalGroups = Math.toIntExact(tsBlockHash.numGroups());
-        int[] positions = new int[Math.min(totalGroups, 16)];
-        int idx = 0;
-        for (int p = 0; p < totalGroups; p++) {
-            long millis = timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(p));
-            if (optimizedOutput.round(millis) == millis) {
-                positions = ArrayUtil.grow(positions, idx + 1);
-                positions[idx++] = p;
-            }
-        }
-        if (idx == totalGroups) {
-            return null;
-        }
-        return ArrayUtil.copyOfSubArray(positions, 0, idx);
-    }
-
-    private Rounding.Prepared optimizeOutputRoundingForTimeRange(long minTimestamp, long maxTimestamp) {
-        if (minTimestamp <= maxTimestamp) {
-            long startMillis = timeResolution.roundDownToMillis(minTimestamp);
-            long endMillis = timeResolution.roundUpToMillis(maxTimestamp);
-            return outputTimeBucket.getUnprepared().prepare(startMillis, endMillis);
-        } else {
-            return outputTimeBucket;
-        }
     }
 
     @Override
@@ -338,89 +230,40 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             return;
         }
         Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
-        long maxBound = tsBlockHash.maxTimestamp();
-        if (outputTimeBucket != null) {
-            maxBound = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp()).round(maxBound);
-        }
+        // The hash keys are in the time resolution of the timestamp field (nanoseconds for date_nanos), while the
+        // roundings operate on milliseconds. Iterate the buckets in the millisecond domain and convert the resulting
+        // labels back to the hash resolution when creating groups.
+        long maxBoundMillis = timeResolution.roundDownToMillis(tsBlockHash.maxTimestamp());
         this.numGroupsBeforeExpanding = Math.toIntExact(numGroups);
+        // the extra groups have not been seen by any aggregator; tell them so a group whose window turns out to be
+        // completely empty evaluates to null instead of the aggregator's default value
+        var seenGroups = new SeenGroupIds.Range(0, numGroupsBeforeExpanding);
+        for (GroupingAggregator aggregator : aggregators) {
+            aggregator.aggregatorFunction().selectedMayContainUnseenGroups(seenGroups);
+        }
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
             int tsid = tsBlockHash.tsidForGroup(groupId);
-            long startTimestamp = tsBlockHash.timestampForGroup(groupId);
-            long effectiveEnd = Math.min(startTimestamp + timeResolution.convert(windowMillis), maxBound + 1);
-            long bucket = optimizedTimeBucket.nextRoundingValue(startTimestamp);
+            long startMillis = timeResolution.roundDownToMillis(tsBlockHash.timestampForGroup(groupId));
+            long effectiveEndMillis = Math.min(startMillis + windowMillis, maxBoundMillis + 1);
+            long bucketMillis = optimizedTimeBucket.nextRoundingValue(startMillis);
             // Fill the missing buckets between (timestamp - window, timestamp).
-            while (bucket < effectiveEnd) {
-                if (tsBlockHash.addExtraGroup(tsid, bucket) >= 0) {
+            while (bucketMillis < effectiveEndMillis) {
+                if (tsBlockHash.addExtraGroup(tsid, timeResolution.convert(bucketMillis)) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
-                bucket = optimizedTimeBucket.nextRoundingValue(bucket);
+                bucketMillis = optimizedTimeBucket.nextRoundingValue(bucketMillis);
             }
         }
     }
 
     @Override
     protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
-        if (expandingGroups != null && expandingGroups.count > 0 && isValuesAggregator(aggregator.aggregatorFunction())) {
+        var function = aggregator.aggregatorFunction();
+        if (expandingGroups != null && expandingGroups.count > 0 && isValuesAggregator(function)) {
             return selectedForValuesAggregator(driverContext.blockFactory(), selected);
         }
-        if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
-            return selectedForDocIdsAggregator(driverContext.blockFactory(), selected);
-        }
         return super.customizeSelected(aggregator, selected);
-    }
-
-    /*
-     * The {@link FirstDocIdGroupingAggregatorFunction} collects the first doc id for each group. With time-buckets, the same
-     * tsid can appear in multiple groups. When loading the dimension field, this may result in loading multiple documents for
-     * the same tsid several times.
-     *
-     * There are two options:
-     * 1. Load only one document per tsid and apply tsid ordinals to the dimension values. This requires a separate value source
-     *    reader for dimension fields, or modifying the current reader to understand ordinals and apply them to the dictionary.
-     * 2. Remap the group ids in the selected vector so that all groups with the same tsid use a single group id. This means we
-     *    may load the same document multiple times for the same tsid, but not different documents. The overhead of loading the
-     *    same document multiple times is small compared to loading different documents for the same tsid.
-
-     * This method uses the second option as it is a more contained change.
-     *
-     * Example:
-     *   _tsid key:     [t1, t2, t1, t3, t2]
-     *   selected:      [0,  1,  2,  3,  4]
-     *   first doc ids: [10, 20, 30, 40, 50]
-     *
-     *   re-mapped selected:            [0, 1, 0, 3, 1]
-     *   first doc ids with re-mapped : [10, 20, 10, 40, 20]
-     *   Loading docs: [10, 10, 20, 20, 40], which is not much more expensive than [10, 20, 40].
-     */
-    private IntVector selectedForDocIdsAggregator(BlockFactory blockFactory, IntVector selected) {
-        final TimeSeriesBlockHash tsBlockHash;
-        if (blockHash instanceof TimeSeriesBlockHash ts) {
-            tsBlockHash = ts;
-        } else {
-            // Without time bucket, one tsid per group already; no need to re-map
-            selected.incRef();
-            return selected;
-        }
-        try (var builder = blockFactory.newIntVectorFixedBuilder(selected.getPositionCount())) {
-            int[] firstGroups = new int[selected.getPositionCount() + 1];
-            Arrays.fill(firstGroups, -1);
-            for (int p = 0; p < selected.getPositionCount(); p++) {
-                int groupId = selected.getInt(p);
-                int tsidOrdinal = tsBlockHash.tsidForGroup(groupId);
-                if (firstGroups.length <= tsidOrdinal) {
-                    int prevSize = firstGroups.length;
-                    firstGroups = ArrayUtil.grow(firstGroups, tsidOrdinal);
-                    Arrays.fill(firstGroups, prevSize, firstGroups.length, -1);
-                }
-                int first = firstGroups[tsidOrdinal];
-                if (first == -1) {
-                    first = firstGroups[tsidOrdinal] = groupId;
-                }
-                builder.appendInt(p, first);
-            }
-            return builder.build();
-        }
     }
 
     private IntVector selectedForValuesAggregator(BlockFactory blockFactory, IntVector selected) {
@@ -444,7 +287,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         "org.elasticsearch.compute.aggregation.ValuesIntGroupingAggregatorFunction",
         "org.elasticsearch.compute.aggregation.ValuesLongGroupingAggregatorFunction",
         "org.elasticsearch.compute.aggregation.ValuesDoubleGroupingAggregatorFunction",
-        "org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction"
+        "org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction",
+        "org.elasticsearch.compute.aggregation.PackDimsGroupingAggregatorFunction"
     );
 
     static boolean isValuesAggregator(GroupingAggregatorFunction aggregatorFunction) {
@@ -482,7 +326,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 var iterator = fastRounding.iterator(Math.max(rangeStartMillis, minMillis), rangeEndMillis);
                 while (iterator.next()) {
                     if (iterator.getRoundedFloor() >= rangeStartMillis) {
-                        long groupId = tsBlockHash.getGroupId(tsid, iterator.getRounded());
+                        // the hash keys are in the resolution of the timestamp field, the iterator yields milliseconds
+                        long groupId = tsBlockHash.getGroupId(tsid, timeResolution.convert(iterator.getRounded()));
                         if (groupId != -1 && groupId != startingGroupId) {
                             action.accept(Math.toIntExact(groupId));
                         }
@@ -510,13 +355,47 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 nextGroupIds.fill(0, numGroups, -1);
                 prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
                 prevGroupIds.fill(0, numGroups, -1);
-                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                LongLongHashMap nextTimestamps = new LongLongHashMap(); // cached the rounded up timestamps
                 for (int groupId = 0; groupId < numGroups; groupId++) {
                     long tsid = tsBlockHash.tsidForGroup(groupId);
                     long bucketTs = tsBlockHash.timestampForGroup(groupId);
-                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, fastRounding::nextRoundingValue);
+                    int cacheIndex = nextTimestamps.indexOf(bucketTs);
+                    long nextBucketTs;
+                    if (cacheIndex >= 0) {
+                        nextBucketTs = nextTimestamps.indexGet(cacheIndex);
+                    } else {
+                        // both the map and the hash keys are in the resolution of the timestamp field, the rounding
+                        // operates on milliseconds
+                        nextBucketTs = timeResolution.convert(fastRounding.nextRoundingValue(timeResolution.roundDownToMillis(bucketTs)));
+                        nextTimestamps.put(bucketTs, nextBucketTs);
+                    }
                     int nextGroupId = Math.toIntExact(tsBlockHash.getGroupId(tsid, nextBucketTs));
                     if (nextGroupId >= 0) {
+                        // https://github.com/elastic/elasticsearch/issues/152758
+                        assert tsBlockHash.tsidForGroup(nextGroupId) == tsid
+                            : "adjacent groups must share the same tsid: group "
+                                + groupId
+                                + " (tsid="
+                                + tsid
+                                + ") -> nextGroup "
+                                + nextGroupId
+                                + " (tsid="
+                                + tsBlockHash.tsidForGroup(nextGroupId)
+                                + ")";
+                        assert tsBlockHash.timestampForGroup(nextGroupId) == nextBucketTs
+                            : "next group timestamp mismatch: expected "
+                                + nextBucketTs
+                                + " but group "
+                                + nextGroupId
+                                + " has "
+                                + tsBlockHash.timestampForGroup(nextGroupId);
+                        assert prevGroupIds.get(nextGroupId) == -1
+                            : "prevGroupIds["
+                                + nextGroupId
+                                + "] already set to "
+                                + prevGroupIds.get(nextGroupId)
+                                + " when linking from group "
+                                + groupId;
                         nextGroupIds.set(groupId, nextGroupId);
                         prevGroupIds.set(nextGroupId, groupId);
                     }

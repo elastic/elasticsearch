@@ -12,6 +12,8 @@ package org.elasticsearch.sourcebatch;
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 
+import org.apache.lucene.util.UnicodeUtil;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -221,6 +223,9 @@ public final class SourceSchema {
             int index = names.size();
             if (index >= MAX_FIELDS) {
                 throw new IllegalStateException("Schema field count exceeds maximum of " + MAX_FIELDS);
+            }
+            if (UnicodeUtil.calcUTF16toUTF8Length(name, 0, name.length()) > MAX_FIELDS) {
+                throw new IllegalStateException("Schema field name exceeds maximum of " + MAX_FIELDS + " bytes: " + name);
             }
             names.add(name);
             if (index >= parents.length) {

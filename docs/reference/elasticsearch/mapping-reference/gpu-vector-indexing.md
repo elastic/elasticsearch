@@ -1,13 +1,10 @@
 ---
 applies_to:
-  stack:
+  stack: preview 9.3, ga 9.4
 navigation_title: "GPU vector indexing"
 ---
 
 # GPU accelerated vector indexing
-```{applies_to}
-stack: preview 9.3, ga 9.4
-```
 
 {{es}} can use GPU acceleration to significantly speed up the indexing of
 dense vectors. GPU indexing is based on the
@@ -23,11 +20,11 @@ GPU vector indexing requires the following:
 
 * An [Enterprise subscription](https://www.elastic.co/subscriptions)
 * A supported NVIDIA GPU (Ampere architecture or better, compute capability
-  >= 8.0) with a minimum 8GB of GPU memory
+  \>= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
   installed on the node. Refer to the
-  [Elastic support matrix](https://www.elastic.co/support/matrix) for
+  [Elastic support matrix](https://www.elastic.co/support/matrix#vector-indexing) for
   supported CUDA and cuVS versions.
 * `LD_LIBRARY_PATH` environment variable configured to include the cuVS
   libraries path and its dependencies (CUDA, rmm, etc.)
@@ -51,6 +48,10 @@ to add the dependencies required for GPU support.
 This Dockerfile serves as an example implementation, and is not fully supported
 like our official Docker images.
 ::::
+
+The example is configured for Elasticsearch 9.5. When using a different
+{{es}} version, update both `ELASTICSEARCH_VERSION` and `CUVS_VERSION`
+to a supported combination from the [Elastic support matrix](https://www.elastic.co/support/matrix#vector-indexing).
 
 ::::{dropdown} Example Dockerfile
 :::{include} _snippets/docker-gpu-indexing.md
@@ -134,6 +135,19 @@ GPU indexing will be used:
 If you don't see this message, look for warning messages explaining why GPU
 indexing is not being used, such as an unsupported environment, missing
 libraries, or an incompatible GPU.
+
+### cuVS runtime version mismatch
+
+If the cuVS runtime library is older than the `cuvs-java` library bundled with
+{{es}}, you see a warning similar to:
+
+```
+GPU based vector indexing is not supported on this platform; Cannot create JDKProvider:
+Version mismatch: outdated libcuvs_c (libcuvs_c [25.12.0], cuvs-java version [26.02.0])
+```
+
+Install a cuVS runtime version supported for your {{es}} version in the
+[Elastic support matrix](https://www.elastic.co/support/matrix#vector-indexing).
 
 
 ### Node fails to start with `vectors.indexing.use_gpu: true`

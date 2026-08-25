@@ -218,6 +218,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -251,9 +252,8 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedRolesStoreTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initReservedRolesStore() {
         // Initialize the reserved roles store so that static fields are populated.
         // In production code, this is guaranteed by how components are initialized by the Security plugin
         new ReservedRolesStore();
@@ -458,6 +458,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Project Routing
         assertTrue(kibanaRole.cluster().check("cluster:admin/project_routing/delete", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:monitor/project_routing/get", request, authentication));
 
         // SAML and token
         assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request, authentication), is(true));
@@ -642,6 +643,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        assertReadWriteAndManage(kibanaRole, ".contextengine-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Alerting V2 views prefix: Kibana system user has create_view only
         Arrays.asList(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS).forEach(index -> {
@@ -1274,6 +1277,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false)
             );
         });
+
+        // Context Engine's SML storage: a regular (non-system) index that Kibana
+        // creates and manages itself, including its alias.
+        Arrays.asList("ai-index-idx-sml-data", "ai-index-idx-sml-data-" + randomAlphaOfLength(randomIntBetween(0, 13)))
+            .forEach(index -> assertReadWriteAndManage(kibanaRole, index));
+
+        // Context Engine feedback-loop signals: per-space, regular (non-system)
+        // user indices that Kibana creates and manages via the storage adapter.
+        assertReadWriteAndManage(kibanaRole, "context-engine-signals-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         // Agent Builder OTLP telemetry (traces + logs from span events)
         Arrays.asList(
@@ -2064,6 +2076,44 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
+        Arrays.asList(
+            ".entities.v2.metadata." + randomAlphaOfLength(randomIntBetween(1, 13)),
+            ".entities.v2.metadata.security_" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            // manage is required for ensureMetadataDataStreamMappings() putMapping / rollover
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportAutoPutMappingAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
+            // delete_index is required to repair a plain index occupying the metadata data stream name
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertViewIndexMetadata(kibanaRole, indexName);
+        });
+
+        // Product aliases are not .entities.* names; ES authorizes aliases APIs against the alias name.
+        Arrays.asList(
+            "entities-latest-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "entities-updates-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "entities-metadata-" + randomAlphaOfLength(randomIntBetween(1, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+        });
+
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
@@ -2092,7 +2142,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // Tests for third-party agent indices (ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera,
-        // IRONSCALES, Axonius and JupiterOne) that
+        // IRONSCALES, Axonius, JupiterOne and PingDirectory) that
         // `kibana_system` has full management access to
         // This includes read, write, create, delete, and all ILM-related management actions.
         Arrays.asList(
@@ -2119,7 +2169,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-axonius.storage-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10))
+            "logs-jupiter_one.risks_and_alerts-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-ping_directory.user-" + randomAlphaOfLength(randomIntBetween(1, 10))
         ).forEach((index_qualys_extra_hop) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 
@@ -3985,8 +4036,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.latest." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.updates." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.watchlists." + randomIntBetween(0, 5));
 
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
@@ -3997,6 +4056,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
+
+        // read_view_metadata is granted on Stack indices; put/delete view are not
+        final IndexAbstraction stackIndexForViewer = mockIndexAbstraction("logs-" + randomIntBetween(0, 5));
+        assertThat(role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(stackIndexForViewer), is(true));
+        assertThat(
+            role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(stackIndexForViewer),
+            is(false)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(stackIndexForViewer),
+            is(false)
+        );
+
         // Check application privileges
         assertThat(
             role.application()
@@ -4064,7 +4136,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.latest." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.updates." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.updates.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata." + randomAlphaOfLengthBetween(1, 8));
+        assertOnlyReadAllowed(role, ".entities.v2.metadata.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".entity_analytics.monitoring" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.entity-leads" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entity_analytics.watchlists." + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
@@ -4086,6 +4166,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
+
+        // read_view_metadata is granted on Stack indices; put/delete view are not
+        final IndexAbstraction stackIndexForEditor = mockIndexAbstraction("logs-" + randomIntBetween(0, 5));
+        assertThat(role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME).test(stackIndexForEditor), is(true));
+        assertThat(
+            role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(stackIndexForEditor),
+            is(false)
+        );
+        assertThat(
+            role.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME).test(stackIndexForEditor),
+            is(false)
+        );
 
         // Check application privileges
         assertThat(
@@ -4146,6 +4238,58 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
 
         assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
+    }
+
+    /**
+     * Verifies that kibana_system remote_indices grants cover the Elastic Defend endpoint patterns needed
+     * when agents use a Fleet remote Elasticsearch output (CCS read-back via RCS 2.0 API-key auth).
+     */
+    public void testKibanaSystemRoleRemoteEndpointIndices() {
+        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("kibana_system");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.hasRemoteIndicesPrivileges(), is(true));
+
+        final Set<String> remotePatterns = Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+            .flatMap(ip -> Arrays.stream(ip.getIndices()))
+            .collect(Collectors.toSet());
+
+        // Positive: all 6 Defend endpoint patterns must have remote read privileges.
+        // Representative concrete names that each pattern must cover are listed in comments.
+        assertThat(remotePatterns, hasItem(".logs-endpoint.action.responses-*"));  // .logs-endpoint.action.responses-default
+        assertThat(remotePatterns, hasItem(".fleet-actions-results*"));             // .fleet-actions-results
+        assertThat(remotePatterns, hasItem("metrics-endpoint.metadata_current_*")); // metrics-endpoint.metadata_current_default
+        assertThat(remotePatterns, hasItem(".metrics-endpoint.metadata_united_default*")); // .metrics-endpoint.metadata_united_default
+        assertThat(remotePatterns, hasItem("metrics-endpoint.policy-*"));           // metrics-endpoint.policy-default
+        assertThat(remotePatterns, hasItem("logs-endpoint.events.*"));              // logs-endpoint.events.process-default
+
+        // Negative: actions and heartbeat excluded for architectural reasons;
+        // endpoint alerts may contain user data — Kibana intentionally reads them as the current user, not kibana_system.
+        assertThat(remotePatterns, not(hasItem(".logs-endpoint.actions-*")));
+        assertThat(remotePatterns, not(hasItem(".logs-endpoint.heartbeat-*")));
+        assertThat(remotePatterns, not(hasItem("logs-endpoint.alerts-*")));
+
+        // Verify each Defend remote entry carries read and read_cross_cluster privileges.
+        final Set<String> defendPatterns = Set.of(
+            ".logs-endpoint.action.responses-*",
+            ".fleet-actions-results*",
+            "metrics-endpoint.metadata_current_*",
+            ".metrics-endpoint.metadata_united_default*",
+            "metrics-endpoint.policy-*",
+            "logs-endpoint.events.*"
+        );
+        Arrays.stream(roleDescriptor.getRemoteIndicesPrivileges())
+            .map(RoleDescriptor.RemoteIndicesPrivileges::indicesPrivileges)
+            .filter(ip -> Arrays.stream(ip.getIndices()).anyMatch(defendPatterns::contains))
+            .forEach(ip -> {
+                final List<String> privs = Arrays.asList(ip.getPrivileges());
+                assertThat("Expected 'read' on remote Defend entry " + Arrays.toString(ip.getIndices()), privs, hasItem("read"));
+                assertThat(
+                    "Expected 'read_cross_cluster' on remote Defend entry " + Arrays.toString(ip.getIndices()),
+                    privs,
+                    hasItem("read_cross_cluster")
+                );
+            });
     }
 
     /**

@@ -52,7 +52,7 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
 
     abstract DenseVectorQuery getDenseVectorQuery(String field, float[] query);
 
-    abstract DenseVectorQuery getDenseVectorQuery(String field, float[] query, Query filter);
+    abstract Query getDenseVectorQuery(String field, float[] query, Query filter);
 
     abstract float[] randomVector(int dim);
 
@@ -770,7 +770,7 @@ abstract class AbstractDenseVectorQueryTestCase extends ESTestCase {
         }
     }
 
-    private void assertNextDocsAndScoresMatchPerDocScores(IndexSearcher searcher, IndexReader reader, DenseVectorQuery query, float boost)
+    private void assertNextDocsAndScoresMatchPerDocScores(IndexSearcher searcher, IndexReader reader, Query query, float boost)
         throws IOException {
         Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, boost);

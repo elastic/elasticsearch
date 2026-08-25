@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.logging.activity.QueryLogger;
@@ -50,6 +51,7 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -62,6 +64,8 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -69,6 +73,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContextBuilder;
@@ -88,7 +93,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse>
     implements
@@ -112,6 +116,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private final ActivityLogger<EsqlLogContext> activityLogger;
+    private final QueryMetricsListener metricsCollector;
     private volatile boolean defaultAllowPartialResults;
     private volatile int resultTruncationMaxSize;
     private volatile int resultTruncationDefaultSize;
@@ -140,7 +145,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IpLocationService ipLocationService,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        QueryMetricsListener metricsCollector
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -149,7 +155,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.clusterService = clusterService;
         this.viewResolver = viewResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
-        this.datasetResolver = new DatasetResolver(client, requestExecutor, crossProjectModeDecider);
+        this.datasetResolver = new DatasetResolver(
+            client,
+            requestExecutor,
+            crossProjectModeDecider,
+            Federation.isAvailable(clusterService.getSettings())
+        );
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(
@@ -218,9 +229,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();
+        // Two deliberately-distinct pools so the external parse pipeline can never starve its own consumer.
+        // Arg 1 (registry.executor()) is the page-consumer / coordination role: the esql_worker compute pool that
+        // also runs the drivers polling the source buffer, so the non-blocking producer-loop drain runs there.
+        // Arg 2 (registry.fileReadExecutor()) is the read/parse role: the dedicated esql_external_io pool that runs
+        // the blocking opens, the segmentator, and the one-shot parser workers. Collapsing both onto one pool
+        // deadlocks multi-file text reads — a full I/O pool of blocked parsers with no free thread to run the drain
+        // that must consume them (see AsyncExternalSourceOperatorFactory + StreamingParallelParsingCoordinator).
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
-            externalSourceExecutor(),
-            threadPool.executor(fileReadExecutorName())
+            threadPool.executor(EsqlPlugin.computePool()),
+            externalBlobStoreExecutor()
         );
         this.computeService = new ComputeService(
             services,
@@ -263,53 +281,49 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             .addSettingsUpdateConsumer(AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
                 timeseriesResultTruncationDefaultSize = v;
             });
+        this.metricsCollector = metricsCollector;
     }
 
     /**
-     * Executor for external source coordination: connector handshakes, registry wiring, and source resolution
-     * (glob expansion, footer reads, schema reconciliation performed by
-     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}).
+     * Executor for external blob-store access: connector handshakes, registry wiring, source resolution (glob
+     * expansion, footer reads, schema reconciliation performed by
+     * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}), and the blocking data reads and
+     * streaming parse pipeline routed through {@link OperatorFactoryRegistry#fileReadExecutor}.
      * <p>
-     * Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion over thousands
-     * of files, S3 footer reads) from starving regular ES searches — the reported production regression. Deliberately
-     * shares the compute-driver pool ({@code esql_worker}, default sizing {@code (1.5*cpu)+1} via
-     * {@link ThreadPool#searchOrGetThreadPoolSize} or the {@code esql.worker.thread_pool_size} setting override, with a
-     * heap-scaled queue). The resolver's join pattern needs up to {@code MAX_PARALLEL_METADATA_READS + 1} running slots;
-     * on nodes where that exceeds the pool size the {@link org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather}
-     * runner throttles submission rather than overflowing the queue, and on saturation across concurrent ES|QL queries
-     * it fails fast per-slot rather than deadlocking. Blocking file-read fan-out uses the separate
-     * {@code esql_external_blocking_io} pool ({@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME}) via
-     * {@link OperatorFactoryRegistry#fileReadExecutor}.
+     * Backed by {@link EsqlPlugin#externalBlobStorePool()} — the dedicated {@code esql_external_io} scaling pool,
+     * sized {@code 0..}{@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * (the single CPU-scaled concurrency knob). It is deliberately separate from the {@code esql_worker} compute pool
+     * ({@link EsqlPlugin#computePool()}): the blocking parse pipeline (segmentator + parser tasks) must not occupy the
+     * same threads as the compute drivers that consume its output, or the parser starves its consumer and deadlocks
+     * the query. Isolated from {@link ThreadPool.Names#SEARCH} to prevent heavy external queries (glob expansion over
+     * thousands of files, S3 footer reads) from starving regular ES searches — the reported production regression. The
+     * resolver's join pattern needs up to {@code MAX_PARALLEL_METADATA_READS + 1} running slots; on nodes where that
+     * exceeds the pool size the {@link org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather} runner
+     * throttles submission rather than overflowing the queue, and on saturation across concurrent ES|QL queries it
+     * fails fast per-slot rather than deadlocking. In-flight cloud API calls are additionally bounded by the per-scheme
+     * permit semaphore in {@code StorageProviderRegistry} — permits govern concurrency fairness, the pool governs
+     * thread isolation.
      * <p>
-     * This method is the coordinator-side hook: overriding it lets tests or a future re-routing move the resolver's
-     * coordinator and fan-out to a different pool without touching call sites. A true coordinator/footer split (two
-     * executors inside {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver}) is a larger change and
-     * is deferred until the {@code esql_external_blocking_io} pool's sizing and lifecycle are resolved.
+     * This method is the coordinator-side hook: overriding it lets tests or a future re-routing move external
+     * blob-store access to a different pool without touching call sites.
      */
-    protected Executor externalSourceExecutor() {
-        return threadPool.executor(externalSourceExecutorName());
+    protected Executor externalBlobStoreExecutor() {
+        return threadPool.executor(EsqlPlugin.externalBlobStorePool());
     }
 
     /**
-     * Name of the thread pool backing {@link #externalSourceExecutor()}. Extracted so unit tests can pin the wiring
-     * without needing a live {@link ThreadPool}. Must not resolve to {@link ThreadPool.Names#SEARCH}: a single
-     * wildcard external query previously consumed nearly the entire SEARCH pool during resolution, starving unrelated
-     * searches and other ES|QL queries.
+     * Maximum number of in-flight per-file metadata (footer) reads a single multi-file resolution may have
+     * outstanding, passed to {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver} as its fan-out
+     * bound. Because footer reads are async (the {@code esql_worker} thread is released across the read), this caps
+     * concurrent in-flight reads rather than pinning that many threads, so the bound may safely exceed the pool
+     * size. It is the shared {@link ExternalSourceSettings#blobStoreConcurrency(org.elasticsearch.common.settings.Settings)}
+     * value — the single effective blob-store access concurrency that the data-read path also reads — so discovery
+     * throttles its footer fan-out with the same node-size-scaled formula ({@code snapshot_meta} shape, capped at
+     * 100, and any operator override once that setting lands) instead of the raw {@code esql_worker.getMax()} pool
+     * size.
      */
-    static String externalSourceExecutorName() {
-        return ESQL_WORKER_THREAD_POOL_NAME;
-    }
-
-    /**
-     * Name of the thread pool that backs {@link OperatorFactoryRegistry#fileReadExecutor()} — the executor on which
-     * blocking external (GCS/local file) reads run. This must be the dedicated, bounded
-     * {@link EsqlPlugin#EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME} pool, never {@link ThreadPool.Names#GENERIC}: routing
-     * blocking external reads onto {@code generic} lets a single heavy external query starve the rest of the node.
-     * The production constructor resolves the read executor through this method, so the unit test that pins the
-     * returned name locks the real wiring.
-     */
-    static String fileReadExecutorName() {
-        return EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME;
+    protected int externalSourceConcurrency() {
+        return ExternalSourceSettings.blobStoreConcurrency(clusterService.getSettings());
     }
 
     @Override
@@ -392,11 +406,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             remoteClusterService,
             planRunner,
             services,
-            externalSourceExecutor(),
+            externalBlobStoreExecutor(),
+            externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
+                collectMetrics(result.inner());
                 var response = toResponse(task, request, request.profile(), result);
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
@@ -417,6 +433,43 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             })
         );
 
+    }
+
+    private boolean hasExternalSources(Result result) {
+        if (result.executionInfo() == null) {
+            return false;
+        }
+        var qp = result.executionInfo().queryProfile();
+        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
+    }
+
+    private void collectMetrics(Result result) {
+        // Currently, the metrics are only collected when the query has federated sources, since we are not planning
+        // to do any per-query billing otherwise, so no point in collecting the metrics.
+        if (metricsCollector.equals(QueryMetricsListener.NOOP) || hasExternalSources(result) == false) {
+            // don't even bother to create a map
+            return;
+        }
+        try {
+            var ci = result.completionInfo();
+            var qp = result.executionInfo().queryProfile();
+            metricsCollector.onQueryCompleted(
+                Map.of(
+                    QueryMetricsListener.PLANNING_NANOS,
+                    qp.planning().timeSpan().durationInNanos(),
+                    QueryMetricsListener.CPU_NANOS,
+                    ci.cpuNanos(),
+                    QueryMetricsListener.READ_NANOS,
+                    ci.readNanos(),
+                    QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
+                    qp.splitDiscoveryNanos(),
+                    QueryMetricsListener.BYTES_READ,
+                    ci.bytesRead()
+                )
+            );
+        } catch (Exception ex) {
+            logger.warn("failed to collect query metrics", ex);
+        }
     }
 
     private void recordCCSTelemetry(Task task, EsqlExecutionInfo executionInfo, EsqlQueryRequest request, @Nullable Exception exception) {
@@ -503,8 +556,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        var result = versionedResult.inner();
-        // A lenient external read (e.g. a max_record_size truncation under a non-strict error_mode) returns fewer
+        var rawResult = versionedResult.inner();
+        // No-ops unless the schema carries an UnmappedFieldsAttribute (i.e., unmapped_fields="LOAD_ALL").
+        // expand() preserves completionInfo/executionInfo, so the partial-marking below applies to the expanded result.
+        var result = ExpandUnmappedFieldsPostProcessor.expand(
+            rawResult,
+            services.blockFactoryProvider().blockFactory(),
+            services.plannerSettings().get()
+        );
+        // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
         // (coordinator-only, distributed, subplan/fork) is covered uniformly. External-only queries carry no
@@ -514,6 +574,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             if (result.executionInfo() != null) {
                 result.executionInfo().markPartial();
             }
+        }
+        /*
+         * Shift all of ESQL's carefully maintained Warnings onto the spooky ThreadLocal
+         * for render.
+         */
+        for (String warning : result.completionInfo().warnings()) {
+            HeaderWarning.addWarning(warning);
         }
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
@@ -549,7 +616,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 asyncExecutionId,
                 false,
                 request.async(),
-                result.configuration().zoneId(),
+                QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
                 task.getStartTime(),
                 ((EsqlQueryTask) task).getExpirationTimeMillis(),
                 result.executionInfo()
@@ -569,7 +636,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             false,
             request.async(),
-            result.configuration().zoneId(),
+            QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings()),
             task.getStartTime(),
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
             result.executionInfo()

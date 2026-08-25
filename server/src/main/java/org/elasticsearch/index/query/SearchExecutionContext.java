@@ -75,9 +75,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -139,6 +142,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
+    private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
+    private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
 
     public SearchExecutionContext(
         int shardId,
@@ -487,7 +492,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
-        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), null);
     }
 
     /**
@@ -546,7 +551,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics(), getNestedDocuments());
     }
 
     /**
@@ -760,6 +765,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public NestedDocuments getNestedDocuments() {
+        if (bitsetFilterCache == null) {
+            return null;
+        }
         return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer, indexVersionCreated());
     }
 
@@ -834,9 +842,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (delta > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
         } else if (delta < 0) {
-            circuitBreaker.addWithoutBreaking(delta);
+            circuitBreaker.addWithoutBreaking(delta, label);
         }
-        queryConstructionMemoryUsed.addAndGet(delta);
+        if (delta != 0) {
+            queryConstructionMemoryByLabel.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(delta);
+            queryConstructionMemoryUsed.addAndGet(delta);
+        }
         if (held > 0 && CB_RESERVATION_LOGGER.isDebugEnabled()) {
             CB_RESERVATION_LOGGER.debug(
                 "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
@@ -855,27 +866,66 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Release all accumulated query construction memory back to the circuit breaker. Safe to
-     * call multiple times; subsequent calls after the pool is drained are no-ops.
+     * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
      */
-    public void releaseQueryConstructionMemory() {
-        long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
-        if (memoryToRelease > 0 && circuitBreaker != null) {
-            circuitBreaker.addWithoutBreaking(-memoryToRelease);
+    public void markQueryMemoryPreCharged(Query query) {
+        if (query != null) {
+            preChargedQueries.add(query);
         }
     }
 
     /**
-     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
+     * @return {@code true} if {@code query} was already charged at construction time (see {@link #markQueryMemoryPreCharged}).
+     */
+    public boolean isQueryMemoryPreCharged(Query query) {
+        return preChargedQueries.contains(query);
+    }
+
+    /**
+     * Drops all pre-charge markers.
+     */
+    protected final void clearPreChargedQueries() {
+        preChargedQueries.clear();
+    }
+
+    /**
+     * Release all accumulated query construction memory back to the circuit breaker. Safe to
+     * call multiple times; subsequent calls after the pool is drained are no-ops.
+     */
+    public void releaseQueryConstructionMemory() {
+        clearPreChargedQueries();
+        if (circuitBreaker == null) {
+            return;
+        }
+        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+            long held = entry.getValue().getAndSet(0);
+            if (held > 0) {
+                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+            }
+        }
+        queryConstructionMemoryByLabel.clear();
+        queryConstructionMemoryUsed.set(0);
+    }
+
+    /**
+     * Release {@code bytes} of accumulated query construction memory back to the circuit breaker. The {@code label} must match the
+     * label the bytes were originally admitted under (see {@link #addCircuitBreakerMemory(long, String)}); otherwise the per-label
+     * bookkeeping drained by {@link #releaseQueryConstructionMemory()} at request end will not balance and the same bytes may be
+     * released twice from the underlying breaker.
      *
      * @param bytes the number of bytes to refund; must be {@code >= 0}
+     * @param label the label the bytes were originally admitted under
      */
-    public void releaseQueryConstructionMemory(long bytes) {
+    public void releaseQueryConstructionMemory(long bytes, String label) {
         assert bytes >= 0 : "negative refund: " + bytes;
         if (circuitBreaker == null || bytes <= 0) {
             return;
         }
-        circuitBreaker.addWithoutBreaking(-bytes);
+        circuitBreaker.addWithoutBreaking(-bytes, label);
+        AtomicLong held = queryConstructionMemoryByLabel.get(label);
+        if (held != null) {
+            held.addAndGet(-bytes);
+        }
         queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

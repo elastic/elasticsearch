@@ -376,7 +376,7 @@ public class JobResultsPersister {
     }
 
     private static SearchRequest buildQuantilesDocIdSearch(String quantilesDocId) {
-        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
+        return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
                     .fetchSource(false)
@@ -474,7 +474,7 @@ public class JobResultsPersister {
             indexNames.add(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         }
         if (commitTypes.contains(CommitType.STATE)) {
-            indexNames.add(AnomalyDetectorsIndex.jobStateIndexPattern());
+            Collections.addAll(indexNames, AnomalyDetectorsIndex.jobStateIndexPatterns());
         }
         if (commitTypes.contains(CommitType.ANNOTATIONS)) {
             // We refresh using the read alias in order to ensure all indices will

@@ -1,7 +1,7 @@
 id:integer,event.action:keyword,event.outcome:keyword,event.tags:keyword
 1,login,success,[auth, success]
 2,logout,success,success
-3,,failure,[auth, failure]
-4,login,,
+3,null,failure,[auth, failure]
+4,login,null,null
 5,read,success,read
-6,,,
+6,null,null,null

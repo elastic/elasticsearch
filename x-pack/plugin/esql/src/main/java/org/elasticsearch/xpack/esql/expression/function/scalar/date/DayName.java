@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,8 +26,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -39,7 +42,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
-public class DayName extends EsqlConfigurationFunction {
+public class DayName extends EsqlConfigurationFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DayName", DayName::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DayName.class).unaryConfig(DayName::new).name("day_name");
 
@@ -47,6 +50,7 @@ public class DayName extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        signatures = { @Signature(params = { "date|date_nanos" }, returnType = "keyword") },
         briefSummary = "Returns the name of the weekday for a date.",
         description = "Returns the name of the weekday for date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsDayName"),
@@ -113,9 +117,19 @@ public class DayName extends EsqlConfigurationFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (field().dataType() == DataType.DATE_NANOS) {
-            return new DayNameNanosEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+            return new DayNameNanosEvaluator.Factory(
+                source(),
+                fieldEvaluator,
+                QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+                configuration().locale()
+            );
         }
-        return new DayNameMillisEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
+        return new DayNameMillisEvaluator.Factory(
+            source(),
+            fieldEvaluator,
+            QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()),
+            configuration().locale()
+        );
     }
 
     @Override

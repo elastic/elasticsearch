@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Classifies a failure raised while reading an external data source into the exception the
@@ -78,6 +79,9 @@ public final class ExternalFailures {
      */
     private static final Set<String> MALFORMED_DATA_EXCEPTIONS = Set.of("org.apache.parquet.io.ParquetDecodingException");
 
+    /** Depth bound for {@link #rootDetail}'s walk. Real chains here are 2-4 deep; this only stops a pathological one. */
+    private static final int MAX_CAUSE_DEPTH = 12;
+
     /**
      * Returns the {@link RuntimeException} to throw for the given read failure. May instead throw if
      * {@code t} is an {@link Error}, which must propagate unchanged.
@@ -99,9 +103,11 @@ public final class ExternalFailures {
             return iae;
         }
         if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", t.getMessage());
+            return new ExternalClientException(t, "Failed to read external source: {}", detail(t));
         }
-        return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
+        // Use detail() rather than the raw getMessage() so a null-message fault (e.g. a bare NPE) surfaces
+        // its class name instead of a useless "null", while the original cause stays chained for the stack.
+        return new ExternalServerException(t, "Unexpected failure reading external source: {}", detail(t));
     }
 
     /**
@@ -167,5 +173,62 @@ public final class ExternalFailures {
      */
     private static String detail(Throwable failure) {
         return failure.getMessage() != null ? failure.getMessage() : failure.getClass().getSimpleName();
+    }
+
+    /**
+     * The message for a wrapper that types a metadata-resolution failure as client-caused — {@code FileSourceFactory},
+     * {@code TableCatalog}. Such a wrapper exists to fix the HTTP status, not to say anything new, so it keeps the
+     * cause's own diagnosis: "Object not found: &lt;path&gt;", "CSV file has no schema line", "Could not read
+     * [&lt;path&gt;] as a Parquet file: ...". A wrapper that replaces the diagnosis with a constant naming only the
+     * path reports every distinct condition — a missing object, a wrong format, a truncated footer, an empty file —
+     * with one identical sentence, which is what makes an external-source failure unactionable.
+     * <p>
+     * The location is prepended only when the cause does not already name it. Storage and reader messages usually do
+     * (they are built from the path), and this method is reached through
+     * {@code ExternalSourceResolver#mapResolveFailure}, which passes a client-caused failure straight to the user
+     * without adding context of its own — so the location has to be here when the cause omits it, and must not be
+     * here twice when the cause includes it.
+     */
+    public static String resolutionFailureMessage(String location, Throwable cause) {
+        String detail = detail(cause);
+        return detail.contains(location) ? detail : "Failed to resolve metadata for [" + location + "]: " + detail;
+    }
+
+    /**
+     * {@link #detail} of the first exception in {@code failure}'s chain that carries a message someone wrote, rather
+     * than one a wrapper derived from {@link Throwable#toString()}.
+     * <p>
+     * A resolution failure can arrive inside a transparent wrapper: the caches run their loader inside
+     * {@code Cache#computeIfAbsent}, which reports a loader failure as an {@link ExecutionException} whose message is
+     * its cause's {@code toString()}. Reading only the top message therefore yields
+     * {@code "java.io.IOException: Object not found: …"} — a JVM type name in front of the user.
+     * {@code ExternalSourceResolver#mapResolveFailure} recovers a buried {@link IllegalArgumentException} by type, but
+     * the file-metadata rail raises a plain {@link IOException}, which no type-specific arm claims; this reads through
+     * the wrapper whatever the cause's type turns out to be.
+     * <p>
+     * Only wrappers that add no message of their own are stepped through — anything given a real message keeps it,
+     * because that message is the more specific one. Cycle-guarded and depth-bounded.
+     */
+    public static String rootDetail(Throwable failure) {
+        Throwable current = failure;
+        for (int depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current || derivesMessageFrom(current, cause) == false) {
+                return detail(current);
+            }
+            current = cause;
+        }
+        return detail(current);
+    }
+
+    /**
+     * Whether {@code wrapper}'s message is just {@code cause.toString()} — the shape every
+     * {@code XxxException(Throwable)} constructor produces, and the one that leaks a type name into user-facing text.
+     * Compared by value rather than by wrapper type so it holds for any such constructor, not only the
+     * {@link ExecutionException} that motivated it.
+     */
+    private static boolean derivesMessageFrom(Throwable wrapper, Throwable cause) {
+        String message = wrapper.getMessage();
+        return message == null || message.equals(cause.toString());
     }
 }

@@ -9,6 +9,10 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -18,7 +22,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.function.IntFunction;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
@@ -40,8 +45,10 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
 
-        if ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-            || arch.equals("amd64") && osName.equals("Linux"))) {
+        // native support requires JDK 22+ (for heap segment support and native vec lib loading)
+        if (Runtime.version().feature() >= 22
+            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
+                || arch.equals("amd64") && osName.equals("Linux"))) {
             assertTrue(factory.usesNative());
         } else {
             // not an arch with native support, so shouldn't be native
@@ -83,17 +90,47 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         }
     }
 
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
-    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
+    public static float[] maxFloatArray(int size) {
         float[] fa = new float[size];
         Arrays.fill(fa, Float.MAX_VALUE);
         return fa;
-    };
+    }
+
+    // bounds of the range of values that can be seen by int7 scalar quantized vectors
+    public static final byte MIN_INT7_VALUE = 0;
+    public static final byte MAX_INT7_VALUE = 127;
+
+    public static byte[] randomInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
+        return ba;
+    }
+
+    public static byte[] maxInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MAX_INT7_VALUE);
+        return ba;
+    }
+
+    public static byte[] minInt7ByteVector(int size) {
+        byte[] ba = new byte[size];
+        Arrays.fill(ba, MIN_INT7_VALUE);
+        return ba;
+    }
+
+    static void assertFloatArrayEquals(float[] expected, float[] actual, float delta) {
+        assertThat(actual.length, equalTo(expected.length));
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals("differed at element [" + i + "]", expected[i], actual[i], Math.abs(expected[i]) * delta + delta);
+        }
+    }
+
+    static void assertFloatEquals(float expected, float actual, float delta) {
+        assertEquals(expected, actual, Math.abs(expected) * delta + delta);
+    }
+
+    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
+        throws IOException {
+        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    }
 }

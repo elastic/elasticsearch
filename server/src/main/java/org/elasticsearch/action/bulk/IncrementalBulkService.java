@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -16,14 +17,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -45,8 +49,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
-    public static final String BULK_SESSION_TASK_TYPE = "bulk_session_timeout_tracking";
-    public static final String BULK_SESSION_ACTION = "bulk_session_timeout_tracking_action";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk";
+    public static final String BULK_SESSION_ACTION = "internal:bulk";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -276,8 +280,18 @@ public class IncrementalBulkService {
             }
         }
 
+        /**
+         * Stashes the thread context before propagating the cancellation. {@code internal:admin/tasks/ban}
+         * (and its matching unban) can never be granted to a user and must run as the system user.
+         * {@link ThreadPool#schedule} preserves the REST caller's context into the timeout lambda, so
+         * without the stash the security interceptor would deny the ban request. Mirrors
+         * {@link org.elasticsearch.tasks.TaskCancellationService} sending {@code cancel_child}.
+         */
         public void cancel(String reason, Runnable listener) {
-            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
+            try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+                threadPool.getThreadContext().markAsSystemContext();
+                taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
+            }
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
@@ -385,12 +399,7 @@ public class IncrementalBulkService {
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
-                    taskManager.cancelTaskAndDescendants(
-                        bulkSessionTask,
-                        "handler closed",
-                        false,
-                        ActionListener.running(() -> taskManager.unregister(bulkSessionTask))
-                    );
+                    cancel("handler closed", () -> taskManager.unregister(bulkSessionTask));
                 }
             }
         }
@@ -421,7 +430,9 @@ public class IncrementalBulkService {
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {
             assert bulkActionLevelFailure == null;
             globalFailure = isFirstRequest;
-            bulkActionLevelFailure = e;
+            bulkActionLevelFailure = e instanceof TaskCancelledException tce
+                ? new ElasticsearchStatusException(tce.getMessage(), RestStatus.TOO_MANY_REQUESTS, tce)
+                : e;
             addItemLevelFailures(bulkRequest.requests());
             bulkRequest = null;
         }
@@ -483,6 +494,11 @@ public class IncrementalBulkService {
                 bulkRequest.setRefreshPolicy(refresh);
             }
             bulkRequest.requestParamsUsed(paramsUsed);
+        }
+
+        // Visible for testing
+        protected Task getBulkSessionTask() {
+            return bulkSessionTask;
         }
     }
 }

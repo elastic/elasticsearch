@@ -44,6 +44,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_DOUBLE_RANGES;
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 
@@ -328,7 +329,21 @@ public enum DataType implements Writeable {
     /**
      * Represents a half-inclusive range between two dates.
      */
-    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().underConstruction(ESQL_LONG_RANGES)),
+    DATE_RANGE(
+        builder().esType("date_range")
+            .estimatedSize(2 * Long.BYTES)
+            .docValues()
+            .supportedSince(ESQL_LONG_RANGES, DataTypesTransportVersions.ESQL_DATE_RANGE_TECH_PREVIEW)
+    ),
+    /**
+     * Represents a half-open range between two double-precision floating-point numbers.
+     */
+    DOUBLE_RANGE(
+        builder().esType("double_range")
+            .estimatedSize(2 * Double.BYTES)
+            .docValues()
+            .supportedSince(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION, ESQL_DOUBLE_RANGES)
+    ),
     /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
@@ -860,6 +875,7 @@ public enum DataType implements Writeable {
             || t == AGGREGATE_METRIC_DOUBLE
             || t == DATE_PERIOD
             || t == DATE_RANGE
+            || t == DOUBLE_RANGE
             || t == FLATTENED
             || t == HISTOGRAM
             || t == TIME_DURATION
@@ -1275,5 +1291,17 @@ public enum DataType implements Writeable {
          * Release version for flattened field type support.
          */
         public static final TransportVersion ESQL_FLATTENED_DATATYPE_RELEASE = TransportVersion.fromName("esql_flattened_datatype_release");
+
+        /**
+         * Tech preview transport version for date_range field type support.
+         */
+        public static final TransportVersion ESQL_DATE_RANGE_TECH_PREVIEW = TransportVersion.fromName("esql_date_range_tech_preview");
+
+        /**
+         * Development version for double_range field type support.
+         */
+        public static final TransportVersion ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION = TransportVersion.fromName(
+            "esql_double_range_tech_preview"
+        );
     }
 }

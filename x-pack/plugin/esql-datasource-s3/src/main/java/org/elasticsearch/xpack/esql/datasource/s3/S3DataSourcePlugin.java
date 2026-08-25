@@ -79,9 +79,10 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     @Override
     public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
         CustomWebIdentityTokenCredentialsProvider provider = initWorkloadIdentitySources(services);
-        // Size the async client's connection pool from the single node setting. services.settings() is the node
-        // Settings threaded through the SPI — the construction path that reaches the client-build site.
-        int maxConnections = ExternalSourceSettings.MAX_CONNECTIONS.get(services.settings());
+        // Size the async client's connection pool from the single external-read concurrency knob
+        // (esql.external.max_concurrent_requests), so the SDK pool matches the per-scheme permit ceiling.
+        // services.settings() is the node Settings threaded through the SPI — the path that reaches the client build.
+        int maxConnections = ExternalSourceSettings.blobStoreConcurrency(services.settings());
         StorageProviderFactory s3Factory = StorageProviderFactory.of(
             () -> new S3StorageProvider(null, provider, maxConnections),
             S3Configuration::fromQueryConfig,

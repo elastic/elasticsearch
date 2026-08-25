@@ -19,6 +19,7 @@ import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration.AuthMode;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
 
 import java.util.List;
 import java.util.Map;
@@ -35,13 +36,12 @@ public class GcsStorageProviderTests extends ESTestCase {
 
     private final Storage mockStorage = mock(Storage.class);
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void resetWorkloadIdentityRegistry() throws Exception {
         WorkloadIdentityRegistry.reset();
-        super.tearDown();
     }
 
-    public void testKeylessAuthFailsWhenWorkloadIdentityDisabled() {
+    public void testFederatedAuthFailsWhenWorkloadIdentityDisabled() {
         WorkloadIdentityRegistry.setIssuerClient(new WorkloadIdentityIssuerClient() {
             @Override
             public boolean isEnabled() {
@@ -53,17 +53,17 @@ public class GcsStorageProviderTests extends ESTestCase {
                 throw new UnsupportedOperationException("not expected");
             }
         });
-        GcsConfiguration config = keylessConfiguration();
+        GcsConfiguration config = federatedConfiguration();
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> new GcsStorageProvider(config));
         assertThat(e.getMessage(), containsString("workload-identity"));
     }
 
-    public void testKeylessAuthBuildsWhenWorkloadIdentityEnabled() {
+    public void testFederatedAuthBuildsWhenWorkloadIdentityEnabled() {
         WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
-        assertNotNull(new GcsStorageProvider(keylessConfiguration()));
+        assertNotNull(new GcsStorageProvider(federatedConfiguration()));
     }
 
-    public void testKeylessAuthBuildsWithoutServiceAccountImpersonationUrl() {
+    public void testFederatedAuthBuildsWithoutServiceAccountImpersonationUrl() {
         WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
         GcsConfiguration config = GcsConfiguration.fromFields(
             null,
@@ -78,7 +78,28 @@ public class GcsStorageProviderTests extends ESTestCase {
         assertNotNull(new GcsStorageProvider(config));
     }
 
-    private static GcsConfiguration keylessConfiguration() {
+    public void testFederatedAuthBuildsWithDefaultJwtAudience() {
+        WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
+        GcsConfiguration config = GcsConfiguration.fromFields(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+            null
+        );
+        assertNotNull(new GcsStorageProvider(config));
+    }
+
+    public void testFederatedAuthBuildsWithOverriddenJwtAudience() {
+        WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
+        GcsConfiguration config = federatedConfiguration();
+        assertNotNull(new GcsStorageProvider(config));
+    }
+
+    private static GcsConfiguration federatedConfiguration() {
         return GcsConfiguration.fromFields(
             null,
             null,
@@ -168,7 +189,7 @@ public class GcsStorageProviderTests extends ESTestCase {
     }
 
     public void testCredentialsRequiresCredentialsRejectedAtCreate() {
-        // auth=auto with no credentials, no keyless settings resolves to nothing, so it is rejected at create time.
+        // auth=auto with no credentials, no federated settings resolves to nothing, so it is rejected at create time.
         ValidationException e = expectThrows(ValidationException.class, () -> GcsConfiguration.fromMap(Map.of("project_id", "my-project")));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }

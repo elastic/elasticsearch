@@ -1,0 +1,99 @@
+// Single-type partially-unmapped non-keyword fields (PUNKs) with no KEYWORD converter (e.g. aggregate_metric_double),
+// used WITHOUT an explicit cast. Under unmapped_fields="load" they fall back to their mapped type and nullify the
+// unmapped rows, matching the default (no-load) behavior.
+// Auto-cast PUNKs (convertible types), casted PUNKs, and multi-type union conflicts live in unmapped-type-conflicts.csv-spec.
+
+// network.eth0.tx is aggregate_metric_double in k8s-downsampled and unmapped in k8s_unmapped.
+// Under load mode, function application should keep mapped rows and nullify unmapped ones.
+aggregateMetricDoubleUnmappedToGauge
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped METADATA _index
+| WHERE _index == "k8s_unmapped"
+| EVAL tx = TO_GAUGE(network.eth0.tx)
+| STATS rows = COUNT(*), tx_count = COUNT(tx)
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+rows:long | tx_count:long
+200       | 0
+;
+
+// network.eth0.tx is aggregate_metric_double in k8s-downsampled, unmapped in k8s_unmapped (present in _source as an integer),
+// and entirely absent in k8s_nonexistent. Under load, a global aggregate over this single-type PUNK keeps the mapped values;
+// the unmapped and non-existent rows contribute null to the metric aggregates while still counting toward COUNT(*).
+aggregateMetricDoubleUnmappedStatsNoCast
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: aggregate_metric_double_v0
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+| STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*)
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+575.8033707865169 | 102493.0      | 178           | 229
+;
+
+// Same trio grouped by _index
+aggregateMetricDoubleUnmappedStatsNoCastByIndex
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: aggregate_metric_double_v0
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+| STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*) BY _index
+| SORT _index
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
+575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
+null              | null          | 0             | 2         | k8s_nonexistent
+null              | null          | 0             | 200       | k8s_unmapped
+;
+
+// A single-type aggregate_metric_double PUNK has no KEYWORD converter, so under load it falls back to its mapped type and may be renamed.
+// The renamed field behaves exactly as the default setting: real aggregates where mapped, null metrics and 0 COUNT where unmapped.
+aggregateMetricDoubleUnmappedRenameNoCast
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: aggregate_metric_double_v0
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent
+| RENAME network.eth0.tx AS renamed_tx
+| STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*)
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+avg_tx:double     | sum_tx:double | tx_count:long | rows:long
+575.8033707865169 | 102493.0      | 178           | 229
+;
+
+// Same rename grouped by _index: matches aggregateMetricDoubleUnmappedStatsNoCastByIndex, confirming the rename is transparent.
+aggregateMetricDoubleUnmappedRenameNoCastByIndex
+required_capability: optional_fields_unmapped_load_null_fallback
+required_capability: aggregate_metric_double_v0
+required_capability: optional_fields_warn_non_loadable_punk
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped, k8s_nonexistent METADATA _index
+| RENAME network.eth0.tx AS renamed_tx
+| STATS avg_tx = AVG(renamed_tx), sum_tx = SUM(renamed_tx), tx_count = COUNT(renamed_tx), rows = COUNT(*) BY _index
+| SORT _index
+;
+warning:Field [network.eth0.tx] of type [aggregate_metric_double] is unmapped in some indices and has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices
+
+avg_tx:double     | sum_tx:double | tx_count:long | rows:long | _index:keyword
+575.8033707865169 | 102493.0      | 178           | 27        | k8s-downsampled
+null              | null          | 0             | 2         | k8s_nonexistent
+null              | null          | 0             | 200       | k8s_unmapped
+;

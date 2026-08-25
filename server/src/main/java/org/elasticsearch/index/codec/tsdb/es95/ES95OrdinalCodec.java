@@ -9,32 +9,18 @@
 
 package org.elasticsearch.index.codec.tsdb.es95;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.NumericReadContext;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
 import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldWriter;
-import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 
 /**
- * {@link OrdinalBlockCodec} for the ES95 TSDB format.
- *
- * <p>Creates {@link ES95OrdinalFieldWriter} and {@link ES95OrdinalFieldReader} instances.
- * The writer carries a per-field {@code blockShift} byte in segment metadata so the decoder
- * always uses the exact block size the field was encoded with.
+ * {@link OrdinalBlockCodec} for the ES95 TSDB format. The writer encodes ordinals at the
+ * format-level block size and writes no per-field metadata; the reader is version-aware so it can
+ * still read the per-field {@code blockShift} byte written by earlier binaries.
  */
 final class ES95OrdinalCodec implements OrdinalBlockCodec {
-
-    private final PipelineConfigResolver resolver;
-    @Nullable
-    private final FieldContextResolver fieldContextResolver;
-
-    ES95OrdinalCodec(final PipelineConfigResolver resolver, @Nullable final FieldContextResolver fieldContextResolver) {
-        this.resolver = resolver;
-        this.fieldContextResolver = fieldContextResolver;
-    }
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {
@@ -43,6 +29,6 @@ final class ES95OrdinalCodec implements OrdinalBlockCodec {
 
     @Override
     public OrdinalFieldWriter createWriter(final NumericWriteContext ctx) {
-        return new ES95OrdinalFieldWriter(ctx, resolver, fieldContextResolver);
+        return new ES95OrdinalFieldWriter(ctx);
     }
 }

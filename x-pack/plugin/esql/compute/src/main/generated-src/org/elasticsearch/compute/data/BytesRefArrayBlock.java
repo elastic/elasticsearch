@@ -154,15 +154,11 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
             // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
             for (int p = 0; p < getPositionCount(); p++) {
-                if (false == mask.getBoolean(p)) {
+                if (false == mask.getBoolean(p) || isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
                 int valueCount = getValueCount(p);
-                if (valueCount == 0) {
-                    builder.appendNull();
-                    continue;
-                }
                 int start = getFirstValueIndex(p);
                 if (valueCount == 1) {
                     builder.appendBytesRef(getBytesRef(start, scratch));
@@ -205,17 +201,25 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
         long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
         blockFactory().adjustBreaker(bitSetRamUsedEstimate);
 
-        BytesRefArrayBlock expanded = new BytesRefArrayBlock(
-            vector,
-            expandedPositionCount,
-            null,
-            shiftNullsToExpandedPositions(),
-            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
-        );
-        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
-        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
-        vector.incRef();
-        return expanded;
+        boolean success = false;
+        try {
+            BytesRefArrayBlock expanded = new BytesRefArrayBlock(
+                vector,
+                expandedPositionCount,
+                null,
+                shiftNullsToExpandedPositions(),
+                MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+            );
+            blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+            // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+            vector.incRef();
+            success = true;
+            return expanded;
+        } finally {
+            if (success == false) {
+                blockFactory().adjustBreaker(-bitSetRamUsedEstimate);
+            }
+        }
     }
 
     private long ramBytesUsedOnlyBlock() {
@@ -254,6 +258,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
 
     @Override
     public void allowPassingToDifferentDriver() {
+        makeRefCountsThreadSafe();
         vector.allowPassingToDifferentDriver();
     }
 

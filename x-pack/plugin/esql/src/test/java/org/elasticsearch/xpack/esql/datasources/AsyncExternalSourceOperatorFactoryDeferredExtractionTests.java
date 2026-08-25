@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -48,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -794,7 +796,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         }
 
         @Override
-        public ColumnExtractor createColumnExtractor() {
+        public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) {
             extractorsCreated.incrementAndGet();
             return new InMemoryColumnExtractor(rows);
         }
@@ -902,7 +904,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         }
 
         @Override
-        public ColumnExtractor createColumnExtractor() {
+        public ColumnExtractor createColumnExtractor(@Nullable Consumer<String> driverThreadWarningSink) {
             extractorsCreated.incrementAndGet();
             return new InMemoryColumnExtractor(rowsPerFile);
         }
@@ -961,7 +963,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         }
 
         @Override
-        public Block[] extract(String[] columnNames, long[] localPositions, BlockFactory blockFactory) {
+        public Block[] extract(String[] columnNames, DataType[] targetTypes, long[] localPositions, BlockFactory blockFactory) {
             throw new AssertionError("extract() must not be called from these tests");
         }
 

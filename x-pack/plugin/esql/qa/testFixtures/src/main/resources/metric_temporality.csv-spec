@@ -1,7 +1,3 @@
-
-
-//TODO: When we support temporality, the rate/increase should be the same for all series
-
 multipleAggsWithoutTBucket
 skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
@@ -23,6 +19,38 @@ prod-null       | 0.2928479               | 264.0
 // ---------------------------------------------------------------------------------
 
 
+rateWithoutBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (cluster) (rate(network.total_bytes_in[16m])), 0.0000001))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+0.2772396     | 2024-05-10T00:16:00.000Z | prod-cumulative
+0.2772396     | 2024-05-10T00:16:00.000Z | prod-delta
+0.2772396     | 2024-05-10T00:16:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+increaseWithoutBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (cluster) (increase(network.total_bytes_in[16m])), 0.0000001))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+266.15        | 2024-05-10T00:16:00.000Z | prod-cumulative
+266.15        | 2024-05-10T00:16:00.000Z | prod-delta
+266.15        | 2024-05-10T00:16:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
 rateGroupedByTemporality
 skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
@@ -39,6 +67,22 @@ my_temporality:keyword | bytes_per_second:double
 cumulative             | 0.2928479
 delta                  | 0.2928479
 null                   | 0.2928479
+;
+
+// ---------------------------------------------------------------------------------
+
+
+rateGroupedByTemporalityPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (my_temporality) (rate(network.total_bytes_in[16m])), 0.0000001))
+| SORT my_temporality;
+
+result:double | step:datetime            | my_temporality:keyword
+0.2772396     | 2024-05-10T00:16:00.000Z | cumulative
+0.2772396     | 2024-05-10T00:16:00.000Z | delta
+0.2772396     | 2024-05-10T00:16:00.000Z | null
 ;
 
 // ---------------------------------------------------------------------------------
@@ -73,6 +117,52 @@ bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:dou
 
 // ---------------------------------------------------------------------------------
 
+// PromQL bucketed rate/increase: steps are shifted +5m compared to TBUCKET labels.
+// Only 3 full steps (skipping the partial last bucket with a single data point).
+
+rateByTimeBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=5m start="2024-05-10T00:05:00.000Z" end="2024-05-10T00:15:00.000Z"
+  result=(round(sum by (cluster) (rate(network.total_bytes_in[5m])), 0.0000001))
+| SORT step, cluster;
+
+result:double | step:datetime            | cluster:keyword
+0.33          | 2024-05-10T00:05:00.000Z | prod-cumulative
+0.33          | 2024-05-10T00:05:00.000Z | prod-delta
+0.33          | 2024-05-10T00:05:00.000Z | prod-null
+0.2719509     | 2024-05-10T00:10:00.000Z | prod-cumulative
+0.2719509     | 2024-05-10T00:10:00.000Z | prod-delta
+0.2719509     | 2024-05-10T00:10:00.000Z | prod-null
+0.2601196     | 2024-05-10T00:15:00.000Z | prod-cumulative
+0.2601196     | 2024-05-10T00:15:00.000Z | prod-delta
+0.2601196     | 2024-05-10T00:15:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+increaseByTimeBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=5m start="2024-05-10T00:05:00.000Z" end="2024-05-10T00:15:00.000Z"
+  result=(round(sum by (cluster) (increase(network.total_bytes_in[5m])), 0.0000001))
+| SORT step, cluster;
+
+result:double | step:datetime            | cluster:keyword
+99.0          | 2024-05-10T00:05:00.000Z | prod-cumulative
+99.0          | 2024-05-10T00:05:00.000Z | prod-delta
+99.0          | 2024-05-10T00:05:00.000Z | prod-null
+81.5852785    | 2024-05-10T00:10:00.000Z | prod-cumulative
+81.5852785    | 2024-05-10T00:10:00.000Z | prod-delta
+81.5852785    | 2024-05-10T00:10:00.000Z | prod-null
+78.0358799    | 2024-05-10T00:15:00.000Z | prod-cumulative
+78.0358799    | 2024-05-10T00:15:00.000Z | prod-delta
+78.0358799    | 2024-05-10T00:15:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
 
 irateWithoutTBucket
 skip_flattened_rewrite: metric_temporality
@@ -95,6 +185,22 @@ prod-null       | 0.5786293
 // ---------------------------------------------------------------------------------
 
 
+irateWithoutBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (cluster) (irate(network.total_bytes_in[16m])), 0.0000001))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+0.5786293     | 2024-05-10T00:16:00.000Z | prod-cumulative
+0.5786293     | 2024-05-10T00:16:00.000Z | prod-delta
+0.5786293     | 2024-05-10T00:16:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
 irateGroupedByTemporality
 skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
@@ -111,6 +217,22 @@ my_temporality:keyword | irate_bytes:double
 cumulative             | 0.5786293
 delta                  | 0.5786293
 null                   | 0.5786293
+;
+
+// ---------------------------------------------------------------------------------
+
+
+irateGroupedByTemporalityPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (my_temporality) (irate(network.total_bytes_in[16m])), 0.0000001))
+| SORT my_temporality;
+
+result:double | step:datetime            | my_temporality:keyword
+0.5786293     | 2024-05-10T00:16:00.000Z | cumulative
+0.5786293     | 2024-05-10T00:16:00.000Z | delta
+0.5786293     | 2024-05-10T00:16:00.000Z | null
 ;
 
 // ---------------------------------------------------------------------------------
@@ -145,6 +267,30 @@ bucket:datetime          | cluster:keyword | irate_bytes:double
 
 // ---------------------------------------------------------------------------------
 
+// PromQL bucketed irate: 3 full steps corresponding to TBUCKET(300s) buckets 00:00, 00:05, 00:10.
+// The ES|QL 00:15 bucket has null (single data point, irate needs 2), which PromQL omits entirely.
+
+irateByTimeBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+PROMQL index=metric_temporality step=5m start="2024-05-10T00:05:00.000Z" end="2024-05-10T00:15:00.000Z"
+  result=(round(sum by (cluster) (irate(network.total_bytes_in[5m])), 0.0000001))
+| SORT step, cluster;
+
+result:double | step:datetime            | cluster:keyword
+0.5703784     | 2024-05-10T00:05:00.000Z | prod-cumulative
+0.5703784     | 2024-05-10T00:05:00.000Z | prod-delta
+0.5703784     | 2024-05-10T00:05:00.000Z | prod-null
+0.137893      | 2024-05-10T00:10:00.000Z | prod-cumulative
+0.137893      | 2024-05-10T00:10:00.000Z | prod-delta
+0.137893      | 2024-05-10T00:10:00.000Z | prod-null
+0.0           | 2024-05-10T00:15:00.000Z | prod-cumulative
+0.0           | 2024-05-10T00:15:00.000Z | prod-delta
+0.0           | 2024-05-10T00:15:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
 
 histogramAggsWithoutTBucket
 skip_flattened_rewrite: metric_temporality
@@ -167,6 +313,57 @@ prod-null       | 667      | 600.0      | 523.18     | 11.0      | 998.0
 // ---------------------------------------------------------------------------------
 
 
+histogramCountWithoutBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(sum by (cluster) (histogram_count(increase(bytes_per_request[16m]))))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+667.0         | 2024-05-10T00:16:00.000Z | prod-cumulative
+667.0         | 2024-05-10T00:16:00.000Z | prod-delta
+667.0         | 2024-05-10T00:16:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramSumWithoutBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (cluster) (histogram_sum(increase(bytes_per_request[16m]))), 0.01))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+348963.0      | 2024-05-10T00:16:00.000Z | prod-cumulative
+348963.0      | 2024-05-10T00:16:00.000Z | prod-delta
+348963.0      | 2024-05-10T00:16:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramAvgWithoutBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (cluster) (histogram_avg(increase(bytes_per_request[16m]))), 0.01))
+| SORT cluster;
+
+result:double | step:datetime            | cluster:keyword
+523.18        | 2024-05-10T00:16:00.000Z | prod-cumulative
+523.18        | 2024-05-10T00:16:00.000Z | prod-delta
+523.18        | 2024-05-10T00:16:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
 histogramAggsGroupedByTemporality
 skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
@@ -183,6 +380,57 @@ my_temporality:keyword | cnt:long | med:double | avg:double | mn:double | mx:dou
 cumulative             | 667      | 600.0      | 523.18     | 11.0      | 998.0
 delta                  | 667      | 600.0      | 523.18     | 11.0      | 998.0
 null                   | 667      | 600.0      | 523.18     | 11.0      | 998.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramCountGroupedByTemporalityPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(sum by (my_temporality) (histogram_count(increase(bytes_per_request[16m]))))
+| SORT my_temporality;
+
+result:double | step:datetime            | my_temporality:keyword
+667.0         | 2024-05-10T00:16:00.000Z | cumulative
+667.0         | 2024-05-10T00:16:00.000Z | delta
+667.0         | 2024-05-10T00:16:00.000Z | null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramSumGroupedByTemporalityPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (my_temporality) (histogram_sum(increase(bytes_per_request[16m]))), 0.01))
+| SORT my_temporality;
+
+result:double | step:datetime            | my_temporality:keyword
+348963.0      | 2024-05-10T00:16:00.000Z | cumulative
+348963.0      | 2024-05-10T00:16:00.000Z | delta
+348963.0      | 2024-05-10T00:16:00.000Z | null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramAvgGroupedByTemporalityPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=16m start="2024-05-10T00:16:00.000Z" end="2024-05-10T00:16:00.000Z"
+  result=(round(sum by (my_temporality) (histogram_avg(increase(bytes_per_request[16m]))), 0.01))
+| SORT my_temporality;
+
+result:double | step:datetime            | my_temporality:keyword
+523.18        | 2024-05-10T00:16:00.000Z | cumulative
+523.18        | 2024-05-10T00:16:00.000Z | delta
+523.18        | 2024-05-10T00:16:00.000Z | null
 ;
 
 // ---------------------------------------------------------------------------------
@@ -213,6 +461,52 @@ bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double 
 2024-05-10T00:15:00.000Z | prod-cumulative | 18       | 609.0      | 513.06     | 27.0       | 997.0
 2024-05-10T00:15:00.000Z | prod-delta      | 18       | 609.0      | 513.06     | 27.0       | 995.0
 2024-05-10T00:15:00.000Z | prod-null       | 18       | 609.0      | 513.06     | 27.0       | 995.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramCountByTimeBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=5m start="2024-05-10T00:05:00.000Z" end="2024-05-10T00:15:00.000Z"
+  result=(sum by (cluster) (histogram_count(increase(bytes_per_request[5m]))))
+| SORT step, cluster;
+
+result:double | step:datetime            | cluster:keyword
+228.0         | 2024-05-10T00:05:00.000Z | prod-cumulative
+228.0         | 2024-05-10T00:05:00.000Z | prod-delta
+228.0         | 2024-05-10T00:05:00.000Z | prod-null
+195.0         | 2024-05-10T00:10:00.000Z | prod-cumulative
+195.0         | 2024-05-10T00:10:00.000Z | prod-delta
+195.0         | 2024-05-10T00:10:00.000Z | prod-null
+226.0         | 2024-05-10T00:15:00.000Z | prod-cumulative
+226.0         | 2024-05-10T00:15:00.000Z | prod-delta
+226.0         | 2024-05-10T00:15:00.000Z | prod-null
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramAvgByTimeBucketPromql
+required_capability: promql_command_v0
+required_capability: tsdb_temporality_support_v9
+required_capability: promql_increase_on_histogram
+PROMQL index=metric_temporality step=5m start="2024-05-10T00:05:00.000Z" end="2024-05-10T00:15:00.000Z"
+  result=(round(sum by (cluster) (histogram_avg(increase(bytes_per_request[5m]))), 0.01))
+| SORT step, cluster;
+
+result:double | step:datetime            | cluster:keyword
+502.75        | 2024-05-10T00:05:00.000Z | prod-cumulative
+502.75        | 2024-05-10T00:05:00.000Z | prod-delta
+502.75        | 2024-05-10T00:05:00.000Z | prod-null
+506.65        | 2024-05-10T00:10:00.000Z | prod-cumulative
+506.65        | 2024-05-10T00:10:00.000Z | prod-delta
+506.65        | 2024-05-10T00:10:00.000Z | prod-null
+558.87        | 2024-05-10T00:15:00.000Z | prod-cumulative
+558.87        | 2024-05-10T00:15:00.000Z | prod-delta
+558.87        | 2024-05-10T00:15:00.000Z | prod-null
 ;
 
 // ---------------------------------------------------------------------------------

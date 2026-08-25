@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -83,17 +84,34 @@ public final class NullSpliceRowPositionStrategy implements RowPositionStrategy 
             return inner.hasNext();
         }
 
+        /**
+         * Forward the async-ready signal so the producer-loop drain parks (rather than blocking in a
+         * parser-backed {@code hasNext()}) across the inter-chunk gap. Without this the default
+         * immediately-done {@link CloseableIterator#waitForReady()} would swallow the inner signal —
+         * the multi-file text-read deadlock.
+         */
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            return inner.waitForReady();
+        }
+
+        @Override
+        public Page tryAdvance() {
+            Page innerPage = inner.tryAdvance();
+            return innerPage != null ? splicePage(innerPage) : null;
+        }
+
         @Override
         public Page next() {
             if (inner.hasNext() == false) {
                 throw new NoSuchElementException();
             }
-            Page innerPage = inner.next();
+            return splicePage(inner.next());
+        }
+
+        private Page splicePage(Page innerPage) {
             int positions = innerPage.getPositionCount();
             int innerBlockCount = innerPage.getBlockCount();
-            // The splice loops below only cover slots in [0, innerBlockCount]; today the optimizer
-            // appends _rowPosition at the end (slot == innerBlockCount), so lock the bound against
-            // a future rule emitting a slot past the inner page's width.
             assert rowPosSlot <= innerBlockCount : "rowPosSlot " + rowPosSlot + " past inner block count " + innerBlockCount;
             Block[] blocks = new Block[innerBlockCount + 1];
             boolean success = false;

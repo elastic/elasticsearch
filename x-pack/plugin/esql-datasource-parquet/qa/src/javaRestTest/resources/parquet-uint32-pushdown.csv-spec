@@ -1,0 +1,92 @@
+// esql-planning#1030: WHERE pushdown over a Parquet uint32 column (physical INT32, widened by
+// ESQL to LONG since unsigned 32-bit values can exceed Integer.MAX_VALUE) used to throw a
+// declared-type-mismatch error from parquet-mr for every comparator. Fixture {{uint32_pushdown}}
+// has u32:uint32 values straddling Integer.MAX_VALUE (50000, 100000, 200000, 3000000000,
+// 4000000000) and a u16:uint16 control column (10, 50, 150, 200, 300) that was never affected
+// (uint16 always fits ESQL INTEGER, no widening).
+//
+// Authored as FROM <dataset>: on dataset-capable backends (S3) ParquetFormatSpecIT registers the
+// dataset and runs the FROM query verbatim; other backends rebuild the equivalent EXTERNAL query.
+
+uint32GreaterThanPushesDown
+required_capability: external_command
+dataset: uint32_pushdown: "{{uint32_pushdown}}"
+
+FROM uint32_pushdown
+| WHERE u32 > 100000
+| KEEP u32, u16
+| SORT u32 ASC;
+
+u32:long    | u16:integer
+200000      | 150
+3000000000  | 200
+4000000000  | 300
+;
+
+uint32EqualsAboveIntRangePushesDown
+required_capability: external_command
+dataset: uint32_pushdown: "{{uint32_pushdown}}"
+
+FROM uint32_pushdown
+| WHERE u32 == 3000000000
+| KEEP u32, u16;
+
+u32:long    | u16:integer
+3000000000  | 200
+;
+
+uint32InListPushesDown
+required_capability: external_command
+dataset: uint32_pushdown: "{{uint32_pushdown}}"
+
+FROM uint32_pushdown
+| WHERE u32 IN (100000, 4000000000)
+| KEEP u32, u16
+| SORT u32 ASC;
+
+u32:long    | u16:integer
+100000      | 50
+4000000000  | 300
+;
+
+uint32CombinedWithUint16ControlPushesDown
+required_capability: external_command
+dataset: uint32_pushdown: "{{uint32_pushdown}}"
+
+FROM uint32_pushdown
+| WHERE u32 > 100000 AND u16 > 100
+| KEEP u32, u16
+| SORT u32 ASC;
+
+u32:long    | u16:integer
+200000      | 150
+3000000000  | 200
+4000000000  | 300
+;
+
+uint32CountAfterFilter
+required_capability: external_command
+dataset: uint32_pushdown: "{{uint32_pushdown}}"
+
+FROM uint32_pushdown
+| WHERE u32 > 100000
+| STATS count = COUNT(*);
+
+count:long
+3
+;
+
+// Control for aggregate (MIN/MAX) pushdown, unaffected by the WHERE-pushdown fix above: pins that
+// the widened uint32 values are read back from row-group statistics as their true unsigned
+// magnitude rather than the raw INT32 bit pattern (which would sign-extend 4000000000 into a
+// negative long).
+uint32AggregatePushdownWidensToUnsignedLong
+required_capability: external_command
+dataset: uint32_pushdown: "{{uint32_pushdown}}"
+
+FROM uint32_pushdown
+| STATS min_u32 = MIN(u32), max_u32 = MAX(u32);
+
+min_u32:long | max_u32:long
+50000        | 4000000000
+;

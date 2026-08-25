@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
-import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -50,8 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -70,29 +68,19 @@ public class KeyRotationIT extends SecurityIntegTestCase {
      * but cannot atomically abort a tick that is already executing on the generic thread pool. The
      * {@code assertBusy} wait ensures any task that slipped into the master-service queue after
      * {@code close()} has been executed and its cluster-state publication committed before we hand
-     * off to the framework — whose own {@code safeGet} has only a 10-second budget.
+     * off to the framework's own consistency check. Publishing a retire/re-encrypt task can take
+     * several seconds on loaded CI (especially right after the master failover exercised by
+     * {@code testRotationContinuesAfterMasterFailover}), so this waits generously rather than racing
+     * a tight budget — every second spent draining here is a second the framework's check won't need.
      */
     @After
     public void stopKeyRotationCoordinators() throws Exception {
         for (String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(KeyRotationCoordinator.class, nodeName).close();
         }
-        assertBusy(
-            () -> assertThat(
-                client().execute(TransportPendingClusterTasksAction.TYPE, new PendingClusterTasksRequest(TEST_REQUEST_TIMEOUT))
-                    .get()
-                    .pendingTasks()
-                    .stream()
-                    .filter(t -> {
-                        String src = t.getSource().string();
-                        return src.contains("project-encryption-key") || src.startsWith("re-encrypt-");
-                    })
-                    .toList(),
-                empty()
-            ),
-            5,
-            TimeUnit.SECONDS
-        );
+        var request = new EncryptionResetRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true);
+        assertAcked(client().execute(TransportEncryptionResetAction.TYPE, request).actionGet());
+        waitNoPendingTasksOnAll();
     }
 
     @Override
@@ -255,6 +243,16 @@ public class KeyRotationIT extends SecurityIntegTestCase {
             assertThat("beta blob re-encrypted off initial", betaBlob.blob.keyId(), not(equalTo(initialKeyId)));
             assertThat("alpha blob's key still present", m.getKeys().keySet(), hasItem(alphaBlob.blob.keyId()));
             assertThat("beta blob's key still present", m.getKeys().keySet(), hasItem(betaBlob.blob.keyId()));
+            assertThat(
+                "handlerKeyIds not in sync with actual keys",
+                m.getHandlerKeyIds().get(AlphaBlob.TYPE),
+                equalTo(alphaBlob.blob.keyId())
+            );
+            assertThat(
+                "handlerKeyIds not in sync with actual keys",
+                m.getHandlerKeyIds().get(BetaBlob.TYPE),
+                equalTo(betaBlob.blob.keyId())
+            );
         }, 30, TimeUnit.SECONDS);
 
         AlphaBlob alphaBlob = customOnMaster(AlphaBlob.TYPE);

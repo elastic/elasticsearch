@@ -14,11 +14,8 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,7 +59,7 @@ public final class SynthesizeExternalSource {
      * {@code _corrupt_record} or {@code _status} are legitimate data and pass through to the
      * rendered object. Values render per their declared {@link DataType}, mirroring what the
      * response layer ({@code PositionToXContent}) emits for the same columns — see
-     * {@link #renderScalar}.
+     * {@link ExternalScalarRenderer#render}.
      */
     public static BytesRefBlock composePage(
         String[] dataColumnNames,
@@ -110,32 +107,10 @@ public final class SynthesizeExternalSource {
         if (value instanceof List<?> list) {
             List<Object> out = new ArrayList<>(list.size());
             for (Object element : list) {
-                out.add(renderScalar(element, type));
+                out.add(ExternalScalarRenderer.render(element, type));
             }
             return out;
         }
-        return renderScalar(value, type);
-    }
-
-    /**
-     * Render one scalar the way the response layer ({@code PositionToXContent}) renders the same
-     * column type, so a value reads identically in {@code _source} and in the query output:
-     * IP/VERSION decode their wire bytes ({@code utf8ToString} on those would emit garbage),
-     * DATETIME/DATE_NANOS format as UTC ISO-8601 strings rather than raw epoch longs, and
-     * UNSIGNED_LONG decodes the sign-flipped long into its numeric value. Types no reader can
-     * emit today fail loud so a future type gets handled intentionally rather than discovered as
-     * corrupt {@code _source}.
-     */
-    private static Object renderScalar(Object value, DataType type) {
-        return switch (type) {
-            case KEYWORD, TEXT -> ((BytesRef) value).utf8ToString();
-            case IP -> EsqlDataTypeConverter.ipToString((BytesRef) value);
-            case VERSION -> EsqlDataTypeConverter.versionToString((BytesRef) value);
-            case DATETIME -> EsqlDataTypeConverter.dateTimeToString((Long) value);
-            case DATE_NANOS -> EsqlDataTypeConverter.nanoTimeToString((Long) value);
-            case UNSIGNED_LONG -> NumericUtils.unsignedLongAsNumber((Long) value);
-            case BOOLEAN, INTEGER, LONG, DOUBLE -> value;
-            default -> throw new EsqlIllegalArgumentException("cannot render _source value of type [" + type.typeName() + "]");
-        };
+        return ExternalScalarRenderer.render(value, type);
     }
 }

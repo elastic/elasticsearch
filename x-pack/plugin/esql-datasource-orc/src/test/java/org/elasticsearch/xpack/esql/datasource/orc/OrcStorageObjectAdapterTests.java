@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -23,9 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class OrcStorageObjectAdapterTests extends ESTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void clearAdapterCache() {
         OrcStorageObjectAdapter.clearCacheForTests();
     }
 

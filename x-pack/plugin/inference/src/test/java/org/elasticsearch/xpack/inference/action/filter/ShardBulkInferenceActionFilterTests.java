@@ -49,12 +49,12 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -77,7 +77,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapperTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -1207,11 +1206,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputExceedingMaxSizeIsRejected() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
-
         ByteSizeValue maxSize = ByteSizeValue.ofBytes(2);
         // 8 base64 chars without padding decode to 6 bytes, which exceeds the 2 byte limit.
         InferenceString input = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAAAAAAA");
@@ -1232,10 +1226,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputWithEmptyPayloadIsRejected() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
 
         // A valid data URI prefix with no base64 payload after the comma.
         InferenceString emptyPayload = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/png;base64,");
@@ -1254,11 +1244,6 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
      */
     public void testBase64InputAtMaxSizeWithPaddingIsAccepted() throws Exception {
         assumeFalse("Multimodal base64 inputs are only supported in the non-legacy format", useLegacyFormat);
-        assumeTrue(
-            "Multimodal base64 inputs require the semantic field feature",
-            SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-        );
-
         // "AAA=" -> 4 base64 chars with one padding char -> 2 decoded bytes, exactly at the 2 byte limit.
         InferenceString singlePadding = new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,AAA=");
         assertNull("a base64 input at the limit should be accepted", runSingleInputThroughFilter(ByteSizeValue.ofBytes(2), singlePadding));
@@ -1404,33 +1389,33 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         };
         doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
 
-        Answer<MinimalServiceSettings> singleMinimalServiceSettingsAnswer = invocationOnMock -> {
+        Answer<EndpointClusterState> singleEndpointClusterStateAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
             var model = modelMap.get(inferenceId);
             if (model == null) {
                 throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
             }
 
-            return new MinimalServiceSettings(model);
+            return new EndpointClusterState(model);
         };
-        doAnswer(singleMinimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
+        doAnswer(singleEndpointClusterStateAnswer).when(modelRegistry).getEndpointClusterState(any());
 
-        Answer<Map<String, MinimalServiceSettings>> multipleMinimalServiceSettingsAnswer = invocationOnMock -> {
+        Answer<Map<String, EndpointClusterState>> multipleEndpointClusterStateAnswer = invocationOnMock -> {
             Set<String> inferenceIds = (Set<String>) invocationOnMock.getArguments()[0];
             boolean throwIfAnyNotFound = (boolean) invocationOnMock.getArguments()[1];
 
-            Map<String, MinimalServiceSettings> minimalServiceSettingsMap = new HashMap<>();
+            Map<String, EndpointClusterState> endpointClusterStateMap = new HashMap<>();
             for (String inferenceId : inferenceIds) {
                 var model = modelMap.get(inferenceId);
                 if (model != null) {
-                    minimalServiceSettingsMap.put(inferenceId, new MinimalServiceSettings(model));
+                    endpointClusterStateMap.put(inferenceId, new EndpointClusterState(model));
                 } else if (throwIfAnyNotFound) {
                     throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
                 }
             }
-            return minimalServiceSettingsMap;
+            return endpointClusterStateMap;
         };
-        doAnswer(multipleMinimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any(), anyBoolean());
+        doAnswer(multipleEndpointClusterStateAnswer).when(modelRegistry).getEndpointClusterState(any(), anyBoolean());
 
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
@@ -1574,11 +1559,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 throw new AssertionError("model with inference ID [" + entry.getInferenceId() + "] not found in model map");
             }
 
-            Object inputObject = randomSemanticInput(
-                useLegacyFormat == false
-                    && model.getTaskType() == TaskType.EMBEDDING
-                    && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()
-            );
+            Object inputObject = randomSemanticInput(useLegacyFormat == false && model.getTaskType() == TaskType.EMBEDDING);
             docMap.put(field, inputObject);
             expectedDocMap.put(field, inputObject);
 
@@ -1637,7 +1618,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 null,
                 new SemanticTextField.InferenceResult(
                     model.getInferenceEntityId(),
-                    new MinimalServiceSettings(model),
+                    new EndpointClusterState(model),
                     null,
                     Map.of(field, List.of(chunk))
                 ),

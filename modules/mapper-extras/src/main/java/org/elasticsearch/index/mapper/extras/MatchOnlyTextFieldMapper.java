@@ -126,16 +126,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
-    private static FieldMapper.DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
-        return new FieldMapper.DocValuesParameter.Values(
-            // Strictly columnar indices read field values from doc values, so enable doc values by default for match_only_text in that
-            // mode.
-            indexMode.isStrictColumnar(),
-            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-            true
-        );
-    }
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
 
@@ -162,17 +152,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final boolean storedFieldInBinaryFormat;
         private final boolean usesBinaryDocValuesForFallbackFields;
         private final IndexMode indexMode;
+        private final IndexSettings indexSettings;
 
-        private Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexAnalyzers indexAnalyzers,
-            boolean storedFieldInBinaryFormat,
-            boolean isWithinMultiField,
-            boolean usesBinaryDocValuesForFallbackFields,
-            IndexMode indexMode
-        ) {
-            super(name, indexCreatedVersion, isWithinMultiField);
+        private Builder(String name, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField, IndexSettings indexSettings) {
+            super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
 
             this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), true);
 
@@ -180,42 +163,34 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 indexAnalyzers,
                 m -> ((MatchOnlyTextFieldMapper) m).indexAnalyzer,
                 m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
-                indexCreatedVersion
+                indexSettings.getIndexVersionCreated()
             );
-            this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
-            this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
-            this.indexMode = indexMode;
+            this.storedFieldInBinaryFormat = isSyntheticSourceStoredFieldInBinaryFormat(indexSettings.getIndexVersionCreated());
+            this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields(indexSettings);
+            this.indexSettings = indexSettings;
+            this.indexMode = indexSettings.getMode();
             this.docValuesParameters = FieldMapper.DocValuesParameter.of(
-                () -> defaultDocValuesParameters(indexMode),
-                defaultDocValuesParameters(indexMode),
-                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
+                FieldMapper.DocValuesParameter.defaultValues(
+                    indexSettings,
+                    FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                ),
+                m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
+                indexSettings.getMode().isStrictColumnar()
             );
         }
 
         public Builder(String name, MappingParserContext context) {
-            this(
-                name,
-                context.indexVersionCreated(),
-                context.getIndexAnalyzers(),
-                isSyntheticSourceStoredFieldInBinaryFormat(context.indexVersionCreated()),
-                context.isWithinMultiField(),
-                usesBinaryDocValuesForFallbackFields(context.getIndexSettings()),
-                context.getIndexSettings().getMode()
-            );
+            this(name, context.getIndexAnalyzers(), context.isWithinMultiField(), context.getIndexSettings());
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
             List<Parameter<?>> params = new ArrayList<>();
             params.add(meta);
-            // when COLUMNAR_FEATURE_FLAG is disabled, exclude docValuesParameters from parsing
-            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                params.add(docValuesParameters);
-            }
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-                params.add(indexed);
-            }
+            params.add(docValuesParameters);
+            params.add(indexed);
             return params.toArray(Parameter[]::new);
         }
 
@@ -388,7 +363,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 IndexVersion.current(),
                 true,
                 false,
-                new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true),
+                new FieldMapper.DocValuesParameter.Values(
+                    false,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    true,
+                    true,
+                    FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
+                ),
                 false
             );
         }
@@ -809,7 +790,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
-                    useArrayOrderBinaryDocValues
+                    useArrayOrderBinaryDocValues,
+                    context.getCircuitBreaker()
                 );
             }
             if (context.getCircuitBreaker() != null) {
@@ -1130,6 +1112,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final DocValuesFieldFactory dvFactory;
     private final boolean indexed;
     private final IndexMode indexMode;
+    private final IndexSettings indexSettings;
     // The companion ".offsets" field used to reconstruct array order and null positions in strict-columnar mode; null otherwise.
     private final String offsetsFieldName;
 
@@ -1156,6 +1139,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
         this.indexed = builder.indexed.get();
         this.indexMode = builder.indexMode;
+        this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = builder.offsetsFieldName;
     }
 
@@ -1176,15 +1160,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexAnalyzers,
-            storedFieldInBinaryFormat,
-            fieldType().isWithinMultiField(),
-            usesBinaryDocValuesForFallbackFields,
-            indexMode
-        ).init(this);
+        return new Builder(leafName(), indexAnalyzers, fieldType().isWithinMultiField(), indexSettings).init(this);
     }
 
     public boolean indexed() {
@@ -1194,6 +1170,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue() == false;
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values.OnFailure onFailureBehavior() {
+        return docValuesParameters.onFailure();
+    }
+
+    @Override
+    public boolean isNullable() {
+        // match_only_text has no null_value parameter, so nullability is governed solely by the doc_values nullability setting.
+        return docValuesParameters.nullability();
     }
 
     @Override

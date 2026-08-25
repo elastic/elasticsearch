@@ -9,7 +9,9 @@
 | cartesian_shape | cartesian_shape |
 | date | date |
 | date_nanos | date_nanos |
+| date_range {applies_to}`stack: preview 9.5.0` | date_range |
 | double | double |
+| double_range {applies_to}`stack: preview 9.6.0` | double_range |
 | flattened {applies_to}`stack: preview 9.5.0` | flattened |
 | geo_point | geo_point |
 | geo_shape | geo_shape |

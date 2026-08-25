@@ -54,6 +54,8 @@ dependencies {
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
+  implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'com.google.re2j:re2j:1.8'
 
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
@@ -84,6 +86,7 @@ dependencies {
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:ip-location')
   testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
@@ -188,7 +191,12 @@ tasks.named("internalClusterTest").configure {
    * task and generates a types table for the LOOKUP JOIN command. It is possible
    * in future we might have move tests that do this.
    */
-  systemProperty 'es.esql_external_datasources_feature_flag_enabled', 'true'
+  // Local file:// access is on by default in snapshot builds; in release builds the local flag is off unless
+  // explicitly enabled here, so External*IT and FromDatasetIT actually run (not just skip) in release testing.
+  systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
+  // Same reason: applying the request filter to datasets is off in release builds, so the conformance and
+  // heterogeneous request-filter ITs would assert against an unfiltered dataset during release testing.
+  systemProperty 'es.esql_request_filter_on_dataset_feature_flag_enabled', 'true'
   // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
   systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
   systemProperty 'esql.kibana.docs.dir', "${rootDir}/docs/reference/query-languages/esql/kibana/generated"
@@ -448,7 +456,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
     "millisNanos": Name == "MillisNanos" ? "true" : "",
-    "LongRange"  : Name == "LongRange" ? "true" : "",
+    "Range"      : Name.endsWith("Range") ? "true" : "",
   ]
 }
 
@@ -464,6 +472,7 @@ tasks.named('stringTemplates').configure {
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
   var tdigestProperties = prop("TDigest", "TDigest", "tdigest", "TDIGEST", "", "")
   var longRangeProperties = prop("LongRange", "LongRange", "LongRange", "LONG_RANGE", "", "")
+  var doubleRangeProperties = prop("DoubleRange", "DoubleRange", "DoubleRange", "DOUBLE_RANGE", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -505,6 +514,11 @@ tasks.named('stringTemplates').configure {
     it.properties = longRangeProperties
     it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongRangeEvaluator.java"
+  }
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleRangeEvaluator.java"
   }
 
   File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")
@@ -555,6 +569,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongRangeEvaluator.java"
   }
+  template {
+    it.properties = doubleRangeProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleRangeEvaluator.java"
+  }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
   template {
@@ -583,6 +602,9 @@ tasks.named("test").configure {
   }
   if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
     systemProperty "golden.overwrite", "true"
+  }
+  if (System.getProperty("golden.gc.strict") != null || project.hasProperty("golden.gc.strict")) {
+    systemProperty "golden.gc.strict", "true"
   }
 
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -105,6 +106,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/script/get",
                 // To allow Kibana to delete project routing expressions.
                 "cluster:admin/project_routing/delete",
+                // To allow Kibana to read project routing expressions.
+                // Already covered by "monitor"; granted explicitly to record the dependency.
+                "cluster:monitor/project_routing/get",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
@@ -116,6 +120,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".kibana*", ".reindexed-v8-kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                // Context Engine system indices defined in KibanaPlugin
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".contextengine-*")
+                    .privileges("read", "write", "manage")
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
@@ -279,7 +289,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Alerting V2" views prefix
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
-                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .privileges("create_view")
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
@@ -332,6 +342,36 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Endpoint events. Kibana reads endpoint alert lineage for building and sending
                 // telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-endpoint.events.*").privileges("read").build(),
+                // Elastic Defend remote output: cross-cluster read for response-action results,
+                // agent action results, endpoint metadata, policy, and event indices.
+                // These privileges enable kibana_system (and the elastic/kibana service account,
+                // which reuses this descriptor) to read those indices from a remote data cluster
+                // via CCS when agents use a Fleet remote Elasticsearch output.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.action.responses-*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-actions-results*")
+                    .privileges("read", "read_cross_cluster")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.metadata_current_*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".metrics-endpoint.metadata_united_default*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics-endpoint.policy-*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-endpoint.events.*")
+                    .privileges("read", "read_cross_cluster")
+                    .build(),
                 // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -591,8 +631,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius
-                // and JupiterOne specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius,
+                // JupiterOne and PingDirectory specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -620,7 +660,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-axonius.storage-*",
                         "logs-axonius.ticket-*",
                         "logs-axonius.user-*",
-                        "logs-jupiter_one.risks_and_alerts-*"
+                        "logs-jupiter_one.risks_and_alerts-*",
+                        "logs-ping_directory.user-*"
                     )
                     .privileges(
                         "manage",
@@ -663,7 +704,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*")
+                    .privileges("auto_configure", "create_index", "delete_index", "manage", "read", "write")
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*history*")
                     .privileges("create_index", "manage", "read", "write")
@@ -675,6 +719,14 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".entities.*reset*")
                     .privileges("create_index", "manage", "read", "write")
+                    .build(),
+                // Product aliases (entities-latest-{space}, etc.) are not .entities.* names.
+                // ES authorizes indices:admin/aliases against the alias name as well as the
+                // concrete index, so the upgrade migration cannot retarget
+                // entities-latest-{space} with only manage on .entities.*.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("entities-latest-*", "entities-updates-*", "entities-metadata-*")
+                    .privileges(TransportIndicesAliasesAction.NAME, GetAliasesAction.NAME)
                     .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -707,6 +759,16 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // Context Engine's SML storage. A regular (non-system) index that Kibana
+                // creates and manages itself at startup, including its alias.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("ai-index-idx-sml-data", "ai-index-idx-sml-data-*")
+                    .privileges("all")
+                    .build(),
+                // Context Engine feedback-loop signals. Per-space, regular (non-system)
+                // user indices that Kibana creates and manages via the storage adapter
+                // (one index per Kibana space: context-engine-signals-<space>).
+                RoleDescriptor.IndicesPrivileges.builder().indices("context-engine-signals-*").privileges("all").build(),
                 // Significant events. Kibana system user manages index plumbing and document access.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".significant_events-*")
@@ -742,7 +804,25 @@ class KibanaOwnedReservedRoleDescriptors {
                 getRemoteIndicesReadPrivileges("logs-apm.*"),
                 getRemoteIndicesReadPrivileges("metrics-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm.*"),
-                getRemoteIndicesReadPrivileges("traces-apm-*") },
+                getRemoteIndicesReadPrivileges("traces-apm-*"),
+                // Elastic Defend remote output: grants cross-cluster read for response-action
+                // results, agent action results, endpoint metadata, policy, and event
+                // indices on the remote data cluster. Intentionally excludes
+                // .logs-endpoint.actions-* (local managing-cluster only) and
+                // .logs-endpoint.heartbeat-* (not read over CCS).
+                getRemoteIndicesReadPrivileges(".logs-endpoint.action.responses-*"),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(".fleet-actions-results*")
+                        .privileges("read", "read_cross_cluster")
+                        .allowRestrictedIndices(true)
+                        .build(),
+                    "*"
+                ),
+                getRemoteIndicesReadPrivileges("metrics-endpoint.metadata_current_*"),
+                getRemoteIndicesReadPrivileges(".metrics-endpoint.metadata_united_default*"),
+                getRemoteIndicesReadPrivileges("metrics-endpoint.policy-*"),
+                getRemoteIndicesReadPrivileges("logs-endpoint.events.*") },
             new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(
                     RemoteClusterPermissions.getSupportedRemoteClusterPermissions()

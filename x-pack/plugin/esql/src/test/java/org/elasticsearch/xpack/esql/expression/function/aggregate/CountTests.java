@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -34,6 +35,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CountTests extends AbstractAggregationTestCase {
     public CountTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -45,6 +47,8 @@ public class CountTests extends AbstractAggregationTestCase {
         var suppliers = new ArrayList<TestCaseSupplier>();
         FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
         FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        FunctionAppliesTo dateRangeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.5.0", "", false);
+        FunctionAppliesTo histogramBucketAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.6.0", "", false);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -55,6 +59,8 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.dateRangeCases(1, 1000).stream().map(s -> s.withAppliesTo(dateRangeAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.doubleRangeCases(1, 1000),
             MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
@@ -78,14 +84,27 @@ public class CountTests extends AbstractAggregationTestCase {
                 .toList()
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
+        Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 1000), MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000))
+            .flatMap(List::stream)
+            .map(s -> s.withAppliesTo(histogramBucketAppliesTo))
+            .map(s -> makeBucketSupplier(s, histogramBucketAppliesTo))
+            .forEach(suppliers::add);
+        Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 1000), MultiRowTestCaseSupplier.exponentialHistogramCases(1, 1000))
+            .flatMap(List::stream)
+            .map(s -> s.withAppliesTo(histogramBucketAppliesTo))
+            .map(s -> makeNullBucketSupplier(s, histogramBucketAppliesTo))
+            .forEach(suppliers::add);
+
         // No rows
-        for (var dataType : List.of(
+        List<DataType> types = List.of(
             DataType.NULL,
             DataType.INTEGER,
             DataType.LONG,
             DataType.DOUBLE,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DATE_RANGE,
+            DataType.DOUBLE_RANGE,
             DataType.DENSE_VECTOR,
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.BOOLEAN,
@@ -99,7 +118,8 @@ public class CountTests extends AbstractAggregationTestCase {
             DataType.CARTESIAN_POINT,
             DataType.UNSIGNED_LONG,
             DataType.AGGREGATE_METRIC_DOUBLE
-        )) {
+        );
+        for (var dataType : types) {
             var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
                 ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
                     .withAppliesTo(histogramPreviewAppliesTo)
@@ -125,7 +145,7 @@ public class CountTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Count(source, args.get(0));
+        return args.size() == 1 ? new Count(source, args.get(0)) : new Count(source, args.get(0), args.get(1));
     }
 
     static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -156,4 +176,47 @@ public class CountTests extends AbstractAggregationTestCase {
             return new TestCaseSupplier.TestCase(List.of(fieldTypedData), evaluatorToString, DataType.LONG, equalTo(count));
         });
     }
+
+    private static TestCaseSupplier makeBucketSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        FunctionAppliesTo histogramBucketAppliesTo
+    ) {
+        return new TestCaseSupplier(fieldSupplier.name() + ", bucket", List.of(fieldSupplier.type(), DataType.DOUBLE_RANGE), () -> {
+            var fieldTypedData = fieldSupplier.get();
+            var bucket = new TestCaseSupplier.TypedData(
+                new DoubleRangeBlockBuilder.DoubleRange(-Double.MAX_VALUE, Double.MAX_VALUE),
+                DataType.DOUBLE_RANGE,
+                "bucket"
+            ).withAppliesTo(histogramBucketAppliesTo);
+            long count = fieldTypedData.multiRowData().stream().mapToLong(value -> {
+                if (fieldSupplier.type() == DataType.TDIGEST) {
+                    return ((TDigestHolder) value).size();
+                }
+                return ((ExponentialHistogram) value).valueCount();
+            }).sum();
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData, bucket),
+                standardAggregatorName("HistogramMerge", fieldSupplier.type()),
+                DataType.LONG,
+                equalTo(count)
+            );
+        });
+    }
+
+    private static TestCaseSupplier makeNullBucketSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        FunctionAppliesTo histogramBucketAppliesTo
+    ) {
+        return new TestCaseSupplier(fieldSupplier.name() + ", null bucket", List.of(fieldSupplier.type(), DataType.NULL), () -> {
+            var fieldTypedData = fieldSupplier.get();
+            var bucket = new TestCaseSupplier.TypedData(null, DataType.NULL, "bucket").withAppliesTo(histogramBucketAppliesTo);
+            return new TestCaseSupplier.TestCase(
+                List.of(fieldTypedData, bucket),
+                standardAggregatorName("HistogramMerge", fieldSupplier.type()),
+                DataType.LONG,
+                nullValue()
+            );
+        });
+    }
+
 }

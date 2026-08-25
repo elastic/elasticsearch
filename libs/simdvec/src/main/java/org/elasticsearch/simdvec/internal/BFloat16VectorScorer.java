@@ -16,18 +16,17 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.util.Optional;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductDBF16QF32;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductDBF16QF32BulkSparse;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceDBF16QF32;
-import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceDBF16QF32BulkSparse;
-
 public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
+
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int dimensions;
     final int vectorByteSize;
@@ -87,11 +86,11 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
 
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float dotProduct = IndexInputUtils.withSlice(
+            float dotProduct = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
-                memorySegment -> dotProductDBF16QF32(memorySegment, query, dimensions)
+                scratch,
+                memorySegment -> DISTANCE_FUNCS.dotProductDBF16QF32(memorySegment, query, dimensions)
             );
             return VectorUtil.normalizeToUnitInterval(dotProduct);
         }
@@ -111,8 +110,8 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
-                addrs -> dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrsScratch,
+                addrs -> DISTANCE_FUNCS.dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
@@ -137,11 +136,11 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
 
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float sqDist = IndexInputUtils.withSlice(
+            float sqDist = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
-                memorySegment -> squareDistanceDBF16QF32(memorySegment, query, dimensions)
+                scratch,
+                memorySegment -> DISTANCE_FUNCS.squareDistanceDBF16QF32(memorySegment, query, dimensions)
             );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
@@ -161,8 +160,8 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
-                addrs -> squareDistanceDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrsScratch,
+                addrs -> DISTANCE_FUNCS.squareDistanceDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
@@ -187,11 +186,11 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
 
             long byteOffset = (long) node * vectorByteSize;
             input.seek(byteOffset);
-            float dotProduct = IndexInputUtils.withSlice(
+            float dotProduct = IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
-                scratch::getScratch,
-                memorySegment -> dotProductDBF16QF32(memorySegment, query, dimensions)
+                scratch,
+                memorySegment -> DISTANCE_FUNCS.dotProductDBF16QF32(memorySegment, query, dimensions)
             );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }
@@ -211,8 +210,8 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
-                addrs -> dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrsScratch,
+                addrs -> DISTANCE_FUNCS.dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;

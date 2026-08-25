@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.cache.reader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -24,14 +26,18 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+import org.elasticsearch.xpack.stateless.lucene.StatelessAdviceHint;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
@@ -54,6 +60,8 @@ public class CacheFileReader {
 
     public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
 
+    static final int MAX_PREFETCH_ALREADY_UPLOADED_RETRIES = 2;
+
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
 
     private static final Map<String, Object> BLOB_POPULATION_SOURCE_ATTRIBUTES = Map.of(
@@ -70,6 +78,11 @@ public class CacheFileReader {
     // Enabled on snapshot builds for benchmarking; disabled in production.
     // Override with -Des.blob_cache_madvise_random_feature_flag_enabled=true|false.
     static final FeatureFlag MADVISE_RANDOM_FEATURE_FLAG = new FeatureFlag("blob_cache_madvise_random");
+
+    // Separate feature flag for selectively enabling MADV_RANDOM on the indexing tier
+    // for use-cases that have been individually validated (e.g. stored fields).
+    // Override with -Des.stateless_index_tier_madvise_random_feature_flag_enabled=true|false.
+    static final FeatureFlag INDEX_TIER_MADVISE_RANDOM_FEATURE_FLAG = new FeatureFlag("stateless_index_tier_madvise_random");
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
@@ -90,6 +103,11 @@ public class CacheFileReader {
     private final long exclusiveStart;
     private final long exclusiveEnd;
     private final boolean hasSearchRole;
+    /**
+     * Where to account the bytes read from the cache, whether they were already there or had to be fetched. Installed
+     * by the index input that owns this reader, and carried on to its copies.
+     */
+    private PluggableDirectoryMetricsHolder<StoreMetrics> storeMetrics = StoreMetrics.NOOP_HOLDER;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -115,7 +133,7 @@ public class CacheFileReader {
     /**
      * Creates a reader for a top-level file opened via {@code BlobStoreCacheDirectory.openInput}.
      * Top-level files exclusively own their blob, so all cache regions contain only this file's data.
-     * If the IOContext contains {@link DataAccessHint#RANDOM} and the feature flag is enabled,
+     * The IOContext will be passed to {@link #contextToAdvice} to determine if
      * {@code MADV_RANDOM} will be applied to all regions.
      */
     public CacheFileReader(
@@ -167,10 +185,19 @@ public class CacheFileReader {
     }
 
     /**
+     * Accounts the bytes this reader reads to {@code holder}. Called by the index input that owns it, before it is
+     * read from or copied.
+     */
+    public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+        assert storeMetrics == StoreMetrics.NOOP_HOLDER : "already accounting to " + storeMetrics;
+        this.storeMetrics = holder;
+    }
+
+    /**
      * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
-        return new CacheFileReader(
+        var copy = new CacheFileReader(
             cacheFile.copy(),
             cacheBlobReader,
             blobFileRanges,
@@ -182,6 +209,8 @@ public class CacheFileReader {
             exclusiveEnd,
             hasSearchRole
         );
+        copy.storeMetrics = storeMetrics.singleThreaded();
+        return copy;
     }
 
     /**
@@ -190,7 +219,8 @@ public class CacheFileReader {
      * only those interior regions will receive {@code MADV_RANDOM}. Boundary regions that
      * contain data from adjacent sub-files fall back to {@code MADV_NORMAL}.
      *
-     * @param context the IOContext for the sub-file (may contain {@link DataAccessHint#RANDOM})
+     * @param context the IOContext will be passed to {@link #contextToAdvice} to determine
+     *                if {@code MADV_RANDOM} will be applied to interior regions
      * @param subFileOffset the sub-file's absolute byte offset within the blob
      * @param subFileLength the sub-file's length in bytes
      */
@@ -205,7 +235,7 @@ public class CacheFileReader {
             exclStart = 0;
             exclEnd = 0;
         }
-        return new CacheFileReader(
+        var copy = new CacheFileReader(
             cacheFile.copy(),
             cacheBlobReader,
             blobFileRanges,
@@ -217,19 +247,50 @@ public class CacheFileReader {
             exclEnd,
             hasSearchRole
         );
+        copy.storeMetrics = storeMetrics.singleThreaded();
+        return copy;
     }
 
     /**
-     * Maps Lucene's {@link DataAccessHint} to the corresponding {@code madvise} advice.
-     * Returns {@code MADV_RANDOM} only when the node has the search role, the feature flag
-     * is enabled, and the context contains {@link DataAccessHint#RANDOM}. On non-search nodes
-     * (e.g. during indexing or merge), sequential read-ahead is preserved.
+     * Maps Lucene's {@link DataAccessHint} and ES-specific {@link StatelessAdviceHint} to the
+     * corresponding {@code madvise} advice, branched by node role.
      */
     static int contextToAdvice(IOContext context, boolean hasSearchRole) {
-        if (hasSearchRole && MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
+        if (hasSearchRole) {
+            return searchAdvice(context);
+        } else {
+            return indexingAdvice(context);
+        }
+    }
+
+    private static int searchAdvice(IOContext context) {
+        if (MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
             return SharedBytes.MADV_RANDOM;
         }
         return SharedBytes.MADV_NORMAL;
+    }
+
+    /**
+     * On indexing nodes, returns {@code MADV_RANDOM} only for use-cases that have been individually
+     * validated via {@link StatelessAdviceHint}. Once all use-cases are validated, the
+     * {@link StatelessAdviceHint} gate can be removed to match {@link #searchAdvice}.
+     */
+    private static int indexingAdvice(IOContext context) {
+        if (INDEX_TIER_MADVISE_RANDOM_FEATURE_FLAG.isEnabled()
+            && context.hints().contains(DataAccessHint.RANDOM)
+            && containsStatelessAdviceHint(context)) {
+            return SharedBytes.MADV_RANDOM;
+        }
+        return SharedBytes.MADV_NORMAL;
+    }
+
+    private static boolean containsStatelessAdviceHint(IOContext context) {
+        for (var hint : context.hints()) {
+            if (hint instanceof StatelessAdviceHint) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -302,8 +363,30 @@ public class CacheFileReader {
         final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
         // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
         // however read range must stay within file length
-        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
         final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
+        populateForPrefetch(offset, intLength, remainingFileLength, rangeToRead, 0, ActionListener.wrap(v -> {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+        }, e -> {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+            logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+        }));
+        return false;
+    }
+
+    /**
+     * Populates the cache for an async prefetch, but retries in case of {@link ResourceAlreadyUploadedException}.
+     * Such a failure means the batched compound commit was uploaded to the object store while the fetch to the
+     * indexing node was in flight
+     */
+    private void populateForPrefetch(
+        long offset,
+        int intLength,
+        long remainingFileLength,
+        ByteRange rangeToRead,
+        int attempt,
+        ActionListener<Integer> listener
+    ) {
+        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
         cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
             channel.prefetch(channelPos, len);
             return len;
@@ -319,14 +402,19 @@ public class CacheFileReader {
                 StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
             ),
             "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
-            ActionListener.wrap(v -> {
-                blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
-            }, e -> {
-                blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
-                logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+            listener.delegateResponse((l, e) -> {
+                if (attempt < MAX_PREFETCH_ALREADY_UPLOADED_RETRIES
+                    && ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
+                    logger.debug(
+                        () -> "prefetch for [" + cacheFile.getCacheKey() + "] already uploaded, retrying with attempt " + attempt,
+                        e
+                    );
+                    populateForPrefetch(offset, intLength, remainingFileLength, rangeToRead, attempt + 1, l);
+                } else {
+                    l.onFailure(e);
+                }
             })
         );
-        return false;
     }
 
     /**
@@ -338,42 +426,68 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryRead(ByteBuffer b, long position) throws IOException {
+        // what the caller asks the cache for, so a readByte that refills a buffer accounts the whole fill
+        final int length = b.remaining();
+        final boolean read;
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.tryRead(b, position);
+            read = cacheFile.tryRead(b, position);
+        } else {
+            final long regionStart = (position / regionSize) * regionSize;
+            final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
+            read = cacheFile.tryRead(b, position, advice);
         }
-        final long regionStart = (position / regionSize) * regionSize;
-        final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
-        return cacheFile.tryRead(b, position, advice);
+        if (read) {
+            storeMetrics.instance().addBytesRead(length);
+        }
+        return read;
     }
 
     /**
-     * If a direct byte buffer view is available for the given range, passes it
+     * If a direct memory segment view is available for the given range, passes it
      * to {@code action} and returns {@code true}. Otherwise returns
      * {@code false} without invoking the action.
      *
      * @param offset the byte offset within the file
      * @param length the number of bytes requested
-     * @param action the action to perform with the byte buffer
-     * @return {@code true} if a buffer was available and the action was invoked
+     * @param action the action to perform with the memory segment
+     * @return {@code true} if a segment was available and the action was invoked
      */
-    public final boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+    public final boolean withMemorySegmentSlice(long offset, int length, CheckedConsumer<MemorySegment, IOException> action)
+        throws IOException {
+        final boolean read;
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withByteBufferSlice(offset, length, action);
+            read = cacheFile.withMemorySegmentSlice(offset, length, action);
+        } else {
+            final long regionStart = (offset / regionSize) * regionSize;
+            final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
+            read = cacheFile.withMemorySegmentSlice(offset, length, action, advice);
         }
-        final long regionStart = (offset / regionSize) * regionSize;
-        final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
-        return cacheFile.withByteBufferSlice(offset, length, action, advice);
+        if (read) {
+            storeMetrics.instance().addBytesRead(length);
+        }
+        return read;
     }
 
-    public final boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
-        throws IOException {
+    public final boolean withSliceAddresses(
+        long[] offsets,
+        int length,
+        int count,
+        MemorySegment addrsOut,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
+        final boolean read;
         if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
-            return cacheFile.withByteBufferSlices(offsets, length, count, action);
+            read = cacheFile.withSliceAddresses(offsets, length, count, addrsOut, action);
+        } else {
+            // For top-level files the entire range is exclusive, so a single advice applies.
+            // For compound sub-files, individual regions could differ, but the bulk path is
+            // only used for vector data which is always in a top-level .vec file.
+            read = cacheFile.withSliceAddresses(offsets, length, count, addrsOut, action, desiredMAdvice);
         }
-        // For top-level files the entire range is exclusive, so a single advice applies.
-        // For compound sub-files, individual regions could differ, but the bulk path is
-        // only used for vector data which is always in a top-level .vec file.
-        return cacheFile.withByteBufferSlices(offsets, length, count, action, desiredMAdvice);
+        if (read) {
+            storeMetrics.instance().addBytesRead((long) length * count);
+        }
+        return read;
     }
 
     /**
@@ -404,6 +518,8 @@ public class CacheFileReader {
         } else {
             doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
         }
+        // doRead throws if it did not read, and tryRead only accounts when it did, so this is not a second count
+        storeMetrics.instance().addBytesRead(length);
     }
 
     private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
@@ -472,7 +588,9 @@ public class CacheFileReader {
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
-                    // IndexingShardCacheBlobReader should be completed on the FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    // IndexingShardCacheBlobReader completes on FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL, so the
+                    // reader must bypass FillCacheMemoryPressure — waiting here would block this pool behind speculative fills,
+                    // possibly the same pool a deferred read would resume on.
                     var readFuture = new PlainActionFuture<Integer>();
                     cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
                         try (in) {

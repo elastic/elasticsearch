@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteConnectionManager.ProxyConnection;
+import org.elasticsearch.transport.RemoteConnectionManager.RemoteConnectionInfo;
+import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -29,8 +32,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -48,9 +54,8 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     private TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 1000);
 
     @SuppressWarnings("unchecked")
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initRemoteConnectionManager() throws Exception {
         transport = mock(Transport.class);
         remoteConnectionManager = new RemoteConnectionManager(
             "remote-cluster",
@@ -159,9 +164,9 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
         final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
         when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(new SecureString(randomAlphaOfLength(42)));
-        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
             connection,
-            clusterAlias,
+            new RemoteConnectionInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
             credentialsResolver
         );
         final long requestId = randomLong();
@@ -188,9 +193,9 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final SecureString credentials = new SecureString(randomAlphaOfLength(42));
         // second credential will never be resolved
         when(credentialsResolver.resolveCredentials(clusterAlias)).thenReturn(credentials, (SecureString) null);
-        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
             connection,
-            clusterAlias,
+            new RemoteConnectionInfo(randomProjectIdOrDefault(), randomProjectIdOrDefault(), clusterAlias),
             credentialsResolver
         );
 
@@ -198,6 +203,52 @@ public class RemoteConnectionManagerTests extends ESTestCase {
             .resolveRemoteClusterAliasWithCredentials(wrappedConnection);
 
         assertThat(actual, isPresentWith(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(clusterAlias, credentials)));
+    }
+
+    public void testResolveRemoteClusterProjectId() {
+        final Transport.Connection connection = mock(Transport.Connection.class);
+        final String clusterAlias = randomAlphaOfLengthBetween(3, 8);
+        final RemoteClusterCredentialsManager credentialsResolver = mock(RemoteClusterCredentialsManager.class);
+
+        // A genuine (non-default) origin & linked project ID round-trips through the wrapped connection.
+        final ProjectId originProjectId = randomUniqueProjectId();
+        final ProjectId linkedProjectId = randomUniqueProjectId();
+        final Transport.Connection wrappedConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
+            connection,
+            new RemoteConnectionInfo(originProjectId, linkedProjectId, clusterAlias),
+            credentialsResolver
+        );
+        assertThat(
+            RemoteConnectionManager.resolveRemoteClusterProjectInfo(wrappedConnection),
+            isPresentWith(
+                allOf(
+                    transformedMatch("origin project id", RemoteConnectionInfo::originProjectId, equalTo(originProjectId)),
+                    transformedMatch("linked project id", RemoteConnectionInfo::linkedProjectId, equalTo(linkedProjectId)),
+                    transformedMatch("linked cluster alias", RemoteConnectionInfo::linkedClusterAlias, equalTo(clusterAlias))
+                )
+            )
+        );
+
+        // The default origin project ID is passed by here by default in non-MP clusters
+        // The default linked project ID stands in for "no linked project" (e.g. non-CPS remote clusters)
+        final Transport.Connection defaultProjectConnection = RemoteConnectionManager.wrapConnectionWithRemoteInfo(
+            connection,
+            new RemoteConnectionInfo(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias),
+            credentialsResolver
+        );
+        assertThat(
+            RemoteConnectionManager.resolveRemoteClusterProjectInfo(defaultProjectConnection),
+            isPresentWith(
+                allOf(
+                    transformedMatch("origin project id", RemoteConnectionInfo::originProjectId, equalTo(ProjectId.DEFAULT)),
+                    transformedMatch("linked project id", RemoteConnectionInfo::linkedProjectId, equalTo(ProjectId.DEFAULT)),
+                    transformedMatch("linked cluster alias", RemoteConnectionInfo::linkedClusterAlias, equalTo(clusterAlias))
+                )
+            )
+        );
+
+        // A connection that does not target a remote cluster has no origin/linked project ID.
+        assertThat(RemoteConnectionManager.resolveRemoteClusterProjectInfo(mock(Transport.Connection.class)), isEmpty());
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

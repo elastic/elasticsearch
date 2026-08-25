@@ -10,8 +10,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -30,11 +29,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.MethodHandle;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 @Fork(value = 3, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @BenchmarkMode(Mode.AverageTime)
@@ -62,7 +59,6 @@ public class VectorScorerInt7uOperationBenchmark {
     public VectorSimilarityType function;
 
     private LuceneFunction<byte[]> luceneImpl;
-    private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -86,11 +82,6 @@ public class VectorScorerInt7uOperationBenchmark {
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
-        nativeImpl = vectorSimilarityFunctions.getHandle(switch (function) {
-            case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
-            case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
-            default -> throw new IllegalArgumentException(function.toString());
-        }, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown
@@ -105,21 +96,21 @@ public class VectorScorerInt7uOperationBenchmark {
 
     @Benchmark
     public int nativeWithNativeSeg() {
-        try {
-            return (int) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(nativeSegA, nativeSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(nativeSegA, nativeSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
     @Benchmark
-    public float nativeWithHeapSeg() {
-        try {
-            return (int) nativeImpl.invokeExact(heapSegA, heapSegB, size);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
+    public int nativeWithHeapSeg() {
+        return switch (function) {
+            case DOT_PRODUCT -> VEC_LIBRARY.dotProductI7u(heapSegA, heapSegB, size);
+            case EUCLIDEAN -> VEC_LIBRARY.squareDistanceI7u(heapSegA, heapSegB, size);
+            default -> throw new IllegalArgumentException(function.toString());
+        };
     }
 
-    static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
+    static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();
 }

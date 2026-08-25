@@ -47,10 +47,10 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -170,10 +171,9 @@ public abstract class ViewResolutionBenchmarkBase {
             String name = "col" + i;
             mapping.put(name, new EsField(name, KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
-        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
+        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of());
 
         Configuration config = new Configuration(
-            DateUtils.UTC,
             Instant.now(),
             Locale.US,
             null,
@@ -188,8 +188,7 @@ public abstract class ViewResolutionBenchmarkBase {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
-            null,
-            null,
+            ResolvedSettings.EMPTY,
             Map.of()
         );
 

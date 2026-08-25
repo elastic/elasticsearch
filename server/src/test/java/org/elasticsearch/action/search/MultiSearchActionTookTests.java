@@ -35,7 +35,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Queue;
 import java.util.Set;
@@ -65,17 +64,15 @@ public class MultiSearchActionTookTests extends ESTestCase {
     public static void afterClass() {}
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initServices() throws Exception {
         threadPool = new TestThreadPool("MultiSearchActionTookTests");
         clusterService = createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeServices() throws Exception {
         clusterService.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        super.tearDown();
     }
 
     // test unit conversion using a controller clock
@@ -131,7 +128,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        ActionFilters actionFilters = ActionFilters.EMPTY;
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
 

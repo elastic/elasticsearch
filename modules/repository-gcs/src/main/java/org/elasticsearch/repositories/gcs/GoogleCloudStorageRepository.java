@@ -31,7 +31,6 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
-import java.util.OptionalInt;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
@@ -64,21 +63,6 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
     /**
-     * Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of
-     * data buffered in memory before each HTTP PUT request. When not set the SDK default of 16 MiB
-     * is used. GCS requires this value to be a multiple of 256 KiB; values that are not will be
-     * rounded up automatically.
-     */
-    static final Setting<ByteSizeValue> RESUMABLE_WRITE_BUFFER_SIZE = byteSizeSetting(
-        "resumable_write_buffer_size",
-        ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
-        ByteSizeValue.ofKb(256),
-        ByteSizeValue.ofMb(100),
-        Property.NodeScope,
-        Property.Dynamic
-    );
-
-    /**
      * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
      */
     static final Setting<String> DATA_STORAGE_CLASS = simpleString("data_storage_class", Property.NodeScope, Property.Dynamic);
@@ -108,6 +92,21 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         TimeValue.ZERO
     );
 
+    // When the JVM property that overrides LARGE_BLOB_THRESHOLD_BYTE_SIZE is set (typically in tests to
+    // exercise the resumable-upload path with small blobs), lower the minimum to that value so that it can
+    // also be set explicitly as a repository setting.
+    private static final ByteSizeValue MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN = ByteSizeValue.of(
+        Math.min((long) GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.MB.toBytes(5)),
+        ByteSizeUnit.BYTES
+    );
+
+    static final Setting<ByteSizeValue> MULTIPART_UPLOAD_SIZE_THRESHOLD = byteSizeSetting(
+        "multipart_upload_size_threshold",
+        ByteSizeValue.of(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE, ByteSizeUnit.BYTES),
+        MULTIPART_UPLOAD_SIZE_THRESHOLD_MIN,
+        ByteSizeValue.of(5, ByteSizeUnit.TB)
+    );
+
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
     private final String bucket;
@@ -116,9 +115,9 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
     private final GcsRepositoryStatsCollector statsCollector;
-    private final OptionalInt resumableWriteBufferSize;
     private final String dataStorageClass;
     private final String metadataStorageClass;
+    private final long largeBlobThreshold;
 
     GoogleCloudStorageRepository(
         @Nullable final ProjectId projectId,
@@ -150,23 +149,12 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
         this.statsCollector = statsCollector;
-        this.resumableWriteBufferSize = RESUMABLE_WRITE_BUFFER_SIZE.exists(metadata.settings())
-            ? OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER_SIZE, metadata).getBytes()))
-            : OptionalInt.empty();
         this.dataStorageClass = DATA_STORAGE_CLASS.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS.get(metadata.settings());
+        this.largeBlobThreshold = MULTIPART_UPLOAD_SIZE_THRESHOLD.get(metadata.settings()).getBytes();
         validateStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS.getKey(), this.dataStorageClass);
         validateStorageClassIfSpecified(metadata.name(), METADATA_STORAGE_CLASS.getKey(), this.metadataStorageClass);
-        logger.debug(
-            "using bucket [{}], base_path [{}], chunk_size [{}],{} compress [{}]",
-            bucket,
-            basePath(),
-            chunkSize,
-            this.resumableWriteBufferSize.isEmpty()
-                ? ""
-                : Strings.format(" resumable_write_buffer_size [%s],", ByteSizeValue.ofBytes(this.resumableWriteBufferSize.getAsInt())),
-            isCompress()
-        );
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
     /**
@@ -211,7 +199,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             storageService,
             bigArrays,
             bufferSize,
-            resumableWriteBufferSize,
+            largeBlobThreshold,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
             statsCollector,
             dataStorageClass,
@@ -226,11 +214,6 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     GcsRepositoryStatsCollector statsCollector() {
         return statsCollector;
-    }
-
-    // package private for testing
-    OptionalInt getResumableWriteBufferSize() {
-        return resumableWriteBufferSize;
     }
 
     /**

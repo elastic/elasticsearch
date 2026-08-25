@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.applyUpdate;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
     public static final String NAME = "jinaai_multimodal_embedding_service_settings";
@@ -42,7 +42,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             () -> new Builder(context)
         );
@@ -147,7 +147,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
      */
     private static class Update extends EmbeddingsUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(SERVICE_SETTINGS.toString(), Update::new);
 
         static {
             declareEmbeddingsUpdatableFields(PARSER);

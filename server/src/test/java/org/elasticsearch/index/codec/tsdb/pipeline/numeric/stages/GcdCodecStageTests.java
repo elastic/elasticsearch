@@ -104,4 +104,17 @@ public class GcdCodecStageTests extends AbstractTransformStageTestCase {
         }
         assertMultiBlockTransformRoundTrip(GcdCodecStage.INSTANCE, blocks);
     }
+
+    public void testRoundTripWithLongMinValue() throws IOException {
+        // NOTE: Long.MIN_VALUE exercises MathUtil.gcd where Math.abs overflows; all values are even so a
+        // common divisor still applies.
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        values[0] = Long.MIN_VALUE;
+        values[1] = Long.MAX_VALUE - 1;
+        for (int i = 2; i < blockSize; i++) {
+            values[i] = 2L * randomLongBetween(Long.MIN_VALUE / 2, Long.MAX_VALUE / 2);
+        }
+        assertTransformRoundTrip(GcdCodecStage.INSTANCE, values);
+    }
 }

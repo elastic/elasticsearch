@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 147043
-summary: Allow service implementation to determine inference timeout
-type: bug

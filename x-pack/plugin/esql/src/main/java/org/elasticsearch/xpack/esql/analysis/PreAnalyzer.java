@@ -24,12 +24,14 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -49,14 +51,17 @@ public class PreAnalyzer {
      */
     static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
+    public record LookupIndexPattern(IndexPattern indexPattern, ExecuteLocation mode) {}
+
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
-        List<IndexPattern> lookupIndices,
+        List<LookupIndexPattern> lookupIndices,
         Set<LinkedIndexPattern> linkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean requiresAllDimensionFields,
         List<String> icebergPaths,
         List<String> inferenceIds
     ) {
@@ -65,6 +70,7 @@ public class PreAnalyzer {
             List.of(),
             List.of(),
             Set.of(),
+            false,
             false,
             false,
             false,
@@ -83,18 +89,23 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         Map<IndexPattern, IndexMode> indexes = new HashMap<>();
-        List<IndexPattern> lookupIndices = new ArrayList<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
-            if (p.indexMode() == IndexMode.LOOKUP) {
-                lookupIndices.add(p.indexPattern());
-            } else if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
-                indexes.put(p.indexPattern(), p.indexMode());
-            } else {
-                IndexMode m1 = p.indexMode();
-                IndexMode m2 = indexes.get(p.indexPattern());
-                throw new IllegalStateException(
-                    "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
-                );
+            if (p.indexMode() != IndexMode.LOOKUP) {
+                if (indexes.containsKey(p.indexPattern()) == false || indexes.get(p.indexPattern()) == p.indexMode()) {
+                    indexes.put(p.indexPattern(), p.indexMode());
+                } else {
+                    IndexMode m1 = p.indexMode();
+                    IndexMode m2 = indexes.get(p.indexPattern());
+                    throw new IllegalStateException(
+                        "index pattern '" + p.indexPattern() + "' found with with different index mode: " + m2 + " != " + m1
+                    );
+                }
+            }
+        });
+        List<LookupIndexPattern> lookupIndices = new ArrayList<>();
+        plan.forEachUp(LookupJoin.class, lj -> {
+            if (lj.right() instanceof UnresolvedRelation ur) {
+                lookupIndices.add(new LookupIndexPattern(ur.indexPattern(), lj.executesOn()));
             }
         });
 
@@ -146,7 +157,7 @@ public class PreAnalyzer {
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
-            if (mode == IndexMode.TIME_SERIES) {
+            if (mode.isTsdb()) {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });
@@ -174,8 +185,12 @@ public class PreAnalyzer {
         }));
 
         Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        Holder<Boolean> requiresAllDimensionFields = new Holder<>(false);
         plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
-        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> {
+            hasTimeSeriesAggregation.set(true);
+            requiresAllDimensionFields.set(true);
+        });
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
@@ -188,6 +203,7 @@ public class PreAnalyzer {
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),
+            requiresAllDimensionFields.get(),
             icebergPaths,
             inferenceIds
         );

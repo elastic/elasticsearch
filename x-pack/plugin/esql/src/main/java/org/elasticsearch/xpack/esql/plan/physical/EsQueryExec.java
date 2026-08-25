@@ -253,11 +253,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     }
 
     public boolean canPushSorts() {
-        return indexMode != IndexMode.TIME_SERIES;
+        return indexMode.isTsdb() == false;
     }
 
     public EsQueryExec withSorts(List<Sort> sorts) {
-        if (indexMode == IndexMode.TIME_SERIES) {
+        if (indexMode.isTsdb()) {
             assert false : "time-series index mode doesn't support sorts";
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
         }

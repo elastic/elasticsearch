@@ -27,6 +27,9 @@ import org.junit.rules.TemporaryFolder
 
 import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
@@ -40,9 +43,6 @@ abstract class AbstractGradleFuncTest extends Specification {
     @Rule
     TemporaryFolder testProjectDir = new TemporaryFolder()
 
-    @TempDir
-    File gradleUserHome
-
     File settingsFile
     File buildFile
     File propertiesFile
@@ -51,6 +51,14 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     protected boolean configurationCacheCompatible = true
     protected boolean buildApiRestrictionsDisabled = false
+
+    /**
+     * Opt out of configuration-cache compatibility checking for this test class.
+     * The {@code reason} must explain the root cause so it can be tracked and fixed.
+     */
+    void disableConfigurationCache(String reason) {
+        configurationCacheCompatible = false
+    }
 
     def setup() {
         projectDir = testProjectDir.root
@@ -71,7 +79,7 @@ abstract class AbstractGradleFuncTest extends Specification {
             minimumCompilerJava = 21
         """
         propertiesFile <<
-            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME\n"
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME\n"
         // Pin the JAXP TransformerFactory to the JDK built-in implementation.
         // The plugin-under-test classpath injected via GradleRunner#withPluginClasspath transitively
         // contains Saxon-HE (pulled in by the nmcp publishing plugin), which registers itself as a
@@ -134,20 +142,101 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
+        def runner = GradleRunner.create()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                        .toString().indexOf("-agentlib:jdwp") > 0
+                )
+                .withProjectDir(projectDir)
+                .withPluginClasspath()
+                .forwardOutput()
+        File userHome = customGradleUserHome() ?: testKitDir()
+        if (userHome != null) {
+            disableCacheCleanup(userHome)
+            runner = runner.withTestKitDir(userHome)
+        }
         return new NormalizeOutputGradleRunner(
             new BuildConfigurationAwareGradleRunner(
-                    new InternalAwareGradleRunner(
-                        GradleRunner.create()
-                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                        .toString().indexOf("-agentlib:jdwp") > 0
-                                )
-                                .withProjectDir(projectDir)
-                                .withPluginClasspath()
-                                .withTestKitDir(gradleUserHome)
-                                .forwardOutput()
-            ), configurationCacheCompatible,
-                buildApiRestrictionsDisabled)
+                    new InternalAwareGradleRunner(runner),
+                    configurationCacheCompatible,
+                    buildApiRestrictionsDisabled)
         ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
+    }
+
+    /**
+     * Override to supply a custom Gradle user home directory for the TestKit runner.
+     * TestKit will set {@code GRADLE_USER_HOME} to this directory for every forked
+     * Gradle process, including any {@code ./gradlew} subprocesses spawned by build
+     * logic.  Returns {@code null} by default, in which case the shared directory declared by the
+     * owning {@code integTest} task via {@code org.gradle.testkit.dir} is used, if present
+     * (see {@link #testKitDir()}).
+     */
+    protected File customGradleUserHome() {
+        return null
+    }
+
+    /**
+     * The TestKit Gradle user home. Uses the directory declared explicitly via
+     * {@code org.gradle.testkit.dir} when running under the {@code integTest} task, so that
+     * {@link #disableCacheCleanup} is guaranteed to seed its init script into the directory the
+     * nested builds actually use.
+     * <p>
+     * Falls back to TestKit's own default (letting {@link GradleRunner} derive it, e.g. from
+     * {@code java.io.tmpdir}) when the property is absent, which is the case for ad-hoc runs from
+     * an IDE that does not delegate test execution to Gradle. Such runs execute a single test at a
+     * time, so they are not exposed to the cross-worker cache cleanup race this fixes; disabling
+     * cleanup for them is a nice-to-have; falling back to null here has {@link #gradleRunner} skip
+     * seeding it rather than fail the run outright.
+     */
+    private static File testKitDir() {
+        String testKitDir = System.getProperty("org.gradle.testkit.dir")
+        return testKitDir == null ? null : new File(testKitDir)
+    }
+
+    /**
+     * Disables Gradle user home cache cleanup for the given TestKit dir.
+     *
+     * Our func test tasks run with {@code maxParallelForks} set to the number of physical cores,
+     * and every worker shares a single TestKit Gradle user home. Cleanup triggered by one nested
+     * daemon then races with another worker's daemon reading or creating entries under
+     * {@code caches/<version>/groovy-dsl/**}{@code /instrumented}, which surfaces as a
+     * {@code NoSuchFileException} while the settings script is being compiled
+     * (see https://github.com/gradle/gradle/issues/6354).
+     *
+     * Cleanup has no value for this directory anyway: it lives under {@code build/} locally and on
+     * an ephemeral CI agent otherwise, so it never survives long enough to need pruning.
+     *
+     * Cache cleanup can only be configured from an init script in the Gradle user home, not from a
+     * settings script, so the setting is seeded into {@code init.d}. Writing it there (rather than
+     * passing {@code --init-script}) also keeps it out of the asserted build arguments and applies
+     * it to nested {@code ./gradlew} subprocesses, which inherit {@code GRADLE_USER_HOME}.
+     */
+    private static void disableCacheCleanup(File testKitDir) {
+        File initScriptDir = new File(testKitDir, "init.d")
+        File initScript = new File(initScriptDir, "disable-cache-cleanup.init.gradle")
+        if (initScript.exists()) {
+            return
+        }
+        // Creates testKitDir too, which must exist before staging the temp file inside it.
+        initScriptDir.mkdirs()
+        // Staged outside init.d, under a suffix Gradle does not treat as an init script, and only
+        // then moved in atomically. Gradle applies every *.init.gradle(.kts) it finds in init.d, so
+        // staging a *.init.gradle temp file inside that directory would let a concurrent nested
+        // build apply a partially written script, or list one that is renamed out from under it a
+        // moment later - the very failure mode this method exists to prevent.
+        File tmpScript = File.createTempFile("disable-cache-cleanup", ".tmp", testKitDir)
+        tmpScript.text = """
+            beforeSettings { settings ->
+                settings.caches {
+                    cleanup = org.gradle.api.cache.Cleanup.DISABLED
+                }
+            }
+        """.stripIndent()
+        try {
+            Files.move(tmpScript.toPath(), initScript.toPath(), StandardCopyOption.ATOMIC_MOVE)
+        } catch (FileAlreadyExistsException e) {
+            // Another worker won the race; its script is equivalent so there is nothing left to do.
+            tmpScript.delete()
+        }
     }
 
     def assertOutputContains(String givenOutput, String expected) {
@@ -278,7 +367,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void withVersionCatalogue() {
         file('build.versions.toml') << '''\
 [libraries]
-checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
+checkstyle = "com.puppycrawl.tools:checkstyle:13.11"
 '''
         settingsFile << '''
             dependencyResolutionManagement {

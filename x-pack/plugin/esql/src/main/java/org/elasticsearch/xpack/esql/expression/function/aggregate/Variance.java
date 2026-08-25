@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
@@ -47,6 +49,7 @@ public class Variance extends AggregateFunction implements ToAggregator {
         .name("stdvar");
 
     @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "double",
         briefSummary = "Returns the population variance of a numeric field.",
         description = "The population variance of a numeric field.",

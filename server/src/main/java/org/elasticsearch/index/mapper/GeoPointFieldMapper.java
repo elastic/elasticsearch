@@ -136,7 +136,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     return false;
                 }
 
-                return indexSettings.getMode() != IndexMode.TIME_SERIES || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION;
+                return indexSettings.getMode().isTsdb() == false || getMetric().getValue() != TimeSeriesParams.MetricType.POSITION;
             });
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -482,7 +482,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.POSITION
+            ValuesSourceType valuesSourceType = IndexMode.isTsdb(indexMode) && metricType == TimeSeriesParams.MetricType.POSITION
                 ? TimeSeriesValuesSourceType.POSITION
                 : CoreValuesSourceType.GEOPOINT;
 
@@ -663,7 +663,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         throws IOException {
         super.onMalformedValue(context, malformedDataForSyntheticSource, cause);
         if (malformedDataForSyntheticSource != null) {
-            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED, malformedDataForSyntheticSource);
         }
     }
 

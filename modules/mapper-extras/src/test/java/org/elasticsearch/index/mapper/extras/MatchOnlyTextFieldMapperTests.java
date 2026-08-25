@@ -22,12 +22,14 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -45,7 +47,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,6 +96,62 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/132352: phrase queries on
+     * match_only_text fields inside nested objects must correctly load the nested source slice rather
+     * than the empty source that a plain stored-source loader returns for nested child doc IDs.
+     */
+    public void testPhraseQueryInsideNestedObject() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("children");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("text").field("type", "match_only_text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+
+            // First root document: has a nested child containing the target phrase.
+            ParsedDocument doc1 = mapperService.documentMapper().parse(source(b -> {
+                b.startArray("children");
+                b.startObject().field("text", "the quick brown fox").endObject();
+                b.endArray();
+            }));
+            iw.addDocuments(doc1.docs());
+
+            // Second root document: nested child does not contain the target phrase.
+            ParsedDocument doc2 = mapperService.documentMapper().parse(source(b -> {
+                b.startArray("children");
+                b.startObject().field("text", "the slow lazy dog").endObject();
+                b.endArray();
+            }));
+            iw.addDocuments(doc2.docs());
+
+            iw.close();
+
+            try (
+                DirectoryReader reader = ElasticsearchDirectoryReader.wrap(
+                    DirectoryReader.open(directory),
+                    new ShardId(mapperService.index(), 0)
+                )
+            ) {
+                // Pass false to avoid random reader re-wrapping (e.g. SlowCompositeReaderWrapper) that would break
+                // the ElasticsearchLeafReader chain needed by BitsetFilterCache to resolve the shard ID.
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader, false));
+                NestedQueryBuilder query = new NestedQueryBuilder(
+                    "children",
+                    new MatchPhraseQueryBuilder("children.text", "quick brown"),
+                    ScoreMode.None
+                );
+                TopDocs docs = context.searcher().search(query.toQuery(context), 10);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+            }
+        }
+    }
+
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -116,12 +176,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
-        }
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            checker.registerConflictCheck("index", b -> b.field("index", false));
-        }
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -703,6 +759,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedDocValuesTypeForMultiValueFalse() {
         // match_only_text defaults to HIGH cardinality, which uses binary doc values — that path is unchanged by the write-side fix
         return DocValuesType.BINARY;
@@ -715,15 +776,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertTrue("doc_values should be enabled", fieldType.hasDocValues());
     }
 
     public void testColumnarArrayOrderRoundTrip() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(
             settings,
@@ -746,7 +804,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * introduction in 9.4.0. This test pins that contract for the current index version.
      */
     public void testDocValuesUsesSeparateCountFormat() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(10))));
@@ -763,7 +820,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * doc values write path must produce SeparateCount output so the read path can decode it.
      */
     public void testDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
         DocumentMapper mapper = createMapperService(
             legacyVersion,
@@ -780,12 +836,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnar() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.COLUMNAR);
     }
 
     public void testDocValuesEnabledByDefaultWhenIndexModeIsColumnarLogsdb() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         assertDocValuesEnabledByDefaultInColumnarMode(IndexMode.LOGSDB_COLUMNAR);
     }
 
@@ -817,8 +871,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testKeepsOwnDocValuesInColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         // In columnar mode a match_only_text field always keeps its own doc values and reconstructs _source from them,
         // regardless of any keyword multi-field. A keyword multi-field is never used as a doc-values delegate.
         assertKeepsOwnDocValues(b -> {});
@@ -869,14 +921,12 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesExplicitlyDisabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", false)));
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertFalse("doc_values should be disabled", fieldType.hasDocValues());
     }
 
     public void testPhraseQueryWithDocValuesEnabled() throws IOException {
-        assumeTrue("match_only_text field doc_values feature must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "match_only_text").field("doc_values", true)));
 
         try (Directory directory = newDirectory()) {
@@ -933,7 +983,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * {@link MatchOnlyTextFieldMapper.MatchOnlyTextFieldType#getValueFetcherProvider}.
      */
     public void testPhraseQueryMatchesValueInMultiValueArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -953,7 +1002,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testPhraseQueryMatchesSingleValueDocumentColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -972,7 +1020,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * slot; the decoder must skip those nulls and correctly expose the non-null values for the phrase-confirmation scan.
      */
     public void testPhraseQueryWithNullsInArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {
@@ -998,7 +1045,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
      * All-null array: the {@code ArrayOrderInlineNull} encoder writes no binary blob; the phrase query must not match.
      */
     public void testPhraseQueryDoesNotMatchAllNullArrayColumnarArrayOrder() throws IOException {
-        assumeTrue("columnar index mode requires a snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         MapperService mapperService = columnarArrayOrderMapperService();
 
         withLuceneIndex(mapperService, iw -> {

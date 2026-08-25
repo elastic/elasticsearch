@@ -46,6 +46,25 @@ public record SchemaCacheEntry(
         connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
     }
 
+    /**
+     * An identical entry whose {@code safeMetadata} is replaced with {@code metadata} — the schema-cache
+     * enrichment helper: entries are immutable, so a stats commit copies the metadata, mutates the copy,
+     * and swaps the whole entry.
+     */
+    public SchemaCacheEntry withSafeMetadata(Map<String, Object> metadata) {
+        return new SchemaCacheEntry(
+            columnNames,
+            columnTypes,
+            columnNullabilities,
+            columnSynthetics,
+            sourceType,
+            location,
+            metadata,
+            connectorConfig,
+            cachedAtMillis
+        );
+    }
+
     public static SchemaCacheEntry from(
         List<Attribute> schema,
         String sourceType,
@@ -119,8 +138,15 @@ public record SchemaCacheEntry(
         bytes += columnSynthetics.length;
         bytes += sourceType != null ? sourceType.length() * (long) Character.BYTES : 0;
         bytes += location != null ? location.length() * (long) Character.BYTES : 0;
-        // rough estimate: ~100B per metadata entry (key String + value Object)
-        bytes += safeMetadata.size() * 100L;
+        // rough estimate: ~100B per metadata entry (key String + value Object); nested map values
+        // (per-stripe stats under _stats.stripe.<k>) weigh their inner entries the same way so a
+        // many-striped file doesn't under-count against the cache budget
+        for (Object value : safeMetadata.values()) {
+            bytes += 100L;
+            if (value instanceof Map<?, ?> nested) {
+                bytes += nested.size() * 100L;
+            }
+        }
         bytes += connectorConfig.size() * 100L;
         return bytes;
     }

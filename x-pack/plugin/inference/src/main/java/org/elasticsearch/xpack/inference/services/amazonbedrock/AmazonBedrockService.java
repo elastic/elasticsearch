@@ -199,7 +199,11 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
 
             for (var request : batchedRequests) {
                 var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(
+                    new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                    timeout,
+                    request.listener()
+                );
             }
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -229,6 +233,11 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    public boolean usesParserForServiceSettings() {
+        return true;
     }
 
     @Override

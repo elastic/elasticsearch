@@ -44,7 +44,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -112,6 +114,7 @@ import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -125,6 +128,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
@@ -251,7 +255,7 @@ public class FakeStatelessNode implements Closeable {
         );
 
         try (var localCloseables = new TransferableCloseables()) {
-            threadPool = createThreadPool();
+            threadPool = createThreadPool(nodeSettings);
             localCloseables.add(() -> TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(createClusterService());
@@ -344,8 +348,8 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
-    protected ThreadPool createThreadPool() {
-        return new TestThreadPool("test", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    protected ThreadPool createThreadPool(Settings nodeSettings) {
+        return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
     }
 
     protected ClusterSettings createClusterSettings(Settings settings) {
@@ -371,7 +375,13 @@ public class FakeStatelessNode implements Closeable {
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
-            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL
+            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
+            ObjectStoreService.OBJECT_STORE_SLOW_TRANSLOG_UPLOAD_LOG_THRESHOLD_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_DEMOTE_CLOSED_SHARD_REGIONS_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SEARCH_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_EVICT_DELETED_INDEX_REGIONS_ENABLED_SETTING
         );
     }
 
@@ -436,7 +446,7 @@ public class FakeStatelessNode implements Closeable {
         CacheBlobReaderService cacheBlobReaderService,
         MutableObjectStoreUploadTracker objectStoreUploadTracker
     ) {
-        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
+        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, randomBoolean());
     }
 
     protected StatelessSharedBlobCacheService createCacheService(
@@ -449,7 +459,13 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-        return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool);
+        return new CacheBlobReaderService(
+            nodeSettings,
+            cacheService,
+            client,
+            threadPool,
+            TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+        );
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {
@@ -515,15 +531,30 @@ public class FakeStatelessNode implements Closeable {
         return commits;
     }
 
+    public List<StatelessCommitRef> generateIndexCommitsWithoutCompoundFiles(int commitsNumber) throws IOException {
+        return generateIndexCommits(commitsNumber, false, true, generation -> {}, false);
+    }
+
     public List<StatelessCommitRef> generateIndexCommits(
         int commitsNumber,
         boolean merge,
         boolean includeDeletions,
         LongConsumer onCommitClosed
     ) throws IOException {
+        return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, true);
+    }
+
+    private List<StatelessCommitRef> generateIndexCommits(
+        int commitsNumber,
+        boolean merge,
+        boolean includeDeletions,
+        LongConsumer onCommitClosed,
+        boolean useCompoundFile
+    ) throws IOException {
         var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
         indexWriterConfig.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         indexWriterConfig.setMergePolicy(new TieredMergePolicy().setSegmentsPerTier(10)); // lucene 10.3 changed default to 8
+        indexWriterConfig.setUseCompoundFile(useCompoundFile);
         return generateIndexCommits(commitsNumber, merge, includeDeletions, onCommitClosed, (commitNumber) -> {
             LuceneDocument document = new LuceneDocument();
             document.add(new KeywordField("field0", "term", Field.Store.YES));
@@ -593,6 +624,43 @@ public class FakeStatelessNode implements Closeable {
             .put(PATH_REPO_SETTING.getKey(), repoPath)
             .put(BUCKET_SETTING.getKey(), repoPath)
             .build();
+    }
+
+    /**
+     * Lazily yields {@code length} synthetic bytes. The byte values are irrelevant: callers only read to trigger a cache fill, never
+     * to assert content.
+     */
+    public static InputStream syntheticBytes(long length) {
+        return new InputStream() {
+            private long remaining = length;
+
+            @Override
+            public int read() {
+                if (remaining == 0) {
+                    return -1;
+                }
+                remaining -= 1;
+                return 1;
+            }
+        };
+    }
+
+    /**
+     * Wraps {@code inner} in a {@link FilterBlobContainer} that serves {@link #syntheticBytes synthetic bytes} for any ranged
+     * {@code readBlob}, so a cache read populates a region without needing real object-store content. Children are not re-wrapped.
+     */
+    public static FilterBlobContainer syntheticBytesContainer(BlobContainer inner) {
+        return new FilterBlobContainer(inner) {
+            @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return child;
+            }
+
+            @Override
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) {
+                return syntheticBytes(length);
+            }
+        };
     }
 
     protected StatelessCommitCleaner createCommitCleaner(

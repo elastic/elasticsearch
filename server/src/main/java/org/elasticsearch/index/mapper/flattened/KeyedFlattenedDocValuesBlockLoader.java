@@ -12,10 +12,13 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.fielddata.KeyFilteredSortingArrayOrderBinaryDocValues;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
@@ -25,16 +28,34 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
     private final String keyedFieldName;
     private final String key;
     private final boolean usesBinaryDocValues;
+    private final boolean usesArrayOrderBinaryDocValues;
 
     public KeyedFlattenedDocValuesBlockLoader(String keyedFieldName, String key, boolean usesBinaryDocValues) {
+        this(keyedFieldName, key, usesBinaryDocValues, false);
+    }
+
+    public KeyedFlattenedDocValuesBlockLoader(
+        String keyedFieldName,
+        String key,
+        boolean usesBinaryDocValues,
+        boolean usesArrayOrderBinaryDocValues
+    ) {
         this.keyedFieldName = keyedFieldName;
         this.key = key;
         this.usesBinaryDocValues = usesBinaryDocValues;
+        this.usesArrayOrderBinaryDocValues = usesArrayOrderBinaryDocValues;
     }
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         if (usesBinaryDocValues) {
+            if (usesArrayOrderBinaryDocValues) {
+                var binary = context.reader().getBinaryDocValues(keyedFieldName);
+                var counts = context.reader()
+                    .getNumericDocValues(keyedFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX);
+                SortedBinaryDocValues filtered = new KeyFilteredSortingArrayOrderBinaryDocValues(binary, counts, new BytesRef(key));
+                return new BinaryKeyedBlockDocValuesReader(breaker, filtered);
+            }
             MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), keyedFieldName);
             SortedBinaryDocValues filtered = BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
             return new BinaryKeyedBlockDocValuesReader(breaker, filtered);

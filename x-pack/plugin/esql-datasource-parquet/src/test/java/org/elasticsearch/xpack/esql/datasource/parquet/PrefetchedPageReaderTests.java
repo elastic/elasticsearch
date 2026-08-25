@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.page.DataPage;
@@ -21,9 +20,9 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -36,21 +35,17 @@ import static org.hamcrest.Matchers.nullValue;
 public class PrefetchedPageReaderTests extends ESTestCase {
 
     private PlainCompressionCodecFactory codecFactory;
-    private BlockFactory blockFactory;
-    private BufferAllocator allocator;
+    private NoopCircuitBreaker breaker;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodecAndBreaker() {
         codecFactory = new PlainCompressionCodecFactory();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
+        breaker = new NoopCircuitBreaker("test");
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() {
         codecFactory.release();
-        super.tearDown();
     }
 
     public void testReadsV1PageUncompressed() throws IOException {
@@ -112,7 +107,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.GZIP), // codec must not be invoked
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                 null,
                 8
@@ -156,7 +151,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             try (
                 PrefetchedPageReader reader = new PrefetchedPageReader(
                     codecFactory.getDecompressor(codec),
-                    allocator,
+                    breaker,
                     List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                     null,
                     10
@@ -177,16 +172,13 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
-    public void testUncompressedV1PageWithDirectInputSkipsAllocAndCopy() throws IOException {
-        // Regression coverage for elastic/esql-planning#804: when the codec is UNCOMPRESSED and
-        // the page slice is already direct (the prefetched path), decompressV1 must return a view
-        // over the input buffer rather than allocating a fresh direct buffer and memcopying into
-        // it.
+    public void testUncompressedV1PageWithHeapInputSkipsAllocAndCopy() throws IOException {
+        // When the codec is UNCOMPRESSED, decompressV1 must return a view over the input buffer
+        // rather than allocating a fresh buffer and copying.
         byte[] payload = randomBytesOfLength(64);
-        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
-        direct.put(payload).flip();
+        ByteBuffer heap = ByteBuffer.wrap(payload);
         DataPageV1 v1 = new DataPageV1(
-            BytesInput.from(direct.duplicate()),
+            BytesInput.from(heap.duplicate()),
             10,
             payload.length,
             intStats(),
@@ -197,7 +189,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -211,25 +203,20 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(out.getRlEncoding(), equalTo(Encoding.RLE));
             assertThat(out.getDlEncoding(), equalTo(Encoding.RLE));
             ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
-            assertTrue("Uncompressed V1 page must be backed by a direct buffer", decompressedBuf.isDirect());
+            assertFalse("Uncompressed V1 page aliases the heap I/O buffer", decompressedBuf.isDirect());
             assertThat(out.getBytes().toByteArray(), equalTo(payload));
-            // Mutating the underlying direct buffer must show through the returned BytesInput — i.e.,
-            // the page reader handed back a view rather than a copy of the input. The buffer
-            // duplicate's position/limit are independent of the original, so writing through the
-            // original is safe.
             byte sentinel = (byte) (payload[0] ^ 0xFF);
-            direct.put(0, sentinel);
-            assertEquals("Returned BytesInput must alias the direct input slice, not a copy", sentinel, out.getBytes().toByteArray()[0]);
+            heap.put(0, sentinel);
+            assertEquals("Returned BytesInput must alias the heap input slice, not a copy", sentinel, out.getBytes().toByteArray()[0]);
         }
     }
 
     public void testUncompressedV1PageWithDirectInputRejectsSizeMismatch() {
         byte[] payload = randomBytesOfLength(64);
-        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
-        direct.put(payload).flip();
+        ByteBuffer heap = ByteBuffer.wrap(payload);
         int declaredSize = payload.length - 1;
         DataPageV1 v1 = new DataPageV1(
-            BytesInput.from(direct.duplicate()),
+            BytesInput.from(heap.duplicate()),
             10,
             declaredSize,
             intStats(),
@@ -240,7 +227,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -251,16 +238,15 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         }
     }
 
-    public void testUncompressedDictionaryPageWithDirectInputSkipsAllocAndCopy() throws IOException {
+    public void testUncompressedDictionaryPageWithHeapInputSkipsAllocAndCopy() throws IOException {
         // Same short-circuit, exercised through the dictionary-page path.
         byte[] payload = randomBytesOfLength(48);
-        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
-        direct.put(payload).flip();
-        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(direct.duplicate()), payload.length, 4, Encoding.PLAIN);
+        ByteBuffer heap = ByteBuffer.wrap(payload);
+        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(heap.duplicate()), payload.length, 4, Encoding.PLAIN);
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 compressedDict,
                 0
@@ -269,11 +255,11 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             DictionaryPage out = reader.readDictionaryPage();
             assertThat(out, notNullValue());
             ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
-            assertTrue("Uncompressed dictionary page must be backed by a direct buffer", decompressedBuf.isDirect());
+            assertFalse("Uncompressed dictionary page aliases the heap I/O buffer", decompressedBuf.isDirect());
             byte sentinel = (byte) (payload[0] ^ 0xFF);
-            direct.put(0, sentinel);
+            heap.put(0, sentinel);
             assertEquals(
-                "Returned BytesInput must alias the direct dictionary input slice, not a copy",
+                "Returned BytesInput must alias the heap dictionary input slice, not a copy",
                 sentinel,
                 out.getBytes().toByteArray()[0]
             );
@@ -288,7 +274,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.SNAPPY),
-                allocator,
+                breaker,
                 List.of(),
                 compressedDict,
                 0
@@ -307,7 +293,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 null,
                 0
@@ -321,7 +307,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 null,
                 0
@@ -335,7 +321,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(),
                 null,
                 12345L
@@ -363,7 +349,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, 42L)),
                 null,
                 5
@@ -395,7 +381,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 decompressor,
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
                 null,
                 10
@@ -411,7 +397,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(outV1.getDlEncoding(), equalTo(Encoding.RLE));
             assertThat(outV1.getBytes().toByteArray(), equalTo(payload));
             ByteBuffer decompressedBuf = outV1.getBytes().toByteBuffer();
-            assertTrue("decompressed V1 page must be backed by a direct buffer to avoid G1GC pinning", decompressedBuf.isDirect());
+            assertFalse("round-trip decompressed V1 bytes are heap-backed", decompressedBuf.isDirect());
             assertNull(reader.readPage());
         }
     }
@@ -439,7 +425,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         try (
             PrefetchedPageReader reader = new PrefetchedPageReader(
                 decompressor,
-                allocator,
+                breaker,
                 List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
                 null,
                 10
@@ -457,7 +443,7 @@ public class PrefetchedPageReaderTests extends ESTestCase {
             assertThat(outV2.getDefinitionLevels().toByteArray(), equalTo(dl));
             assertThat(outV2.getData().toByteArray(), equalTo(data));
             ByteBuffer decompressedBuf = outV2.getData().toByteBuffer();
-            assertTrue("decompressed V2 data must be backed by a direct buffer to avoid G1GC pinning", decompressedBuf.isDirect());
+            assertFalse("round-trip decompressed V2 data is heap-backed", decompressedBuf.isDirect());
             assertNull(reader.readPage());
         }
     }

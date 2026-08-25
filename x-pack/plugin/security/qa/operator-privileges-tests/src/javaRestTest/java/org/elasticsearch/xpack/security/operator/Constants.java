@@ -338,8 +338,10 @@ public class Constants {
         "cluster:internal/xpack/inference",
         "cluster:internal/xpack/inference/clear_inference_ccm_cache",
         "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
+        "cluster:internal/xpack/inference/clear_inference_preferences_cache",
         "cluster:internal/xpack/inference/clear_oauth2_token_cache",
         "cluster:internal/xpack/inference/create_endpoints",
+        "cluster:internal/xpack/inference/delete_endpoints",
         "cluster:internal/xpack/inference/embedding",
         "cluster:internal/xpack/inference/refresh_authorized_endpoints",
         "cluster:internal/xpack/inference/rerank",
@@ -513,6 +515,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/sql",
         "cluster:monitor/xpack/usage/transform",
         "cluster:monitor/xpack/usage/universal_profiling",
+        "cluster:monitor/xpack/usage/vectordb_document",
         "cluster:monitor/xpack/usage/voting_only",
         "cluster:monitor/xpack/usage/watcher",
         "cluster:monitor/xpack/usage/time_series",
@@ -700,6 +703,7 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate"
+        "internal:admin/repository/verify/coordinate",
+        "internal:index/shard/recovery/cancel_recoveries"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

@@ -29,8 +29,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
@@ -40,14 +40,27 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase {
+public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<float[]> {
 
     private static final String SLICE_FIELD = "_slice";
     private int numSlices;
     private BytesRef querySlice;
+
+    @Override
+    float[] vector(int... components) {
+        float[] v = new float[components.length];
+        for (int i = 0; i < components.length; i++) {
+            v[i] = components[i];
+        }
+        return v;
+    }
+
+    @Override
+    float[][] createVectorArray(int size) {
+        return new float[size][];
+    }
 
     @Override
     IVFKnnFloatVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
@@ -69,12 +82,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     @Override
     float[] randomVector(int dim) {
-        float[] vector = new float[dim];
-        for (int i = 0; i < dim; i++) {
-            vector[i] = randomFloat();
-        }
-        VectorUtil.l2normalize(vector);
-        return vector;
+        return VectorTestUtils.randomNormalizedFloatVector(dim);
     }
 
     @Override
@@ -89,7 +97,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     public void testToString() throws IOException {
         try (
-            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
             IndexReader reader = DirectoryReader.open(indexStore)
         ) {
             AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0.0f, 1.0f }, 10);

@@ -23,7 +23,12 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 
 /**
- * Validator that only checks that altitude only shows up if ignoreZValue is set to true.
+ * Validator that only checks that altitude only shows up if ignoreZValue is set to true. Despite the name,
+ * this is not a generic "default" validator: it is CRS-agnostic, and used to parse both geographic and
+ * cartesian WKT/GeoJSON (see e.g. server's {@code GeometryParser}, used by both {@code geo_shape} and
+ * {@code shape} field mapping/queries). Because of that, it must not gain any check that differs between
+ * CRSes -- e.g. rectangle/envelope ordinate ordering, which {@link GeographyValidator} and
+ * {@link CartesianValidator} each enforce differently. Add such checks to those classes instead.
  */
 public class StandardValidator implements GeometryValidator {
 

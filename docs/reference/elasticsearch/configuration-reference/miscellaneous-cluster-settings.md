@@ -165,3 +165,6 @@ This setting does not affect the persistent tasks that are already being execute
 
 `data_streams.past_tsdb_index_interval` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Controls the covered interval of each past TSDB backing index created when back-filling past timestamps into a time series data stream. Defaults to `1d`. The minimum value is `1h` and the maximum value is `7d`.
+
+`data_stream.past_tsdb_index_creation_enabled` {applies_to}`serverless: ga` {applies_to}`stack: ga 9.5`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Enables past time series index creation, effectively extending the write time window of a time series data stream in the past. Defaults to `false`.

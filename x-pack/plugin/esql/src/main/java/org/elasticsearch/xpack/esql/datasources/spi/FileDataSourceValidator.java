@@ -22,8 +22,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -49,9 +49,28 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationU
  */
 public class FileDataSourceValidator implements DataSourceValidator {
 
+    /**
+     * Error shown when a data source is provisioned with federated authentication settings while the
+     * {@code esql.external.federated_identity.enabled} cluster setting is disabled. The federated fields
+     * themselves remain registered on each configuration regardless of the setting, so a PUT carrying them
+     * produces this explicit message rather than an "unknown setting" error.
+     */
+    public static final String FEDERATED_IDENTITY_DISABLED_MESSAGE =
+        "federated authentication settings require the [esql.external.federated_identity.enabled] cluster setting to be enabled; "
+            + "it is disabled by default";
+
     // Dataset settings are plain values — no secrets. Credentials are inherited from the parent datasource.
     private static final String SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-    private static final int SCHEMA_SAMPLE_SIZE_MAX = 1000;
+    /**
+     * Upper bound accepted for {@code schema_sample_size} at registration. It MUST NOT sit below any reader's own
+     * default for the setting, or the validator forbids the value the reader uses when the user says nothing: the
+     * bound was 1000 while both text readers default to 20000, so every value from 1001 up to and including the
+     * default was rejected, and the setting was unconfigurable across its whole useful range.
+     * {@code FileDataSourceValidatorSampleSizeBoundTests} pins it against the reader constant so the two cannot
+     * drift apart again. Whether values ABOVE the default should be accepted is a separate question this does not
+     * settle — it only makes the default reachable.
+     */
+    private static final int SCHEMA_SAMPLE_SIZE_MAX = 20_000;
 
     /**
      * Coordinator-level data-shape keys accepted on a dataset, sourced from each owning component's
@@ -101,28 +120,30 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     private final String type;
-    private final Function<Map<String, Object>, DataSourceConfiguration> configFactory;
+    private final BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory;
     private final Set<String> supportedSchemes;
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
     private final BooleanSupplier managedIdentityEnabled;
+    private final BooleanSupplier federatedIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false, () -> false);
     }
 
     private FileDataSourceValidator(
         String type,
-        Function<Map<String, Object>, DataSourceConfiguration> configFactory,
+        BiFunction<Map<String, Object>, Set<String>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
-        BooleanSupplier managedIdentityEnabled
+        BooleanSupplier managedIdentityEnabled,
+        BooleanSupplier federatedIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -130,6 +151,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
         this.managedIdentityEnabled = managedIdentityEnabled;
+        this.federatedIdentityEnabled = federatedIdentityEnabled;
     }
 
     /**
@@ -143,18 +165,51 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, managedIdentityEnabled);
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            resolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            federatedIdentityEnabled
+        );
     }
 
     /**
      * Returns a new validator that gates {@code auth=managed_identity} on the supplied boolean supplier.
      * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
      * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
-     * that operator changes to {@code esql.datasource.managed_identity.enabled} take effect
+     * that operator changes to {@code esql.external.managed_identity.enabled} take effect
      * without a node restart.
      */
     public FileDataSourceValidator withManagedIdentityEnabled(BooleanSupplier supplier) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            supplier,
+            federatedIdentityEnabled
+        );
+    }
+
+    /**
+     * Returns a new validator that gates federated workload-identity authentication on the supplied boolean supplier.
+     * The supplier is called on each validation. Wire it to {@code ExternalSourceSettings#FEDERATED_IDENTITY_ENABLED}
+     * in production; tests pass a fixed supplier to exercise both states without depending on a live cluster setting.
+     */
+    public FileDataSourceValidator withFederatedIdentityEnabled(BooleanSupplier supplier) {
+        return new FileDataSourceValidator(
+            type,
+            configFactory,
+            supportedSchemes,
+            formatConfigKeyResolver,
+            compressionExtensions,
+            managedIdentityEnabled,
+            supplier
+        );
     }
 
     @Override
@@ -164,12 +219,20 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     @Override
     public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+        return validateDatasource(datasourceSettings, Set.of());
+    }
+
+    @Override
+    public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings, Set<String> existingSecretKeys) {
         if (datasourceSettings == null || datasourceSettings.isEmpty()) {
             return Map.of();
         }
-        DataSourceConfiguration config = configFactory.apply(datasourceSettings);
+        DataSourceConfiguration config = configFactory.apply(datasourceSettings, existingSecretKeys);
         if (config instanceof FileDataSourceConfiguration fc && fc.isManagedIdentity() && managedIdentityEnabled.getAsBoolean() == false) {
             throw new ValidationException().addValidationError(FileDataSourceConfiguration.MANAGED_IDENTITY_DISABLED_MESSAGE);
+        }
+        if (isFederatedIdentityUsed(config) && federatedIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FEDERATED_IDENTITY_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }
@@ -208,8 +271,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
         // would produce at query time. Each parser reads the keys it owns from the settings map.
         // error_mode + max_errors + max_error_ratio (incl. mutual exclusion) via the owning policy parser.
         validate(() -> ErrorPolicy.fromConfig(settings, ErrorPolicy.STRICT), errors);
-        // partition_detection enum via its owning parser (partition_path/hive_partitioning are free-form,
-        // matching the query path which treats any non-"false" hive value as enabled).
+        // partition_detection enum, plus the combinations in which one of the three partition settings would be
+        // silently ignored, via the owning parser. Stricter than the query path deliberately: PartitionConfig
+        // resolves stored datasets leniently so an upgrade cannot turn a working dataset into a query-time error,
+        // which means a new registration is the only place a contradiction can still be caught.
         validateEnum(
             settings,
             result,
@@ -218,6 +283,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
             PartitionConfig.Strategy::parse,
             errors
         );
+        validate(() -> PartitionConfig.validate(settings), errors);
         Object schemaResolution = settings.get(ExternalSourceResolver.CONFIG_SCHEMA_RESOLUTION);
         if (schemaResolution != null) {
             validate(() -> FormatReader.SchemaResolution.parse(schemaResolution.toString()), errors);
@@ -254,6 +320,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
         errors.throwIfValidationErrorsExist();
         return result;
+    }
+
+    private boolean isFederatedIdentityUsed(DataSourceConfiguration config) {
+        return (config instanceof FileDataSourceConfiguration fc && fc.isFederatedIdentity()) || config.hasFederatedAuth();
     }
 
     /**

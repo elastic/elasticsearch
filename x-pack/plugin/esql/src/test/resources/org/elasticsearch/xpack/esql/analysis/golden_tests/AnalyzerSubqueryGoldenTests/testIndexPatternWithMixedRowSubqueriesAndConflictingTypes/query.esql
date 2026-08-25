@@ -1,0 +1,1 @@
+FROM employees, (ROW x = 1, y = ["cat", "dog"]), (ROW x = [1.5, -2.5], y = true)

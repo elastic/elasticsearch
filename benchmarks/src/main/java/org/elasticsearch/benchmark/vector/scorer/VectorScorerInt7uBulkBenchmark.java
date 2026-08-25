@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.benchmark.vector.VectorImplementation;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Param;
@@ -30,8 +31,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.quantized
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
-import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
-import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
+import static org.elasticsearch.simdvec.ScalarOperations.dotProduct;
+import static org.elasticsearch.simdvec.ScalarOperations.squareDistance;
 
 public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
 
@@ -112,8 +113,8 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
         private final float[] offsets;
         private final float[] queryVector;
 
-        VectorData(int dims, int numVectors, int numVectorsToScore, Random random) {
-            super(numVectors, numVectorsToScore, random);
+        VectorData(int dims, int numVectors, int numVectorsToScore, Random random, DataAccessPattern accessMode) {
+            super(numVectors, numVectorsToScore, random, accessMode);
 
             vectorData = new byte[numVectors][];
             offsets = new float[numVectors];
@@ -123,7 +124,7 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
                 offsets[v] = random.nextFloat();
             }
 
-            queryVector = randomFloatArray(random, dims);
+            queryVector = VectorTestUtils.randomFloatVector(random, dims);
         }
 
         @Override
@@ -134,7 +135,7 @@ public class VectorScorerInt7uBulkBenchmark extends VectorScorerBulkBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current()));
+        setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000), ThreadLocalRandom.current(), accessMode));
     }
 
     void setup(VectorData vectorData) throws IOException {

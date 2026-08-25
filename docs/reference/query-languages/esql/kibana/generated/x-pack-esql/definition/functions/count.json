@@ -9,7 +9,7 @@
         {
           "name" : "field",
           "type" : "aggregate_metric_double",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -21,7 +21,7 @@
         {
           "name" : "field",
           "type" : "boolean",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -33,7 +33,7 @@
         {
           "name" : "field",
           "type" : "cartesian_point",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -45,7 +45,7 @@
         {
           "name" : "field",
           "type" : "cartesian_shape",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -57,7 +57,7 @@
         {
           "name" : "field",
           "type" : "date",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -69,7 +69,19 @@
         {
           "name" : "field",
           "type" : "date_nanos",
-          "optional" : true,
+          "optional" : false,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_range",
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -81,7 +93,7 @@
         {
           "name" : "field",
           "type" : "dense_vector",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -93,7 +105,19 @@
         {
           "name" : "field",
           "type" : "double",
-          "optional" : true,
+          "optional" : false,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double_range",
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -105,7 +129,7 @@
         {
           "name" : "field",
           "type" : "exponential_histogram",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -116,8 +140,26 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "flattened",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        },
+        {
+          "name" : "bucket",
+          "type" : "double_range",
           "optional" : true,
+          "description" : "Range of histogram values to count."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "flattened",
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -129,7 +171,7 @@
         {
           "name" : "field",
           "type" : "geo_point",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -141,7 +183,7 @@
         {
           "name" : "field",
           "type" : "geo_shape",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -153,7 +195,7 @@
         {
           "name" : "field",
           "type" : "geohash",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -165,7 +207,7 @@
         {
           "name" : "field",
           "type" : "geohex",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -177,7 +219,7 @@
         {
           "name" : "field",
           "type" : "geotile",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -189,7 +231,7 @@
         {
           "name" : "field",
           "type" : "integer",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -201,7 +243,7 @@
         {
           "name" : "field",
           "type" : "ip",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -213,7 +255,7 @@
         {
           "name" : "field",
           "type" : "keyword",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -225,7 +267,7 @@
         {
           "name" : "field",
           "type" : "long",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -237,7 +279,7 @@
         {
           "name" : "field",
           "type" : "tdigest",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -248,8 +290,26 @@
       "params" : [
         {
           "name" : "field",
-          "type" : "text",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        },
+        {
+          "name" : "bucket",
+          "type" : "double_range",
           "optional" : true,
+          "description" : "Range of histogram values to count."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -261,7 +321,7 @@
         {
           "name" : "field",
           "type" : "unsigned_long",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],
@@ -273,7 +333,7 @@
         {
           "name" : "field",
           "type" : "version",
-          "optional" : true,
+          "optional" : false,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
       ],

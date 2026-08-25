@@ -54,6 +54,7 @@ toc:
       - file: query-dsl/vector-queries.md
         children:
           - file: query-dsl/query-dsl-knn-query.md
+          - file: query-dsl/query-dsl-dense-vector-query.md
           - file: query-dsl/query-dsl-sparse-vector-query.md
           - file: query-dsl/query-dsl-semantic-query.md
           - file: query-dsl/query-dsl-text-expansion-query.md
@@ -71,6 +72,7 @@ toc:
           - file: query-dsl/query-dsl-rule-query.md
       - file: query-dsl/term-level-queries.md
         children:
+          - file: query-dsl/query-dsl-bitmap-terms-query.md
           - file: query-dsl/query-dsl-exists-query.md
           - file: query-dsl/query-dsl-fuzzy-query.md
           - file: query-dsl/query-dsl-ids-query.md
@@ -113,6 +115,7 @@ toc:
                 children:
                   - file: esql/commands/change-point.md
                   - file: esql/commands/completion.md
+                  - file: esql/commands/dedup.md
                   - file: esql/commands/dissect.md
                   - file: esql/commands/drop.md
                   - file: esql/commands/enrich.md
@@ -213,11 +216,11 @@ toc:
                   - file: esql/functions-operators/date-time-functions/day_name.md
                   - file: esql/functions-operators/date-time-functions/month_name.md
                   - file: esql/functions-operators/date-time-functions/now.md
-                  - hidden: esql/functions-operators/date-time-functions/range_max.md
-                  - hidden: esql/functions-operators/date-time-functions/range_min.md
-                  - hidden: esql/functions-operators/date-time-functions/range_within.md
-                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
-                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
+                  - file: esql/functions-operators/date-time-functions/range_max.md
+                  - file: esql/functions-operators/date-time-functions/range_min.md
+                  - file: esql/functions-operators/date-time-functions/range_within.md
+                  - file: esql/functions-operators/date-time-functions/range_contains.md
+                  - file: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -301,6 +304,7 @@ toc:
                   - file: esql/functions-operators/string-functions/concat.md
                   - file: esql/functions-operators/string-functions/contains.md
                   - file: esql/functions-operators/string-functions/ends_with.md
+                  - file: esql/functions-operators/string-functions/field_extract.md
                   - file: esql/functions-operators/string-functions/from_base64.md
                   - file: esql/functions-operators/string-functions/hash.md
                   - file: esql/functions-operators/string-functions/json_extract.md
@@ -348,9 +352,11 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
                   - file: esql/functions-operators/type-conversion-functions/to_datetime.md
                   - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md
+                  - file: esql/functions-operators/type-conversion-functions/to_date_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_degrees.md
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
+                  - file: esql/functions-operators/type-conversion-functions/to_double_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
                   - file: esql/functions-operators/type-conversion-functions/to_gauge.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
@@ -362,8 +368,10 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_ip.md
                   - file: esql/functions-operators/type-conversion-functions/to_long.md
                   - file: esql/functions-operators/type-conversion-functions/to_radians.md
+                  - file: esql/functions-operators/type-conversion-functions/to_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_string.md
                   - file: esql/functions-operators/type-conversion-functions/to_tdigest.md
+                  - file: esql/functions-operators/type-conversion-functions/to_text.md
                   - file: esql/functions-operators/type-conversion-functions/to_timeduration.md
                   - file: esql/functions-operators/type-conversion-functions/to_unsigned_long.md
                   - file: esql/functions-operators/type-conversion-functions/to_version.md
@@ -377,15 +385,18 @@ toc:
                   - file: esql/functions-operators/mv-functions/mv_dedupe.md
                   - file: esql/functions-operators/mv-functions/mv_difference.md
                   - file: esql/functions-operators/mv-functions/mv_first.md
+                  - file: esql/functions-operators/mv-functions/mv_in_range.md
                   - file: esql/functions-operators/mv-functions/mv_intersection.md
                   - file: esql/functions-operators/mv-functions/mv_intersects.md
                   - file: esql/functions-operators/mv-functions/mv_last.md
+                  - file: esql/functions-operators/mv-functions/mv_like.md
                   - file: esql/functions-operators/mv-functions/mv_max.md
                   - file: esql/functions-operators/mv-functions/mv_median.md
                   - file: esql/functions-operators/mv-functions/mv_median_absolute_deviation.md
                   - file: esql/functions-operators/mv-functions/mv_min.md
                   - file: esql/functions-operators/mv-functions/mv_percentile.md
                   - file: esql/functions-operators/mv-functions/mv_pseries_weighted_sum.md
+                  - file: esql/functions-operators/mv-functions/mv_rlike.md
                   - file: esql/functions-operators/mv-functions/mv_slice.md
                   - file: esql/functions-operators/mv-functions/mv_sort.md
                   - file: esql/functions-operators/mv-functions/mv_sum.md
@@ -400,9 +411,24 @@ toc:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
           - file: esql/esql-cross-serverless-projects.md
+      - file: esql/esql-combine-reuse-queries.md
+        children:
           - file: esql/esql-subquery.md
+            children:
+              - file: esql/esql-from-subquery.md
+              - file: esql/esql-in-subquery.md
           - file: esql/esql-views.md
-      - hidden: esql/esql-federated-data.md
+      - file: esql/esql-data-federation.md
+        children:
+          - file: esql/esql-data-federation-quickstart.md
+          - file: esql/esql-data-federation-sources.md
+            children:
+              - file: esql/esql-data-federation-federated-identity.md
+              - file: esql/esql-data-federation-static-credentials.md
+          - file: esql/esql-data-federation-datasets.md
+          - file: esql/esql-data-federation-querying.md
+          - file: esql/esql-data-federation-security.md
+          - file: esql/esql-data-federation-cluster-settings.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md
@@ -412,8 +438,11 @@ toc:
         children:
           - file: esql/esql-implicit-casting.md
           - file: esql/esql-time-spans.md
+          - file: esql/esql-flattened-fields.md
           - file: esql/esql-metadata-fields.md
+          - file: esql/esql-null-values.md
           - file: esql/esql-multivalued-fields.md
+          - file: esql/esql-unmapped-fields.md
       - file: esql/esql-examples.md
         children:
           - file: esql/esql-search-tutorial.md

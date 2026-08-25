@@ -234,7 +234,7 @@ public class AzureStorageProviderTests extends ESTestCase {
         try {
             IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> AzureStorageProvider.buildClientAssertionCredential(keylessConfig(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                () -> AzureStorageProvider.buildClientAssertionCredential(federatedConfig(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
             assertThat(e.getMessage(), containsString("workload-identity feature to be enabled"));
         } finally {
@@ -247,7 +247,7 @@ public class AzureStorageProviderTests extends ESTestCase {
         try {
             IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> AzureStorageProvider.buildClientAssertionCredential(keylessConfig(), null)
+                () -> AzureStorageProvider.buildClientAssertionCredential(federatedConfig(), null)
             );
             assertThat(e.getMessage(), containsString("non-null executor"));
         } finally {
@@ -260,7 +260,24 @@ public class AzureStorageProviderTests extends ESTestCase {
         WorkloadIdentityRegistry.setIssuerClient(issuer);
         try {
             TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
-                keylessConfig(),
+                federatedConfig(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
+            TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
+            expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
+            assertEquals("overridden-audience", issuer.requestedAudience);
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequestsDefaultAudienceWhenOmitted() {
+        RecordingIssuerClient issuer = new RecordingIssuerClient(true, false);
+        WorkloadIdentityRegistry.setIssuerClient(issuer);
+        try {
+            TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
+                AzureConfiguration.fromMap(Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id")),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
@@ -272,9 +289,9 @@ public class AzureStorageProviderTests extends ESTestCase {
         }
     }
 
-    private static AzureConfiguration keylessConfig() {
+    private static AzureConfiguration federatedConfig() {
         return AzureConfiguration.fromMap(
-            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "api://AzureADTokenExchange")
+            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "overridden-audience")
         );
     }
 

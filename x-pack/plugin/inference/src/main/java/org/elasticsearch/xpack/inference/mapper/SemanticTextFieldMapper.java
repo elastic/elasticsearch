@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -236,7 +235,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public Builder setModelSettings(MinimalServiceSettings value) {
+        public Builder setModelSettings(EndpointClusterState value) {
             return (SemanticTextFieldMapper.Builder) super.setModelSettings(value);
         }
 
@@ -251,54 +250,15 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected Parameter<SemanticTextIndexOptions> configureIndexOptionsParam() {
-            return new Parameter<>(
-                INDEX_OPTIONS_FIELD,
-                true,
-                () -> null,
-                (n, c, o) -> parseIndexOptionsFromMap(n, o, c.indexVersionCreated(), experimentalFeaturesEnabled),
-                mapper -> ((SemanticTextFieldType) mapper.fieldType()).indexOptions,
-                (b, n, v) -> {
-                    throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
-                },
-                Objects::toString
-            ) {
-                @Override
-                protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-                    SemanticTextIndexOptions value = getValue();
-                    if (includeDefaults || isConfigured()) {
-                        if (value == null) {
-                            // Default value, serialize resolved defaults
-                            MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
-                            value = defaultIndexOptions(indexVersionCreated, resolvedModelSettings);
-                        } else if (value.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-                            ExtendedDenseVectorIndexOptions innerIndexOptions = getExtendedDenseVectorIndexOptions(value);
-                            DenseVectorFieldMapper.ElementType elementTypeOverride = innerIndexOptions.getElementType();
-                            DenseVectorFieldMapper.DenseVectorIndexOptions dvio = innerIndexOptions.getBaseIndexOptions();
-
-                            MinimalServiceSettings resolvedModelSettings = getResolvedModelSettings(null, false);
-                            if (resolvedModelSettings == null) {
-                                throw new IllegalStateException("Model settings should be resolvable when explicit index options are set");
-                            }
-
-                            if (defaultElementTypeToBfloat16(indexVersionCreated, resolvedModelSettings.elementType())
-                                && includeDefaults
-                                && elementTypeOverride == null) {
-                                value = new SemanticTextIndexOptions(
-                                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
-                                    new ExtendedDenseVectorIndexOptions(dvio, DenseVectorFieldMapper.ElementType.BFLOAT16)
-                                );
-                            }
-                        }
-
-                        builder.field(INDEX_OPTIONS_FIELD, value);
-                    }
-                }
-            }.acceptsNull();
+        protected Parameter<SemanticIndexOptions> configureIndexOptionsParam() {
+            return buildIndexOptionsParam(
+                resolvedModelSettings -> defaultIndexOptions(indexVersionCreated, resolvedModelSettings),
+                elementType -> defaultElementTypeToBfloat16(indexVersionCreated, elementType)
+            );
         }
 
         @Override
-        protected NestedObjectMapper.Builder createChunksField(@Nullable MinimalServiceSettings resolvedModelSettings) {
+        protected NestedObjectMapper.Builder createChunksField(@Nullable EndpointClusterState resolvedModelSettings) {
             NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(
                 SemanticTextField.CHUNKS_FIELD,
                 indexVersionCreated,
@@ -319,7 +279,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected Mapper.Builder createEmbeddingsField(MinimalServiceSettings modelSettings) {
+        protected Mapper.Builder createEmbeddingsField(EndpointClusterState modelSettings) {
             return switch (modelSettings.taskType()) {
                 case SPARSE_EMBEDDING -> {
                     SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
@@ -338,7 +298,8 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                         false,
                         experimentalFeaturesEnabled,
                         vectorsFormatProviders,
-                        false
+                        false,
+                        indexSettings.getPostFilterSelectivityThreshold()
                     );
                     ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                         ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -393,13 +354,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected void validateTaskType(MinimalServiceSettings modelSettings) {
+        protected void validateTaskType(EndpointClusterState modelSettings) {
             switch (modelSettings.taskType()) {
                 case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["
-                        + MinimalServiceSettings.TASK_TYPE_FIELD
+                        + EndpointClusterState.TASK_TYPE_FIELD
                         + "], expected "
                         + TEXT_EMBEDDING
                         + ", "
@@ -413,8 +374,8 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected void validateIndexOptions(MinimalServiceSettings modelSettings) {
-            SemanticTextIndexOptions indexOptions = this.indexOptions.get();
+        protected void validateIndexOptions(EndpointClusterState modelSettings) {
+            SemanticIndexOptions indexOptions = this.indexOptions.get();
             String inferenceId = this.inferenceId.get();
 
             if (indexOptions == null) {
@@ -427,7 +388,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 );
             }
 
-            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+            if (indexOptions.type() == SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
                 if (modelSettings.taskType() != SPARSE_EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required ["
@@ -440,7 +401,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 return;
             }
 
-            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+            if (indexOptions.type() == SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
                 if (modelSettings.taskType() != TEXT_EMBEDDING && modelSettings.taskType() != EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required ["
@@ -658,9 +619,9 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             String name,
             String inferenceId,
             String searchInferenceId,
-            MinimalServiceSettings modelSettings,
+            EndpointClusterState modelSettings,
             ChunkingSettings chunkingSettings,
-            SemanticTextIndexOptions indexOptions,
+            SemanticIndexOptions indexOptions,
             ObjectMapper inferenceField,
             boolean useLegacyFormat,
             boolean storesOriginalValuesInDocValues,
@@ -692,6 +653,16 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         @Override
         public String familyTypeName() {
             return TextFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            // The legacy format does not store sparse-vector embeddings as Lucene stored fields, so the synthetic-field-loader
+            // path used by AbstractEmbeddingsLoadingValueFetcher cannot recover them. Read directly from _source instead.
+            if (useLegacyFormat && EMBEDDINGS_FORMAT.equals(format)) {
+                return new LegacyEmbeddingsSemanticTextFieldValueFetcher(this, context.getIndexSettings().getIgnoredSourceFormat());
+            }
+            return super.valueFetcher(context, format);
         }
 
         @Override
@@ -733,7 +704,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
     private static void configureSparseVectorMapperBuilder(
         IndexVersion indexVersionCreated,
         SparseVectorFieldMapper.Builder sparseVectorMapperBuilder,
-        SemanticTextIndexOptions indexOptions
+        SemanticIndexOptions indexOptions
     ) {
         if (indexOptions != null) {
             SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
@@ -751,7 +722,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
         IndexVersion indexVersionCreated,
-        MinimalServiceSettings modelSettings
+        EndpointClusterState modelSettings
     ) {
         if (setExplicitIndexOptionsForSemanticText(indexVersionCreated) == false) {
             return null;
@@ -788,7 +759,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         return new DenseVectorFieldMapper.BBQHnswIndexOptions(m, efConstruction, false, rescoreVector, -1);
     }
 
-    static SemanticTextIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
+    static SemanticIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, EndpointClusterState modelSettings) {
         if (modelSettings == null) {
             return null;
         }
@@ -804,8 +775,8 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
             return denseVectorIndexOptions == null && elementType == null
                 ? null
-                : new SemanticTextIndexOptions(
-                    SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
+                : new SemanticIndexOptions(
+                    SemanticIndexOptions.SupportedIndexOptions.DENSE_VECTOR,
                     new ExtendedDenseVectorIndexOptions(denseVectorIndexOptions, elementType)
                 );
         }
@@ -816,7 +787,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
             return sparseVectorIndexOptions == null
                 ? null
-                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
+                : new SemanticIndexOptions(SemanticIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
         }
 
         return null;

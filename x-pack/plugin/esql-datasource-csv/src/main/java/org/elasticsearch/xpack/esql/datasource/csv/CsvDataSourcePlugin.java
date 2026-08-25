@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -27,8 +29,9 @@ import java.util.Set;
  *   <li>{@code tsv} — tab-delimited ({@code .tsv} files)</li>
  * </ul>
  *
- * <p>Both readers use Jackson's CSV parser for robust parsing with
- * proper quote and escape handling. They support:
+ * <p>Eligible reads parse logical records straight into typed {@code Block} builders (the
+ * direct-to-block path, gated by {@link #CSV_DIRECT_BLOCK_ENABLED}); all other reads fall back to
+ * Jackson's CSV parser. Both paths produce equivalent output and support:
  * <ul>
  *   <li>Schema discovery from file headers (column_name:type_name format)</li>
  *   <li>Column projection for efficient reads</li>
@@ -65,7 +68,22 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "multi_value_syntax",
         "header_row",
         "column_prefix",
+        "trim_spaces",
         "schema_sample_size"
+    );
+
+    /**
+     * Node-level toggle for the direct-to-block CSV/TSV read path. When enabled (default), eligible
+     * reads (plain unquoted, or RFC 4180 quoted with or without backslash escapes) parse logical
+     * records straight into typed {@code Block} builders, skipping the Jackson tokenizer and its
+     * per-cell {@code String} allocation. Disabling it forces every read back onto the Jackson bulk
+     * path, which is byte-for-byte equivalent: a safety valve if the direct path is ever suspected of
+     * a parity regression.
+     */
+    public static final Setting<Boolean> CSV_DIRECT_BLOCK_ENABLED = Setting.boolSetting(
+        "esql.external.csv.direct_block.enabled",
+        true,
+        Setting.Property.NodeScope
     );
 
     @Override
@@ -73,13 +91,27 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         return Set.of(FormatSpec.of("csv", ".csv", FORMAT_CONFIG_KEYS), FormatSpec.of("tsv", ".tsv", FORMAT_CONFIG_KEYS));
     }
 
+    /**
+     * The CSV read path only exists for external data sources, so this knob follows the federation feature: an
+     * operator who unregistered the feature does not accept configuration for it, and a node whose
+     * {@code elasticsearch.yml} carries the key fails to start with the standard {@code unknown setting} error.
+     */
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Federation.isRegistered() ? List.of(CSV_DIRECT_BLOCK_ENABLED) : List.of();
+    }
+
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of(
             "csv",
-            (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")),
+            (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(
+                CSV_DIRECT_BLOCK_ENABLED.get(s)
+            ),
             "tsv",
-            (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+            (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")).withDirectBlockEnabled(
+                CSV_DIRECT_BLOCK_ENABLED.get(s)
+            )
         );
     }
 

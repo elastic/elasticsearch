@@ -31,6 +31,10 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    private static List<TestCaseSupplier.TypedDataSupplier> forceLiteral(List<TestCaseSupplier.TypedDataSupplier> suppliers) {
+        return suppliers.stream().map(s -> new TestCaseSupplier.TypedDataSupplier(s.name(), s.supplier(), s.type(), true)).toList();
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(addNullFieldTestCases(addFunctionNamedParams(testCaseSuppliers(), mapExpressionSupplier())));
@@ -45,7 +49,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, testCase.getConfiguration());
+        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 
     protected static List<TestCaseSupplier> testCaseSuppliers() {
@@ -69,7 +73,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
-                TestCaseSupplier.booleanCases(),
+                forceLiteral(TestCaseSupplier.booleanCases()),
                 List.of(),
                 false
             )
@@ -82,7 +86,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
-                TestCaseSupplier.ipCases(),
+                forceLiteral(TestCaseSupplier.ipCases()),
                 List.of(),
                 false
             )
@@ -95,7 +99,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
-                TestCaseSupplier.versionCases(""),
+                forceLiteral(TestCaseSupplier.versionCases("")),
                 List.of(),
                 false
             )
@@ -109,7 +113,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
-                TestCaseSupplier.dateCases(),
+                forceLiteral(TestCaseSupplier.dateCases()),
                 List.of(),
                 false
             )
@@ -123,7 +127,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.dateNanosCases(),
+                forceLiteral(TestCaseSupplier.dateNanosCases()),
                 List.of(),
                 false
             )
@@ -157,7 +161,8 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 "field",
                 "query",
                 (lhs, rhs) -> List.of(),
-                false
+                false,
+                true
             )
         );
     }
@@ -171,7 +176,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                forceLiteral(TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true)),
                 List.of(),
                 false
             )
@@ -184,7 +189,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+                forceLiteral(TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true)),
                 List.of(),
                 false
             )
@@ -197,7 +202,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true),
+                forceLiteral(TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true)),
                 List.of(),
                 false
             )
@@ -210,7 +215,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true),
+                forceLiteral(TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true)),
                 List.of(),
                 false
             )
@@ -227,7 +232,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -241,7 +246,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.intCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -255,7 +260,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.longCases(Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -269,7 +274,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.doubleCases(Double.MIN_VALUE, Double.MAX_VALUE, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -286,7 +291,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -300,7 +305,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -313,7 +318,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -326,7 +331,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -340,7 +345,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )
@@ -354,7 +359,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
                 Object::equals,
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.stringCases(DataType.KEYWORD),
+                forceLiteral(TestCaseSupplier.stringCases(DataType.KEYWORD)),
                 List.of(),
                 false
             )

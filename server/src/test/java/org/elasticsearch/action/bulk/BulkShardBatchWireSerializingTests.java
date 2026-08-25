@@ -11,8 +11,8 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfEncoder;
+import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -47,11 +47,11 @@ public class BulkShardBatchWireSerializingTests extends AbstractWireSerializingT
         for (int i = 0; i < docCount; i++) {
             sources.add(randomJsonDoc(i));
         }
-        try (EirfEncoder encoder = new EirfEncoder()) {
+        try (EscfEncoder encoder = new EscfEncoder()) {
             for (BytesReference source : sources) {
                 encoder.addDocument(source, XContentType.JSON, 0);
             }
-            EirfBatch batch = encoder.buildPartition(0);
+            SourceBatch batch = encoder.buildPartition(0);
             return new BulkShardBatch(batch);
         } catch (IOException e) {
             throw new AssertionError(e);

@@ -26,6 +26,8 @@ import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,9 +50,8 @@ public class ProfileCollectorManagerTests extends ESTestCase {
         }
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initSearcher() throws Exception {
         directory = newDirectory();
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory, newIndexWriterConfig())) {
             numDocs = randomIntBetween(900, 1000);
@@ -65,9 +66,8 @@ public class ProfileCollectorManagerTests extends ESTestCase {
         searcher = newSearcher(reader);
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void closeSearcher() throws Exception {
         reader.close();
         directory.close();
     }

@@ -43,17 +43,15 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void startClusterService() throws Exception {
         threadPool = new TestThreadPool(getTestName());
         clusterService = createClusterService(threadPool);
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void stopClusterService() throws Exception {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
     public void testFindTaskReturnsNullWhenNoPersistentTasks() {

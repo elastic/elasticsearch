@@ -5,7 +5,10 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.esql-csv-spec-tests'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
@@ -134,18 +137,61 @@ tasks.named('filepermissions').configure {
   dependsOn generateOrcFixtures
 }
 
+// OrcFormatSpecIT moved to csvSpecTests; javaRestTest has no test classes left.
+// If tests are re-added to javaRestTest, re-enable this task.
 tasks.named('javaRestTest') {
+  enabled = false
+}
+
+// Fail the build if *IT.java files reappear in javaRestTest so the task gets
+// re-enabled before those tests silently never run.
+tasks.register('checkNoJavaRestTestClasses') {
+  inputs.files(sourceSets.javaRestTest.allJava).withPathSensitivity(PathSensitivity.RELATIVE)
+  def resultFile = layout.buildDirectory.file('tmp/checkNoJavaRestTestClasses/result.txt')
+  outputs.file(resultFile)
+  doLast {
+    def testClasses = sourceSets.javaRestTest.allJava.files.findAll { f -> f.name.endsWith('IT.java') }
+    if (testClasses.isEmpty() == false) {
+      throw new GradleException(
+        "javaRestTest is disabled but contains test classes: " +
+          testClasses.collect { it.name }.join(', ') +
+          ". Re-enable javaRestTest in build.gradle."
+      )
+    }
+    resultFile.get().asFile.text = 'ok'
+  }
+}
+tasks.named('check').configure { dependsOn 'checkNoJavaRestTestClasses' }
+
+// The csvSpecTest source set (created by the plugin above) hosts OrcFormatSpecIT and its
+// shared abstract base. Keeping it out of javaRestTest isolates the JVM-global INGEST guard
+// from any other tests that may be added to javaRestTest in the future.
+// No variants are declared — the IT class is hand-written in src/csvSpecTest/java/ because
+// the generator hardcodes a 6-parameter constructor and ORC tests need 7 (StorageBackend).
+esqlCsvSpecTests {
+  specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
+  packageName = 'org.elasticsearch.xpack.esql.qa.orc'
+}
+
+// Provide the generated ORC fixtures as test resources for the csvSpecTest source set,
+// mirroring the javaRestTest resource wiring above.
+sourceSets.csvSpecTest.resources.srcDir file("${buildDir}/orc-fixtures")
+tasks.named('processCsvSpecTestResources').configure {
   dependsOn generateOrcFixtures
+}
+
+// Runs OrcFormatSpecIT in its own JVM, separate from javaRestTest, so the JVM-global INGEST
+// guard is not shared with any other test classes.
+def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
+  dependsOn generateOrcFixtures
+  dependsOn generateEsqlSpecTests
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
-
+  testClassesDirs = sourceSets.csvSpecTest.output.classesDirs
+  classpath = sourceSets.csvSpecTest.runtimeClasspath
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
-
-  testLogging {
-    events = ["passed", "skipped", "failed"]
-    exceptionFormat = "full"
-    showStandardStreams = false
-  }
 }
+
+tasks.named('check').configure { dependsOn csvSpecTests }

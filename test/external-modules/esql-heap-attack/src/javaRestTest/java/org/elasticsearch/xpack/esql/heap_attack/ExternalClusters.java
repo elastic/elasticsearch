@@ -8,18 +8,16 @@
 package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 
 import java.util.function.Supplier;
 
 /**
  * Cluster factory for {@link HeapAttackExternalIT}: builds on top of the base cluster spec from
- * {@link Clusters#buildClusterSpec()} and wires in the ESQL external-datasources feature flag
- * plus the S3 client configuration for the in-memory test fixture. Kept separate from
- * {@link Clusters} so that environment-specific overrides of {@code Clusters} (e.g. serverless)
- * only need to expose the cluster shape via {@code buildClusterSpec()} without duplicating the
- * S3 or feature-flag wiring.
+ * {@link Clusters#buildClusterSpec()} and wires in the S3 client configuration for the in-memory
+ * test fixture. Kept separate from {@link Clusters} so that environment-specific overrides of
+ * {@code Clusters} (e.g. serverless) only need to expose the cluster shape via
+ * {@code buildClusterSpec()} without duplicating the S3 wiring.
  */
 class ExternalClusters {
 
@@ -36,7 +34,9 @@ class ExternalClusters {
      */
     static ElasticsearchCluster buildExternalCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.buildClusterSpec()
-            .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES)
+            // This suite registers data sources and reads them, so it pins the federation gate
+            // rather than depending on the build default.
+            .setting("esql.federation.enabled", "true")
             // Pin the request-breaker limit so the suite reliably trips it regardless of the
             // base cluster's heap size (which varies between the standard and serverless configs).
             // Kept low to leave headroom for untracked S3/Netty allocations.

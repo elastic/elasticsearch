@@ -46,7 +46,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -70,11 +69,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexMetadataTests extends ESTestCase {
 
     private static final TransportVersion ESQL_FAILURE_FROM_REMOTE = TransportVersion.fromName("esql_failure_from_remote");
-
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-    }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
@@ -469,6 +463,10 @@ public class IndexMetadataTests extends ESTestCase {
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings)
         );
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+        assertWarnings(
+            "[index.number_of_routing_shards] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
     }
 
     public void testMissingNumberOfShards() {

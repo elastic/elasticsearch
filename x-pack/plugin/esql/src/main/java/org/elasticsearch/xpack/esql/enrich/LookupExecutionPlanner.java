@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -344,7 +345,7 @@ public class LookupExecutionPlanner {
         OperatorFactory mvBulkLookupMvFilterOperatorFactory = new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
-                Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupSource);
+                Warnings warnings = driverContext.createWarnings(lookupSource);
                 return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
             }
 
@@ -471,10 +472,28 @@ public class LookupExecutionPlanner {
     }
 
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
-        return source.with(
-            new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
-            source.layout()
-        );
+        Expression condition = filterExec.condition();
+        Layout layout = source.layout();
+        /*
+         * Defer evaluator creation so we have the real lookup shard context because
+         * MATCH needs real shard contexts, but the bulk-lookup optimization runs before
+         */
+        OperatorFactory factory = new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                LookupDriverContext lookupCtx = (LookupDriverContext) driverContext;
+                EsPhysicalOperationProviders.ShardContext esShardCtx = lookupCtx.lookupShardContext().context();
+                IndexedByShardId<EsPhysicalOperationProviders.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(esShardCtx);
+                ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(foldCtx, condition, layout, shardContexts);
+                return new FilterOperator(evalFactory.get(driverContext));
+            }
+
+            @Override
+            public String describe() {
+                return "FilterOperator[condition=" + condition + "]";
+            }
+        };
+        return source.with(factory, layout);
     }
 
     private PhysicalOperation planProjectExec(ProjectExec projectExec, PhysicalOperation source) {
@@ -516,7 +535,7 @@ public class LookupExecutionPlanner {
             SearchExecutionContext searchExecutionContext = lookupDriverContext.searchExecutionContext();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
-            Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, planSource);
+            Warnings warnings = lookupDriverContext.createWarnings(planSource);
             QueryBuilder rewrittenQuery = rewriteQuery(query, searchExecutionContext);
 
             LookupEnrichQueryGenerator queryList = getBulkKeywordQueryGenerator(warnings);

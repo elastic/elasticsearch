@@ -22,12 +22,15 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -106,6 +109,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -119,6 +123,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -152,6 +157,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -183,6 +189,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -272,6 +279,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testAllMapping; // k8s metrics index with time-series fields
 
     private final Configuration config;
+    /** Supplies the transport version to analyze at for this run — {@code current} or a fresh historical one. */
+    private final Supplier<TransportVersion> minimumVersion;
     private PlannerSettings plannerSettings;
 
     private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {
@@ -296,18 +305,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> params() {
-        return settings().stream().map(t -> {
-            var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
-        }).toList();
+        List<Object[]> params = new ArrayList<>();
+        for (Tuple<String, Map<String, Object>> setting : settings()) {
+            var settings = Settings.builder().loadFromMap(setting.v2()).build();
+            for (VersionMode mode : minimumVersionModes()) {
+                params.add(new Object[] { setting.v1() + " " + mode.name(), configuration(new QueryPragmas(settings)), mode.version() });
+            }
+        }
+        return params;
+    }
+
+    private record VersionMode(String name, Supplier<TransportVersion> version) {}
+
+    /**
+     * The two runs of each test. {@code current} pins {@link TransportVersion#current()} so a version-gated plan change is
+     * exercised in its own PR; {@code historical} keeps the pre-existing per-build random version.
+     */
+    private static List<VersionMode> minimumVersionModes() {
+        return List.of(
+            new VersionMode("current", TransportVersion::current),
+            new VersionMode("historical", EsqlTestUtils::randomMinimumVersion)
+        );
     }
 
     private static List<Tuple<String, Map<String, Object>>> settings() {
-        return asList(new Tuple<>("default", Map.of()));
+        return List.of(new Tuple<>("default", Map.of()));
     }
 
-    public PhysicalPlanOptimizerTests(String name, Configuration config) {
+    public PhysicalPlanOptimizerTests(String name, Configuration config, Supplier<TransportVersion> minimumVersion) {
         this.config = config;
+        this.minimumVersion = minimumVersion;
     }
 
     @Before
@@ -384,6 +411,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
         TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        builder.minimumTransportVersion(minimumVersion.get());
         setupEnrichPolicies(builder);
         for (IndexResolution lookupIndex : lookupResolution.values()) {
             builder.addIndex(lookupIndex);
@@ -3699,7 +3727,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.STANDARD,
             Map.of(),
             Map.of(),
-            index.indexNameWithModes(),
+            index.indexProperties(),
             esField.stream().map(field -> (Attribute) new FieldAttribute(Source.EMPTY, null, null, field.getName(), field)).toList()
         );
         Attribute some_field1 = relation.output().get(0);
@@ -7915,7 +7943,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "city", "country", "name"));
-        var evalExec = as(extract.child(), EvalExec.class);
+        // The trailing sort keys 'scale' and 'loc' are not pushable, so the four-key sort is not fully coverable and the
+        // TopN is not pushed to the source. Pushing only the pushable 'distance, scalerank' prefix together with the limit
+        // would let Lucene truncate to five documents ordered by that prefix alone, dropping documents the full sort would
+        // rank into the top-five whenever the prefix ties (see PushTopNToSource). A local TopN therefore stays in the plan.
+        var topNChild = as(extract.child(), TopNExec.class);
+        assertThat(topNChild.order().size(), is(4));
+        var evalExec = as(topNChild.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
         assertThat(alias.name(), is("distance"));
         var stDistance = as(alias.child(), StDistance.class);
@@ -7924,23 +7958,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
         var source = source(extract.child());
 
-        // Assert that the TopN(distance) is pushed down as geo-sort(location)
-        assertThat(source.limit(), is(topN.limit()));
-        Set<String> orderSet = orderAsSet(topN.order().subList(0, 2));
-        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
-        assertThat(orderSet, is(sortsSet));
-
-        // Fine-grained checks on the pushed down sort
-        assertThat(source.limit(), is(l(5)));
-        assertThat(source.sorts().size(), is(2));
-        EsQueryExec.Sort sort = source.sorts().get(0);
-        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
-        assertThat(name(sort.field()), is("location"));
-        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
-        sort = source.sorts().get(1);
-        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
-        assertThat(name(sort.field()), is("scalerank"));
-        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+        // The TopN is not pushed down: the source carries no sort or limit and only the WHERE filter is pushed.
+        assertThat(source.limit(), nullValue());
+        assertThat(source.sorts(), nullValue());
 
         // Fine-grained checks on the pushed down query
         var bool = as(source.query(), BoolQueryBuilder.class);
@@ -9845,11 +9865,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EmptyIndexedByShardId.instance(),
                 null,
                 PlannerSettings.DEFAULTS,
-                () -> 0L
+                () -> 0L,
+                QueryWarnings.EMIT
             ),
             null,  // OperatorFactoryRegistry - not needed for these tests
             null,  // parallelWorkerExecutor - not needed for these tests
-            0      // esqlWorkerPoolSize - not needed for these tests
+            0,     // esqlWorkerPoolSize - not needed for these tests
+            MatcherWatchdog.noop()
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
@@ -9951,6 +9973,20 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
         var topN = as(reductionPlan, TopNExec.class);
         assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
+    }
+
+    public void testReductionPlanForTopNByUsesNonSortedOutput() {
+        int limit = between(1, 100);
+        var plan = physicalPlan(String.format(Locale.ROOT, """
+            FROM test
+            | sort salary
+            | limit %d by languages
+            """, limit));
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        var reductionPlan = ((PlannerUtils.TopNByReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
+        var topNBy = as(reductionPlan, TopNByExec.class);
+        assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(limit));
+        assertThat(topNBy.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.NOT_SORTED));
     }
 
     public void testReductionPlanForAggs() {
@@ -10068,7 +10104,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of()
         );
         MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
@@ -10093,7 +10129,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             IndexMode.TIME_SERIES,
             Map.of(),
             Map.of(),
-            Map.of("k8s", IndexMode.TIME_SERIES),
+            Map.of("k8s", new IndexProperties(IndexMode.TIME_SERIES, 0)),
             List.of()
         );
         TsInfo tsInfo = new TsInfo(Source.EMPTY, esRelation);
@@ -10659,6 +10695,36 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(sorts.size(), equalTo(1));
         assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
         var esRelation = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * ProjectExec[[first_name{f}#6, languages{f}#12, salary{f}#14]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],null]
+     *     \_ExchangeExec[[],false]
+     *       \_FragmentExec[... TopNBy ...]
+     * }
+     */
+    public void testTopNBySortOutputOnlyOnCoordinator() {
+        String query = """
+              from test
+            | sort salary desc
+            | limit 5 by languages
+            | keep first_name, salary, languages
+            """;
+        var plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNByExec = as(limit.child(), TopNByExec.class);
+        assertThat(topNByExec.outputOrdering(), equalTo(GroupedTopNOperator.OutputOrdering.SORTED));
+        var exchangeExec = as(topNByExec.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topNBy = as(fragmentExec.fragment(), TopNBy.class);
+        assertThat(as(topNBy.limitPerGroup(), Literal.class).value(), equalTo(5));
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
     }
 
     /**

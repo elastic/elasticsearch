@@ -25,6 +25,14 @@ libs/logstash-bridge @elastic/logstash
 
 # Kibana Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/KibanaOwnedReservedRoleDescriptors.java @elastic/kibana-security
+x-pack/plugin/kibana @elastic/kibana-security
+# Per-domain ImplicitPrivilegesProvider implementations are co-owned by Kibana Security and the
+# team that owns the corresponding Kibana feature/privilege. Add overrides below as new providers
+# are introduced, the last matching pattern wins.
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/response-ops
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaAlertsImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/response-ops
+x-pack/plugin/kibana/src/main/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProvider.java @elastic/kibana-security @elastic/kibana-cases
+x-pack/plugin/kibana/src/test/java/org/elasticsearch/xpack/kibana/KibanaCasesImplicitPrivilegesProviderTests.java @elastic/kibana-security @elastic/kibana-cases
 
 # APM Data index templates, etc.
 x-pack/plugin/apm-data/src/main/resources @elastic/obs-ds-intake-services

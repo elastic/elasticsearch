@@ -14,6 +14,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,11 +30,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -76,6 +79,7 @@ public class TRange extends EsqlConfigurationFunction
     implements
         OptionalArgument,
         OnlySurrogateExpression,
+        AnyNullIsNull,
         PostAnalysisPlanVerificationAware,
         TimestampAware {
     public static final String NAME = "TRange";
@@ -91,6 +95,12 @@ public class TRange extends EsqlConfigurationFunction
 
     @FunctionInfo(
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "date_period|time_duration" }, returnType = "boolean"),
+            @Signature(params = { "date", "date" }, returnType = "boolean"),
+            @Signature(params = { "date_nanos", "date_nanos" }, returnType = "boolean"),
+            @Signature(params = { "keyword", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "long", "long" }, returnType = "boolean") },
         briefSummary = "Filters data for a given time range using the @timestamp attribute.",
         description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
@@ -277,7 +287,7 @@ public class TRange extends EsqlConfigurationFunction
 
     private Instant timeWithOffset(Object offset, Instant base) {
         if (offset instanceof TemporalAmount amount) {
-            var zonedDateTime = ZonedDateTime.ofInstant(base, configuration().zoneId());
+            var zonedDateTime = ZonedDateTime.ofInstant(base, QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()));
             return zonedDateTime.minus(amount).toInstant();
         }
         throw new InvalidArgumentException("Unsupported offset type [{}]", offset.getClass().getSimpleName());
@@ -290,7 +300,10 @@ public class TRange extends EsqlConfigurationFunction
 
         if (value instanceof BytesRef bytesRef) {
             try {
-                long millis = dateTimeToLong(bytesRef.utf8ToString(), DEFAULT_DATE_TIME_FORMATTER.withZone(configuration().zoneId()));
+                long millis = dateTimeToLong(
+                    bytesRef.utf8ToString(),
+                    DEFAULT_DATE_TIME_FORMATTER.withZone(QuerySettings.TIME_ZONE.get(configuration().resolvedSettings()))
+                );
                 return Instant.ofEpochMilli(millis);
             } catch (Exception e) {
                 throw new InvalidArgumentException("TRANGE {} parameter must be a valid datetime string, got: {}", paramName, value);

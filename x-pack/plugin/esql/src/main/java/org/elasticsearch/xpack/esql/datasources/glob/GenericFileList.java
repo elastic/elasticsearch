@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.FileSetFingerprint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -25,6 +26,8 @@ final class GenericFileList implements FileList {
     private final List<StorageEntry> files;
     private final String originalPattern;
     private final PartitionMetadata partitionMetadata;
+    @Nullable
+    private final FileSetFingerprint fileSetFingerprint;
 
     GenericFileList(List<StorageEntry> files, String originalPattern) {
         this(files, originalPattern, null);
@@ -37,6 +40,12 @@ final class GenericFileList implements FileList {
         this.files = files;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
+        // The fingerprint only ever keys a dataset aggregate, which requires a multi-file listing
+        // (see ExternalSourceResolver#datasetAggregateKey — fileCount >= 2). Skip the Murmur3 fold for
+        // single-file listings so the common single-file resolve does not pay for machinery it cannot use.
+        // Computed eagerly (once per listing build) rather than lazily: consumers need it O(1) at resolve
+        // time, and construction is the one place the entry walk is already paid.
+        this.fileSetFingerprint = files.size() >= 2 ? FileSetFingerprints.compute(files) : null;
     }
 
     List<StorageEntry> files() {
@@ -82,6 +91,12 @@ final class GenericFileList implements FileList {
     public long estimatedBytes() {
         // 64B object header + ~700B per StorageEntry (path String + Instant + long)
         return 64 + files.size() * 700L;
+    }
+
+    @Override
+    @Nullable
+    public FileSetFingerprint fileSetFingerprint() {
+        return fileSetFingerprint;
     }
 
     @Override

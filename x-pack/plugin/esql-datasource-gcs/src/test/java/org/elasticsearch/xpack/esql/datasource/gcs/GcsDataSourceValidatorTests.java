@@ -104,7 +104,7 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
             ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity", "project_id", "proj"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
@@ -124,6 +124,31 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
                 Map.of("auth", "managed_identity", "credentials", "{\"type\":\"service_account\"}")
             )
         );
+    }
+
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var federatedConfig = Map.<String, Object>of("jwt_audience", "//aud", "sts_audience", "//sts");
+        var e = expectThrows(ValidationException.class, () -> validator.validateDatasource(federatedConfig));
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withFederatedIdentityEnabled(
+            () -> true
+        );
+        var result = federatedValidator.validateDatasource(
+            Map.of("auth", "federated_identity", "jwt_audience", "//aud", "sts_audience", "//sts")
+        );
+        assertEquals("//sts", result.get("sts_audience").nonSecretValue());
+        assertFalse(result.get("sts_audience").secret());
     }
 
     public void testValidateDatasetValid() {

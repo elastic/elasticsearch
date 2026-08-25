@@ -2,6 +2,7 @@
 
 ```{applies_to}
 stack: ga 9.5.0
+serverless: ga
 ```
 
 

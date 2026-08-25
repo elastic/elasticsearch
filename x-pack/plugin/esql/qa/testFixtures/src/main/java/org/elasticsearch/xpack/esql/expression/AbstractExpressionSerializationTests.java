@@ -13,6 +13,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractNodeSerializationTests<T> {
@@ -31,11 +34,21 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(ExpressionWritables.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.getNamedWriteables());
+        entries.addAll(extraNamedWriteables());
+        return new NamedWriteableRegistry(entries);
     }
 
     @Override
     protected Class<? extends Node<?>> categoryClass() {
         return Expression.class;
+    }
+
+    /**
+     * Allows subclasses to register additional expression writables for tests that intentionally avoid
+     * production registration while still using the standard serialization test base class.
+     */
+    protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
+        return List.of();
     }
 }

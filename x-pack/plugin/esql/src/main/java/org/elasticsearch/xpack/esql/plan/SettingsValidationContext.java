@@ -8,14 +8,24 @@
 package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterService;
 
 public record SettingsValidationContext(boolean crossProjectEnabled, boolean isSnapshot) {
 
+    /**
+     * Builds a context from a possibly-null {@link RemoteClusterService}. Null is tolerated for callers without a transport
+     * service available; cross-project is treated as disabled in that case.
+     */
     public static SettingsValidationContext from(RemoteClusterService remoteClusterService) {
         return new SettingsValidationContext(
-            remoteClusterService == null ? false : remoteClusterService.crossProjectEnabled(),
+            remoteClusterService != null && remoteClusterService.crossProjectEnabled(),
             Build.current().isSnapshot()
         );
+    }
+
+    /** Builds a context directly from a {@link CrossProjectModeDecider}. */
+    public static SettingsValidationContext from(CrossProjectModeDecider decider) {
+        return new SettingsValidationContext(decider.crossProjectEnabled(), Build.current().isSnapshot());
     }
 }

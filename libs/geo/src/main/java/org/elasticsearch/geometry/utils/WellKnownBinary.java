@@ -548,6 +548,7 @@ public class WellKnownBinary {
         WellKnownText.nextComma(stream);
         double minY = WellKnownText.nextNumber(stream);
         WellKnownText.nextCloser(stream);
+        validator.validateBBox(minX, maxX, maxY, minY);
         validator.validateCoordinate(minX, minY, Double.NaN);
         validator.validateCoordinate(maxX, maxY, Double.NaN);
         WellKnownText.checkZorMAttribute(explicitZ, false);

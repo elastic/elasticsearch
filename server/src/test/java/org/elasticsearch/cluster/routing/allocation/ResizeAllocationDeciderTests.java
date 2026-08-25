@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -55,9 +56,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     private AllocationService strategy;
     private ProjectId projectId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void createAllocationStrategy() throws Exception {
         strategy = new AllocationService(
             new AllocationDeciders(Collections.singleton(new ResizeAllocationDecider())),
             new TestGatewayAllocator(),
@@ -385,7 +385,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             true,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(localRecoveryShard, allocation), equalTo(Optional.of(Set.of("node-1"))));
 
@@ -394,7 +395,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT
+            ShardRouting.Role.DEFAULT,
+            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(newShard, allocation), equalTo(Optional.empty()));
     }

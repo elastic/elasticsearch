@@ -72,8 +72,8 @@ public enum IndexBalanceMetricsComputer {
      * <caption>Imbalance ratio histogram buckets</caption>
      * <tr><th>Index</th><th>Label</th><th>Meaning</th><th>Example</th></tr>
      * <tr><td>0</td><td>{@code 0}</td><td>Perfect balance (ratio == 0.0)</td><td>3 shards on 3 nodes: [1,1,1]</td></tr>
-     * <tr><td>1</td><td>{@code (0.0,0.2)}</td><td>Mild imbalance</td><td>10 shards on 3 nodes: [2,4,4]</td></tr>
-     * <tr><td>2</td><td>{@code [0.2,0.5)}</td><td>Moderate imbalance</td><td>10 shards on 3 nodes: [1,4,5]</td></tr>
+     * <tr><td>1</td><td>{@code (0.0,0.2)}</td><td>Mild imbalance</td><td>10 shards on 3 nodes: [5,3,2]</td></tr>
+     * <tr><td>2</td><td>{@code [0.2,0.5)}</td><td>Moderate imbalance</td><td>10 shards on 3 nodes: [7,2,1]</td></tr>
      * <tr><td>3</td><td>{@code [0.5,1.0]}</td><td>Severe imbalance</td><td>6 shards on 3 nodes: [0,0,6]</td></tr>
      * </table>
      */
@@ -126,6 +126,11 @@ public enum IndexBalanceMetricsComputer {
      * Calculate ratio of shards out of balance. The map should include all available nodes for given shards.
      * Nodes without shards should have zero value but be present in the map.
      *
+     * <p>A node's fair share is {@code ceil(total / nodes)}: the lowest achievable per-node maximum when
+     * distributing shards one at a time. An index is balanced when no eligible node holds more than its
+     * fair share — an underfull node is spare capacity, not imbalance. The ratio returned is the fraction
+     * of shards sitting above that per-node ceiling, i.e. how many would need to relocate to reach balance.
+     *
      * @param nodeShardsFreqMap allocated shard counts per node, including all eligible nodes
      * @return ratio of how many shards out of total need to be moved to achieve balanced state
      */
@@ -148,12 +153,12 @@ public enum IndexBalanceMetricsComputer {
         }
 
         final int nodesForBalance = Math.min(totalShards, nodeShardsFreqMap.size());
-        final double avg = ((double) totalShards) / nodesForBalance;
+        final double fairShare = Math.ceil(((double) totalShards) / nodesForBalance);
 
         double offBalanceShards = 0;
         for (var cursor : nodeShardsFreqMap) {
-            if (cursor.value > avg) {
-                offBalanceShards += cursor.value - avg;
+            if (cursor.value > fairShare) {
+                offBalanceShards += cursor.value - fairShare;
             }
         }
 

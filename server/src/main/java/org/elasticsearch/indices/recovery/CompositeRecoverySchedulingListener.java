@@ -30,37 +30,100 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryQueued(type, role);
+            listener.onRecoveryCancelledBeforeQueuingOnTarget(type);
         }
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onRecoveryQueuedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryStarted(type, role);
+            listener.onRecoveryQueuedOnTarget(type, priorityGroup);
         }
     }
 
     @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
+    public void onPeerRecoveryQueuedOnSource() {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryDequeuedAndStarted(type, role);
+            listener.onPeerRecoveryQueuedOnSource();
         }
     }
 
     @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryDiscarded(type, role);
+            listener.onQueuedRecoveryDiscardedOnTarget(type, priorityGroup);
         }
     }
 
     @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
+    public void onQueuedPeerRecoveryDiscardedOnSource() {
         for (RecoverySchedulingListener listener : listeners) {
-            listener.onRecoveryCompleted(type, role);
+            listener.onQueuedPeerRecoveryDiscardedOnSource();
+        }
+    }
+
+    @Override
+    public void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onQueuedRecoveryCancelledOnTarget(type, priorityGroup);
+        }
+    }
+
+    @Override
+    public void onPeerRecoveryStartedOnSource() {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onPeerRecoveryStartedOnSource();
+        }
+    }
+
+    @Override
+    public void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveryDequeuedAndStartedOnTarget(type, priorityGroup);
+        }
+    }
+
+    @Override
+    public void onPeerRecoveryDequeuedAndStartedOnSource() {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onPeerRecoveryDequeuedAndStartedOnSource();
+        }
+    }
+
+    @Override
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onStartedRecoveryCancelledOnTarget(type);
+        }
+    }
+
+    @Override
+    public void onRecoveryCompletedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveryCompletedOnTarget(type, priorityGroup);
+        }
+    }
+
+    @Override
+    public void onPeerRecoveryCompletedOnSource() {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onPeerRecoveryCompletedOnSource();
+        }
+    }
+
+    @Override
+    public void onRecoveriesBlocked(String gateName) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveriesBlocked(gateName);
+        }
+    }
+
+    @Override
+    public void onRecoveriesUnblocked(long blockedTimeMillis) {
+        for (RecoverySchedulingListener listener : listeners) {
+            listener.onRecoveriesUnblocked(blockedTimeMillis);
         }
     }
 }

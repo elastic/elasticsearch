@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.regionpolicy.RegionPolicyTests;
 
 import java.io.IOException;
@@ -23,18 +24,31 @@ public class PutRegionPolicyActionRequestTests extends AbstractBWCSerializationT
     }
 
     @Override
+    protected PutRegionPolicyAction.Request createXContextTestInstance(XContentType xContentType) {
+        // "force" is a query parameter, not part of the request body, so it must be false for XContent round-trip testing
+        return new PutRegionPolicyAction.Request(RegionPolicyTests.createRandom(), false);
+    }
+
+    @Override
     protected Writeable.Reader<PutRegionPolicyAction.Request> instanceReader() {
         return PutRegionPolicyAction.Request::new;
     }
 
     @Override
     protected PutRegionPolicyAction.Request createTestInstance() {
-        return new PutRegionPolicyAction.Request(RegionPolicyTests.createRandom());
+        return new PutRegionPolicyAction.Request(RegionPolicyTests.createRandom(), randomBoolean());
     }
 
     @Override
     protected PutRegionPolicyAction.Request mutateInstance(PutRegionPolicyAction.Request instance) throws IOException {
-        return new PutRegionPolicyAction.Request(randomValueOtherThan(instance.regionPolicy(), RegionPolicyTests::createRandom));
+        var policy = instance.regionPolicy();
+        var force = instance.force();
+        switch (randomInt(1)) {
+            case 0 -> policy = randomValueOtherThan(policy, RegionPolicyTests::createRandom);
+            case 1 -> force = force == false;
+            default -> throw new IllegalStateException("Illegal randomisation branch");
+        }
+        return new PutRegionPolicyAction.Request(policy, force);
     }
 
     @Override

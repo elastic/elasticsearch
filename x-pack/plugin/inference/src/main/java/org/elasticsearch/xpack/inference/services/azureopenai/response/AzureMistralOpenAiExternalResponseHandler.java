@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.response;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -21,13 +20,11 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiStreamingProcessor;
 
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 /**
@@ -63,13 +60,6 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(outboundRequest, result);
-        checkForEmptyBody(throttlerManager, logger, outboundRequest, result);
-    }
-
-    @Override
     public boolean canHandleStreamingResponses() {
         return canHandleStreamingResponses;
     }
@@ -84,29 +74,26 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
         return new StreamingChatCompletionResults(openAiProcessor);
     }
 
-    public void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
-        if (result.isSuccessfulResponse()) {
-            return;
-        }
-
+    @Override
+    public RetryException buildFailureStatusCodeException(OutboundRequest outboundRequest, HttpResult result) {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw handle500Error(outboundRequest, result);
+            return handle500Error(outboundRequest, result);
         } else if (statusCode == 503) {
-            throw handle503Error(outboundRequest, result);
+            return handle503Error(outboundRequest, result);
         } else if (statusCode > 500) {
-            throw handleOther500Error(outboundRequest, result);
+            return handleOther500Error(outboundRequest, result);
         } else if (statusCode == 429) {
-            throw handleRateLimitingError(outboundRequest, result);
+            return handleRateLimitingError(outboundRequest, result);
         } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
+            return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw handleAuthenticationError(outboundRequest, result);
+            return handleAuthenticationError(outboundRequest, result);
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw handleRedirectionStatusCode(outboundRequest, result);
+            return handleRedirectionStatusCode(outboundRequest, result);
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+            return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 
@@ -131,7 +118,7 @@ public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandl
     }
 
     protected RetryException handleRedirectionStatusCode(OutboundRequest outboundRequest, HttpResult result) {
-        throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
+        return new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
     }
 
     public static boolean isContentTooLarge(HttpResult result) {

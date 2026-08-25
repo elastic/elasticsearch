@@ -42,6 +42,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     public static final String CURRENT_STORE_RECOVERIES = "es.recovery.store.active.current";
     public static final String QUEUED_STORE_RECOVERIES = "es.recovery.store.queued.current";
 
+    public static final String RECOVERY_DIRECT_CANCELLATIONS_METRIC = "es.recovery.shard.directcancellations.total";
+
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 
     private final LongCounter shardRecoveryTotalMetric;
@@ -55,6 +57,8 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
     private final LongUpDownCounter queuedPeerRecoveriesAsTargetMetric;
     private final LongUpDownCounter activeStoreRecoveriesMetric;
     private final LongUpDownCounter queuedStoreRecoveriesMetric;
+
+    private final LongCounter shardRecoveryDirectCancellationsMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
@@ -108,6 +112,11 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
             "Number of currently queued non-peer recoveries",
             "unit"
         );
+        shardRecoveryDirectCancellationsMetric = meterRegistry.registerLongCounter(
+            RECOVERY_DIRECT_CANCELLATIONS_METRIC,
+            "Number of shard recoveries that have been directly cancelled by the master, while queued or started",
+            "unit"
+        );
     }
 
     @Override
@@ -131,73 +140,129 @@ public class RecoveryMetricsCollector implements IndexEventListener, RecoverySch
         }
     }
 
-    // TODO: rename "recovery_type" to "es_recovery_type" to match ES OTel attribute naming convention
     private static Map<String, Object> recoveryTimeMetricLabels(IndexShard indexShard) {
         return Map.of(
-            "primary",
+            "es_is_primary",
             indexShard.routingEntry().primary(),
-            "recovery_type",
+            "es_recovery_type",
             indexShard.recoveryState().getRecoverySource().getType().name()
         );
     }
 
     @Override
-    public void onRecoveryQueued(RecoverySource.Type type, RecoveryRole role) {
-        updateQueuedRecovery(type, role, 1);
+    public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
+        // Record this as queued in metrics for simplicity, we can refine the distinction later on if needed
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
     }
 
     @Override
-    public void onRecoveryStarted(RecoverySource.Type type, RecoveryRole role) {
-        updateActiveRecovery(type, role, 1);
-    }
-
-    @Override
-    public void onRecoveryDequeuedAndStarted(RecoverySource.Type type, RecoveryRole role) {
-        updateQueuedRecovery(type, role, -1);
-        updateActiveRecovery(type, role, 1);
-    }
-
-    @Override
-    public void onQueuedRecoveryDiscarded(RecoverySource.Type type, RecoveryRole role) {
-        updateQueuedRecovery(type, role, -1);
-    }
-
-    @Override
-    public void onRecoveryCompleted(RecoverySource.Type type, RecoveryRole role) {
-        updateActiveRecovery(type, role, -1);
-    }
-
-    private void updateQueuedRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {
+    public void onRecoveryQueuedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         switch (type) {
             case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> queuedStoreRecoveriesMetric.add(
-                delta,
-                recoveryLifecycleMetricLabels(type)
+                1,
+                storeRecoveryTargetLifecycleMetricLabels(type, priorityGroup)
             );
+            case PEER -> queuedPeerRecoveriesAsTargetMetric.add(1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
+        }
+    }
+
+    @Override
+    public void onPeerRecoveryQueuedOnSource() {
+        queuedPeerRecoveriesAsSourceMetric.add(1, peerRecoverySourceLifecycleMetricLabels());
+    }
+
+    @Override
+    public void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        switch (type) {
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> queuedStoreRecoveriesMetric.add(
+                -1,
+                storeRecoveryTargetLifecycleMetricLabels(type, priorityGroup)
+            );
+            case PEER -> queuedPeerRecoveriesAsTargetMetric.add(-1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
+        }
+    }
+
+    @Override
+    public void onQueuedPeerRecoveryDiscardedOnSource() {
+        queuedPeerRecoveriesAsSourceMetric.add(-1, peerRecoverySourceLifecycleMetricLabels());
+    }
+
+    @Override
+    public void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        switch (type) {
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> queuedStoreRecoveriesMetric.add(
+                -1,
+                storeRecoveryTargetLifecycleMetricLabels(type, priorityGroup)
+            );
+            case PEER -> queuedPeerRecoveriesAsTargetMetric.add(-1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
+        }
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.QUEUED));
+    }
+
+    @Override
+    public void onPeerRecoveryStartedOnSource() {
+        activePeerRecoveriesAsSourceMetric.add(1, peerRecoverySourceLifecycleMetricLabels());
+    }
+
+    @Override
+    public void onRecoveryDequeuedAndStartedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        switch (type) {
+            case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> {
+                queuedStoreRecoveriesMetric.add(-1, storeRecoveryTargetLifecycleMetricLabels(type, priorityGroup));
+                activeStoreRecoveriesMetric.add(1, storeRecoveryTargetLifecycleMetricLabels(type, priorityGroup));
+            }
             case PEER -> {
-                switch (role) {
-                    case TARGET -> queuedPeerRecoveriesAsTargetMetric.add(delta);
-                    case SOURCE -> queuedPeerRecoveriesAsSourceMetric.add(delta);
-                }
+                queuedPeerRecoveriesAsTargetMetric.add(-1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
+                activePeerRecoveriesAsTargetMetric.add(1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
             }
         }
     }
 
-    private void updateActiveRecovery(RecoverySource.Type type, RecoveryRole role, int delta) {
+    @Override
+    public void onPeerRecoveryDequeuedAndStartedOnSource() {
+        queuedPeerRecoveriesAsSourceMetric.add(-1, peerRecoverySourceLifecycleMetricLabels());
+        activePeerRecoveriesAsSourceMetric.add(1, peerRecoverySourceLifecycleMetricLabels());
+    }
+
+    @Override
+    public void onStartedRecoveryCancelledOnTarget(RecoverySource.Type type) {
+        shardRecoveryDirectCancellationsMetric.incrementBy(1, directCancellationMetricLabels(type, RecoverySchedulingState.STARTED));
+    }
+
+    @Override
+    public void onRecoveryCompletedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         switch (type) {
             case EMPTY_STORE, EXISTING_STORE, SNAPSHOT, LOCAL_SHARDS, RESHARD_SPLIT -> activeStoreRecoveriesMetric.add(
-                delta,
-                recoveryLifecycleMetricLabels(type)
+                -1,
+                storeRecoveryTargetLifecycleMetricLabels(type, priorityGroup)
             );
-            case PEER -> {
-                switch (role) {
-                    case TARGET -> activePeerRecoveriesAsTargetMetric.add(delta);
-                    case SOURCE -> activePeerRecoveriesAsSourceMetric.add(delta);
-                }
-            }
+            case PEER -> activePeerRecoveriesAsTargetMetric.add(-1, peerRecoveryTargetLifecycleMetricLabels(priorityGroup));
         }
     }
 
-    private static Map<String, Object> recoveryLifecycleMetricLabels(RecoverySource.Type type) {
-        return Map.of("es_recovery_type", type.name());
+    @Override
+    public void onPeerRecoveryCompletedOnSource() {
+        activePeerRecoveriesAsSourceMetric.add(-1, peerRecoverySourceLifecycleMetricLabels());
+    }
+
+    private static Map<String, Object> storeRecoveryTargetLifecycleMetricLabels(RecoverySource.Type type, PriorityGroup priorityGroup) {
+        return Map.of("es_recovery_type", type.name(), "es_recovery_priority_group", priorityGroup.name());
+    }
+
+    private static Map<String, Object> peerRecoveryTargetLifecycleMetricLabels(PriorityGroup priorityGroup) {
+        return Map.of("es_recovery_priority_group", priorityGroup.name());
+    }
+
+    private static Map<String, Object> peerRecoverySourceLifecycleMetricLabels() {
+        return Map.of();
+    }
+
+    private static Map<String, Object> directCancellationMetricLabels(RecoverySource.Type type, RecoverySchedulingState state) {
+        return Map.of("es_recovery_type", type.name(), "es_recovery_scheduling_state", state.name());
+    }
+
+    private enum RecoverySchedulingState {
+        QUEUED,
+        STARTED
     }
 }

@@ -106,7 +106,7 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "managed_identity"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.managed_identity.enabled"));
+        assertThat(e.getMessage(), containsString("esql.external.managed_identity.enabled"));
     }
 
     public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
@@ -124,6 +124,47 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
             org.elasticsearch.common.ValidationException.class,
             () -> workloadIdentityValidator.validateDatasource(Map.of("auth", "managed_identity", "account", "myaccount", "key", "mykey"))
         );
+    }
+
+    public void testValidateDatasourceRejectsExplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of(
+                    "auth",
+                    "federated_identity",
+                    "tenant_id",
+                    "tenant",
+                    "client_id",
+                    "client",
+                    "jwt_audience",
+                    "api://AzureADTokenExchange"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceRejectsImplicitFederatedWhenDisabled() {
+        // default validator has federated authentication disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(
+                Map.of("tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+            )
+        );
+        assertThat(e.getMessage(), containsString("esql.external.federated_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsFederatedWhenEnabled() {
+        var federatedValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withFederatedIdentityEnabled(() -> true);
+        var result = federatedValidator.validateDatasource(
+            Map.of("auth", "federated_identity", "tenant_id", "tenant", "client_id", "client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+        assertEquals("tenant", result.get("tenant_id").nonSecretValue());
+        assertFalse(result.get("tenant_id").secret());
     }
 
     public void testValidateDatasourceWithSasToken() {

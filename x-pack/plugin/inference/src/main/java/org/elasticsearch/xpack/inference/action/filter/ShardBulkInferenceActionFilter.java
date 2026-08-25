@@ -45,13 +45,13 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.EmbeddingRequest;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -71,7 +71,6 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -662,7 +661,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
 
                 int order = 0;
-                MinimalServiceSettings serviceSettings = null;
+                EndpointClusterState serviceSettings = null;
                 Boolean allowObjectValues = null;
                 for (var sourceField : entry.getSourceFields()) {
                     if (hasInferenceResponseFailure(itemIndex)) {
@@ -705,7 +704,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     if (serviceSettings == null) {
-                        var serviceSettingsMap = modelRegistry.getMinimalServiceSettings(Set.of(inferenceId), false);
+                        var serviceSettingsMap = modelRegistry.getEndpointClusterState(Set.of(inferenceId), false);
                         if (serviceSettingsMap.isEmpty()) {
                             setInferenceResponseFailure(
                                 itemIndex,
@@ -715,8 +714,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                         serviceSettings = serviceSettingsMap.get(inferenceId);
                         allowObjectValues = indexVersion.onOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE)
-                            && serviceSettings.taskType() == TaskType.EMBEDDING
-                            && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled();
+                            && serviceSettings.taskType() == TaskType.EMBEDDING;
                     }
 
                     final List<?> values;
@@ -1012,7 +1010,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     inputs,
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
-                        model != null ? new MinimalServiceSettings(model) : null,
+                        model != null ? new EndpointClusterState(model) : null,
                         ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false),
                         chunkMap
                     ),

@@ -7,73 +7,61 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
-public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObject
-    implements
-        ServiceSettings,
-        IbmWatsonxRateLimitServiceSettings {
+/**
+ * Represents the settings for an IBM watsonx chat completion service. Extends {@link IbmWatsonxServiceSettings}, which carries the
+ * endpoint URL, API version, model ID, project ID, and rate limit settings shared across all IBM watsonx tasks. Chat completion adds
+ * no settings of its own.
+ */
+public class IbmWatsonxChatCompletionServiceSettings extends IbmWatsonxServiceSettings {
     public static final String NAME = "ibm_watsonx_completion_service_settings";
     private static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ibm_watsonx_completion_added"
     );
 
+    private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(false);
+    private static final ObjectParser<Builder, ConfigurationParseContext> PERSISTENT_PARSER = createParser(true);
+
     /**
-     * Rate limits are defined at
-     * <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans</a>.
-     * For the Lite plan, the limit is 120 requests per minute.
+     * Creates an {@link ObjectParser} for the IBM watsonx chat completion service settings.
+     *
+     * @param ignoreUnknownFields whether the parser should tolerate unknown fields. This is {@code false} for request parsing (so that
+     *                            unexpected fields are rejected) and {@code true} for persisted configuration (so that fields written by
+     *                            other versions are tolerated).
+     * @return the parser
      */
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
-
-    public static IbmWatsonxChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
-
-        var uri = extractUri(map, URL, validationException);
-        var apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+    static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            Builder::new
+        );
+        IbmWatsonxServiceSettings.declareCommonFields(parser);
+        return parser;
     }
 
-    private final URI uri;
-
-    private final String apiVersion;
-
-    private final String modelId;
-
-    private final String projectId;
-
-    private final RateLimitSettings rateLimitSettings;
+    public static IbmWatsonxChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
+        return IbmWatsonxServiceSettings.fromMap(map, context, parser);
+    }
 
     public IbmWatsonxChatCompletionServiceSettings(
         URI uri,
@@ -82,94 +70,25 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
         String projectId,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.uri = uri;
-        this.apiVersion = apiVersion;
-        this.projectId = projectId;
-        this.modelId = modelId;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        super(uri, apiVersion, modelId, projectId, rateLimitSettings);
     }
 
     public IbmWatsonxChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this.uri = createUri(in.readString());
-        this.apiVersion = in.readString();
-        this.modelId = in.readString();
-        this.projectId = in.readString();
-        this.rateLimitSettings = new RateLimitSettings(in);
-
-    }
-
-    public URI uri() {
-        return uri;
-    }
-
-    public String apiVersion() {
-        return apiVersion;
-    }
-
-    @Override
-    public String modelId() {
-        return modelId;
-    }
-
-    public String projectId() {
-        return projectId;
-    }
-
-    @Override
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+        super(createUri(in.readString()), in.readString(), in.readString(), in.readString(), new RateLimitSettings(in));
     }
 
     @Override
     public IbmWatsonxChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
-        var extractedRateLimitSettings = RateLimitSettings.of(
-            serviceSettings,
-            this.rateLimitSettings,
-            validationException,
-            ConfigurationParseContext.REQUEST
-        );
-
-        validationException.throwIfValidationErrorsExist();
-
-        return new IbmWatsonxChatCompletionServiceSettings(
-            this.uri,
-            this.apiVersion,
-            this.modelId,
-            this.projectId,
-            extractedRateLimitSettings
-        );
+        try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
+            return Update.PARSER.apply(xParser, null).mergeInto(this);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse IBM watsonx chat completion service settings update", e);
+        }
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-
-        toXContentFragmentOfExposedFields(builder, params);
-
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
-
-        builder.field(API_VERSION, apiVersion);
-
-        builder.field(MODEL_ID, modelId);
-
-        builder.field(PROJECT_ID, projectId);
-
-        rateLimitSettings.toXContent(builder, params);
-
-        return builder;
     }
 
     @Override
@@ -179,29 +98,51 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(uri.toString());
-        out.writeString(apiVersion);
-
-        out.writeString(modelId);
-        out.writeString(projectId);
-
-        rateLimitSettings.writeTo(out);
+        out.writeString(uri().toString());
+        out.writeString(apiVersion());
+        out.writeString(modelId());
+        out.writeString(projectId());
+        rateLimitSettings().writeTo(out);
     }
 
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        IbmWatsonxChatCompletionServiceSettings that = (IbmWatsonxChatCompletionServiceSettings) object;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(apiVersion, that.apiVersion)
-            && Objects.equals(modelId, that.modelId)
-            && Objects.equals(projectId, that.projectId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+    /**
+     * Builds an {@link IbmWatsonxChatCompletionServiceSettings} from the common IBM watsonx fields, enforcing that the required
+     * {@code url}, {@code api_version}, {@code model_id}, and {@code project_id} fields are present.
+     */
+    public static class Builder extends IbmWatsonxServiceSettings.Builder<IbmWatsonxChatCompletionServiceSettings> {
+
+        @Override
+        protected IbmWatsonxChatCompletionServiceSettings build(
+            URI uri,
+            String apiVersion,
+            String modelId,
+            String projectId,
+            RateLimitSettings rateLimitSettings
+        ) {
+            return new IbmWatsonxChatCompletionServiceSettings(uri, apiVersion, modelId, projectId, rateLimitSettings);
+        }
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(uri, apiVersion, modelId, projectId, rateLimitSettings);
+    /**
+     * Parses an update request, which may only contain the mutable {@code rate_limit} field. Including any immutable field (such as
+     * {@code url}, {@code api_version}, {@code model_id}, or {@code project_id}) causes the strict parser to reject the request.
+     */
+    private static class Update extends IbmWatsonxServiceSettings.CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            IbmWatsonxServiceSettings.declareCommonUpdatableFields(PARSER);
+        }
+
+        public IbmWatsonxChatCompletionServiceSettings mergeInto(IbmWatsonxChatCompletionServiceSettings existing) {
+            return new IbmWatsonxChatCompletionServiceSettings(
+                existing.uri(),
+                existing.apiVersion(),
+                existing.modelId(),
+                existing.projectId(),
+                mergedRateLimitSettings(existing)
+            );
+        }
     }
 }

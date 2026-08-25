@@ -1,0 +1,61 @@
+setup:
+  - requires:
+      cluster_features: "search.vectors.dense_vector_query"
+      test_runner_features: "close_to"
+      reason: 'dense_vector query introduced in 9.5'
+
+  - do:
+      indices.create:
+        index: dv_int8_hnsw
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+                index_options:
+                  type: int8_hnsw
+
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "1"
+        body: { name: cow.jpg,    vector: [0.6, 0.5, 0.4, 0.3, 0.2] }
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "2"
+        body: { name: moose.jpg,  vector: [0.1, 0.2, 0.3, 0.4, 0.6] }
+  - do:
+      index:
+        index: dv_int8_hnsw
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 0.5, 0.5, 0.5, 0.5] }
+
+  - do:
+      indices.refresh: {}
+
+---
+"similarity_function override changes the score function":
+  # Override the cosine-mapped int8_hnsw index to l2_norm. Doc 3 (original [0.5,…]) is nearest in
+  # Euclidean distance to the query [0.4, 0.5, …]. The override reconstructs original vectors via the
+  # stored per-doc magnitude, so the score is 1/(1+||query−original||²) = 1/(1+0.01) ≈ 0.990 —
+  # well below the cosine default of ~1.0, proving the override drove scoring.
+  - do:
+      search:
+        index: dv_int8_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.4, 0.5, 0.5, 0.5, 0.5]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # dist² from query [0.4,0.5,0.5,0.5,0.5] to original doc 3 [0.5,0.5,0.5,0.5,0.5] = 0.01 →
+  # EUCLIDEAN score = 1/(1+0.01) ≈ 0.990; cosine score for same query ≈ 0.998 (outside the error range).
+  - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
+

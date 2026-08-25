@@ -14,13 +14,9 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.search.diversification.DenseVectorSupplier;
-import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -46,7 +42,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 
 /**
  * A {@link ToXContentObject} that is used to represent the transformation of the semantic text field's inputs.
@@ -65,7 +60,7 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject, DenseVectorSupplier {
+) implements ToXContentObject {
 
     static final String TEXT_FIELD = "text";
     static final String INPUT_FIELD = "input";
@@ -84,7 +79,7 @@ public record SemanticTextField(
 
     public record InferenceResult(
         String inferenceId,
-        @Nullable MinimalServiceSettings modelSettings,
+        @Nullable EndpointClusterState modelSettings,
         @Nullable ChunkingSettings chunkingSettings,
         Map<String, List<Chunk>> chunks
     ) {}
@@ -121,10 +116,6 @@ public record SemanticTextField(
         }
 
         private Chunk(@Nullable String text, int startOffset, int endOffset, @Nullable Integer inputIndex, BytesReference rawEmbeddings) {
-            // Temporary logic to ensure no callers set inputIndex in release builds
-            if (inputIndex != null && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled() == false) {
-                throw new UnsupportedOperationException("Input index is not supported yet");
-            }
             this.text = text;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
@@ -206,7 +197,7 @@ public record SemanticTextField(
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
     }
 
-    public static MinimalServiceSettings parseModelSettingsFromMap(Object node) {
+    public static EndpointClusterState parseModelSettingsFromMap(Object node) {
         if (node == null) {
             return null;
         }
@@ -218,7 +209,7 @@ public record SemanticTextField(
                 map,
                 XContentType.JSON
             );
-            return MinimalServiceSettings.parse(parser);
+            return EndpointClusterState.parse(parser);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
@@ -250,7 +241,7 @@ public record SemanticTextField(
         }
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
-        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings != null ? inference.modelSettings.getFilteredXContentObject() : null);
+        builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings, EndpointClusterState.withoutEndpointMetadata(params));
         if (inference.chunkingSettings != null) {
             builder.field(CHUNKING_SETTINGS_FIELD, inference.chunkingSettings);
         }
@@ -322,7 +313,7 @@ public record SemanticTextField(
         true,
         args -> {
             String inferenceId = (String) args[0];
-            MinimalServiceSettings modelSettings = (MinimalServiceSettings) args[1];
+            EndpointClusterState modelSettings = (EndpointClusterState) args[1];
             Map<String, Object> chunkingSettings = (Map<String, Object>) args[2];
             Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[3];
             return new InferenceResult(inferenceId, modelSettings, ChunkingSettingsBuilder.fromMap(chunkingSettings, false), chunks);
@@ -389,7 +380,7 @@ public record SemanticTextField(
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
-            (p, c) -> MinimalServiceSettings.parse(p),
+            (p, c) -> EndpointClusterState.parse(p),
             null,
             new ParseField(MODEL_SETTINGS_FIELD)
         );
@@ -486,33 +477,4 @@ public record SemanticTextField(
         return new Chunk(text, chunk.bytesReference());
     }
 
-    @Override
-    public String getSupplierContentType() {
-        return SemanticTextFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
-    public List<VectorData> getDenseVectorData() throws IOException {
-        if (this.inference == null || this.inference.chunks() == null) {
-            return null;
-        }
-
-        if (this.inference().modelSettings() == null || this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
-            return null;
-        }
-
-        DenseVectorFieldMapper.ElementType elementType = this.inference().modelSettings().elementType();
-        if (elementType == null) {
-            return null;
-        }
-
-        List<VectorData> chunkVectors = new ArrayList<>();
-        for (List<Chunk> fieldChunks : this.inference.chunks.values()) {
-            for (Chunk chunk : fieldChunks) {
-                chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, contentType, elementType));
-            }
-        }
-
-        return chunkVectors;
-    }
 }

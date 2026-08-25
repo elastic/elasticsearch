@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -397,6 +396,89 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("third", templates[2].pathMatch().get(0));
     }
 
+    public void testDuplicateDynamicTemplateNamesWarn() throws Exception {
+        // Two entries sharing the same name should trigger a deprecation warning.
+        createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("my_template").field("match", "foo").startObject("mapping").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("my_template").field("match", "bar").startObject("mapping").field("type", "text").endObject().endObject();
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertWarnings(
+            "Dynamic template [my_template] in index [index] is defined more than once. It is not defined which of the"
+                + " duplicate definitions takes effect. Defining multiple dynamic templates with the same name"
+                + " will be rejected in a future version."
+        );
+
+        // Multiple distinct colliding names are all listed in a single warning.
+        createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("a").field("match", "a1").startObject("mapping").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("b").field("match", "b1").startObject("mapping").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("a").field("match", "a2").startObject("mapping").field("type", "text").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("b").field("match", "b2").startObject("mapping").field("type", "text").endObject().endObject();
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertWarnings(
+            "Dynamic templates [a, b] in index [index] are defined more than once. It is not defined which of the"
+                + " duplicate definitions takes effect. Defining multiple dynamic templates with the same name"
+                + " will be rejected in a future version."
+        );
+
+        // A name appearing three times is listed only once in the warning.
+        createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("triple").field("match", "x").startObject("mapping").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("triple").field("match", "y").startObject("mapping").field("type", "text").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("triple").field("match", "z").startObject("mapping").field("type", "long").endObject().endObject();
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertWarnings(
+            "Dynamic template [triple] in index [index] is defined more than once. It is not defined which of the"
+                + " duplicate definitions takes effect. Defining multiple dynamic templates with the same name"
+                + " will be rejected in a future version."
+        );
+
+        // All-distinct names produce no warning.
+        createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("t1").field("match", "x").startObject("mapping").field("type", "keyword").endObject().endObject();
+                b.endObject();
+                b.startObject();
+                b.startObject("t2").field("match", "y").startObject("mapping").field("type", "text").endObject().endObject();
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertWarnings();
+    }
+
     public void testIllegalDynamicTemplates() throws Exception {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -751,6 +833,13 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotNull(doc.dynamicMappingsUpdate());
 
         mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+
+        // Two templates share the name "dates"; warn about it.
+        assertWarnings(
+            "Dynamic template [dates] in index [index] is defined more than once. It is not defined which of the"
+                + " duplicate definitions takes effect. Defining multiple dynamic templates with the same name"
+                + " will be rejected in a future version."
+        );
 
         DateFieldMapper dateMapper1 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date1");
         DateFieldMapper dateMapper2 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date2");
@@ -2215,7 +2304,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
      * {@code index.mapping.dynamic_strings.auto_keyword} disabled so the concrete string ({@code one_xyz}) maps as {@code text} only.
      */
     public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFieldsWithoutAutoTextSubfield() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         String mapping = """
             {
               "_doc": {

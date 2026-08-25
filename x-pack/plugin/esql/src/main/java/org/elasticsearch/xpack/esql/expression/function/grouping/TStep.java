@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.TwoOptionalArguments;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -63,7 +65,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         TimestampAware,
         TimestampBoundsAware.OfExpression,
         TwoOptionalArguments,
-        ConfigurationFunction {
+        ConfigurationFunction,
+        AnyNullIsNull {
 
     public static final String NAME = "TStep";
 
@@ -219,7 +222,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             step,
             null,
             null,
-            configuration.withZoneId(ZoneOffset.UTC),
+            null,
+            configuration.withSetting(QuerySettings.TIME_ZONE, ZoneOffset.UTC),
             offsetToLong(ctx),
             Rounding.RoundingConvention.UP
         );

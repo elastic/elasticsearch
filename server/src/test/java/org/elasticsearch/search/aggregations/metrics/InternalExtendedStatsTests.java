@@ -43,10 +43,6 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         this.sigma = randomDoubleBetween(0, 10, true);
     }
 
-    public final void setUp() throws Exception {
-        super.setUp();
-    }
-
     @Override
     protected InternalExtendedStats createTestInstance(String name, Map<String, Object> metadata) {
         long count = frequently() ? randomIntBetween(1, Integer.MAX_VALUE) : 0;

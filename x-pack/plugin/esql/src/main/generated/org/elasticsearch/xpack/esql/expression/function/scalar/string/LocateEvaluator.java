@@ -87,21 +87,23 @@ public final class LocateEvaluator implements ExpressionEvaluator {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (strBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
               warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
               result.appendNull();
               continue position;
+        }
+        if (substrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
         }
         switch (substrBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -109,10 +111,11 @@ public final class LocateEvaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (startBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -156,7 +159,7 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = driverContext.createWarnings(source);
     }
     return warnings;
   }

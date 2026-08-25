@@ -31,7 +31,7 @@ import java.util.Objects;
 
 public class ShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     public ShapeFieldBlockLoaderTests(Params params) {
-        super("shape", List.of(new ShapeDataSourceHandler()), params);
+        super("shape", List.of(new ShapeDataSourceHandler(params.indexMode())), params);
     }
 
     @Override

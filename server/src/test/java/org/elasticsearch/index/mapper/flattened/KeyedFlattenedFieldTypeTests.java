@@ -21,6 +21,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.KeyedArrayOrderInlineNullTermQuery;
 import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -46,6 +48,7 @@ import java.util.Set;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
@@ -62,6 +65,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            false,
             false,
             null,
             IndexVersion.current(),
@@ -101,6 +105,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             true,
             false,
+            false,
             null,
             IndexVersion.current(),
             false
@@ -133,6 +138,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             true,
             false,
+            false,
             null,
             IndexVersion.current(),
             false
@@ -140,6 +146,30 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
         Query expected = new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false);
         assertEquals(expected, ft.termQuery("value", null));
+    }
+
+    public void testTermQueryWithArrayOrderBinaryDocValues() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query query = ft.termQuery("value", null);
+        // The array-order path uses KeyedArrayOrderInlineNullTermQuery, a distinct class from
+        // ScanningBinaryDocValuesTermQuery, giving each path a distinct query-cache identity.
+        assertNotEquals(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0value"), false), query);
+        assertTrue(query instanceof KeyedArrayOrderInlineNullTermQuery);
     }
 
     public void testTermQueryWithSortedSetDocValuesOnly() {
@@ -151,6 +181,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             IGNORE_ABOVE,
+            false,
             false,
             false,
             null,
@@ -173,6 +204,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             IGNORE_ABOVE,
             true,
             false,
+            false,
             null,
             IndexVersion.current(),
             false
@@ -184,6 +216,40 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         assertEquals(expected, ft.termsQuery(List.of("value"), null));
     }
 
+    public void testTermsQueryWithArrayOrderBinaryDocValues() {
+        KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            "key",
+            false,
+            Collections.emptyMap(),
+            false,
+            IGNORE_ABOVE,
+            true,
+            true,
+            false,
+            null,
+            IndexVersion.current(),
+            false
+        );
+
+        Query result = ft.termsQuery(List.of("v1", "v2"), null);
+        // The result is a ConstantScoreQuery wrapping a BooleanQuery of per-term KeyedArrayOrderInlineNullTermQuery clauses.
+        assertTrue(result instanceof ConstantScoreQuery);
+        BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) result).getQuery();
+        assertEquals(2, bq.clauses().size());
+        for (BooleanClause clause : bq.clauses()) {
+            assertTrue(clause.query() instanceof KeyedArrayOrderInlineNullTermQuery);
+        }
+        // Each clause uses KeyedArrayOrderInlineNullTermQuery, which has a distinct class identity from
+        // plain ScanningBinaryDocValuesTermQuery. The resulting query must not equal the non-array-order
+        // equivalent so the two paths get separate query-cache entries.
+        BooleanQuery.Builder nonArrayBuilder = new BooleanQuery.Builder();
+        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v1"), false), BooleanClause.Occur.SHOULD);
+        nonArrayBuilder.add(new ScanningBinaryDocValuesTermQuery(ft.name(), new BytesRef("key\0v2"), false), BooleanClause.Occur.SHOULD);
+        assertNotEquals(new ConstantScoreQuery(nonArrayBuilder.build()), result);
+    }
+
     public void testTermsQueryWithSortedSetDocValuesOnly() {
         KeyedFlattenedFieldType ft = new KeyedFlattenedFieldType(
             "field",
@@ -193,6 +259,7 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             IGNORE_ABOVE,
+            false,
             false,
             false,
             null,
@@ -236,8 +303,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockContext())
         );
         assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
@@ -299,6 +366,19 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         assertEquals(inclusiveLower, ft.rangeQuery("lower", null, true, false, MOCK_CONTEXT));
     }
 
+    public void testSingleSidedRangeQueryChargesBreakerOnceAndMarksPreCharged() {
+        KeyedFlattenedFieldType ft = createFieldType();
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(true);
+
+        Query query = ft.rangeQuery("lower", null, true, false, context);
+
+        assertTrue("single-sided keyed range must build a TermRangeQuery", query instanceof TermRangeQuery);
+        long ramBytesUsed = ((TermRangeQuery) query).ramBytesUsed();
+        verify(context).addCircuitBreakerMemory(ramBytesUsed, ChildMemoryCircuitBreaker.CATEGORY_RANGE + ":" + ft.name());
+        verify(context).markQueryMemoryPreCharged(query);
+    }
+
     /**
      * Both bounds open is the same set the dedicated {@code existsQuery} produces, so the keyed
      * mapper rejects it with a message pointing the caller at the right API. The earlier "must
@@ -349,8 +429,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testRegexpQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.regexpQuery("valu*", 0, 0, 10, null, randomMockContext())
         );
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
@@ -359,8 +439,8 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testWildcardQuery() {
         KeyedFlattenedFieldType ft = createFieldType();
 
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> ft.wildcardQuery("valu*", null, false, randomMockContext())
         );
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());

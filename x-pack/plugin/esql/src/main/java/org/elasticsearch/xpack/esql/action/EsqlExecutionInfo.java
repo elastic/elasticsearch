@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -40,7 +41,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -97,6 +100,20 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
+    /**
+     * Hooks that {@code TransportEsqlAsyncStopAction} fires to interrupt query execution for plans that have no
+     * exchange-sink path back to the coordinator. Each hook should return {@code true} only when it actually
+     * cut a live unit of work (e.g. transitioned a {@link org.elasticsearch.compute.operator.Driver} from
+     * running to early-finishing). The aggregate signal is what we use to gate {@code is_partial} —
+     * "no-op" hook calls do not mark the response partial. The list is task-local and short-lived; using
+     * {@link CopyOnWriteArrayList} keeps registration cheap during plan setup and lets STOP iterate
+     * concurrently with late registrations.
+     */
+    private final transient List<BooleanSupplier> stopHooks = new CopyOnWriteArrayList<>();
+
+    // Project routing telemetry — coordinator-only, not serialized
+    private transient ProjectRoutingRequestInfo projectRoutingInfo;
+    private transient boolean hasLinkedProjects;
 
     private final EsqlQueryProfile queryProfile;
 
@@ -167,6 +184,21 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public IncludeExecutionMetadata includeExecutionMetadata() {
         return includeExecutionMetadata;
+    }
+
+    /** Stores routing metadata captured from the first field-caps round. */
+    public void setProjectRoutingInfo(@Nullable ProjectRoutingRequestInfo info, boolean hasLinkedProjects) {
+        this.projectRoutingInfo = info;
+        this.hasLinkedProjects = hasLinkedProjects;
+    }
+
+    @Nullable
+    public ProjectRoutingRequestInfo getProjectRoutingInfo() {
+        return projectRoutingInfo;
+    }
+
+    public boolean isHasLinkedProjects() {
+        return hasLinkedProjects;
     }
 
     /**
@@ -264,8 +296,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
         return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
             final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
-            if (newCluster != null && isPartial == false) {
-                isPartial = newCluster.isPartial();
+            if (newCluster != null && newCluster.isPartial()) {
+                isPartial = true;
             }
             return newCluster;
         });
@@ -353,7 +385,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * Marks the overall result as partial directly, independent of the per-cluster status path used for
      * shard/node failures. This is required for pure external-source queries (e.g. {@code EXTERNAL "file://..."}),
      * which carry no {@code clusterInfo} entry to drive {@link #swapCluster} — so a lenient external read that
-     * drops data (e.g. a {@code max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
+     * drops data (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}) has no cluster
      * to flip. Sticky like the cluster-driven path: once partial, always partial.
      */
     public void markPartial() {
@@ -366,6 +398,48 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public boolean isStopped() {
         return isStopped;
+    }
+
+    /**
+     * Registers a hook that {@link #runStopHooks()} fires when the user requests async STOP for this query.
+     * The hook should return {@code true} only on the transition from running to finishing — see
+     * {@link #stopHooks} for the rationale.
+     */
+    public void addStopHook(BooleanSupplier hook) {
+        stopHooks.add(hook);
+    }
+
+    /**
+     * Removes a previously-registered stop hook. Callers register per-phase hooks (e.g. one per driver
+     * in a {@code ComputeService.runCompute} invocation) and must invoke this on phase completion so
+     * the async task's stop-hook list doesn't retain references to closed drivers/contexts for the
+     * whole task lifetime — coordinator reductions and subplans invoke {@code runCompute} multiple
+     * times under the same task, and cleared hooks would otherwise no-op but keep the driver-graph
+     * reachable. Uses reference equality via {@link java.util.List#remove(Object)}, so callers must
+     * pass the exact same {@link BooleanSupplier} instance previously registered.
+     */
+    public void removeStopHook(BooleanSupplier hook) {
+        stopHooks.remove(hook);
+    }
+
+    /**
+     * Fires all registered stop hooks and returns {@code true} if at least one hook reported that it cut a
+     * live unit of work. Callers can use this to decide whether STOP truncated the query (and therefore
+     * the response should be flagged {@code is_partial=true}) or whether STOP merely raced with natural
+     * completion (in which case the response is honestly complete).
+     * <p>
+     * No wrapping try/catch here: today's hooks are {@code Driver::runStopHooks} which delegates to
+     * {@link org.elasticsearch.compute.operator.DriverContext#runStopHooks()}, and that already isolates
+     * per-hook failures so one misbehaving operator can't sink the STOP response. Any exception escaping
+     * this loop is a bug in a caller (added a hook that doesn't respect the contract) and should surface
+     * loudly.
+     */
+    public boolean runStopHooks() {
+        boolean anyCut = false;
+        for (BooleanSupplier hook : stopHooks) {
+            anyCut |= hook.getAsBoolean();
+        }
+        return anyCut;
     }
 
     public void clusterInfoInitializing(boolean clusterInfoInitializing) {

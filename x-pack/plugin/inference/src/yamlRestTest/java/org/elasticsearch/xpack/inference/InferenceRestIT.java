@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.RetryRule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -36,7 +35,6 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .plugin("inference-service-test")
-        .feature(FeatureFlag.INFERENCE_REGION_POLICY)
         .distribution(DistributionType.DEFAULT)
         .build();
 

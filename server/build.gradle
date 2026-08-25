@@ -14,6 +14,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-references'
 apply plugin: 'elasticsearch.transport-version-resources'
+apply plugin: 'elasticsearch.foreign-api'
 
 publishing {
   publications {
@@ -41,6 +42,8 @@ dependencies {
   api project(':libs:ip-location-api')
   api project(":libs:tdigest")
   api project(":libs:exponential-histogram")
+  testImplementation project(":libs:columnar")
+  implementation project(":libs:lucene-store")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
@@ -62,7 +65,6 @@ dependencies {
   // utilities
   api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
-
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
@@ -90,9 +92,11 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
+  internalClusterTestImplementation(project(':test:external-modules:test-multi-project'))
 }
 
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former

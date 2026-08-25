@@ -8,37 +8,39 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.LocalNodeSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.datasources.Federation;
 
 import java.nio.file.Path;
 
 public class Clusters {
+
+    private static final String FEDERATION_ENABLED_SETTING = Federation.FEDERATION_ENABLED.getKey();
+    /**
+     * The version {@link #FEDERATION_ENABLED_SETTING} exists as of. Node specs take a {@link Version}, which carries no
+     * release constants, so the boundary is converted from the server constant instead of being spelled out again. The
+     * qualified name disambiguates the two {@code Version} types this file needs.
+     */
+    private static final Version FEDERATION_SETTING_VERSION = Version.fromString(org.elasticsearch.Version.V_9_5_0.toString());
+
     public static ElasticsearchCluster mixedVersionCluster() {
-        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory());
+        return mixedVersionCluster(CsvTestUtils.createCsvDataDirectory(), false);
     }
 
-    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath) {
+    public static ElasticsearchCluster mixedVersionCluster(Path csvDataPath, boolean shared) {
         String oldVersionString = System.getProperty("tests.old_cluster_version");
         Version oldVersion = Version.fromString(oldVersionString);
         boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            // The columnar index mode is behind a feature flag and isn't supported across mixed node versions, so disable it here to
-            // keep its tests out of upgrade clusters. Only set it on nodes that know the flag: older BWC nodes predate it and would
-            // fail to start with an unknown property. The property is ignored once the flag is removed.
-            .systemProperty(
-                "es.columnar_index_mode_feature_flag_enabled",
-                () -> "false",
-                spec -> spec.getVersion().onOrAfter(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG.from)
-            )
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
-            .withNode(node -> node.version(oldVersionString, isDetachedVersion))
-            .withNode(node -> node.version(Version.CURRENT))
+            .withNode(node -> oldVersionNode(node, oldVersionString, isDetachedVersion, oldVersion))
+            .withNode(node -> currentVersionNode(node, csvDataPath))
+            .withNode(node -> oldVersionNode(node, oldVersionString, isDetachedVersion, oldVersion))
+            .withNode(node -> currentVersionNode(node, csvDataPath))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
@@ -54,7 +56,45 @@ public class Clusters {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }
+        if (shared) {
+            cluster.shared(true);
+        }
         return cluster.build();
+    }
+
+    /**
+     * Configures a current-version node with the settings that do not exist on every version in the mixed cluster: a node
+     * that does not know a setting rejects it and fails to start, so the local-disk allowlist and the federation gate
+     * are set per node rather than cluster-wide.
+     */
+    private static void currentVersionNode(LocalNodeSpecBuilder node, Path csvDataPath) {
+        node.version(Version.CURRENT)
+            .setting("esql.external.local_allowed_paths", csvDataPath::toString)
+            .setting(FEDERATION_ENABLED_SETTING, "true");
+    }
+
+    /**
+     * Configures an old-version node, opting it into federation when it knows the setting. Any node can coordinate a
+     * query and federation has to agree across the cluster, so every node that reads the setting gets it; a build that
+     * predates the setting registers federation unconditionally and has it on without one.
+     */
+    private static void oldVersionNode(LocalNodeSpecBuilder node, String versionString, boolean detached, Version version) {
+        node.version(versionString, detached);
+        if (knowsFederationSetting(version, detached)) {
+            node.setting(FEDERATION_ENABLED_SETTING, "true");
+        }
+    }
+
+    /**
+     * Whether the old node accepts the federation setting. A node that does not know it rejects it as an unknown setting
+     * and never starts.
+     *
+     * @param detached whether the node is built from a git ref rather than resolved from a release. Such a build reports
+     *        the version it will become, which says nothing about which commits it contains, so the setting is left off:
+     *        the ref can point at a main commit from before the setting was introduced.
+     */
+    private static boolean knowsFederationSetting(Version version, boolean detached) {
+        return detached == false && version.onOrAfter(FEDERATION_SETTING_VERSION);
     }
 
     private static boolean supportRetryOnShardFailures(Version version) {

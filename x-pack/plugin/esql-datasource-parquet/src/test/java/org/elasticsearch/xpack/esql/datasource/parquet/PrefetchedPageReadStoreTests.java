@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -19,9 +18,9 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,21 +35,17 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PrefetchedPageReadStoreTests extends ESTestCase {
 
     private PlainCompressionCodecFactory codecFactory;
-    private BlockFactory blockFactory;
-    private BufferAllocator allocator;
+    private NoopCircuitBreaker breaker;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initCodecAndBreaker() {
         codecFactory = new PlainCompressionCodecFactory();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
+        breaker = new NoopCircuitBreaker("test");
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void releaseCodecFactory() {
         codecFactory.release();
-        super.tearDown();
     }
 
     public void testRoutesPageReaderByDescriptor() throws IOException {
@@ -72,7 +67,7 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(payload), payload.length, 4, Encoding.PLAIN);
         PrefetchedPageReader reader = new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-            allocator,
+            breaker,
             List.of(),
             compressedDict,
             0
@@ -95,8 +90,7 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
     }
 
     public void testCloseIsIdempotent() {
-        // close() now actively releases ArrowBufs owned by per-column readers; the second call
-        // must be a safe no-op.
+        // close() releases per-column breaker charges; the second call must be a safe no-op.
         PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(newColumn("a"), newPageReader(0)), 0);
         store.close();
         store.close();
@@ -114,7 +108,7 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         );
         return new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
-            allocator,
+            breaker,
             List.of(new PrefetchedPageReader.CompressedPage(page, -1L)),
             null,
             valueCount

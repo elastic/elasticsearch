@@ -72,8 +72,6 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-
         enterpriseLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         enterpriseLicenseService.setLicenseState(sharedLicenseState);
         enterpriseLicenseService.setLicenseService(sharedLicenseService);
@@ -111,6 +109,7 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
             columnarMode,
+            false,
             emptyProject(),
             Instant.now(),
             indexSettings,

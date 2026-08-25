@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -64,6 +65,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -82,9 +84,8 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void initBlockFactory() throws Exception {
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -168,6 +169,86 @@ public class TwoPhaseReaderTests extends ESTestCase {
         long single = singlePhaseObj.totalBytesRead.get();
         long two = twoPhaseObj.totalBytesRead.get();
         assertThat("two-phase should read fewer bytes than single-phase: " + two + " vs " + single, two, lessThan(single));
+    }
+
+    /**
+     * The two-phase route over a keyword predicate column whose batches decode entirely null.
+     *
+     * <p>Two-phase and single-phase share {@code evaluateFilter}, so both reach the same
+     * all-null hazard, but every other test of that hazard drives the single-phase route -
+     * {@code shouldUseTwoPhase} requires {@link StorageObject#supportsNativeAsync()}, which
+     * defaults to false. This is the two-phase half, and it fails on the parent commit with the
+     * same {@code ClassCastException} (elastic/elasticsearch#157313).
+     *
+     * <p>Scope note: this pins correctness only. An earlier revision also asserted that two-phase
+     * reads fewer bytes than single-phase for this shape; with the layout pinned it does not, so
+     * the claim was removed rather than tuned into passing. The projection-decode skip on a
+     * survivor-free batch is real (see {@code OptimizedParquetColumnIterator}'s
+     * {@code survivorCount == 0} branch), but total bytes read is not a faithful proxy for it and
+     * this module has no counter that is.
+     */
+    public void testTwoPhaseKeywordFilterOverAllNullPredicateBatches() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("code")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_all_null_schema");
+
+        final int rowCount = 8192;
+        final int nullRun = 1024;
+        // code is null for the overwhelming majority of the file and valued only in a short run at
+        // the end, so most batches decode all-null and produce no survivors. label is the bulky
+        // projection-only column whose fetch those survivor-free batches should avoid entirely.
+        // Layout pinned deliberately, and the null runs sized against it. Row groups are large
+        // enough to hold several read batches, so every row group carries both null and valued
+        // `code` values — otherwise the Parquet row-group filter prunes the all-null groups on
+        // statistics and the evaluator never sees a null block, which silently turns this from a
+        // regression test into a pin. The null runs are aligned to the read batch size so whole
+        // decoded batches are null within a surviving row group.
+        byte[] parquetData = buildParquetWithLayout(schema, rowCount, 8L * 1024 * 1024, 1024, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            if ((i / nullRun) % 2 == 1) {
+                g.add("code", i % 2 == 0 ? "US" : "CA");
+            }
+            g.add("label", repeat('z', 512) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute codeAttr = new ReferenceAttribute(Source.EMPTY, "code", DataType.KEYWORD);
+        Expression filter = new Equals(Source.EMPTY, codeAttr, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject twoPhaseObj = new CountingStorageObject(parquetData, true);
+        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), twoPhaseObj);
+
+        List<Long> survivingIds = new ArrayList<>();
+        try {
+            for (Page page : pages) {
+                LongBlock idBlock = page.getBlock(0);
+                for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                    survivingIds.add(idBlock.getLong(pos));
+                }
+            }
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+
+        List<Long> expected = new ArrayList<>();
+        for (int i = 0; i < rowCount; i++) {
+            if ((i / nullRun) % 2 == 1 && i % 2 == 0) {
+                expected.add((long) i);
+            }
+        }
+        assertThat("survivors must come only from the valued runs", survivingIds, equalTo(expected));
+        assertFalse("the fixture must actually produce survivors", expected.isEmpty());
+
     }
 
     public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
@@ -1228,6 +1309,49 @@ public class TwoPhaseReaderTests extends ESTestCase {
     }
 
     /**
+     * Verifies that {@code read_nanos} grows during two-phase iterator consumption, specifically
+     * covering the {@code drainEmptyTwoPhaseBatches()} path that skips fully-filtered batches in
+     * projection columns. A selective filter (id &lt; 10 out of 5 000 rows) produces many zero-survivor
+     * batches per row group, forcing real decompression/skip work in each drain call.
+     */
+    public void testReadNanosIncludesTwoPhaseDrain() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        byte[] parquetData = buildParquet(schema, 5_000, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("label", repeat('x', 256) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 10L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject obj = new CountingStorageObject(parquetData, true);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+
+        try (CloseableIterator<Page> it = reader.read(obj, FormatReadContext.builder().batchSize(1024).build())) {
+            long readNanosAfterOpen = reader.statusSnapshot().readNanos();
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+            assertThat(
+                "read_nanos must grow beyond the open phase as drainEmptyTwoPhaseBatches() performs real decode work",
+                reader.statusSnapshot().readNanos(),
+                greaterThan(readNanosAfterOpen)
+            );
+        }
+    }
+
+    /**
      * Oracle: reads ALL rows from a Parquet file via apache-mr's {@link ParquetReader} (independent
      * of our engine), applies a Java predicate, and returns the count of matching rows. This is
      * the authoritative answer — any disagreement means our engine has a bug.
@@ -1236,7 +1360,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storage, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1263,7 +1387,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
         throws IOException {
         StorageObject storage = new CountingStorageObject(parquetData, false);
         ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
-            new ParquetStorageObjectAdapter(storage, blockFactory.arrowAllocator()),
+            new ParquetStorageObjectAdapter(storage, blockFactory.breaker()),
             new PlainParquetConfiguration()
         ) {
             @Override
@@ -1295,6 +1419,32 @@ public class TwoPhaseReaderTests extends ESTestCase {
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
                 .withType(schema)
                 .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withPageSize(pageSize)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    /** Pins BOTH row-group and page size, so a test's layout claims are what actually gets written. */
+    private byte[] buildParquetWithLayout(
+        MessageType schema,
+        int rowCount,
+        long rowGroupSize,
+        int pageSize,
+        java.util.function.IntFunction<Group> rowFactory
+    ) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withConf(new PlainParquetConfiguration())
                 .build()

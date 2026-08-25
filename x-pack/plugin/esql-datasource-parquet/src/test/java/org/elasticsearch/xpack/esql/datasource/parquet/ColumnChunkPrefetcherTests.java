@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
@@ -15,14 +14,16 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -46,14 +47,16 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class ColumnChunkPrefetcherTests extends ESTestCase {
 
-    private BufferAllocator allocator;
-    private BlockFactory blockFactory;
+    private CircuitBreaker breaker;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
-        allocator = blockFactory.arrowAllocator();
+    @Before
+    public void initAllocator() {
+        breaker = new LimitedBreaker("test", ByteSizeValue.ofMb(16));
+    }
+
+    @After
+    public void assertNoOutstandingMemory() {
+        assertEquals("circuit breaker still holds bytes at teardown", 0L, breaker.getUsed());
     }
 
     public void testComputeColumnChunkRangesAllColumns() {
@@ -102,7 +105,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         StorageObject storage = createStorageObject(fileData);
         BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 50), new ColMeta("col_b", 200, 60));
 
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, allocator);
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, breaker);
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
         try {
@@ -135,7 +138,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             storage,
             block,
             null,
-            allocator
+            breaker
         );
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
@@ -147,13 +150,11 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
     }
 
     /**
-     * Production {@code StorageObject} backends all return direct buffers from
-     * {@code readBytesAsync}, but {@link ColumnChunkPrefetcher} defensively promotes any heap
-     * buffer to direct so that the JNI/Panama decompression path is never starved of direct
-     * memory if a future backend deviates from that convention. This test forces a heap-backed
-     * response and asserts the {@code PrefetchedChunk} ends up direct.
+     * Heap buffers from {@code readBytesAsync} stay heap. Production factories already allocate
+     * heap; this stub forces a wrapped {@code byte[]} so the prefetcher cannot accidentally
+     * promote back to direct.
      */
-    public void testPrefetchPromotesHeapBufferToDirect() throws Exception {
+    public void testPrefetchKeepsHeapBuffer() throws Exception {
         byte[] fileData = new byte[1000];
         for (int i = 0; i < fileData.length; i++) {
             fileData[i] = (byte) (i & 0xFF);
@@ -185,7 +186,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
                     int len = (int) Math.min(length, fileData.length - position);
                     byte[] copy = new byte[len];
                     System.arraycopy(fileData, pos, copy, 0, len);
-                    // Intentionally heap-backed: ColumnChunkPrefetcher must promote this to direct.
+                    // Intentionally heap-backed: ColumnChunkPrefetcher must not promote this to direct.
                     listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(copy), () -> {}));
                 });
             }
@@ -217,7 +218,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             storage,
             block,
             null,
-            allocator
+            breaker
         );
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
@@ -225,7 +226,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = prefetched.chunks();
             ColumnChunkPrefetcher.PrefetchedChunk chunk = result.get(100L);
             assertThat(chunk, notNullValue());
-            assertTrue("PrefetchedChunk must be direct after promotion", chunk.data().isDirect());
+            assertFalse("PrefetchedChunk must stay heap", chunk.data().isDirect());
 
             byte[] expected = new byte[50];
             System.arraycopy(fileData, 100, expected, 0, 50);
@@ -300,7 +301,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
 
         BlockMetaData block = createBlockWithColumns(new ColMeta("a", 100, 500), new ColMeta("b", 2000, 500), new ColMeta("c", 5000, 500));
 
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, allocator);
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, breaker);
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
         try {
@@ -349,7 +350,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             failingStorage,
             block,
             null,
-            allocator
+            breaker
         );
 
         assertTrue(future.isCompletedExceptionally());
@@ -423,7 +424,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         BlockMetaData block = new BlockMetaData();
         block.setRowCount(0);
 
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, allocator);
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(storage, block, null, breaker);
 
         ColumnChunkPrefetcher.PrefetchedChunks prefetched = future.get();
         try {

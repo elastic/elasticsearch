@@ -219,8 +219,14 @@ class ValuesFromSingleReader extends ValuesReader {
         StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
-            sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+            sourceLoader != null ? sourceLoader.leaf(ctx, null) : null
         );
+        int sourceBackedFieldCount = 0;
+        for (RowStrideReaderWork work : rowStrideReaders) {
+            if (work.loader.rowStrideStoredFieldSpec().requiresSource()) {
+                sourceBackedFieldCount++;
+            }
+        }
         int p = offset;
         long estimated = 0;
         while (p < docs.count() && estimated < jumboBytes) {
@@ -229,6 +235,7 @@ class ValuesFromSingleReader extends ValuesReader {
             for (RowStrideReaderWork work : rowStrideReaders) {
                 work.read(doc, storedFields);
             }
+            operator.trackSourceFieldReads(sourceBackedFieldCount);
             operator.trackSourceBytesAndRelease(storedFields);
             estimated = estimatedRamBytesUsed(rowStrideReaders);
             log.trace("{}: bytes loaded {}/{}", p, estimated, jumboBytes);

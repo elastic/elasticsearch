@@ -10,16 +10,23 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_SIZE;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.EXTERNAL_IO_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlWorkerThreadPoolTests extends ESTestCase {
 
@@ -27,36 +34,43 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
         EsqlPlugin plugin = new EsqlPlugin();
         Settings settings = Settings.EMPTY;
         List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
-        // Two pools: the esql_worker compute pool and the esql_external_blocking_io pool for blocking external reads.
+        // Two pools: the esql_worker compute pool plus the dedicated esql_external_io pool that runs blocking
+        // external reads and the streaming parse pipeline. They are kept separate so the parse pipeline cannot
+        // starve the compute drivers that consume its output (the heap-attack external stall).
         assertEquals(2, builders.size());
     }
 
-    public void testExternalBlockingIoPoolSizedFromMaxConnectionsSetting() {
+    public void testExternalIoPoolRegistered() {
         EsqlPlugin plugin = new EsqlPlugin();
-
-        // Default: the pool's max equals the esql.external.max_connections default.
-        int defaultMax = ExternalSourceSettings.MAX_CONNECTIONS.get(Settings.EMPTY);
-        assertEquals(defaultMax, externalBlockingIoMax(plugin, Settings.EMPTY));
-
-        // Custom: the pool's max tracks the configured setting value.
-        Settings custom = Settings.builder().put(ExternalSourceSettings.MAX_CONNECTIONS.getKey(), 64).build();
-        assertEquals(64, externalBlockingIoMax(plugin, custom));
+        Settings settings = Settings.EMPTY;
+        List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
+        ExecutorBuilder<?> externalIo = builders.stream()
+            .filter(b -> b instanceof ScalingExecutorBuilder)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io scaling pool not registered"));
+        Setting<?> maxSetting = externalIo.getRegisteredSettings()
+            .stream()
+            .filter(s -> s.getKey().equals("thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME + ".max"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io max setting not registered"));
+        // The pool max tracks the single external-concurrency knob (defaults to the CPU-scaled value).
+        assertEquals(ExternalSourceSettings.externalIoThreads(settings), maxSetting.getDefault(Settings.EMPTY));
     }
 
-    /**
-     * Reads the {@code max} thread-count of the esql_external_blocking_io
-     * {@link org.elasticsearch.threadpool.ScalingExecutorBuilder} via its registered settings, whose default is the
-     * value getExecutorBuilders sized the pool with.
-     */
-    private static int externalBlockingIoMax(EsqlPlugin plugin, Settings settings) {
-        String maxKey = "thread_pool." + EXTERNAL_BLOCKING_IO_THREAD_POOL_NAME + ".max";
-        return plugin.getExecutorBuilders(settings)
-            .stream()
-            .flatMap(builder -> builder.getRegisteredSettings().stream())
-            .filter(setting -> setting.getKey().equals(maxKey))
-            .map(setting -> (Integer) setting.getDefault(Settings.EMPTY))
+    public void testExternalIoPoolTracksConcurrencyOverride() {
+        EsqlPlugin plugin = new EsqlPlugin();
+        Settings settings = Settings.builder().put(ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.getKey(), 37).build();
+        List<ExecutorBuilder<?>> builders = plugin.getExecutorBuilders(settings);
+        ExecutorBuilder<?> externalIo = builders.stream()
+            .filter(b -> b instanceof ScalingExecutorBuilder)
             .findFirst()
-            .orElseThrow(() -> new AssertionError("esql_external_blocking_io pool not registered"));
+            .orElseThrow(() -> new AssertionError("esql_external_io scaling pool not registered"));
+        Setting<?> maxSetting = externalIo.getRegisteredSettings()
+            .stream()
+            .filter(s -> s.getKey().equals("thread_pool." + EXTERNAL_IO_THREAD_POOL_NAME + ".max"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("esql_external_io max setting not registered"));
+        assertEquals(37, maxSetting.getDefault(settings));
     }
 
     public void testCustomThreadPoolSize() {
@@ -117,6 +131,44 @@ public class EsqlWorkerThreadPoolTests extends ESTestCase {
                 int size = EsqlPlugin.workerQueueSize(heapMb * 1024 * 1024, cpus);
                 assertTrue("queue size must be >= 1000, got " + size + " for " + heapMb + "MB heap, " + cpus + " CPUs", size >= 1000);
             }
+        }
+    }
+
+    public void testEsqlWorkerTracksOngoingTasks() throws Exception {
+        EsqlPlugin plugin = new EsqlPlugin();
+        var builders = plugin.getExecutorBuilders(Settings.EMPTY);
+        var workerBuilder = builders.get(0);
+
+        var threadPool = new TestThreadPool(getTestName(), workerBuilder);
+        try {
+            assertThat(
+                "esql_worker must be a TaskExecutionTimeTrackingEsThreadPoolExecutor so the search-load sampler can read it",
+                threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
+            var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
+
+            // While there are no running tasks the ongoing map must be empty.
+            assertThat("no tasks running yet", executor.getOngoingTasks().size(), equalTo(0));
+
+            var started = new CountDownLatch(1);
+            var release = new CountDownLatch(1);
+            executor.execute(() -> {
+                started.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+
+            started.await();
+            // The task is running but has not completed, so it must appear in ongoing tasks.
+            assertThat("in-flight driver must be visible as an ongoing task", executor.getOngoingTasks().size(), greaterThan(0));
+
+            release.countDown();
+        } finally {
+            terminate(threadPool);
         }
     }
 

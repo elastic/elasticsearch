@@ -14,6 +14,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -22,8 +24,9 @@ import java.lang.foreign.ValueLayout;
 // Scores pairs of indexed vectors (ordinal vs ordinal) for graph construction and segment merging.
 public abstract sealed class Int8VectorScorerSupplier implements RandomVectorScorerSupplier {
 
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
+
     final int dims;
-    final int maxOrd;
     /**
      * The length in bytes of one vector. For this scorer, it matches the pitch (the distance in memory between 2 vectors, when laid
      * out consecutively) and the total vector size (no padding, no extra fields).
@@ -35,19 +38,19 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
 
     protected Int8VectorScorerSupplier(IndexInput input, ByteVectorValues values) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.maxOrd = values.size();
         this.firstScratch = new FixedSizeScratch(vectorByteSize);
         this.secondScratch = new FixedSizeScratch(vectorByteSize);
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
+        if (ord < 0 || ord >= values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
@@ -59,7 +62,7 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
-        return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch::getScratch, query -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, query -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
@@ -71,22 +74,25 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
                 offsets,
                 vectorByteSize,
                 numNodes,
-                addrsScratch::get,
+                addrsScratch,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {
-                // fallback to per-vector scorer
-                for (int i = 0; i < numNodes; i++) {
-                    input.seek(offsets[i]);
-                    scores[i] = IndexInputUtils.withSlice(input, vectorByteSize, secondScratch::getScratch, vector -> {
-                        var score = scoreFromSegments(query, vector);
-                        maxScore[0] = Math.max(maxScore[0], score);
-                        return score;
-                    });
-                }
+                maxScore[0] = scorePerVectorFallback(query, scores, numNodes, offsets);
             }
             return maxScore[0];
         });
+    }
+
+    private float scorePerVectorFallback(MemorySegment query, float[] scores, int numNodes, long[] offsets) throws IOException {
+        float maxScore = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < numNodes; i++) {
+            final int idx = i;
+            input.seek(offsets[idx]);
+            IndexInputUtils.withVoidSlice(input, vectorByteSize, secondScratch, vector -> scores[idx] = scoreFromSegments(query, vector));
+            maxScore = Math.max(maxScore, scores[idx]);
+        }
+        return maxScore;
     }
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
@@ -94,12 +100,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
         long secondByteOffset = (long) secondOrd * vectorByteSize;
 
         input.seek(firstByteOffset);
-        return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch::getScratch, firstSeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorByteSize, firstScratch, firstSeg -> {
             input.seek(secondByteOffset);
-            return IndexInputUtils.withSlice(
+            return IndexInputUtils.withFloatSlice(
                 input,
                 vectorByteSize,
-                secondScratch::getScratch,
+                secondScratch,
                 secondSeg -> scoreFromSegments(firstSeg, secondSeg)
             );
         });
@@ -145,12 +151,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return normalize(Similarities.cosineI8(a, b, dims));
+            return normalize(DISTANCE_FUNCS.cosineI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.cosineI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.cosineI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -176,12 +182,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.normalizeDistanceToUnitInterval(Similarities.squareDistanceI8(a, b, dims));
+            return VectorUtil.normalizeDistanceToUnitInterval(DISTANCE_FUNCS.squareDistanceI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.squareDistanceI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.squareDistanceI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -213,12 +219,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return normalize(Similarities.dotProductI8(a, b, dims));
+            return normalize(DISTANCE_FUNCS.dotProductI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {
@@ -244,12 +250,12 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
 
         @Override
         float scoreFromSegments(MemorySegment a, MemorySegment b) {
-            return VectorUtil.scaleMaxInnerProductScore(Similarities.dotProductI8(a, b, dims));
+            return VectorUtil.scaleMaxInnerProductScore(DISTANCE_FUNCS.dotProductI8(a, b, dims));
         }
 
         @Override
         float bulkScoreFromSegment(MemorySegment addresses, MemorySegment query, MemorySegment scores, int numNodes) {
-            Similarities.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
+            DISTANCE_FUNCS.dotProductI8BulkSparse(addresses, query, dims, numNodes, scores);
 
             float max = Float.NEGATIVE_INFINITY;
             for (int i = 0; i < numNodes; ++i) {

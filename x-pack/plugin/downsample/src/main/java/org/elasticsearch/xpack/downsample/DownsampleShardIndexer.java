@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.apache.lucene.internal.hppc.LongArrayList;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -541,6 +541,7 @@ class DownsampleShardIndexer {
             final SortedNumericLongValues timestampValues;
 
             final IntArrayList docIdBuffer = new IntArrayList(DOCID_BUFFER_SIZE);
+            final LongArrayList timestampBuffer = new LongArrayList(DOCID_BUFFER_SIZE);
             final long timestampBoundStartTime = searchExecutionContext.getIndexSettings().getTimestampBounds().startTime();
 
             LeafDownsampleCollector(
@@ -653,12 +654,12 @@ class DownsampleShardIndexer {
                 }
                 if (aggregateCounterDownsamplers.length > 0 || aggregateHistogramDownsamplers.length > 0) {
                     assert timestampValues != null;
-                    long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
+                    TimestampValueFetcher.fetch(timestampValues, docIdBuffer, timestampBuffer);
                     for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer, temporality);
+                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                     for (int i = 0; i < aggregateHistogramDownsamplers.length; i++) {
-                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestamps, docIdBuffer, temporality);
+                        aggregateHistogramDownsamplers[i].collect(aggregateHistogramValues[i], timestampBuffer, docIdBuffer, temporality);
                     }
                 }
 
@@ -667,6 +668,7 @@ class DownsampleShardIndexer {
 
                 // buffer.clean() also overwrites all slots with zeros
                 docIdBuffer.elementsCount = 0;
+                timestampBuffer.elementsCount = 0;
             }
 
             private <T> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues) throws IOException {
@@ -882,7 +884,7 @@ class DownsampleShardIndexer {
             return builder;
         }
 
-        public XContentBuilder buildExtraResetDocument(long timestamp, List<Tuple<String, ResetDataPoints.ResetValue>> resetValues)
+        public XContentBuilder buildExtraResetDocument(long timestamp, Map<String, ResetDataPoints.ResetValue> resetValues)
             throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
@@ -891,8 +893,8 @@ class DownsampleShardIndexer {
             for (DimensionFieldDownsampler dimensionFieldDownsampler : dimensionDownsamplers) {
                 dimensionFieldDownsampler.write(builder);
             }
-            for (Tuple<String, ResetDataPoints.ResetValue> resetValue : resetValues) {
-                resetValue.v2().write(resetValue.v1(), builder);
+            for (var resetValue : resetValues.entrySet()) {
+                resetValue.getValue().write(resetValue.getKey(), builder);
             }
 
             extractLegacyDimensionsIfNeeded(builder);

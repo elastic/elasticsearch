@@ -278,7 +278,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
         },
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
@@ -2112,6 +2113,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder priority(int priority) {
+            settings = Settings.builder().put(settings).put(SETTING_PRIORITY, priority).build();
+            return this;
+        }
+
         /**
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
          * The new shard count must be a multiple of the original shard count as well as a factor
@@ -2584,7 +2590,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             String indexModeString = settings.get(IndexSettings.MODE.getKey());
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
-            final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
+            final boolean isTsdb = IndexMode.isTsdb(indexMode);
             boolean useTimeSeriesSyntheticId = shouldUseTimeSeriesSyntheticId(isTsdb, indexCreatedVersion, settings);
             final boolean sequenceNumbersDisabled = indexCreatedVersion.onOrAfter(
                 IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT

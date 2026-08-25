@@ -274,6 +274,64 @@ Typically, increasing the number of bits used for indexed vectors is useful in c
 This setting can be changed at any time without reindexing the data.
 
 
+## Auto-calibration for `bbq_disk` [bbq-auto-calibration]
+
+```{applies_to}
+stack: ga 9.5
+```
+
+When `auto_calibrate: true` is set in `index_options` for a `bbq_disk` field, {{es}} automatically determines the best quantization encoding, oversampling (rerank depth), and preconditioning for each merged segment. Rather than applying the same fixed encoding to every segment, auto-calibration runs a recall-estimation pipeline on a representative sample of the merged corpus and selects the cheapest configuration that meets a 90% recall target at k=10.
+
+### How it works
+
+At merge time, for each merge producing at least 10,000 vectors, {{es}} samples up to 17,000 vectors from the merged corpus and sweeps candidate configurations in ascending estimated cost order. For each candidate, it predicts the expected recall at k=10, and picks the cheapest option that meets the 90% target. If no candidate meets the target, the one with the best estimated recall is used instead.
+
+The sweep covers:
+
+- Five quantization encodings (1/1, 1/4, 2/4, 4/4, and 7/7 doc/query bits)
+- Six rerank-depth multipliers (1.25×, 1.5×, 1.75×, 2.0×, 2.5×, and 3.0×)
+- Preconditioned and non-preconditioned variants of each
+
+If calibration fails for any reason, {{es}} falls back to the codec default encoding for that segment.
+
+### Segments below the calibration threshold
+
+Segments containing fewer than 10,000 vectors after merging are not calibrated. These segments use a default oversampling factor of 3.0× with the encoding determined by the `bits` setting.
+
+### Interaction with other parameters
+
+- **`bits`**: Controls the encoding at flush time for freshly written, pre-merge segments. Auto-calibration operates independently at merge time and may select a different encoding for merged segments.
+- **`precondition`**: The calibration sweep always evaluates both preconditioned and non-preconditioned variants and selects whichever achieves better estimated recall per unit cost. The `precondition` mapping parameter controls the encoding applied at flush time and serves as the fallback default if calibration fails. Cannot be changed after the field is created.
+- **`rescore_vector.oversample`**: For calibrated merged segments, the oversampling factor is selected automatically and stored per segment. At query time, the effective oversample is resolved in this order:
+  1. Query-time `rescore_vector.oversample` on the kNN query or retriever, if set. This value is applied uniformly to all segments and overrides calibrated per-segment values.
+  2. Per-segment calibrated oversample, when the segment was calibrated at merge time. Different segments in the same index may use different factors.
+  3. Mapping `rescore_vector.oversample`, or the default 3.0× if unset. This applies to unmerged segments, segments below the calibration threshold, and segments where calibration fell back to codec defaults.
+
+  Query-time oversample affects rerank depth only. Preconditioning and quantization encoding continue to follow each segment's stored configuration when `auto_calibrate` is enabled.
+
+### Example
+
+```console
+PUT my-auto-calibrated-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 1024,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk",
+          "auto_calibrate": true
+        }
+      }
+    }
+  }
+}
+```
+
+You can inspect the active configuration for each segment using the [Index Segments API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-segments).
+
 ## Oversampling [bbq-oversampling]
 
 Oversampling is a technique used with BBQ searches to reduce the accuracy loss from compression. Compression lowers the memory footprint by over 95% and improves query latency, at the cost of decreased result accuracy. This decrease can be mitigated by oversampling during query time and reranking the top results using the full vector.

@@ -10,8 +10,10 @@
 | cartesian_shape | keyword |
 | date | keyword |
 | date_nanos | keyword |
+| date_range {applies_to}`stack: preview 9.5.0` | keyword |
 | dense_vector | keyword |
 | double | keyword |
+| double_range {applies_to}`stack: preview 9.6.0` | keyword |
 | exponential_histogram {applies_to}`stack: preview 9.3.0, ga 9.4.0` | keyword |
 | flattened {applies_to}`stack: preview 9.5.0` | keyword |
 | geo_point | keyword |

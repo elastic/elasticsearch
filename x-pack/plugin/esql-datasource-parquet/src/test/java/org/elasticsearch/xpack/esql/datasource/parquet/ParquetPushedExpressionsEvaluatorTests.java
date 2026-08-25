@@ -1267,9 +1267,11 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
     /**
      * An all-null batch of a KEYWORD column must filter to zero survivors, not fail the query.
-     * {@code ConstantNullBlock} implements every typed block interface, so before
-     * elastic/elasticsearch#157313 it bound {@code evaluateComparison}'s first arm ({@code IntBlock})
-     * regardless of the column's real type and cast the {@link BytesRef} literal to {@code Number}.
+     * {@code ConstantNullBlock} implements every typed block interface, so until this was fixed it
+     * bound {@code evaluateComparison}'s first arm ({@code IntBlock}) regardless of the column's
+     * real type and cast the {@link BytesRef} literal to {@code Number}
+     * (elastic/elasticsearch#157313). The remaining shapes of this hazard are swept exhaustively
+     * by {@link ParquetPushedExpressionsNullBatchMatrixTests}.
      */
     public void testKeywordComparisonsOnConstantNullBlock() {
         Block nullBlock = blockFactory.newConstantNullBlock(5);
@@ -1285,93 +1287,6 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         )) {
             assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
         }
-    }
-
-    /** Boolean twin of {@link #testKeywordComparisonsOnConstantNullBlock} — the literal is a {@code Boolean}. */
-    public void testBooleanEqualsOnConstantNullBlock() {
-        Block nullBlock = blockFactory.newConstantNullBlock(5);
-        Map<String, Block> blocks = Map.of("col", nullBlock);
-        WordMask reusable = new WordMask();
-
-        Expression expr = new Equals(Source.EMPTY, attr("col", DataType.BOOLEAN), lit(Boolean.TRUE, DataType.BOOLEAN), null);
-        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
-    }
-
-    /** {@code evaluateIn} carries the same eager-cast hazard as {@code evaluateComparison}. */
-    public void testInOnConstantNullBlock() {
-        Block nullBlock = blockFactory.newConstantNullBlock(5);
-        Map<String, Block> blocks = Map.of("col", nullBlock);
-        WordMask reusable = new WordMask();
-
-        Expression keywordIn = new In(
-            Source.EMPTY,
-            attr("col", DataType.KEYWORD),
-            List.of(lit(new BytesRef("US"), DataType.KEYWORD), lit(new BytesRef("CA"), DataType.KEYWORD))
-        );
-        assertSurvivors(new ParquetPushedExpressions(List.of(keywordIn)), blocks, 5, reusable, new int[] {});
-
-        Expression booleanIn = new In(
-            Source.EMPTY,
-            attr("col", DataType.BOOLEAN),
-            List.of(lit(Boolean.TRUE, DataType.BOOLEAN), lit(Boolean.FALSE, DataType.BOOLEAN))
-        );
-        assertSurvivors(new ParquetPushedExpressions(List.of(booleanIn)), blocks, 5, reusable, new int[] {});
-
-        // Pin: the numeric path already produced zero survivors before the fix (the literal is a
-        // Number, so the eager cast succeeded and the null guards emptied the mask). It must not
-        // drift to the "all rows survive" sentinel.
-        Expression numericIn = new In(Source.EMPTY, attr("col", DataType.LONG), List.of(lit(1L, DataType.LONG), lit(2L, DataType.LONG)));
-        assertSurvivors(new ParquetPushedExpressions(List.of(numericIn)), blocks, 5, reusable, new int[] {});
-    }
-
-    /**
-     * {@code NOT} over a value comparison routes through {@code tvlNegate}, which sets the bit for
-     * every null/MV row before negating — so an all-null batch stays at zero survivors rather than
-     * inverting the empty mask into "everything survives".
-     */
-    public void testNotKeywordEqualsOnConstantNullBlock() {
-        Block nullBlock = blockFactory.newConstantNullBlock(5);
-        Map<String, Block> blocks = Map.of("col", nullBlock);
-        WordMask reusable = new WordMask();
-
-        Expression expr = new Not(
-            Source.EMPTY,
-            new Equals(Source.EMPTY, attr("col", DataType.KEYWORD), lit(new BytesRef("US"), DataType.KEYWORD), null)
-        );
-        assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, 5, reusable, new int[] {});
-    }
-
-    /**
-     * Pin for {@code evaluateRange}. No planner path mints a {@link Range} for external sources
-     * today, so this drives the evaluator directly; the coverage is defensive — the arm carries the
-     * same eager bound casts the comparison arms did.
-     */
-    public void testRangeOnConstantNullBlock() {
-        Block nullBlock = blockFactory.newConstantNullBlock(5);
-        Map<String, Block> blocks = Map.of("col", nullBlock);
-        WordMask reusable = new WordMask();
-
-        Expression numericRange = new Range(
-            Source.EMPTY,
-            attr("col", DataType.LONG),
-            lit(2L, DataType.LONG),
-            true,
-            lit(6L, DataType.LONG),
-            true,
-            ZoneOffset.UTC
-        );
-        assertSurvivors(new ParquetPushedExpressions(List.of(numericRange)), blocks, 5, reusable, new int[] {});
-
-        Expression keywordRange = new Range(
-            Source.EMPTY,
-            attr("col", DataType.KEYWORD),
-            lit(new BytesRef("a"), DataType.KEYWORD),
-            true,
-            lit(new BytesRef("z"), DataType.KEYWORD),
-            true,
-            ZoneOffset.UTC
-        );
-        assertSurvivors(new ParquetPushedExpressions(List.of(keywordRange)), blocks, 5, reusable, new int[] {});
     }
 
     /**

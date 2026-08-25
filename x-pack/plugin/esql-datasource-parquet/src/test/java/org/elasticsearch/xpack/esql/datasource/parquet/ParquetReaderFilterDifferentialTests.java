@@ -526,7 +526,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         Set<Long> actual = new TreeSet<>();
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(splitTopLevelAnd(filter));
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
-        try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = reader.read(inMemoryStorageObject(parquetBytes), FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 try {
@@ -929,7 +929,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
         throws IOException {
         StorageObject storageObject = inMemoryStorageObject(parquetBytes);
         Set<Long> ids = new TreeSet<>();
-        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 try {
@@ -1086,7 +1086,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     private Set<Long> collectIdsWithEval(ParquetFormatReader reader, byte[] parquetBytes, Expression filter) throws IOException {
         StorageObject storageObject = inMemoryStorageObject(parquetBytes);
         Set<Long> ids = new TreeSet<>();
-        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, READ_BATCH_SIZE))) {
             while (iter.hasNext()) {
                 Page page = iter.next();
                 try {
@@ -1233,10 +1233,14 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
                 (long) randomIntBetween(0, ROW_COUNT / 2),
                 (long) randomIntBetween(ROW_COUNT / 2, ROW_COUNT)
             );
-            default -> and(
+            case 9 -> and(
                 gte(SCORE, randomDoubleBetween(0.0, 1.0, true), DataType.DOUBLE),
                 lt(SCORE, randomDoubleBetween(0.0, 1.0, true) + 1.0, DataType.DOUBLE)
             );
+            // Fail loudly rather than silently folding an unhandled kind into another leaf:
+            // a widened range with a missing case would quietly shrink coverage, which is the
+            // absence-shaped failure this suite exists to catch.
+            default -> throw new AssertionError("unhandled leaf kind " + kind);
         };
     }
 
@@ -1418,9 +1422,11 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             row.put("description", "padding_" + ("p".repeat(50)) + "_row_" + i);
             // ~30% nulls in nullable_flag.
             row.put("nullable_flag", (i % 10 < 3) ? null : Integer.valueOf(i % 100));
-            // Null in runs ALIGNED to the read batch size: batches 0 and 2 of every row group are
-            // entirely null, batches 1 and 3 are fully valued. An all-null batch is what makes the
-            // reader hand a ConstantNullBlock to the pushed-filter evaluator.
+            // Null in runs ALIGNED to the read batch size, so whole decoded batches are null and
+            // the reader hands the pushed-filter evaluator a ConstantNullBlock. Exact under the
+            // single-row-group layouts; under MANY_SMALL_GROUPS batches restart per row group, so
+            // the runs additionally yield partially-null blocks through the typed BytesRefBlock
+            // arm - extra coverage rather than a gap.
             boolean nullBatch = (i / READ_BATCH_SIZE) % 2 == 0;
             row.put("opt_label", nullBatch ? null : OPT_LABELS[i % OPT_LABELS.length]);
             // Coarser runs so the two optional columns do not go null in lockstep.

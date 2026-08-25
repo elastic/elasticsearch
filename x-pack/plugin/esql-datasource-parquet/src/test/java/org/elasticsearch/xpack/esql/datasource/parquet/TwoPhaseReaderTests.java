@@ -171,6 +171,83 @@ public class TwoPhaseReaderTests extends ESTestCase {
         assertThat("two-phase should read fewer bytes than single-phase: " + two + " vs " + single, two, lessThan(single));
     }
 
+    /**
+     * The two-phase route over a keyword predicate column whose batches decode entirely null.
+     *
+     * <p>Two-phase and single-phase share {@code evaluateFilter}, so both reach the same
+     * all-null hazard, but every other test of that hazard drives the single-phase route -
+     * {@code shouldUseTwoPhase} requires {@link StorageObject#supportsNativeAsync()}, which
+     * defaults to false. This is the two-phase half, and it fails on the parent commit with the
+     * same {@code ClassCastException} (elastic/elasticsearch#157313).
+     *
+     * <p>It also demonstrates the skip the fix buys: with no survivors in the all-null row groups,
+     * Phase 2 never fetches their large {@code label} chunks, so two-phase reads strictly fewer
+     * bytes than the single-phase run of the same file and filter.
+     */
+    public void testTwoPhaseKeywordFilterOverAllNullPredicateBatches() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("code")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("two_phase_all_null_schema");
+
+        final int rowCount = 10_000;
+        final int firstValuedRow = 9_800;
+        // code is null for the overwhelming majority of the file and valued only in a short run at
+        // the end, so most batches decode all-null and produce no survivors. label is the bulky
+        // projection-only column whose fetch those survivor-free batches should avoid entirely.
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            if (i >= firstValuedRow) {
+                g.add("code", "US");
+            }
+            g.add("label", repeat('z', 512) + "_" + i);
+            return g;
+        });
+
+        ReferenceAttribute codeAttr = new ReferenceAttribute(Source.EMPTY, "code", DataType.KEYWORD);
+        Expression filter = new Equals(Source.EMPTY, codeAttr, new Literal(Source.EMPTY, new BytesRef("US"), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject twoPhaseObj = new CountingStorageObject(parquetData, true);
+        List<Page> pages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), twoPhaseObj);
+
+        List<Long> survivingIds = new ArrayList<>();
+        try {
+            for (Page page : pages) {
+                LongBlock idBlock = page.getBlock(0);
+                for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                    survivingIds.add(idBlock.getLong(pos));
+                }
+            }
+        } finally {
+            pages.forEach(Page::releaseBlocks);
+        }
+
+        List<Long> expected = new ArrayList<>();
+        for (int i = firstValuedRow; i < rowCount; i++) {
+            expected.add((long) i);
+        }
+        assertThat("survivors must come only from the valued run", survivingIds, equalTo(expected));
+        assertFalse("the fixture must actually produce survivors", expected.isEmpty());
+
+        // Same file and filter on storage that does not advertise native async, so the reader
+        // takes the single-phase route and fetches the label chunks it cannot defer.
+        CountingStorageObject singlePhaseObj = new CountingStorageObject(parquetData, false);
+        readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), singlePhaseObj).forEach(Page::releaseBlocks);
+
+        long two = twoPhaseObj.totalBytesRead.get();
+        long single = singlePhaseObj.totalBytesRead.get();
+        assertThat("two-phase must skip the projection chunks of survivor-free batches: " + two + " vs " + single, two, lessThan(single));
+    }
+
     public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
         // When every projected column is also a predicate column, two-phase I/O does not activate
         // (nothing to defer), but late-materialization filter evaluation MUST still run: pushed

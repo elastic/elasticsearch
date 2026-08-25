@@ -1615,14 +1615,17 @@ final class ParquetPushedExpressions {
         if (block.areAllValuesNull()) {
             // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
             // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
-            // conservative one. Checked before the instanceof dispatch below because
-            // ConstantNullBlock implements every typed Block interface at once, so an all-null
-            // batch would otherwise bind the first arm (IntBlock) regardless of the column's real
-            // type and cast a non-numeric literal to Number (elastic/elasticsearch#157313).
-            // Mirrors DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull()
-            // ahead of its own typed dispatch, and GroupingAggregatorFunction.AddInput#add, which
-            // makes ConstantNullBlock the first arm. An empty mask also lets evaluateFilter exit
-            // early and lets the reader skip decoding every projection column for this batch.
+            // conservative one. It has to be exact - a survivor mask can only ever be narrowed
+            // downstream, so an over-wide mask is recoverable by RECHECK and an over-narrow one
+            // is not.
+            //
+            // Checked before the instanceof dispatch below because ConstantNullBlock implements
+            // every typed Block interface at once, so an all-null batch would otherwise bind the
+            // first arm (IntBlock) regardless of the column's real type and cast a non-numeric
+            // literal to Number (elastic/elasticsearch#157313). Same shape as
+            // DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull() ahead of
+            // its own typed dispatch. The empty mask also lets evaluateFilter exit early and lets
+            // the reader skip decoding this batch's projection columns.
             return mask;
         }
         if (block instanceof IntBlock ib) {
@@ -1791,16 +1794,8 @@ final class ParquetPushedExpressions {
         WordMask mask = new WordMask();
         mask.reset(rowCount);
         if (block.areAllValuesNull()) {
-            // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
-            // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
-            // conservative one. Checked before the instanceof dispatch below because
-            // ConstantNullBlock implements every typed Block interface at once, so an all-null
-            // batch would otherwise bind the first arm (IntBlock) regardless of the column's real
-            // type and cast a non-numeric literal to Number (elastic/elasticsearch#157313).
-            // Mirrors DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull()
-            // ahead of its own typed dispatch, and GroupingAggregatorFunction.AddInput#add, which
-            // makes ConstantNullBlock the first arm. An empty mask also lets evaluateFilter exit
-            // early and lets the reader skip decoding every projection column for this batch.
+            // All-null batch -> zero survivors, and the check must precede the instanceof
+            // dispatch below. See the note in evaluateComparison.
             return mask;
         }
         if (block instanceof IntBlock ib) {
@@ -1918,16 +1913,8 @@ final class ParquetPushedExpressions {
         WordMask mask = new WordMask();
         mask.reset(rowCount);
         if (block.areAllValuesNull()) {
-            // NULL <op> literal, NULL IN (...) and NULL within a range are all SQL-UNKNOWN, and
-            // UNKNOWN rows never pass a filter: zero survivors is the exact answer, not a
-            // conservative one. Checked before the instanceof dispatch below because
-            // ConstantNullBlock implements every typed Block interface at once, so an all-null
-            // batch would otherwise bind the first arm (IntBlock) regardless of the column's real
-            // type and cast a non-numeric literal to Number (elastic/elasticsearch#157313).
-            // Mirrors DeclaredTypeCoercions#castBlock, which short-circuits areAllValuesNull()
-            // ahead of its own typed dispatch, and GroupingAggregatorFunction.AddInput#add, which
-            // makes ConstantNullBlock the first arm. An empty mask also lets evaluateFilter exit
-            // early and lets the reader skip decoding every projection column for this batch.
+            // All-null batch -> zero survivors, and the check must precede the instanceof
+            // dispatch below. See the note in evaluateComparison.
             return mask;
         }
         if (block instanceof IntBlock ib) {

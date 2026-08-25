@@ -797,8 +797,8 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     /**
      * A keyword predicate column whose null runs are aligned to the read batch size, so whole
      * decoded batches are null and the reader hands the pushed-filter evaluator a
-     * {@code ConstantNullBlock}. Before elastic/elasticsearch#157313 this failed the read with a
-     * {@code ClassCastException} the moment the first all-null batch was reached; the surviving
+     * {@code ConstantNullBlock}. Until this was fixed the read died with a {@code ClassCastException}
+     * (elastic/elasticsearch#157313) the moment the first all-null batch was reached; the surviving
      * rows must come from the valued batches only.
      */
     public void testKeywordFilterOverAlternatingAllNullBatches() throws IOException {
@@ -866,7 +866,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
      * entirely, as it is for the files of a multi-file glob that lack it.
      *
      * <p>Contrary to what elastic/elasticsearch#157313 assumed, this shape does <b>not</b> reach the
-     * all-null crash. The evaluator never receives a null block for the column: no block is
+     * all-null crash on this reader path. The evaluator never receives a null block for the column: no block is
      * registered under that name at all, so {@code evaluateExpression} bails to the conservative
      * "all rows survive" sentinel and the reader emits every row. The predicate is
      * {@code Pushability.RECHECK}, so {@code FilterExec} applies it downstream and the query answer

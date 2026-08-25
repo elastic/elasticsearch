@@ -168,9 +168,14 @@ public class ParquetPushedExpressionsNullBatchMatrixTests extends ESTestCase {
          */
         CONSTANT_NULL((bf, type) -> bf.newConstantNullBlock(ROWS)),
         /**
-         * A typed array block that happens to be fully null. Binds the correct arm, so it is
-         * carried by the per-row null guards rather than by the all-null short-circuit - which is
-         * exactly why it is worth pinning separately.
+         * A typed array block that happens to be fully null. {@code AbstractArrayBlock} reports
+         * {@code areAllValuesNull()} for it, so post-fix it takes the same short-circuit as
+         * {@code CONSTANT_NULL} rather than the per-row guards.
+         *
+         * <p>Its value is as a tripwire on the guard's own shape: narrow the short-circuit to
+         * {@code instanceof ConstantNullBlock} and the keyword and boolean RANGE cells fall
+         * through {@code evaluateRange}'s Int/Long/Double arms to the all-survive sentinel, and
+         * this matrix fails. Those two cells are also why this shape was red on the parent.
          */
         ALL_NULL_ARRAY((bf, type) -> allNullArray(bf, type));
 

@@ -176,12 +176,12 @@ dave         | london
 ;
 
 // ===== Pushed filters on a column one file does not have =====
-// Under union_by_name a file missing the predicate column decodes it as a whole-batch null
-// block. Before elastic/elasticsearch#157313 a keyword predicate on that column failed the
-// whole query: the null block satisfies every typed block interface, so the filter evaluator
-// bound its numeric arm and cast the BytesRef literal to Number. Numeric predicates were
-// unaffected, which is why parquetUbnFilterOnFileBMissingColumn is the pin and
-// parquetUbnFilterOnFileAMissingColumn is the regression.
+// Under union_by_name a file missing the predicate column never registers a block under that
+// name in the filter evaluator: classifyPredicateColumns only marks a column as a predicate
+// column when the file schema has it. The conjunct therefore bails to the all-survive sentinel
+// and FilterExec decides the rows downstream. Both cases below are green with and without the
+// elastic/elasticsearch#157313 fix - they are end-to-end pins on the user-visible answer, not
+// regression tests for that bug.
 
 parquetUbnFilterOnFileAMissingColumn
 required_capability: dataset_in_from_command

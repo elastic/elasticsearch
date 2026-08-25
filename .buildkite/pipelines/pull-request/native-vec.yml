@@ -1,14 +1,18 @@
 steps:
   - label: native-vec
-    command: .buildkite/scripts/native-vec-build.sh
+    command: .ci/scripts/run-gradle.sh :libs:simdvec:check
+    if_changed:
+      include:
+        - "libs/simdvec/native/**"
+        - "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/nativelibs/**"
+        - "libs/native/libraries/build.gradle"
     env:
       VEC_NATIVE_BUILD: docker
       USE_PROD_DOCKER_CREDENTIALS: "true"
-    timeout_in_minutes: 120
+    timeout_in_minutes: 10
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
       machineType: n4-standard-32
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
-      preemptible: true

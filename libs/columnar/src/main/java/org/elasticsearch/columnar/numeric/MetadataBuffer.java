@@ -11,7 +11,7 @@ package org.elasticsearch.columnar.numeric;
 
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.columnar.substrate.ByteArrayInts;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.IOException;
 

@@ -18,13 +18,13 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
-import org.elasticsearch.columnar.substrate.ByteArrayInts;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.columnar.substrate.ChunkIndexMetadata;
 import org.elasticsearch.columnar.substrate.ChunkedBytesReader;
 import org.elasticsearch.columnar.substrate.ChunkedBytesWriter;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
 import org.elasticsearch.columnar.substrate.MonotonicWriter;
+import org.elasticsearch.columnar.substrate.internal.ByteArrayInts;
 
 import java.io.Closeable;
 import java.io.IOException;

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.columnar.substrate;
+package org.elasticsearch.columnar.substrate.internal;
 
 import java.io.IOException;
 
@@ -76,16 +76,8 @@ public final class ByteArrayInts {
      * avoid a separate {@link #vIntLength} call that re-derives what the read already had in hand.
      */
     public static int readVInt(byte[] src, int offset) throws IOException {
-        int value = 0, shift = 0;
-        for (int i = 0; i < MAX_VINT_BYTES; i++) {
-            final byte b = src[offset++];
-            value |= (b & 0x7F) << shift;
-            shift += 7;
-            if ((b & 0x80) == 0) {
-                return value;
-            }
-        }
-        throw new IOException("Invalid vInt detected (too many bytes)");
+        final int[] pos = { offset };
+        return readVInt(src, pos);
     }
 
     /**

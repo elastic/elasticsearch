@@ -501,3 +501,6 @@ tests:
 - class: org.elasticsearch.index.IndexingSlowLogTests
   method: testMultipleSlowLoggersUseSingleLog4jLogger
   issue: https://github.com/elastic/elasticsearch/issues/157531
+- class: org.elasticsearch.search.SearchWithRejectionsIT
+  method: testScrollContextSurvivesQueueRejection
+  issue: https://github.com/elastic/elasticsearch/issues/157416

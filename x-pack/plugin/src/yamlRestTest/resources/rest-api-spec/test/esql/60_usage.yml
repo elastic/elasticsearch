@@ -540,9 +540,9 @@ took:
   - exists: esql.datasources.reader.pool.rejected.total
   - exists: esql.datasources.breaker.tripped.total
   # per-outcome query counters
-  - exists: esql.datasources.queries.total.success
-  - exists: esql.datasources.queries.total.failure
-  - exists: esql.datasources.queries.total.cancelled
+  - exists: esql.datasources.queries.by_outcome.success
+  - exists: esql.datasources.queries.by_outcome.failure
+  - exists: esql.datasources.queries.by_outcome.cancelled
   # time histogram buckets (storage request duration)
   - exists: esql.datasources.storage.requests.duration.lt_10ms
   - exists: esql.datasources.storage.requests.duration.lt_1s
@@ -558,6 +558,7 @@ took:
   - exists: esql.datasources.discovery.bytes_scanned.gt_100mb
   # splits scanned histogram
   - exists: esql.datasources.parse.splits_scanned.lt_1
-  # cluster-state inventory counters
-  - exists: esql.datasources.config.datasources.count
-  - exists: esql.datasources.config.datasets.count
+  # cluster-state inventory counters — no datasource registered in this test, so counts are 0
+  # and by_type keys are absent (they only appear when at least one datasource is registered).
+  - match: { esql.datasources.config.datasources.count: 0 }
+  - match: { esql.datasources.config.datasets.count: 0 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -35,9 +36,10 @@ public final class DataSourceUsageAccumulator {
     public static final int SCHEME_FILE = 4;
     public static final int SCHEME_UNKNOWN = 5;
     public static final int SCHEME_COUNT = 6;
-    public static final String[] SCHEME_NAMES = { "s3", "gcs", "azure", "http", "file", "unknown" };
+    private static final String[] SCHEME_NAMES_ARRAY = { "s3", "gcs", "azure", "http", "file", "unknown" };
+    public static final List<String> SCHEME_NAMES = List.of(SCHEME_NAMES_ARRAY);
     /** Set form of {@link #SCHEME_NAMES}, used by {@code ExternalSourceMetrics} to clamp before calling {@link #schemeIndex}. */
-    public static final Set<String> SCHEME_NAMES_SET = Set.of(SCHEME_NAMES);
+    public static final Set<String> SCHEME_NAMES_SET = Set.copyOf(SCHEME_NAMES);
 
     // ---- outcome vocabulary ----
 
@@ -45,15 +47,16 @@ public final class DataSourceUsageAccumulator {
     public static final int OUTCOME_FAILURE = 1;
     public static final int OUTCOME_CANCELLED = 2;
     public static final int OUTCOME_COUNT = 3;
-    public static final String[] OUTCOME_NAMES = { "success", "failure", "cancelled" };
+    private static final String[] OUTCOME_NAMES_ARRAY = { "success", "failure", "cancelled" };
+    public static final List<String> OUTCOME_NAMES = List.of(OUTCOME_NAMES_ARRAY);
     /** Set form of {@link #OUTCOME_NAMES}, used by {@code ExternalSourceMetrics} to clamp before calling {@link #outcomeIndex}. */
-    public static final Set<String> OUTCOME_NAMES_SET = Set.of(OUTCOME_NAMES);
+    public static final Set<String> OUTCOME_NAMES_SET = Set.copyOf(OUTCOME_NAMES);
 
     // ---- bucket definitions (10 buckets each, matching ThresholdBucketer conventions) ----
 
     /** Time ladder (ms), mirrors TookMetrics thresholds. */
-    public static final long[] TIME_THRESHOLDS = { 10, 100, 1_000, 10_000, 60_000, 600_000, 3_600_000, 36_000_000, 86_400_000 };
-    public static final String[] TIME_SUFFIXES = {
+    private static final long[] TIME_THRESHOLDS = { 10, 100, 1_000, 10_000, 60_000, 600_000, 3_600_000, 36_000_000, 86_400_000 };
+    public static final List<String> TIME_SUFFIXES = List.of(
         "lt_10ms",
         "lt_100ms",
         "lt_1s",
@@ -63,11 +66,12 @@ public final class DataSourceUsageAccumulator {
         "lt_1h",
         "lt_10h",
         "lt_1d",
-        "gt_1d" };
+        "gt_1d"
+    );
 
     /** Count ladder (files, splits — log-10 anchored at 1). */
-    public static final long[] COUNT_THRESHOLDS = { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
-    public static final String[] COUNT_SUFFIXES = {
+    private static final long[] COUNT_THRESHOLDS = { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
+    public static final List<String> COUNT_SUFFIXES = List.of(
         "lt_1",
         "lt_10",
         "lt_100",
@@ -77,11 +81,12 @@ public final class DataSourceUsageAccumulator {
         "lt_1M",
         "lt_10M",
         "lt_100M",
-        "gt_100M" };
+        "gt_100M"
+    );
 
     /** Bytes ladder (log-10 anchored at 1 byte). */
-    public static final long[] BYTES_THRESHOLDS = { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
-    public static final String[] BYTES_SUFFIXES = {
+    private static final long[] BYTES_THRESHOLDS = { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
+    public static final List<String> BYTES_SUFFIXES = List.of(
         "lt_1b",
         "lt_10b",
         "lt_100b",
@@ -91,7 +96,8 @@ public final class DataSourceUsageAccumulator {
         "lt_1mb",
         "lt_10mb",
         "lt_100mb",
-        "gt_100mb" };
+        "gt_100mb"
+    );
 
     public static final int BUCKET_COUNT = 10;
 
@@ -130,7 +136,7 @@ public final class DataSourceUsageAccumulator {
 
     // ---- recording methods (called from ExternalSourceMetrics with already-canonicalised values) ----
 
-    /** @param canonicalScheme output of {@link ExternalSourceMetrics#canonicalScheme(String)} */
+    /** @param canonicalScheme output of {@link ExternalSourceMetrics#accScheme(String)} */
     public void recordRequest(String canonicalScheme, long durationMillis, long bytes) {
         int si = schemeIndex(canonicalScheme);
         storageRequests[si].increment();
@@ -262,39 +268,81 @@ public final class DataSourceUsageAccumulator {
     }
 
     public long storageRequestDuration(int bucket) {
+        checkBucketIndex(bucket);
         return storageRequestDuration[bucket].sum();
     }
 
     public long storageReadStallDuration(int bucket) {
+        checkBucketIndex(bucket);
         return storageReadStallDuration[bucket].sum();
     }
 
     public long queryDuration(int bucket) {
+        checkBucketIndex(bucket);
         return queryDuration[bucket].sum();
     }
 
     public long queryTimeToFirstRow(int bucket) {
+        checkBucketIndex(bucket);
         return queryTimeToFirstRow[bucket].sum();
     }
 
     public long discoveryDuration(int bucket) {
+        checkBucketIndex(bucket);
         return discoveryDuration[bucket].sum();
     }
 
     public long discoveryFilesScanned(int bucket) {
+        checkBucketIndex(bucket);
         return discoveryFilesScanned[bucket].sum();
     }
 
     public long discoveryBytesScanned(int bucket) {
+        checkBucketIndex(bucket);
         return discoveryBytesScanned[bucket].sum();
     }
 
     public long parseDuration(int bucket) {
+        checkBucketIndex(bucket);
         return parseDuration[bucket].sum();
     }
 
     public long parseSplitsScanned(int bucket) {
+        checkBucketIndex(bucket);
         return parseSplitsScanned[bucket].sum();
+    }
+
+    // ---- merge (used by the IT test to sum across cluster nodes) ----
+
+    /** Adds every counter from {@code other} into this accumulator. */
+    public void mergeFrom(DataSourceUsageAccumulator other) {
+        for (int i = 0; i < SCHEME_COUNT; i++) {
+            storageRequests[i].add(other.storageRequests[i].sum());
+            storageBytesRead[i].add(other.storageBytesRead[i].sum());
+            storageErrors[i].add(other.storageErrors[i].sum());
+            storageThrottled[i].add(other.storageThrottled[i].sum());
+        }
+        storageRetries.add(other.storageRetries.sum());
+        queriesCancelled.add(other.queriesCancelled.sum());
+        queriesPartial.add(other.queriesPartial.sum());
+        discoveryFailures.add(other.discoveryFailures.sum());
+        parseRows.add(other.parseRows.sum());
+        readerPoolRejected.add(other.readerPoolRejected.sum());
+        breakerTripped.add(other.breakerTripped.sum());
+        for (int i = 0; i < OUTCOME_COUNT; i++) {
+            queries[i].add(other.queries[i].sum());
+        }
+        for (int b = 0; b < BUCKET_COUNT; b++) {
+            storageRequestDuration[b].add(other.storageRequestDuration[b].sum());
+            storageReadStallDuration[b].add(other.storageReadStallDuration[b].sum());
+            queryDuration[b].add(other.queryDuration[b].sum());
+            queryTimeToFirstRow[b].add(other.queryTimeToFirstRow[b].sum());
+            discoveryDuration[b].add(other.discoveryDuration[b].sum());
+            discoveryFilesScanned[b].add(other.discoveryFilesScanned[b].sum());
+            discoveryBytesScanned[b].add(other.discoveryBytesScanned[b].sum());
+            parseDuration[b].add(other.parseDuration[b].sum());
+            parseSplitsScanned[b].add(other.parseSplitsScanned[b].sum());
+        }
     }
 
     // ---- internal helpers ----
@@ -332,6 +380,7 @@ public final class DataSourceUsageAccumulator {
         bucket(buckets, BYTES_THRESHOLDS, value);
     }
 
+    // Mirrors ThresholdBucketer.count() — intentional duplication: spi has no non-JDK dependencies.
     private static void bucket(LongAdder[] buckets, long[] thresholds, long value) {
         for (int i = 0; i < thresholds.length; i++) {
             if (value < thresholds[i]) {
@@ -363,6 +412,12 @@ public final class DataSourceUsageAccumulator {
             throw new IllegalArgumentException(
                 "outcomeIndex out of range: " + outcomeIndex + "; use OUTCOME_* constants (0.." + (OUTCOME_COUNT - 1) + ")"
             );
+        }
+    }
+
+    private static void checkBucketIndex(int bucket) {
+        if (bucket < 0 || bucket >= BUCKET_COUNT) {
+            throw new IllegalArgumentException("bucket out of range: " + bucket + "; valid range is 0.." + (BUCKET_COUNT - 1));
         }
     }
 }

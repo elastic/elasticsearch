@@ -14,7 +14,6 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -165,8 +164,7 @@ public final class ExternalSourceMetrics {
      * map for the rare unknown scheme (thread-safe: immutable maps + {@code getOrDefault}, no {@code computeIfAbsent}
      * mutating a shared map).
      */
-    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = List.of("s3", "gcs", "azure", "http", "file", "unknown")
-        .stream()
+    private static final Map<String, Map<String, Object>> SCHEME_ATTRIBUTES = DataSourceUsageAccumulator.SCHEME_NAMES.stream()
         .collect(Collectors.toUnmodifiableMap(s -> s, s -> Map.of(SCHEME_ATTRIBUTE, s)));
 
     /** Pre-built, immutable single-entry {@link #OUTCOME_ATTRIBUTE} attribute maps for the closed outcome set. */
@@ -332,7 +330,7 @@ public final class ExternalSourceMetrics {
     public void recordRequest(long durationMillis, long bytes, String scheme) {
         try {
             String canonical = canonicalScheme(scheme);
-            Map<String, Object> attributes = SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical));
+            Map<String, Object> attributes = schemeAttrsForCanonical(canonical);
             requestsTotal.incrementBy(1, attributes);
             if (bytes > 0) {
                 bytesReadTotal.incrementBy(bytes, attributes);
@@ -350,7 +348,7 @@ public final class ExternalSourceMetrics {
     public void recordRetry(String scheme) {
         try {
             String canonical = canonicalScheme(scheme);
-            retriesTotal.incrementBy(1, SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical)));
+            retriesTotal.incrementBy(1, schemeAttrsForCanonical(canonical));
             if (usageAccumulator != null) {
                 usageAccumulator.recordRetry();
             }
@@ -366,7 +364,7 @@ public final class ExternalSourceMetrics {
     public void recordError(String scheme) {
         try {
             String canonical = canonicalScheme(scheme);
-            errorsTotal.incrementBy(1, SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical)));
+            errorsTotal.incrementBy(1, schemeAttrsForCanonical(canonical));
             if (usageAccumulator != null) {
                 usageAccumulator.recordError(accScheme(canonical));
             }
@@ -382,7 +380,7 @@ public final class ExternalSourceMetrics {
     public void recordThrottled(String scheme) {
         try {
             String canonical = canonicalScheme(scheme);
-            throttledTotal.incrementBy(1, SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical)));
+            throttledTotal.incrementBy(1, schemeAttrsForCanonical(canonical));
             if (usageAccumulator != null) {
                 usageAccumulator.recordThrottled(accScheme(canonical));
             }
@@ -549,13 +547,20 @@ public final class ExternalSourceMetrics {
     }
 
     /**
-     * Single canonicalisation chokepoint: folds the raw {@code scheme} to its canonical token and returns the
-     * pre-built {@link #SCHEME_ATTRIBUTE} attribute map for it. The common case (a known provider) returns a
-     * shared immutable map with no allocation; the rare unknown scheme builds a fresh map. Thread-safe: immutable
-     * maps + {@code getOrDefault}, no {@code computeIfAbsent} on a shared map.
+     * Canonicalises {@code scheme} and returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map.
+     * The common case (a known provider) returns a shared immutable map with no allocation; an unknown
+     * scheme builds a fresh map. Thread-safe: immutable maps + {@code getOrDefault}.
      */
     private static Map<String, Object> schemeAttrs(String scheme) {
-        String canonical = canonicalScheme(scheme);
+        return schemeAttrsForCanonical(canonicalScheme(scheme));
+    }
+
+    /**
+     * Returns the pre-built {@link #SCHEME_ATTRIBUTE} attribute map for an already-canonicalised
+     * {@code canonical} scheme token. Callers that have already called {@link #canonicalScheme} use
+     * this overload to avoid re-canonicalising, while keeping the APM attribute lookup in one place.
+     */
+    private static Map<String, Object> schemeAttrsForCanonical(String canonical) {
         return SCHEME_ATTRIBUTES.getOrDefault(canonical, Map.of(SCHEME_ATTRIBUTE, canonical));
     }
 

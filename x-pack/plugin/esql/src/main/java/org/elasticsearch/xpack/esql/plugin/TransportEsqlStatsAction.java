@@ -85,12 +85,12 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     protected EsqlStatsResponse.NodeStatsResponse nodeOperation(EsqlStatsRequest.NodeStatsRequest request, Task task) {
         EsqlStatsResponse.NodeStatsResponse statsResponse = new EsqlStatsResponse.NodeStatsResponse(clusterService.localNode());
         Counters counters = planExecutor.metrics().stats();
-        // Always emit datasource keys (even as zeros) so the /_xpack/usage payload structure is stable
-        // regardless of whether the datasource module or its accumulator is present on this node.
         DataSourceUsageAccumulator acc = planExecutor.dataSourceModule() != null
             ? planExecutor.dataSourceModule().externalSourceMetrics().usageAccumulator()
             : null;
-        DataSourceCounters.populate(acc != null ? acc : new DataSourceUsageAccumulator(), counters);
+        if (acc != null) {
+            DataSourceCounters.populate(acc, counters);
+        }
         statsResponse.setStats(counters);
         return statsResponse;
     }

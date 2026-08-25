@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 
+import java.util.List;
+
 /**
  * Converts the values accumulated in a {@link DataSourceUsageAccumulator} into flat
  * {@link Counters} keys under the {@code datasources.} subtree of the ES|QL XPack usage payload.
@@ -31,7 +33,7 @@ public final class DataSourceCounters {
     public static void populate(DataSourceUsageAccumulator acc, Counters counters) {
         // ---- per-scheme counters ----
         for (int i = 0; i < DataSourceUsageAccumulator.SCHEME_COUNT; i++) {
-            String s = DataSourceUsageAccumulator.SCHEME_NAMES[i];
+            String s = DataSourceUsageAccumulator.SCHEME_NAMES.get(i);
             counters.inc("datasources.storage.requests.total." + s, acc.storageRequests(i));
             counters.inc("datasources.storage.bytes_read.total." + s, acc.storageBytesRead(i));
             counters.inc("datasources.storage.errors.total." + s, acc.storageErrors(i));
@@ -41,7 +43,7 @@ public final class DataSourceCounters {
         // ---- unattributed counters ----
         counters.inc("datasources.storage.retries.total", acc.storageRetries());
         // datasources.queries.cancelled.total mirrors the APM QUERIES_CANCELLED_TOTAL instrument (a dedicated
-        // cancelled counter). datasources.queries.total.cancelled (populated below) mirrors QUERIES_TOTAL
+        // cancelled counter). datasources.queries.by_outcome.cancelled (populated below) mirrors QUERIES_TOTAL
         // attributed to the cancelled outcome. The two are intentionally separate keys — do not sum them.
         counters.inc("datasources.queries.cancelled.total", acc.queriesCancelled());
         counters.inc("datasources.queries.partial.total", acc.queriesPartial());
@@ -52,31 +54,31 @@ public final class DataSourceCounters {
 
         // ---- per-outcome query counters ----
         for (int i = 0; i < DataSourceUsageAccumulator.OUTCOME_COUNT; i++) {
-            counters.inc("datasources.queries.total." + DataSourceUsageAccumulator.OUTCOME_NAMES[i], acc.queries(i));
+            counters.inc("datasources.queries.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(i), acc.queries(i));
         }
 
         // ---- time histograms (no scheme attribute) ----
-        String[] ts = DataSourceUsageAccumulator.TIME_SUFFIXES;
+        List<String> ts = DataSourceUsageAccumulator.TIME_SUFFIXES;
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
-            counters.inc("datasources.storage.requests.duration." + ts[b], acc.storageRequestDuration(b));
-            counters.inc("datasources.storage.read_stall.duration." + ts[b], acc.storageReadStallDuration(b));
-            counters.inc("datasources.queries.duration." + ts[b], acc.queryDuration(b));
-            counters.inc("datasources.queries.time_to_first_row." + ts[b], acc.queryTimeToFirstRow(b));
-            counters.inc("datasources.discovery.duration." + ts[b], acc.discoveryDuration(b));
-            counters.inc("datasources.parse.duration." + ts[b], acc.parseDuration(b));
+            counters.inc("datasources.storage.requests.duration." + ts.get(b), acc.storageRequestDuration(b));
+            counters.inc("datasources.storage.read_stall.duration." + ts.get(b), acc.storageReadStallDuration(b));
+            counters.inc("datasources.queries.duration." + ts.get(b), acc.queryDuration(b));
+            counters.inc("datasources.queries.time_to_first_row." + ts.get(b), acc.queryTimeToFirstRow(b));
+            counters.inc("datasources.discovery.duration." + ts.get(b), acc.discoveryDuration(b));
+            counters.inc("datasources.parse.duration." + ts.get(b), acc.parseDuration(b));
         }
 
         // ---- count histograms ----
-        String[] cs = DataSourceUsageAccumulator.COUNT_SUFFIXES;
+        List<String> cs = DataSourceUsageAccumulator.COUNT_SUFFIXES;
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
-            counters.inc("datasources.discovery.files_scanned." + cs[b], acc.discoveryFilesScanned(b));
-            counters.inc("datasources.parse.splits_scanned." + cs[b], acc.parseSplitsScanned(b));
+            counters.inc("datasources.discovery.files_scanned." + cs.get(b), acc.discoveryFilesScanned(b));
+            counters.inc("datasources.parse.splits_scanned." + cs.get(b), acc.parseSplitsScanned(b));
         }
 
         // ---- bytes histogram ----
-        String[] bs = DataSourceUsageAccumulator.BYTES_SUFFIXES;
+        List<String> bs = DataSourceUsageAccumulator.BYTES_SUFFIXES;
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
-            counters.inc("datasources.discovery.bytes_scanned." + bs[b], acc.discoveryBytesScanned(b));
+            counters.inc("datasources.discovery.bytes_scanned." + bs.get(b), acc.discoveryBytesScanned(b));
         }
     }
 }

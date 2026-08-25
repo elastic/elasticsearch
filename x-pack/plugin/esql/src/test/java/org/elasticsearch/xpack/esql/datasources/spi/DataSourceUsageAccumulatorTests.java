@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCounters;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
@@ -99,7 +99,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
         acc.recordParse(1000L, 50L);
         assertThat(acc.parseRows(), equalTo(1000L));
-        assertThat(acc.parseDuration(1), greaterThan(0L)); // 50ms → lt_100ms bucket
+        assertThat(acc.parseDuration(1), equalTo(1L)); // 50ms → lt_100ms bucket (index 1)
     }
 
     public void testRecordParseZeroRowsSkipsCounter() {
@@ -161,7 +161,7 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
 
     public void testUnrecognizedOutcomeClampsToFailureInExternalSourceMetrics() {
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        ExternalSourceMetrics metrics = new ExternalSourceMetrics(org.elasticsearch.telemetry.metric.MeterRegistry.NOOP, acc);
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(MeterRegistry.NOOP, acc);
         // An unrecognized outcome must not throw — it must clamp to "failure" so that APM and
         // phone-home counters stay in sync (APM already incremented its counter before the accumulator call).
         metrics.recordQuery("unexpected_outcome", 100L, false);
@@ -186,22 +186,22 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         // spot-check a few keys
         assertThat(counters.get("datasources.storage.requests.total.s3"), equalTo(1L));
         assertThat(counters.get("datasources.storage.bytes_read.total.s3"), equalTo(1024L));
-        assertThat(counters.get("datasources.queries.total.success"), equalTo(1L));
+        assertThat(counters.get("datasources.queries.by_outcome.success"), equalTo(1L));
         assertThat(counters.get("datasources.discovery.failures.total"), equalTo(1L));
         assertThat(counters.get("datasources.breaker.tripped.total"), equalTo(1L));
         assertThat(counters.get("datasources.parse.rows.total"), equalTo(500L));
 
-        // verify at least one bucket from each histogram family exists
-        assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), greaterThan(-1L));
-        assertThat(counters.get("datasources.discovery.files_scanned.lt_1"), greaterThan(-1L));
-        assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1b"), greaterThan(-1L));
-        assertThat(counters.get("datasources.parse.splits_scanned.lt_1"), greaterThan(-1L));
+        // verify one populated bucket per histogram family (exact bucket derived from input values above)
+        assertThat(counters.get("datasources.storage.requests.duration.lt_10ms"), equalTo(1L)); // 5ms < 10ms → index 0
+        assertThat(counters.get("datasources.discovery.files_scanned.lt_10"), equalTo(1L));     // 5 files → index 1
+        assertThat(counters.get("datasources.discovery.bytes_scanned.lt_1kb"), equalTo(1L));    // 512 bytes → index 3
+        assertThat(counters.get("datasources.parse.splits_scanned.lt_10"), equalTo(1L));        // 3 splits → index 1
     }
 
     public void testExternalSourceMetricsDualSink() {
         // Verify that ExternalSourceMetrics with an attached accumulator forwards all events
         DataSourceUsageAccumulator acc = new DataSourceUsageAccumulator();
-        ExternalSourceMetrics metrics = new ExternalSourceMetrics(org.elasticsearch.telemetry.metric.MeterRegistry.NOOP, acc);
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(MeterRegistry.NOOP, acc);
 
         metrics.recordRequest(50L, 2048L, "s3");
         metrics.recordRetry("gcs");
@@ -239,11 +239,11 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
     }
 
     public void testNoopRecordDoesNotAccumulateSharedState() {
-        // NOOP must never accumulate state — it is a shared singleton.
+        // NOOP is a shared singleton — its usageAccumulator must be null so record* calls are no-ops.
+        assertNull(ExternalSourceMetrics.NOOP.usageAccumulator());
+        // These calls must not throw and must not acquire a non-null accumulator.
         ExternalSourceMetrics.NOOP.recordRequest(10L, 100L, "s3");
         ExternalSourceMetrics.NOOP.recordQuery(ExternalSourceMetrics.OUTCOME_SUCCESS, 50L, false);
-        // If usageAccumulator were non-null on NOOP, calls above would have mutated shared state.
-        // Verify accumulator is null (i.e. the guard is in place).
-        assertThat(ExternalSourceMetrics.NOOP.usageAccumulator(), equalTo(null));
+        assertNull(ExternalSourceMetrics.NOOP.usageAccumulator());
     }
 }

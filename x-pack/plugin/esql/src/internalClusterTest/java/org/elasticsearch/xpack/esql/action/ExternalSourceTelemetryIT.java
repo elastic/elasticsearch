@@ -200,14 +200,14 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // Snapshot accumulator before the query so assertions use deltas (SUITE-scoped cluster).
-        DataSourceUsageAccumulator acc = phoneHomeAccumulator();
-        long parseRowsBefore = acc.parseRows();
-        long storageRequestsBefore = acc.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE);
-        long storageBytesReadBefore = acc.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE);
-        long queriesSuccessBefore = acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS);
-        long queriesFailureBefore = acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE);
-        long filesScannedBucketBefore = acc.discoveryFilesScanned(1);
-        long discoveryFailuresBefore = acc.discoveryFailures();
+        DataSourceUsageAccumulator before = phoneHomeAccumulator();
+        long parseRowsBefore = before.parseRows();
+        long storageRequestsBefore = before.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE);
+        long storageBytesReadBefore = before.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE);
+        long queriesSuccessBefore = before.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS);
+        long queriesFailureBefore = before.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE);
+        long filesScannedBucketBefore = before.discoveryFilesScanned(1);
+        long discoveryFailuresBefore = before.discoveryFailures();
 
         // Isolate: only this query's measurements should be present on any node.
         resetAllMeters();
@@ -270,35 +270,36 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // ---- phone-home accumulator (DataSourceUsageAccumulator) — delta assertions ----
-        // The accumulator is never reset (it is a lifetime counter), so compare against the
-        // snapshot taken before this query to stay correct regardless of test execution order.
-        assertThat("phone-home: parse.rows must increase by 10", acc.parseRows() - parseRowsBefore, equalTo(10L));
+        // The accumulator is never reset (it is a lifetime counter), so compare a fresh snapshot
+        // taken after the query against the before-values captured above.
+        DataSourceUsageAccumulator after = phoneHomeAccumulator();
+        assertThat("phone-home: parse.rows must increase by 10", after.parseRows() - parseRowsBefore, equalTo(10L));
         assertThat(
             "phone-home: storage.requests (file scheme) must fire",
-            acc.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE) - storageRequestsBefore,
+            after.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE) - storageRequestsBefore,
             greaterThan(0L)
         );
         assertThat(
             "phone-home: storage.bytes_read (file scheme) must fire",
-            acc.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE) - storageBytesReadBefore,
+            after.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE) - storageBytesReadBefore,
             greaterThan(0L)
         );
         assertThat(
             "phone-home: queries.total (success outcome) must increase by 1",
-            acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS) - queriesSuccessBefore,
+            after.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS) - queriesSuccessBefore,
             equalTo(1L)
         );
         assertThat(
             "phone-home: queries.total (failure outcome) must not fire for a successful query",
-            acc.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE) - queriesFailureBefore,
+            after.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE) - queriesFailureBefore,
             equalTo(0L)
         );
         assertThat(
             "phone-home: discovery.files_scanned bucket for 2 files must be populated",
-            acc.discoveryFilesScanned(1) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1 (lt_10)
+            after.discoveryFilesScanned(1) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1 (lt_10)
             greaterThan(0L)
         );
-        assertThat("phone-home: no discovery failures on a clean scan", acc.discoveryFailures() - discoveryFailuresBefore, equalTo(0L));
+        assertThat("phone-home: no discovery failures on a clean scan", after.discoveryFailures() - discoveryFailuresBefore, equalTo(0L));
     }
 
     /**
@@ -337,9 +338,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // Snapshot before so delta assertions are order-independent.
-        DataSourceUsageAccumulator acc = phoneHomeAccumulator();
-        long discoveryFailuresBefore = acc.discoveryFailures();
-        long queriesSuccessBefore = acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS);
+        DataSourceUsageAccumulator before = phoneHomeAccumulator();
+        long discoveryFailuresBefore = before.discoveryFailures();
+        long queriesSuccessBefore = before.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS);
 
         resetAllMeters();
 
@@ -365,14 +366,15 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // ---- phone-home accumulator — delta assertions ----
+        DataSourceUsageAccumulator after = phoneHomeAccumulator();
         assertThat(
             "phone-home: discovery.failures must increase when resolution of a missing file fails",
-            acc.discoveryFailures() - discoveryFailuresBefore,
+            after.discoveryFailures() - discoveryFailuresBefore,
             greaterThanOrEqualTo(1L)
         );
         assertThat(
             "phone-home: queries.total (success) must not increase for a resolution failure",
-            acc.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS) - queriesSuccessBefore,
+            after.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS) - queriesSuccessBefore,
             equalTo(0L)
         );
     }
@@ -452,14 +454,26 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Returns the phone-home accumulator from the master node's {@link PlanExecutor}. In a single-node
-     * cluster this is also the data node, so all events (storage, parse, discovery, query) land here.
+     * Returns a merged snapshot of phone-home counters across all cluster nodes. Each data node
+     * accumulates events independently; summing them gives the cluster-wide total — the same view
+     * that {@code TransportEsqlStatsAction} produces before handing off to {@code /_xpack/usage}.
      */
     private DataSourceUsageAccumulator phoneHomeAccumulator() {
-        PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName());
-        assertNotNull("DataSourceModule must be wired on a real cluster node", planExecutor.dataSourceModule());
-        DataSourceUsageAccumulator acc = planExecutor.dataSourceModule().externalSourceMetrics().usageAccumulator();
-        assertNotNull("DataSourceUsageAccumulator must be non-null when DataSourceModule is present", acc);
-        return acc;
+        DataSourceUsageAccumulator merged = new DataSourceUsageAccumulator();
+        boolean found = false;
+        for (String node : internalCluster().getNodeNames()) {
+            PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
+            if (planExecutor.dataSourceModule() == null) {
+                continue;
+            }
+            DataSourceUsageAccumulator acc = planExecutor.dataSourceModule().externalSourceMetrics().usageAccumulator();
+            if (acc == null) {
+                continue;
+            }
+            found = true;
+            merged.mergeFrom(acc);
+        }
+        assertTrue("No node has a DataSourceModule with a non-null usageAccumulator", found);
+        return merged;
     }
 }

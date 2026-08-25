@@ -18,14 +18,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache.MAX_ENTRIES;
+import static org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache.MAX_TOTAL_ENTRIES;
 import static org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache.unwrap;
 
 /**
@@ -96,6 +100,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         } finally {
             result1.value().close();
             result2.value().close();
+            cache.close();
         }
     }
 
@@ -111,6 +116,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         } finally {
             providerA.value().close();
             providerB.value().close();
+            cache.close();
         }
     }
 
@@ -127,6 +133,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         } finally {
             s3Provider.value().close();
             gcsProvider.value().close();
+            cache.close();
         }
     }
 
@@ -141,6 +148,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         assertEquals("provider should not be closed before invalidation", 0, provider.closeCalls.get());
         cache.invalidateAll();
         assertEquals("provider should be closed after invalidateAll", 1, provider.closeCalls.get());
+        cache.close();
     }
 
     public void testCloseInvalidatesAndClosesIdleProviders() throws Exception {
@@ -165,6 +173,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         assertEquals("in-use provider must survive invalidateAll", 0, provider.closeCalls.get());
         lease.value().close();
         assertEquals("last lease return after invalidateAll true-closes", 1, provider.closeCalls.get());
+        cache.close();
     }
 
     public void testCloseLeaseIsNoOpForNonPooledProvider() {
@@ -269,6 +278,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         }
         assertEquals("exactly one idle entry should be evicted", 1, closedIdle);
         heldLease.value().close();
+        cache.close();
     }
 
     public void testIdleTtlSweepOnDifferentKeyTrueCloses() throws Exception {
@@ -296,6 +306,7 @@ public class StorageProviderCacheTests extends ESTestCase {
             assertNotSame(c, unwrap(cLease.value()));
         } finally {
             cLease.value().close();
+            cache.close();
         }
     }
 
@@ -329,6 +340,7 @@ public class StorageProviderCacheTests extends ESTestCase {
         );
         other3.value().close();
         assertEquals(1, c.closeCalls.get());
+        cache.close();
     }
 
     public void testMutableConfigMapIsSnapshotted() throws Exception {
@@ -347,6 +359,121 @@ public class StorageProviderCacheTests extends ESTestCase {
         } finally {
             first.value().close();
             second.value().close();
+            cache.close();
+        }
+    }
+
+    public void testNullConfigValueIsSnapshottedOnMiss() throws Exception {
+        try (StorageProviderCache cache = new StorageProviderCache()) {
+            HashMap<String, Object> config = new HashMap<>();
+            config.put("k", null);
+            StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", config);
+            Configured<StorageProvider> lease = cache.getOrCreate(key, () -> Configured.empty(new TrackingProvider()));
+            lease.value().close();
+        }
+    }
+
+    public void testTotalCapRefusesNewDistinctKeys() throws Exception {
+        StorageProviderCache cache = new StorageProviderCache();
+        List<Configured<StorageProvider>> leases = new ArrayList<>(MAX_TOTAL_ENTRIES);
+        try {
+            for (int i = 0; i < MAX_TOTAL_ENTRIES; i++) {
+                int idx = i;
+                leases.add(
+                    cache.getOrCreate(
+                        new StorageProviderCache.CacheKey("s3", Map.of("n", Integer.toString(idx))),
+                        () -> Configured.empty(new TrackingProvider())
+                    )
+                );
+            }
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> cache.getOrCreate(
+                    new StorageProviderCache.CacheKey("s3", Map.of("n", "overflow")),
+                    () -> Configured.empty(new TrackingProvider())
+                )
+            );
+            assertTrue(e.getMessage().contains("exhausted"));
+        } finally {
+            for (Configured<StorageProvider> lease : leases) {
+                lease.value().close();
+            }
+            cache.close();
+        }
+    }
+
+    public void testTotalCapEvictsIdleToAdmitNewKey() throws Exception {
+        StorageProviderCache cache = new StorageProviderCache();
+        List<Configured<StorageProvider>> held = new ArrayList<>();
+        TrackingProvider idleVictim = new TrackingProvider();
+        try {
+            cache.getOrCreate(idleKey(0), () -> Configured.empty(idleVictim)).value().close();
+            for (int i = 0; i < MAX_TOTAL_ENTRIES - 1; i++) {
+                int idx = i;
+                held.add(
+                    cache.getOrCreate(
+                        new StorageProviderCache.CacheKey("s3", Map.of("held", Integer.toString(idx))),
+                        () -> Configured.empty(new TrackingProvider())
+                    )
+                );
+            }
+            TrackingProvider extra = new TrackingProvider();
+            Configured<StorageProvider> admitted = cache.getOrCreate(
+                new StorageProviderCache.CacheKey("s3", Map.of("new", "key")),
+                () -> Configured.empty(extra)
+            );
+            held.add(admitted);
+            assertEquals("idle entry must be dropped to admit a new key at the total cap", 1, idleVictim.closeCalls.get());
+        } finally {
+            for (Configured<StorageProvider> lease : held) {
+                lease.value().close();
+            }
+            cache.close();
+        }
+    }
+
+    public void testConcurrentBorrowAndSweepDoesNotCloseHeldClient() throws Exception {
+        AtomicLong now = new AtomicLong();
+        try (StorageProviderCache cache = new StorageProviderCache(TimeValue.timeValueNanos(1), now::get)) {
+            StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("k", "v"));
+            List<TrackingProvider> created = Collections.synchronizedList(new ArrayList<>());
+            int threads = 8;
+            CyclicBarrier start = new CyclicBarrier(threads);
+            Thread[] workers = new Thread[threads];
+            AtomicReference<AssertionError> failure = new AtomicReference<>();
+            for (int t = 0; t < threads; t++) {
+                workers[t] = new Thread(() -> {
+                    try {
+                        start.await();
+                        for (int i = 0; i < 100; i++) {
+                            Configured<StorageProvider> lease = cache.getOrCreate(key, () -> {
+                                TrackingProvider provider = new TrackingProvider();
+                                created.add(provider);
+                                return Configured.empty(provider);
+                            });
+                            TrackingProvider held = (TrackingProvider) unwrap(lease.value());
+                            assertEquals(0, held.closeCalls.get());
+                            now.addAndGet(10);
+                            lease.value().close();
+                        }
+                    } catch (AssertionError e) {
+                        failure.compareAndSet(null, e);
+                    } catch (Exception e) {
+                        failure.compareAndSet(null, new AssertionError(e));
+                    }
+                });
+                workers[t].start();
+            }
+            for (Thread worker : workers) {
+                worker.join();
+            }
+            if (failure.get() != null) {
+                throw failure.get();
+            }
+            cache.close();
+            for (TrackingProvider provider : created) {
+                assertEquals(1, provider.closeCalls.get());
+            }
         }
     }
 

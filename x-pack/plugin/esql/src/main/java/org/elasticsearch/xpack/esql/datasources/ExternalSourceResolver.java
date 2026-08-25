@@ -724,6 +724,9 @@ public class ExternalSourceResolver {
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
+        // Lease covers the synchronous prologue only (glob / cache listing). FIRST_FILE_WINS
+        // returns it when the anchor read is issued; cachedResolveSingleSourceAsync /
+        // resolveSingleSourceAsync re-borrow and must not capture this provider.
         try {
             // Strict declaration is the whole schema for every file, so inference (FIRST_FILE_WINS / reconciliation) is
             // skipped entirely — only the glob listing plus, for columnar formats, one anchor footer read to validate

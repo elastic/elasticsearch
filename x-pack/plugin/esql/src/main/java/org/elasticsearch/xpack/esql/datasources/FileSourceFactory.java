@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -301,13 +302,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         StorageProvider provider = null;
-        boolean borrowed = config != null && config.isEmpty() == false;
+        boolean hasConfig = config != null && config.isEmpty() == false;
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
             FormatReader reader;
-            if (borrowed) {
+            if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
                 reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             } else {
@@ -348,7 +349,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         final StorageObject storageObject;
         final FormatReader reader;
         StorageProvider provider = null;
-        boolean borrowed = config != null && config.isEmpty() == false;
+        boolean hasConfig = config != null && config.isEmpty() == false;
         boolean setupComplete = false;
         try {
             // Reject unknown configuration keys before any provider/reader work — same single source
@@ -357,7 +358,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            if (borrowed) {
+            if (hasConfig) {
                 provider = storageRegistry.createProviderTrackingConsumedKeys(
                     scheme,
                     settings,
@@ -401,11 +402,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
         }
         // Map an I/O failure from the async metadata read to the same IllegalArgumentException shape
         // the synchronous path produces, so callers see identical exceptions regardless of path.
+        boolean started = false;
         try {
             reader.metadataAsync(storageObject, executor, completion);
-        } catch (RuntimeException e) {
-            StorageProviderCache.closeLease(provider);
-            throw e;
+            started = true;
+        } finally {
+            // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent.
+            if (started == false) {
+                StorageProviderCache.closeLease(provider);
+            }
         }
     }
 
@@ -437,12 +442,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
             boolean transferred = false;
             try {
                 if (config != null && config.isEmpty() == false) {
-                    storage = storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config));
+                    // Borrow on first storage use (operator get()), not at factory build, so a
+                    // planned-but-never-started driver does not pin an SDK client forever.
+                    storage = new DeferredPoolLease(
+                        () -> storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config))
+                    );
+                    onClose = storage;
                 } else {
                     storage = storageRegistry.provider(path);
-                }
-                if (StorageProviderCache.isPooledLease(storage)) {
-                    onClose = storage;
                 }
 
                 FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
@@ -473,10 +480,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
                 // registry (see StorageProviderRegistry#wrapProvider), and in-flight reads are additionally bounded by
                 // the per-scheme permit semaphore. Blocking reads run on the dedicated esql_external_io pool.
-                // WITH-config storage is a pool lease: return it when operators from get() finish.
-                // A built-but-never-started factory leaks the lease until node shutdown (same hole as
-                // the query budget; OperatorFactory has no close). QueryBudgetedStorageProvider.close()
-                // only releases the budget, so the lease is a sibling Closeable when both are present.
+                // WITH-config storage is a deferred pool lease: first operator get() borrows, onClose returns it.
+                // QueryBudgetedStorageProvider.close() only releases the budget, so the lease is a sibling Closeable
+                // when both are present.
                 ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
                 if (allocator != null) {
                     QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
@@ -618,5 +624,78 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
         return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
+    }
+
+    /**
+     * WITH-config pool borrow that does not call {@code createProvider} until the first storage
+     * operation. {@link #close()} is a no-op if the factory never ran {@code get()}.
+     */
+    private static final class DeferredPoolLease implements StorageProvider {
+        private final Supplier<StorageProvider> supplier;
+        private StorageProvider inner;
+        private boolean closed;
+
+        DeferredPoolLease(Supplier<StorageProvider> supplier) {
+            this.supplier = supplier;
+        }
+
+        private StorageProvider inner() {
+            synchronized (this) {
+                if (closed) {
+                    throw new IllegalStateException("storage lease already returned");
+                }
+                if (inner == null) {
+                    inner = supplier.get();
+                }
+                return inner;
+            }
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            return inner().newObject(path);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return inner().newObject(path, length);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            return inner().newObject(path, length, lastModified);
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
+            return inner().listObjects(prefix, recursive);
+        }
+
+        @Override
+        public boolean exists(StoragePath path) throws IOException {
+            return inner().exists(path);
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return inner().supportedSchemes();
+        }
+
+        @Override
+        public boolean supportsStableMetadata() {
+            return inner().supportsStableMetadata();
+        }
+
+        @Override
+        public void close() {
+            StorageProvider current;
+            synchronized (this) {
+                closed = true;
+                current = inner;
+            }
+            if (current != null) {
+                StorageProviderCache.closeLease(current);
+            }
+        }
     }
 }

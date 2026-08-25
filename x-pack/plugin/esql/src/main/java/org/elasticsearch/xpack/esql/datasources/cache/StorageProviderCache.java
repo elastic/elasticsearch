@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,8 +47,9 @@ import java.util.function.LongSupplier;
  * <p>In-use entries are pinned ({@code refCount() > 1}) so a long scan cannot observe
  * {@code Connection pool shut down}. Idle entries (map ref only) expire after
  * {@link #DEFAULT_TTL_MINUTES} minutes from the last return, swept on the next
- * {@link #getOrCreate}. Idle count is capped at {@link #MAX_ENTRIES}; leased entries
- * do not count toward the cap and are never true-closed by eviction.
+ * {@link #getOrCreate}. Idle count is capped at {@link #MAX_ENTRIES}; total map size
+ * including leases is capped at {@link #MAX_TOTAL_ENTRIES}. Leased entries are never
+ * true-closed by idle eviction.
  *
  * <p>Callers of {@link #getOrCreate} must {@code close()} the returned provider exactly
  * as a borrow. Empty-config default providers are not pooled here.
@@ -56,6 +60,11 @@ public class StorageProviderCache implements Closeable {
 
     /** Maximum number of distinct idle (scheme, config) entries retained. */
     static final int MAX_ENTRIES = 32;
+
+    /** Hard cap on map size (idle + leased). Further distinct keys are refused after idle eviction. */
+    static final int MAX_TOTAL_ENTRIES = 256;
+
+    private static final int CREATE_STRIPES = 16;
 
     /** Default idle TTL in minutes for pooled providers with no outstanding borrows. */
     static final long DEFAULT_TTL_MINUTES = 5L;
@@ -77,6 +86,7 @@ public class StorageProviderCache implements Closeable {
     }
 
     private final ConcurrentHashMap<CacheKey, Entry> entries = new ConcurrentHashMap<>();
+    private final Object[] createLocks;
     private final long idleTtlNanos;
     private final LongSupplier nanoClock;
 
@@ -93,12 +103,16 @@ public class StorageProviderCache implements Closeable {
         }
         this.idleTtlNanos = idleTtl.nanos();
         this.nanoClock = nanoClock;
+        this.createLocks = new Object[CREATE_STRIPES];
+        for (int i = 0; i < CREATE_STRIPES; i++) {
+            createLocks[i] = new Object();
+        }
     }
 
     /**
      * Returns a pooled lease for the given key, creating the underlying provider on a miss.
-     * The factory is invoked at most once per key under concurrent access (miss path is
-     * synchronized, matching {@code S3ClientsManager.ClientsHolder#client}).
+     * Concurrent misses for different keys do not share a monitor (striped by key hash).
+     * The same key is created at most once.
      *
      * <p>The returned {@link Configured#value()} is a wrapper: {@code close()} returns the
      * lease to the pool and is idempotent. It does not shut down the SDK client.
@@ -109,20 +123,28 @@ public class StorageProviderCache implements Closeable {
      * @throws Exception if the factory throws during a cache miss
      */
     public Configured<StorageProvider> getOrCreate(CacheKey key, ProviderFactory factory) throws Exception {
-        Map<String, Object> config = Map.copyOf(key.config());
-        CacheKey stableKey = config == key.config() ? key : new CacheKey(key.scheme(), config);
         sweepExpired();
-        Entry existing = entries.get(stableKey);
+        Entry existing = entries.get(key);
         if (existing != null && pin(existing)) {
-            evictExcessIdle();
             return wrap(existing);
         }
-        synchronized (this) {
-            existing = entries.get(stableKey);
+        synchronized (createLock(key)) {
+            existing = entries.get(key);
             if (existing != null && pin(existing)) {
-                evictExcessIdle();
                 return wrap(existing);
             }
+            if (entries.size() >= MAX_TOTAL_ENTRIES) {
+                evictIdleToMakeRoom();
+            }
+            if (entries.size() >= MAX_TOTAL_ENTRIES) {
+                logger.warn(
+                    "storage provider pool at cap [{}] entries; refusing new client for scheme [{}]",
+                    MAX_TOTAL_ENTRIES,
+                    key.scheme()
+                );
+                throw new IllegalStateException("storage provider pool exhausted (" + MAX_TOTAL_ENTRIES + " entries)");
+            }
+            CacheKey stableKey = snapshotKey(key);
             Configured<StorageProvider> created = factory.create();
             Entry entry = new Entry(stableKey, created, nanoClock.getAsLong());
             entry.mustIncRef();
@@ -134,13 +156,17 @@ public class StorageProviderCache implements Closeable {
 
     /** Removes all map slots. In-flight leases keep their clients alive until returned. */
     public void invalidateAll() {
+        List<Entry> toClose = new ArrayList<>();
         synchronized (this) {
             for (CacheKey key : Set.copyOf(entries.keySet())) {
                 Entry entry = entries.remove(key);
                 if (entry != null) {
-                    entry.close();
+                    toClose.add(entry);
                 }
             }
+        }
+        for (Entry entry : toClose) {
+            entry.close();
         }
     }
 
@@ -171,6 +197,15 @@ public class StorageProviderCache implements Closeable {
 
     private Configured<StorageProvider> wrap(Entry entry) {
         return new Configured<>(new PooledStorageProvider(entry), entry.consumedKeys);
+    }
+
+    private Object createLock(CacheKey key) {
+        return createLocks[Integer.remainderUnsigned(key.hashCode(), createLocks.length)];
+    }
+
+    private static CacheKey snapshotKey(CacheKey key) {
+        // HashMap copy keeps explicit null values; Map.copyOf would NPE. Lookup uses Map.equals.
+        return new CacheKey(key.scheme(), Collections.unmodifiableMap(new HashMap<>(key.config())));
     }
 
     private void sweepExpired() {
@@ -212,8 +247,33 @@ public class StorageProviderCache implements Closeable {
         }
     }
 
-    // Same lock as pin() and lease return: only unmap+close when still idle.
+    // Drop idle entries until under {@link #MAX_TOTAL_ENTRIES}, including the last 32 warm slots.
+    private void evictIdleToMakeRoom() {
+        while (entries.size() >= MAX_TOTAL_ENTRIES) {
+            CacheKey oldestKey = null;
+            Entry oldest = null;
+            long oldestAccess = Long.MAX_VALUE;
+            for (Map.Entry<CacheKey, Entry> mapEntry : entries.entrySet()) {
+                Entry entry = mapEntry.getValue();
+                if (entry.refCount() != 1) {
+                    continue;
+                }
+                if (entry.lastAccessNanos <= oldestAccess) {
+                    oldestAccess = entry.lastAccessNanos;
+                    oldestKey = mapEntry.getKey();
+                    oldest = entry;
+                }
+            }
+            if (oldest == null) {
+                return;
+            }
+            dropMapSlotIfIdle(oldestKey, oldest, false);
+        }
+    }
+
+    // Same lock as pin() and lease return: only unmap when still idle. SDK close runs after the monitor.
     private void dropMapSlotIfIdle(CacheKey key, Entry entry, boolean expireOnly) {
+        boolean unmapped = false;
         synchronized (entry) {
             if (entry.refCount() != 1) {
                 return;
@@ -224,6 +284,9 @@ public class StorageProviderCache implements Closeable {
             if (entries.remove(key, entry) == false) {
                 return;
             }
+            unmapped = true;
+        }
+        if (unmapped) {
             entry.close();
         }
     }

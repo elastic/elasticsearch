@@ -1228,14 +1228,15 @@ public class FileSplitProvider implements SplitProvider {
      * Resolves the {@link StorageProvider} to use for a single-file operation.
      * Returns the hoisted WITH-config lease when present; empty-config reads use the
      * registry default. A missing hoist with non-empty config is a programming error
-     * (creating a provider here would leak a pool lease).
+     * (creating a provider here would leak a pool lease). Unreachable when the hoist
+     * in {@code discoverSplits} ran; fails as {@link AssertionError}, not a user ISE.
      */
     private StorageProvider resolveProvider(StoragePath filePath, Map<String, Object> config, @Nullable StorageProvider hoistedProvider) {
         if (hoistedProvider != null) {
             return hoistedProvider;
         }
         if (config != null && config.isEmpty() == false) {
-            throw new IllegalStateException("WITH-config split discovery requires a hoisted storage provider");
+            throw new AssertionError("WITH-config split discovery requires a hoisted storage provider");
         }
         return storageRegistry.provider(filePath);
     }

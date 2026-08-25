@@ -218,9 +218,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         for (ShardRouting shard : node.started()) {
             double load = shardWriteLoads.getOrDefault(shard.shardId(), 0.0);
             totalWriteLoad += load;
-            if (load > maxShardWriteLoad) {
-                maxShardWriteLoad = load;
-            }
+            maxShardWriteLoad = Math.max(maxShardWriteLoad, load);
         }
         return totalWriteLoad > 0.0 ? maxShardWriteLoad / totalWriteLoad : 0.0;
     }

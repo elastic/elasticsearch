@@ -20,8 +20,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
 
 /**
- * {@link HttpResponse.BodyHandler} implementations that accumulate HTTP response bodies directly
- * into a pre-allocated direct {@link ByteBuffer}, avoiding {@code BodyHandlers.ofByteArray()}.
+ * {@link HttpResponse.BodyHandler} implementations that accumulate HTTP response bodies into a
+ * pre-allocated destination {@link ByteBuffer}, avoiding {@code BodyHandlers.ofByteArray()}.
  *
  * <p>Destination buffers are obtained from a caller-supplied {@link DirectBufferFactory} so the
  * allocation is breaker-accounted. On success the {@link DirectReadBuffer} is handed to the
@@ -34,9 +34,9 @@ final class DirectByteBufferBodyHandlers {
 
     /**
      * Returns a body handler for range reads. When the server responds with {@code 206 Partial Content},
-     * the body is accumulated into a direct buffer of {@code length}. When the server ignores the
+     * the body is accumulated into a buffer of {@code length}. When the server ignores the
      * {@code Range} header and responds with {@code 200 OK}, the first {@code skip} bytes are
-     * discarded and the next {@code length} bytes are accumulated into a direct buffer.
+     * discarded and the next {@code length} bytes are accumulated into a destination buffer.
      *
      * @param factory factory used to produce the destination buffer on the 200/206 paths
      */
@@ -54,7 +54,7 @@ final class DirectByteBufferBodyHandlers {
     }
 
     /**
-     * Accumulates exactly {@code expectedLength} bytes into a direct buffer. Used for {@code 206} responses.
+     * Accumulates exactly {@code expectedLength} bytes into a destination buffer. Used for {@code 206} responses.
      */
     static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final int expectedLength;
@@ -180,7 +180,7 @@ final class DirectByteBufferBodyHandlers {
     }
 
     /**
-     * Skips {@code skip} bytes then accumulates up to {@code length} bytes into a direct buffer.
+     * Skips {@code skip} bytes then accumulates up to {@code length} bytes into a destination buffer.
      * Used when a server ignores {@code Range} and returns the full body with {@code 200 OK}.
      */
     static final class SkipThenFillDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {

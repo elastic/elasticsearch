@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Intent;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.TransitionContext;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.List;
@@ -176,6 +177,8 @@ public class CredentialTransitionsTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenCloudCredentialPresentShouldUseWrappedClient() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
         Client delegateClient = mock(Client.class);
@@ -201,7 +204,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             delegateClient,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -222,12 +225,16 @@ public class CredentialTransitionsTests extends ESTestCase {
 
         assertThat(failure.get(), equalTo(grantFailure));
         verify(credentialManager).wrapClient(same(delegateClient), eq(callerCredential));
-        verify(wrappedClient).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(wrappedClient).execute(same(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
+        assertThat(searchRequestCaptor.getValue().indicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
         verify(delegateClient, never()).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
     }
 
     @SuppressWarnings("unchecked")
     public void testValidateSearchBeforeMintWhenNoCloudCredentialShouldUseBareClient() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+
         CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
         InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
         Client client = mock(Client.class);
@@ -250,7 +257,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -273,7 +280,9 @@ public class CredentialTransitionsTests extends ESTestCase {
         // extract is consulted (atomic capture) and yields null, so the bare client is used
         verify(credentialManager, atLeastOnce()).extractCloudManagedCredential(same(threadContext));
         verify(credentialManager).wrapClient(same(client), nullable(CloudCredential.class));
-        verify(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
+        ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(client).execute(same(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
+        assertThat(searchRequestCaptor.getValue().indicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
     @SuppressWarnings("unchecked")

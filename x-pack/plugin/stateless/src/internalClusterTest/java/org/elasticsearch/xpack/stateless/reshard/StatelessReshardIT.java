@@ -113,7 +113,6 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.cluster.util.Pair;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -1861,11 +1860,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureGreen(indexName);
         final var index = resolveIndex(indexName);
 
+        record Update(int shardNum, String origField, String newField) {}
+
         // original field value -> updated field value
         final var updates = List.of(
-            Pair.of("update", "updated"),
+            new Update(0, "update", "updated"),
+            new Update(0, "noop", "noop"),
+            new Update(1, "update", "updated"),
             // previously this would have failed this test
-            Pair.of("noop", "noop")
+            new Update(1, "noop", "noop")
         );
 
         // block coordinator from seeing transition to HANDOFF (update gets are realtime, so not SPLIT),
@@ -1884,23 +1887,24 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        // generate docs to test normal update, noop update, and delete and submit updates to them before resharding
-        // They will be created, and route to shard 0. Submitting them to the shard is blocked until reshard advances
-        // to handoff.
+        // Generate docs to test normal update and noop update, and then submit updates to them before resharding.
+        // The update requests will route to shard 0 since shard 1 doesn't exist yet.
+        // Actually submitting them to the shard is blocked until reshard advances to handoff so that they will need
+        // rerouting when they arrive.
         final var routingPostSplit = postSplitRouting(clusterService().state(), index, 2);
         final var updateResponses = new ArrayList<AtomicReference<UpdateResponse>>(updates.size());
         final var updateThreads = new ArrayList<Thread>(updates.size());
         final var updatedDocs = new HashMap<String, String>();
         for (final var update : updates) {
-            final var docId = makeIdThatRoutesToShard(routingPostSplit, 1);
-            updatedDocs.put(docId, update.right);
-            indexDoc(indexName, docId, "field", update.left);
+            final var docId = makeIdThatRoutesToShard(routingPostSplit, update.shardNum);
+            updatedDocs.put(docId, update.newField);
+            indexDoc(indexName, docId, "field", update.origField);
             final var updateResponse = new AtomicReference<UpdateResponse>();
             updateResponses.add(updateResponse);
             final var updateThread = new Thread(
                 () -> updateResponse.set(
                     client(coordinator).prepareUpdate(indexName, docId)
-                        .setDoc("field", update.right)
+                        .setDoc("field", update.newField)
                         .execute()
                         .actionGet(SAFE_AWAIT_TIMEOUT)
                 )
@@ -1926,7 +1930,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         // and then release the queued updates, which will route to the source shard instead of the destination,
-        // but with a stale shard count summary.
+        // but with a stale shard count summary. The shards will fail the request as stale and the coordinator will
+        // handle this with an internal retry.
         handoffDone.countDown();
 
         for (var thread : updateThreads) {

@@ -633,8 +633,7 @@ public class TransportUpdateAction extends HandledTransportAction<UpdateRequest,
                             || TransportActions.isShardNotAvailableException(exp)) {
                             retry((Exception) cause);
                         } else if (cause instanceof StaleRequestException) {
-                            // concurrent resharding has caused the document to move shards, so discard cached route
-                            // and retry
+                            // concurrent resharding has caused the document to move shards, so discard cached route and retry
                             request.shardId = null;
                             retry((Exception) cause);
                         } else {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryGate;
@@ -275,12 +276,14 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
     /// Null until the node has created the shard; the scheduling listener re-checks on each event.
     private RecoveryStats recoveryStatsOrNull(String nodeName, String indexName) {
-        final var indexService = internalCluster().getInstance(IndicesService.class, nodeName).indexService(resolveIndex(indexName));
-        if (indexService == null) {
-            return null;
+        final var indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        for (final var indexService : indicesService) {
+            if (indexService.index().getName().equals(indexName)) {
+                final IndexShard shard = indexService.getShardOrNull(0);
+                return shard == null ? null : shard.recoveryStats();
+            }
         }
-        final var shard = indexService.getShardOrNull(0);
-        return shard == null ? null : shard.recoveryStats();
+        return null;
     }
 
     /// Evaluates the node's [RecoveryGateMonitor] — the combined node-wide decision the recovery scheduler consults, covering the

@@ -36,6 +36,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -876,8 +877,8 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     /**
-     * Scans every compound translog blob region belonging to the given shard and counts native {@link Translog.IndexBatch}
-     * records.
+     * Scans every compound translog blob region belonging to the given shard and counts native
+     * {@link IndexOperationBatch.TranslogRecord} records.
      */
     private long countBatchRecordsInObjectStore(String nodeName, ShardId shardId) throws IOException {
         BlobContainer container = getObjectStoreService(nodeName).getTranslogBlobContainer();
@@ -893,7 +894,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
                 BytesReference region = streamInput.readBytesReference((int) metadata.size());
                 try (var checksumInput = new BufferedChecksumStreamInput(region.streamInput(), "batch record scan")) {
                     while (checksumInput.available() > 0) {
-                        if (Translog.readRecord(checksumInput) instanceof Translog.IndexBatch) {
+                        if (Translog.readRecord(checksumInput) instanceof IndexOperationBatch.TranslogRecord) {
                             batchRecords++;
                         }
                     }

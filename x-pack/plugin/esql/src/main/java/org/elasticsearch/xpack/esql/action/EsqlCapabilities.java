@@ -3356,7 +3356,6 @@ public class EsqlCapabilities {
          */
         OPTIONAL_FIELDS_LOAD_ALL_NET_ZERO_PROJECTION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
-
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */

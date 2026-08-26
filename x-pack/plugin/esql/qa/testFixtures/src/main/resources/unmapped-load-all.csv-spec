@@ -1235,8 +1235,6 @@ null           |null           |deep6                     |null                |
 null           |bar7           |null                      |null                |7                  |123
 ;
 
-// --- Group 1: Multiple EVAL with single/multiple fields ---
-
 twoChainedEvalsEachCreatingOneField
 required_capability: optional_fields_load_all_v2
 
@@ -1264,18 +1262,18 @@ required_capability: optional_fields_load_all_v2
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | EVAL dur_secs = event_duration / 1000, nested_upper = TO_UPPER(unmapped.nested)
-| KEEP @timestamp, dur_secs, nested_upper
+| KEEP @timestamp, dur_secs, nested_upper, *
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | dur_secs:long | nested_upper:keyword
-2024-10-23T12:15:03.360Z | 3450          | G
-2024-10-23T12:27:28.948Z | 2764          | F
-2024-10-23T13:33:34.937Z | 1232          | E
-2024-10-23T13:51:54.732Z | 725           | D
-2024-10-23T13:52:55.015Z | 8268          | C
-2024-10-23T13:53:55.832Z | 5033          | B
-2024-10-23T13:55:01.543Z | 1756          | A
+@timestamp:datetime      | dur_secs:long | nested_upper:keyword | event_duration:long | message:keyword        | client_ip:ip | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 3450          | G                    | 3450232             | Connected to 10.1.0.3! | 173.21.2.162 | 4                     | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 2764          | F                    | 2764888             | Connected to 10.1.0.2! | 173.21.2.113 | 3                     | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 1232          | E                    | 1232381             | 42                     | 173.21.0.5   | 2                     | e                       | 1232383                         | 43
+2024-10-23T13:51:54.732Z | 725           | D                    | 725447              | Connection error?      | 173.21.3.15  | 1                     | d                       | 725449                          | Disconnection error
+2024-10-23T13:52:55.015Z | 8268          | C                    | 8268152             | Connection error?      | 173.21.3.15  | 3                     | c                       | 8268154                         | Disconnection error
+2024-10-23T13:53:55.832Z | 5033          | B                    | 5033754             | Connection error?      | 173.21.3.15  | 2                     | b                       | 5033756                         | Disconnection error
+2024-10-23T13:55:01.543Z | 1756          | A                    | 1756466             | Connected to 10.1.0.1! | 173.21.3.15  | 1                     | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
 evalOnUnmappedThenEvalOnResult
@@ -1305,21 +1303,20 @@ required_capability: optional_fields_load_all_v2
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | EVAL combined = CONCAT(message, " -> ", unmapped_message)
-| KEEP @timestamp, combined
+| RENAME message AS msg, language_code AS lang
+| KEEP @timestamp, *, msg, lang
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | combined:keyword
-2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! -> Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! -> Disconnected from 10.1.0.2
-2024-10-23T13:33:34.937Z | 42 -> 43
-2024-10-23T13:51:54.732Z | Connection error? -> Disconnection error
-2024-10-23T13:52:55.015Z | Connection error? -> Disconnection error
-2024-10-23T13:53:55.832Z | Connection error? -> Disconnection error
-2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! -> Disconnected from 10.1.0.1
+@timestamp:datetime      | event_duration:long | client_ip:ip | unmapped_message:keyword   | combined:keyword                                        | unmapped.nested:keyword | unmapped_event_duration:keyword | msg:keyword            | lang:keyword
+2024-10-23T12:15:03.360Z | 3450232             | 173.21.2.162 | Disconnected from 10.1.0.3 | Connected to 10.1.0.3! -> Disconnected from 10.1.0.3   | g                       | 3450234                         | Connected to 10.1.0.3! | 4
+2024-10-23T12:27:28.948Z | 2764888             | 173.21.2.113 | Disconnected from 10.1.0.2 | Connected to 10.1.0.2! -> Disconnected from 10.1.0.2   | f                       | 2764890                         | Connected to 10.1.0.2! | 3
+2024-10-23T13:33:34.937Z | 1232381             | 173.21.0.5   | 43                         | 42 -> 43                                                | e                       | 1232383                         | 42                     | 2
+2024-10-23T13:51:54.732Z | 725447              | 173.21.3.15  | Disconnection error        | Connection error? -> Disconnection error                | d                       | 725449                          | Connection error?      | 1
+2024-10-23T13:52:55.015Z | 8268152             | 173.21.3.15  | Disconnection error        | Connection error? -> Disconnection error                | c                       | 8268154                         | Connection error?      | 3
+2024-10-23T13:53:55.832Z | 5033754             | 173.21.3.15  | Disconnection error        | Connection error? -> Disconnection error                | b                       | 5033756                         | Connection error?      | 2
+2024-10-23T13:55:01.543Z | 1756466             | 173.21.3.15  | Disconnected from 10.1.0.1 | Connected to 10.1.0.1! -> Disconnected from 10.1.0.1   | a                       | 1756468                         | Connected to 10.1.0.1! | 1
 ;
-
-// --- Group 2: Multiple RENAMEs ---
 
 renameTwoMappedFieldsSimultaneously
 required_capability: optional_fields_load_all_v2
@@ -1388,18 +1385,44 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | EVAL dur_secs = event_duration / 1000
 | RENAME dur_secs AS seconds, unmapped_event_duration AS uDur
-| KEEP @timestamp, seconds, uDur
+| KEEP @timestamp, seconds, uDur*
+| EVAL uDur = uDur
 | SORT @timestamp
+| EVAL x = uDur
 ;
 
-@timestamp:datetime      | seconds:long | uDur:keyword
-2024-10-23T12:15:03.360Z | 3450         | 3450234
-2024-10-23T12:27:28.948Z | 2764         | 2764890
-2024-10-23T13:33:34.937Z | 1232         | 1232383
-2024-10-23T13:51:54.732Z | 725          | 725449
-2024-10-23T13:52:55.015Z | 8268         | 8268154
-2024-10-23T13:53:55.832Z | 5033         | 5033756
-2024-10-23T13:55:01.543Z | 1756         | 1756468
+@timestamp:datetime      | seconds:long | uDur:keyword | x:keyword
+2024-10-23T12:15:03.360Z | 3450         | 3450234      | 3450234
+2024-10-23T12:27:28.948Z | 2764         | 2764890      | 2764890
+2024-10-23T13:33:34.937Z | 1232         | 1232383      | 1232383
+2024-10-23T13:51:54.732Z | 725          | 725449       | 725449
+2024-10-23T13:52:55.015Z | 8268         | 8268154      | 8268154
+2024-10-23T13:53:55.832Z | 5033         | 5033756      | 5033756
+2024-10-23T13:55:01.543Z | 1756         | 1756468      | 1756468
+;
+
+renameEvalCreatedFieldAndUnmappedFieldThenKeepXStar
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL dur_secs = event_duration / 1000
+| RENAME dur_secs AS seconds, unmapped_event_duration AS uDur
+| KEEP @timestamp, seconds, uDur*
+| EVAL uDur = uDur
+| SORT @timestamp
+| EVAL x = uDur
+| KEEP x, *
+;
+
+x:keyword | @timestamp:datetime      | seconds:long | uDur:keyword
+3450234   | 2024-10-23T12:15:03.360Z | 3450         | 3450234
+2764890   | 2024-10-23T12:27:28.948Z | 2764         | 2764890
+1232383   | 2024-10-23T13:33:34.937Z | 1232         | 1232383
+725449    | 2024-10-23T13:51:54.732Z | 725          | 725449
+8268154   | 2024-10-23T13:52:55.015Z | 8268         | 8268154
+5033756   | 2024-10-23T13:53:55.832Z | 5033         | 5033756
+1756468   | 2024-10-23T13:55:01.543Z | 1756         | 1756468
 ;
 
 evalThenRenameEvalFieldThenRenameUnmappedField
@@ -1423,8 +1446,6 @@ FROM partial_mapping_sample_data
 2024-10-23T13:53:55.832Z | DISCONNECTION ERROR         | b
 2024-10-23T13:55:01.543Z | DISCONNECTED FROM 10.1.0.1  | a
 ;
-
-// --- Group 3: Multiple DROPs with and without wildcards ---
 
 dropTwoMappedFieldsByName
 required_capability: optional_fields_load_all_v2
@@ -1522,7 +1543,31 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | a                       | 1756468                         | Disconnected from 10.1.0.1
 ;
 
-// --- Group 4: Multiple KEEPs with and without wildcards ---
+// Sorting by an unmapped field (unmapped_event_duration) causes ResolveUnmapped to demand-load it directly into EsRelation.output(),
+// placing it BEFORE the $$unmapped_fields synthetic column. DetermineUnmappedFieldsToKeep then adds it to the pattern's exact-excludes
+// so it is not re-expanded from _unmapped_fields. The remaining unmapped leaves (unmapped.nested, unmapped_message) are appended after
+// the demand-loaded column by the coordinator's ExpandUnmappedFieldsPostProcessor, yielding
+// unmapped_event_duration | unmapped.nested | unmapped_message — a different order than the all-expansion case above
+// (unmapped.nested | unmapped_event_duration | unmapped_message).
+twoSuccessiveDropsThenSortOnUnmappedField
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP client_ip
+| DROP language_code
+| SORT unmapped_event_duration
+;
+
+@timestamp:datetime      | event_duration:long | message:keyword        | unmapped_event_duration:keyword | unmapped.nested:keyword | unmapped_message:keyword
+2024-10-23T13:33:34.937Z | 1232381             | 42                     | 1232383                         | e                       | 43
+2024-10-23T13:55:01.543Z | 1756466             | Connected to 10.1.0.1! | 1756468                         | a                       | Disconnected from 10.1.0.1
+2024-10-23T12:27:28.948Z | 2764888             | Connected to 10.1.0.2! | 2764890                         | f                       | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | 3450232             | Connected to 10.1.0.3! | 3450234                         | g                       | Disconnected from 10.1.0.3
+2024-10-23T13:53:55.832Z | 5033754             | Connection error?      | 5033756                         | b                       | Disconnection error
+2024-10-23T13:51:54.732Z | 725447              | Connection error?      | 725449                          | d                       | Disconnection error
+2024-10-23T13:52:55.015Z | 8268152             | Connection error?      | 8268154                         | c                       | Disconnection error
+;
 
 twoSuccessiveKeepNarrowings
 required_capability: optional_fields_load_all_v2
@@ -1551,17 +1596,17 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, unmapped_*, language_code
 | KEEP @timestamp, unmapped_message
-| SORT @timestamp
+| SORT unmapped_message, @timestamp
 ;
 
 @timestamp:datetime      | unmapped_message:keyword
-2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3
-2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2
 2024-10-23T13:33:34.937Z | 43
+2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
+2024-10-23T12:27:28.948Z | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | Disconnected from 10.1.0.3
 2024-10-23T13:51:54.732Z | Disconnection error
 2024-10-23T13:52:55.015Z | Disconnection error
 2024-10-23T13:53:55.832Z | Disconnection error
-2024-10-23T13:55:01.543Z | Disconnected from 10.1.0.1
 ;
 
 keepMixingNamedAndWildcardFields
@@ -1651,18 +1696,18 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | EVAL x = event_duration / 1000
 | RENAME x AS dur_secs, unmapped_message AS uMsg, unmapped.nested AS nested
-| KEEP @timestamp, dur_secs, uMsg, nested
+| KEEP n*, u*, @timestamp, dur_secs, uMsg, nested
 | SORT @timestamp
 ;
 
-@timestamp:datetime      | dur_secs:long | uMsg:keyword               | nested:keyword
-2024-10-23T12:15:03.360Z | 3450          | Disconnected from 10.1.0.3 | g
-2024-10-23T12:27:28.948Z | 2764          | Disconnected from 10.1.0.2 | f
-2024-10-23T13:33:34.937Z | 1232          | 43                         | e
-2024-10-23T13:51:54.732Z | 725           | Disconnection error        | d
-2024-10-23T13:52:55.015Z | 8268          | Disconnection error        | c
-2024-10-23T13:53:55.832Z | 5033          | Disconnection error        | b
-2024-10-23T13:55:01.543Z | 1756          | Disconnected from 10.1.0.1 | a
+unmapped_event_duration:keyword | @timestamp:datetime      | dur_secs:long | uMsg:keyword               | nested:keyword
+3450234                         | 2024-10-23T12:15:03.360Z | 3450          | Disconnected from 10.1.0.3 | g
+2764890                         | 2024-10-23T12:27:28.948Z | 2764          | Disconnected from 10.1.0.2 | f
+1232383                         | 2024-10-23T13:33:34.937Z | 1232          | 43                         | e
+725449                          | 2024-10-23T13:51:54.732Z | 725           | Disconnection error        | d
+8268154                         | 2024-10-23T13:52:55.015Z | 8268          | Disconnection error        | c
+5033756                         | 2024-10-23T13:53:55.832Z | 5033          | Disconnection error        | b
+1756468                         | 2024-10-23T13:55:01.543Z | 1756          | Disconnected from 10.1.0.1 | a
 ;
 
 dropAllUnmappedThenEvalOnMapped
@@ -1715,13 +1760,13 @@ SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
 | KEEP @timestamp, message, unmapped_message, language_code
 | WHERE unmapped_message == "Disconnection error"
-| SORT @timestamp
+| SORT unmapped_message, language_code, @timestamp
 ;
 
 @timestamp:datetime      | message:keyword   | unmapped_message:keyword | language_code:keyword
 2024-10-23T13:51:54.732Z | Connection error? | Disconnection error      | 1
-2024-10-23T13:52:55.015Z | Connection error? | Disconnection error      | 3
 2024-10-23T13:53:55.832Z | Connection error? | Disconnection error      | 2
+2024-10-23T13:52:55.015Z | Connection error? | Disconnection error      | 3
 ;
 
 evalThenWhereOnEvalResultThenKeep

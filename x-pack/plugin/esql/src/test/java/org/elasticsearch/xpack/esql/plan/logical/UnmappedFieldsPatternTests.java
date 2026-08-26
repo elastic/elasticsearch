@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 
 import java.util.List;
 
@@ -168,10 +168,7 @@ public class UnmappedFieldsPatternTests extends AbstractNamedWriteableTestCase<U
     }
 
     public void testKeepOrderedAppendsUnmatchedColumnsLast() {
-        assertEquals(
-            List.of("unmapped.foo", "x"),
-            keepOrdered(List.of("x", "unmapped.foo"), List.of(pattern("unmapped.*")))
-        );
+        assertEquals(List.of("unmapped.foo", "x"), keepOrdered(List.of("x", "unmapped.foo"), List.of(pattern("unmapped.*"))));
     }
 
     public void testKeepOrderedTreatsQuotedNameContainingStarAsExplicit() {

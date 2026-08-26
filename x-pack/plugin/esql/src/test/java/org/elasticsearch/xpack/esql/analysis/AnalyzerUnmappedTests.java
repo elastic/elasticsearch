@@ -1527,6 +1527,19 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
     }
 
+    /**
+     * A LOAD_ALL field referenced by EVAL is demand-loaded into the relation's output; a subsequent DROP removes it from scope.
+     * Referencing the same field again in SORT (after the DROP) must fail: the field is no longer visible.
+     */
+    public void testLoadAllModeDroppedFieldReferencedInSort() {
+        partialMappingTest().statementError(setUnmappedLoadAll("""
+            FROM partial_mapping_sample_data
+            | EVAL dur_secs = event_duration / 1000, nested_up = TO_UPPER(unmapped.nested)
+            | DROP event_duration, unmapped.nested
+            | SORT @timestamp, unmapped.nested
+            """), containsString("Unknown column [unmapped.nested]"));
+    }
+
     // nullify is allowed with PromQL (unlike load), but a field after the collapsing aggregate still fails.
     public void testUnmappedFieldNullifyWithPromQl() {
         TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);

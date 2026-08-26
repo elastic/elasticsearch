@@ -296,6 +296,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
 
         // Apache HTTP dependencies
         components.withModule("org.apache.httpcomponents.client5:httpclient5", ExcludeAllTransitivesRule.class);
+        components.withModule("org.apache.httpcomponents.client5:httpclient5-cache", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.httpcomponents:fluent-hc", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.httpcomponents:httpasyncclient", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.httpcomponents:httpclient", ExcludeAllTransitivesRule.class);

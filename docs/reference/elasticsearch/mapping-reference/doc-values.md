@@ -14,7 +14,7 @@ Sorting, aggregations, and access to field values in scripts requires a differen
 
 The `doc_values` field is an on-disk data structure that is built at document index time and enables efficient data access. It stores the same values as `_source`, but in a columnar format that is more efficient for sorting and aggregation.
 
-Doc values are supported on most field types, excluding `text` and `annotated_text` fields. See also [Disabling doc values](#_disabling_doc_values).
+Doc values are supported on most field types, excluding `annotated_text` fields. `text` and `match_only_text` fields support doc values but do not enable them by default. See also [Disabling doc values](#_disabling_doc_values).
 
 ## Doc-value-only fields [doc-value-only-fields]
 

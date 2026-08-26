@@ -76,7 +76,18 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
     private final List<Attribute> initialCategorizeOutput;
 
     public LimitByExec(Source source, PhysicalPlan child, Expression limitPerGroup, List<Expression> groupings, Integer estimatedRowSize) {
-        this(source, child, limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE, null);
+        this(source, child, limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.SINGLE);
+    }
+
+    public LimitByExec(
+        Source source,
+        PhysicalPlan child,
+        Expression limitPerGroup,
+        List<Expression> groupings,
+        Integer estimatedRowSize,
+        CategorizeGroupingMode mode
+    ) {
+        this(source, child, limitPerGroup, groupings, estimatedRowSize, mode, null);
     }
 
     private LimitByExec(

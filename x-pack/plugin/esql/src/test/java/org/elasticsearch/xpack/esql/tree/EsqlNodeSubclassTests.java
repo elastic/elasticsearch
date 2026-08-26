@@ -242,6 +242,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          */
         expectedCount -= 1;
 
+        System.out.println("parameters of ctor: " + expectedCount);
+        System.out.println("parameters of subclass: " + info(node).properties().size());
         assertEquals("Wrong number of info parameters for " + subclass.getSimpleName(), expectedCount, info(node).properties().size());
     }
 

@@ -95,18 +95,19 @@ public class TopNByExec extends UnaryExec implements EstimatesRowSize {
         List<Expression> groupings,
         Integer estimatedRowSize
     ) {
-        this(
-            source,
-            child,
-            order,
-            limitPerGroup,
-            groupings,
-            estimatedRowSize,
-            Set.of(),
-            OutputOrdering.SORTED,
-            LimitByExec.CategorizeGroupingMode.SINGLE,
-            null
-        );
+        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, LimitByExec.CategorizeGroupingMode.SINGLE);
+    }
+
+    public TopNByExec(
+        Source source,
+        PhysicalPlan child,
+        List<Order> order,
+        Expression limitPerGroup,
+        List<Expression> groupings,
+        Integer estimatedRowSize,
+        LimitByExec.CategorizeGroupingMode mode
+    ) {
+        this(source, child, order, limitPerGroup, groupings, estimatedRowSize, Set.of(), OutputOrdering.SORTED, mode, null);
     }
 
     private TopNByExec(

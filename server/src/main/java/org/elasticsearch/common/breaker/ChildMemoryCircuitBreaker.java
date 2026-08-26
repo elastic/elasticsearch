@@ -88,7 +88,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Coordinating-node buffer for multi-search sub-responses (label is {@code msearch[<detail>]}). */
     public static final String CATEGORY_MSEARCH = "msearch";
 
-    /** Terms-query retained memory: structural {@code TermInSetQuery} reservation plus per-leaf execution charges. */
+    /** Structural {@code TermInSetQuery} reservation. Per-leaf execution charges are tracked under {@link #CATEGORY_UNCATEGORIZED}. */
     public static final String CATEGORY_TERMS = "terms";
 
     private static final Set<String> KNOWN_CATEGORIES = Set.of(

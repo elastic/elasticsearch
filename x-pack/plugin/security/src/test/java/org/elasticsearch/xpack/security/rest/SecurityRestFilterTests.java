@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -422,6 +423,19 @@ public class SecurityRestFilterTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testAggregationCallbackExceptionCompletesListenerWithFailure() throws Exception {
+        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        String expectedMessage = "couldn't get audit trail";
+        doThrow(new RuntimeException(expectedMessage)).when(auditTrailService).get();
+
+        filter = new SecurityRestFilter(true, true, threadContext, secondaryAuthenticator, auditTrailService, null);
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        filter.intercept(mock(RestRequest.class), channel, restHandler, future);
+        final RuntimeException ex = expectThrows(RuntimeException.class, future::actionGet);
+        assertThat(ex, TestMatchers.throwableWithMessage(expectedMessage));
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
@@ -82,9 +83,7 @@ public class SecurityRestFilter implements RestInterceptor {
 
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
-            final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
-            auditTrailService.get().authenticationSuccess(wrappedRequest);
-            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
+            final ActionListener<SecondaryAuthentication> secondaryListener = ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     logger.trace(
                         "Found secondary authentication {} in REST request [{}]",
@@ -95,8 +94,15 @@ public class SecurityRestFilter implements RestInterceptor {
                 WorkflowService.resolveWorkflowAndStoreInThreadContext(targetHandler, threadContext);
 
                 doHandleRequest(aggregatedRestRequest, channel, targetHandler, listener);
-            }, e -> handleException(aggregatedRestRequest, e, listener)));
+            }, e -> handleException(aggregatedRestRequest, e, listener));
+
+            ActionListener.run(secondaryListener, authListener -> {
+                final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
+                auditTrailService.get().authenticationSuccess(wrappedRequest);
+                secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, authListener);
+            });
         };
+
         if (request.isStreamedContent() && auditTrailService.includeRequestBody()) {
             aggregate(request, aggregationCallback::accept);
         } else {

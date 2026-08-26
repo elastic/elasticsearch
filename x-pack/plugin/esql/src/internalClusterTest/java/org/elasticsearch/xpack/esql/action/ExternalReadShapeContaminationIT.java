@@ -111,6 +111,63 @@ public class ExternalReadShapeContaminationIT extends AbstractExternalDataSource
         assertMin(declared, "2024-01-12");
     }
 
+    /**
+     * The reproduction measured on {@code main}: a STRICT declared dataset poisons an inferred sibling's row count.
+     *
+     * <p>Two details make it work where every other construction failed. The poisoner must be STRICT — a non-strict
+     * overlay's harvest is classified as a union_by_name pin and stripped before commit, while a strict read has no
+     * such pins and its contribution reaches the cache untouched. And the victim must run FIRST: the reconcile only
+     * enriches entries that already exist, so a poisoner-first ordering seeds nothing and quietly self-heals.
+     *
+     * <p>On main the third query answers 199 with nothing scanned — the poisoner's count, served to a dataset whose
+     * own answer is 200.
+     */
+    public void testStrictDeclaredReadDoesNotPoisonTheInferredCount() throws Exception {
+        String uri = writeDropFixture();
+        String victim = register("strict_victim", uri, null, true);
+        String poisoner = register("strict_poisoner", uri, strictAgeAsInteger(), true);
+
+        // Twice: the entry must be warm, not merely seeded. The reconcile only enriches entries that already hold
+        // statistics, which is why a poisoner-first ordering quietly self-heals and proves nothing.
+        assertCount(victim, "STATS c = COUNT(*)", ROWS);
+        assertCount(victim, "STATS c = COUNT(*)", ROWS);
+        // Parses age, drops the row that will not coerce, and publishes 199 into the entry they share.
+        assertCount(poisoner, "STATS c = COUNT(*), hi = MAX(age)", ROWS - 1L);
+        // Its own answer is every row; it must not inherit the poisoner's.
+        assertCount(victim, "STATS c = COUNT(*)", ROWS);
+    }
+
+    private void assertCount(String dataset, String statsClause, long expected) {
+        String query = "FROM " + dataset + " | " + statsClause;
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TIMEOUT)) {
+            assertThat(query, ((Number) getValuesList(response).get(0).get(0)).longValue(), equalTo(expected));
+        }
+    }
+
+    /**
+     * Plain header, not a typed one: the column must be INFERRED as text, and the value that will not coerce sits
+     * early enough that schema sampling sees it. A typed header would bind the schema a different way and take the
+     * read down another rail entirely.
+     */
+    private String writeDropFixture() throws Exception {
+        StringBuilder sb = new StringBuilder("name,age\n");
+        for (int i = 0; i < ROWS; i++) {
+            sb.append("row_").append(i).append(',').append(i == 3 ? "oops" : String.valueOf(i * 10)).append('\n');
+        }
+        Path file = createTempDir().resolve("drops.csv");
+        Files.writeString(file, sb.toString());
+        return StoragePath.fileUri(file);
+    }
+
+    private static DatasetMapping strictAgeAsInteger() {
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("name", new DatasetFieldMapping("keyword", null));
+        properties.put("age", new DatasetFieldMapping("integer", null));
+        // Dynamic.FALSE == strict: the declaration is the whole schema, and such a read carries no union_by_name
+        // pins, so nothing strips its harvest on the way to the cache.
+        return new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
+    }
+
     /** Asserts the date-only prefix of {@code MIN(ts)}, which is what the two dialects disagree about. */
     private void assertMin(String dataset, String expectedDatePrefix) {
         String query = "FROM " + dataset + " | STATS lo = MIN(ts)";
@@ -148,10 +205,16 @@ public class ExternalReadShapeContaminationIT extends AbstractExternalDataSource
     }
 
     private String register(String name, String uri, DatasetMapping mapping) {
+        return register(name, uri, mapping, true);
+    }
+
+    private String register(String name, String uri, DatasetMapping mapping, boolean skipRow) {
         registerDataSource(SRC, Map.of()); // idempotent-per-test; the base tracks and tears down the source
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("format", "csv");
-        settings.put("error_mode", "skip_row");
+        if (skipRow) {
+            settings.put("error_mode", "skip_row");
+        }
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,

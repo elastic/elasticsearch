@@ -376,7 +376,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Whether the old cluster version is not of the released versions, but a detached build.
      * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
      */
-    protected static boolean isOldClusterDetachedVersion() {
+    public static boolean isOldClusterDetachedVersion() {
         return System.getProperty("tests.bwc.refspec.main") != null;
     }
 

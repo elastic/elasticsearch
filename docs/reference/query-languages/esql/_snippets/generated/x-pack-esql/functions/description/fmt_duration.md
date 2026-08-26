@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns a human-readable representation of a duration given in nanoseconds. For example, `1500000000` (1.5 billion nanoseconds) becomes `"1.5s"`. Supported units: `nanos`, `micros`, `ms`, `s`, `m`, `h`, `d`.
+Returns a human-readable representation of a duration given in nanoseconds. For example, `1500000000` (1.5 billion nanoseconds) becomes `"1.5s"`. Supported units: `nanos`, `micros`, `ms`, `s`, `m`, `h`, `d`. If a `unit` is provided, the output is pinned to that unit instead of auto-scaling to the largest unit that fits.
 

@@ -9,6 +9,6 @@ ROW bytes = 1500
 
 | bytes:integer | formatted:keyword |
 | --- | --- |
-| 1500 | 1.5Kb |
+| 1500 | 1.5KB |
 
 

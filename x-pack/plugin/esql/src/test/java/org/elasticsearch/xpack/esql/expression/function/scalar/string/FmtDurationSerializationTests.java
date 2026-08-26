@@ -13,25 +13,25 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class FmtBytesSiSerializationTests extends AbstractExpressionSerializationTests<FmtBytesSi> {
+public class FmtDurationSerializationTests extends AbstractExpressionSerializationTests<FmtDuration> {
     @Override
-    protected FmtBytesSi createTestInstance() {
+    protected FmtDuration createTestInstance() {
         Source source = randomSource();
-        Expression bytes = randomChild();
+        Expression nanoseconds = randomChild();
         Expression unit = randomBoolean() ? null : randomChild();
-        return new FmtBytesSi(source, bytes, unit);
+        return new FmtDuration(source, nanoseconds, unit);
     }
 
     @Override
-    protected FmtBytesSi mutateInstance(FmtBytesSi instance) throws IOException {
+    protected FmtDuration mutateInstance(FmtDuration instance) throws IOException {
         Source source = instance.source();
-        Expression bytes = instance.bytes();
+        Expression nanoseconds = instance.nanoseconds();
         Expression unit = instance.unit();
         if (randomBoolean()) {
-            bytes = randomValueOtherThan(bytes, AbstractExpressionSerializationTests::randomChild);
+            nanoseconds = randomValueOtherThan(nanoseconds, AbstractExpressionSerializationTests::randomChild);
         } else {
             unit = randomValueOtherThan(unit, () -> randomBoolean() ? null : randomChild());
         }
-        return new FmtBytesSi(source, bytes, unit);
+        return new FmtDuration(source, nanoseconds, unit);
     }
 }

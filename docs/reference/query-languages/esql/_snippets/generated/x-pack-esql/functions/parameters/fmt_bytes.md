@@ -5,3 +5,6 @@
 `bytes`
 :   The number of bytes to format. If `null`, the function returns `null`.
 
+`unit`
+:   The unit to pin the output to: one of `b`, `kb`, `mb`, `gb`, `tb`, `pb`. If omitted, the largest unit that keeps the value at least 1 is used.
+

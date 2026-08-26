@@ -10,7 +10,6 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -49,7 +48,7 @@ public final class FmtBytesFromLongEvaluator implements ExpressionEvaluator {
       if (bytesVector == null) {
         return eval(page.getPositionCount(), bytesBlock);
       }
-      return eval(page.getPositionCount(), bytesVector).asBlock();
+      return eval(page.getPositionCount(), bytesVector);
     }
   }
 
@@ -75,17 +74,27 @@ public final class FmtBytesFromLongEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long bytes = bytesBlock.getLong(bytesBlock.getFirstValueIndex(p));
-        result.appendBytesRef(FmtBytes.processLong(bytes));
+        try {
+          result.appendBytesRef(FmtBytes.processLong(bytes));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, LongVector bytesVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, LongVector bytesVector) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long bytes = bytesVector.getLong(p);
-        result.appendBytesRef(FmtBytes.processLong(bytes));
+        try {
+          result.appendBytesRef(FmtBytes.processLong(bytes));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns a human-readable representation of a byte count using binary (base-1024) units. For example, `1536` becomes `"1.5kb"`. Supported units: `b`, `kb`, `mb`, `gb`, `tb`, `pb`.
+Returns a human-readable representation of a byte count using binary (base-1024) units. For example, `1536` becomes `"1.5kb"`. Supported units: `b`, `kb`, `mb`, `gb`, `tb`, `pb`. If a `unit` is provided, the output is pinned to that unit instead of auto-scaling to the largest unit that fits.
 

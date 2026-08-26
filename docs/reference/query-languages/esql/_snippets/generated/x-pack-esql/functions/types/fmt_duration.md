@@ -2,8 +2,10 @@
 
 ## Supported types
 
-| nanoseconds | result |
-| --- | --- |
-| integer | keyword |
-| long | keyword |
+| nanoseconds | unit | result |
+| --- | --- | --- |
+| integer | keyword | keyword |
+| integer | | keyword |
+| long | keyword | keyword |
+| long | | keyword |
 

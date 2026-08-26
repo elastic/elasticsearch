@@ -44,6 +44,6 @@
   "examples" : [
     "ROW fraction = 0.75\n| EVAL percentage = FMT_PERCENT(fraction)"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

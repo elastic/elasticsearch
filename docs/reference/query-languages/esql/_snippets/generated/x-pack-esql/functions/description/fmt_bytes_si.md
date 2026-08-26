@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns a human-readable representation of a byte count using SI (base-1000) units. For example, `1500` becomes `"1.5Kb"`. Supported units: `b`, `Kb`, `Mb`, `Gb`, `Tb`, `Pb`.
+Returns a human-readable representation of a byte count using SI (base-1000) units. For example, `1500` becomes `"1.5KB"`. Supported units: `B`, `KB`, `MB`, `GB`, `TB`, `PB`. If a `unit` is provided, the output is pinned to that unit instead of auto-scaling to the largest unit that fits.
 

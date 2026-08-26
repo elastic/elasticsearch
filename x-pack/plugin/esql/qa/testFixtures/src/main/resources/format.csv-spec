@@ -13,6 +13,60 @@ bytes:integer    |formatted:keyword
 // end::fmt_bytes-result[]
 ;
 
+docsFmtBytesWithUnit
+required_capability: fn_fmt_bytes
+
+// tag::fmt_bytes_with_unit[]
+ROW bytes = 1610612736
+| EVAL formatted = FMT_BYTES(bytes, "mb")
+// end::fmt_bytes_with_unit[]
+;
+
+// tag::fmt_bytes_with_unit-result[]
+bytes:integer    |formatted:keyword
+1610612736       |1536mb
+// end::fmt_bytes_with_unit-result[]
+;
+
+fmtBytesUnitCaseInsensitive
+required_capability: fn_fmt_bytes
+
+ROW bytes = 2048
+| EVAL formatted = FMT_BYTES(bytes, "KB")
+;
+
+bytes:integer    |formatted:keyword
+2048             |2kb
+;
+
+fmtBytesNegative
+required_capability: fn_fmt_bytes
+
+ROW bytes = -2
+| EVAL formatted = FMT_BYTES(bytes)
+;
+
+warning:Line 2:20: evaluation of [FMT_BYTES(bytes)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: Values less than -1 bytes are not supported: -2b
+
+bytes:integer    |formatted:keyword
+-2               |null
+;
+
+fmtBytesUnknownUnit
+required_capability: fn_fmt_bytes
+
+ROW bytes = 1536
+| EVAL formatted = FMT_BYTES(bytes, "eb")
+;
+
+warning:Line 2:20: evaluation of [FMT_BYTES(bytes, \"eb\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: Unsupported unit [eb], expected one of [b, kb, mb, gb, tb, pb]
+
+bytes:integer    |formatted:keyword
+1536             |null
+;
+
 docsFmtBytesSi
 required_capability: fn_fmt_bytes_si
 
@@ -24,8 +78,37 @@ ROW bytes = 1500
 
 // tag::fmt_bytes_si-result[]
 bytes:integer    |formatted:keyword
-1500             |1.5Kb
+1500             |1.5KB
 // end::fmt_bytes_si-result[]
+;
+
+docsFmtBytesSiWithUnit
+required_capability: fn_fmt_bytes_si
+
+// tag::fmt_bytes_si_with_unit[]
+ROW bytes = 1500000000
+| EVAL formatted = FMT_BYTES_SI(bytes, "MB")
+// end::fmt_bytes_si_with_unit[]
+;
+
+// tag::fmt_bytes_si_with_unit-result[]
+bytes:integer    |formatted:keyword
+1500000000       |1500MB
+// end::fmt_bytes_si_with_unit-result[]
+;
+
+fmtBytesSiNegative
+required_capability: fn_fmt_bytes_si
+
+ROW bytes = -2
+| EVAL formatted = FMT_BYTES_SI(bytes)
+;
+
+warning:Line 2:20: evaluation of [FMT_BYTES_SI(bytes)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:20: java.lang.IllegalArgumentException: Values less than [-1] bytes are not supported: [-2]
+
+bytes:integer    |formatted:keyword
+-2               |null
 ;
 
 docsFmtDuration
@@ -41,6 +124,35 @@ ROW nanoseconds = 1500000000
 nanoseconds:long |duration:keyword
 1500000000       |1.5s
 // end::fmt_duration-result[]
+;
+
+docsFmtDurationWithUnit
+required_capability: fn_fmt_duration
+
+// tag::fmt_duration_with_unit[]
+ROW nanoseconds = 1500000000
+| EVAL duration = FMT_DURATION(nanoseconds, "ms")
+// end::fmt_duration_with_unit[]
+;
+
+// tag::fmt_duration_with_unit-result[]
+nanoseconds:long |duration:keyword
+1500000000       |1500ms
+// end::fmt_duration_with_unit-result[]
+;
+
+fmtDurationNegative
+required_capability: fn_fmt_duration
+
+ROW nanoseconds = -2
+| EVAL duration = FMT_DURATION(nanoseconds)
+;
+
+warning:Line 2:19: evaluation of [FMT_DURATION(nanoseconds)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:19: java.lang.IllegalArgumentException: duration cannot be negative, was given [-2]
+
+nanoseconds:integer|duration:keyword
+-2                 |null
 ;
 
 docsFmtPercent

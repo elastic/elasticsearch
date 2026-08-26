@@ -2,8 +2,10 @@
 
 ## Supported types
 
-| bytes | result |
-| --- | --- |
-| integer | keyword |
-| long | keyword |
+| bytes | unit | result |
+| --- | --- | --- |
+| integer | keyword | keyword |
+| integer | | keyword |
+| long | keyword | keyword |
+| long | | keyword |
 

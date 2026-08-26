@@ -10,7 +10,6 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -49,7 +48,7 @@ public final class FmtDurationFromLongEvaluator implements ExpressionEvaluator {
       if (nanosecondsVector == null) {
         return eval(page.getPositionCount(), nanosecondsBlock);
       }
-      return eval(page.getPositionCount(), nanosecondsVector).asBlock();
+      return eval(page.getPositionCount(), nanosecondsVector);
     }
   }
 
@@ -75,17 +74,27 @@ public final class FmtDurationFromLongEvaluator implements ExpressionEvaluator {
               continue position;
         }
         long nanoseconds = nanosecondsBlock.getLong(nanosecondsBlock.getFirstValueIndex(p));
-        result.appendBytesRef(FmtDuration.processLong(nanoseconds));
+        try {
+          result.appendBytesRef(FmtDuration.processLong(nanoseconds));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, LongVector nanosecondsVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, LongVector nanosecondsVector) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long nanoseconds = nanosecondsVector.getLong(p);
-        result.appendBytesRef(FmtDuration.processLong(nanoseconds));
+        try {
+          result.appendBytesRef(FmtDuration.processLong(nanoseconds));
+        } catch (IllegalArgumentException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

@@ -304,6 +304,10 @@ toc:
                   - file: esql/functions-operators/string-functions/contains.md
                   - file: esql/functions-operators/string-functions/ends_with.md
                   - file: esql/functions-operators/string-functions/field_extract.md
+                  - file: esql/functions-operators/string-functions/fmt_bytes.md
+                  - file: esql/functions-operators/string-functions/fmt_bytes_si.md
+                  - file: esql/functions-operators/string-functions/fmt_duration.md
+                  - file: esql/functions-operators/string-functions/fmt_percent.md
                   - file: esql/functions-operators/string-functions/from_base64.md
                   - file: esql/functions-operators/string-functions/hash.md
                   - file: esql/functions-operators/string-functions/json_extract.md

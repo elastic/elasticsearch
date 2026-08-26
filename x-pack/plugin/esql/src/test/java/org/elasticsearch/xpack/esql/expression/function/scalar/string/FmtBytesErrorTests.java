@@ -19,16 +19,16 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FmtBytesSiErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class FmtBytesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(FmtBytesSiTests.parameters());
+        return paramsToSuppliers(FmtBytesTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new FmtBytesSi(source, args.get(0), args.size() == 1 ? null : args.get(1));
+        return new FmtBytes(source, args.get(0), args.size() == 1 ? null : args.get(1));
     }
 
     @Override

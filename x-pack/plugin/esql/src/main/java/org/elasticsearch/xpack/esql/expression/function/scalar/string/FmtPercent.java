@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -50,10 +52,17 @@ public class FmtPercent extends UnaryScalarFunction implements AnyNullIsNull {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FmtPercent.class).unary(FmtPercent::new).name("fmt_percent");
 
-    @FunctionInfo(returnType = "keyword", description = """
-        Returns a human-readable representation of a number as a percentage.
-        For example, `0.75` becomes `"75%"` and `75` becomes `"7500%"`.
-        The input is multiplied by 100 and formatted with a `%` suffix.""", examples = @Example(file = "format", tag = "fmt_percent"))
+    @FunctionInfo(
+        returnType = "keyword",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.6.0") },
+        briefSummary = "Formats a number as a human-readable percentage string.",
+        description = """
+            Returns a human-readable representation of a number as a percentage.
+            For example, `0.75` becomes `"75%"` and `75` becomes `"7500%"`.
+            The input is multiplied by 100 and formatted with a `%` suffix.""",
+        examples = @Example(file = "format", tag = "fmt_percent")
+    )
     public FmtPercent(
         Source source,
         @Param(

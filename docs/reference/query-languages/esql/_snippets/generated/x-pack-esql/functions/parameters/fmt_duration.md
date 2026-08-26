@@ -5,3 +5,6 @@
 `nanoseconds`
 :   The duration in nanoseconds to format. If `null`, the function returns `null`.
 
+`unit`
+:   The unit to pin the output to: one of `nanos`, `micros`, `ms`, `s`, `m`, `h`, `d`. If omitted, the largest unit that keeps the value at least 1 is used.
+

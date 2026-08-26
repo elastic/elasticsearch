@@ -75,7 +75,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()),
+            ActionFilters.EMPTY,
             taskManager,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {

@@ -1,14 +1,9 @@
-import org.elasticsearch.gradle.VersionProperties
-
-apply plugin: 'elasticsearch.legacy-java-rest-test'
-apply plugin: 'elasticsearch.authenticated-testclusters'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 4
-  readinessEnabled = true
+  clusterModules project(xpackModule('shutdown'))
+  // Required by SecuritySystemIndices: the .security index mappings use the pattern_capture token
+  // filter, which is registered by analysis-common.
+  clusterModules project(':modules:analysis-common')
 }

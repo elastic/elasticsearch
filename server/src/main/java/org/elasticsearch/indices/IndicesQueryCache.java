@@ -125,6 +125,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         sharedRamBytesUsed = 0;
     }
 
+    // Visible for testing:
+    LRUQueryCache getCache() {
+        return cache;
+    }
+
     private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
@@ -369,7 +374,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
+            final ShardId shardId = shardKeyMap.getShardId(coreKey);
+            if (shardId == null) {
+                return null;
+            }
+            return shardStats.computeIfAbsent(shardId, Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is
@@ -402,6 +411,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         protected void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
             super.onDocIdSetCache(readerCoreKey, ramBytesUsed);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
+            if (shardStats == null) {
+                return;
+            }
             shardStats.cacheSize += 1;
             shardStats.cacheCount += 1;
             shardStats.ramBytesUsed += ramBytesUsed;
@@ -423,6 +435,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                 // we only evict when nothing is cached anymore on the segment
                 // instead of relying on close listeners
                 final StatsAndCount statsAndCount = stats2.get(readerCoreKey);
+                if (statsAndCount == null) {
+                    return;
+                }
                 final Stats shardStats = statsAndCount.stats;
                 shardStats.cacheSize -= numEntries;
                 shardStats.ramBytesUsed -= sumRamBytesUsed;
@@ -437,14 +452,18 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         protected void onHit(Object readerCoreKey, Query filter) {
             super.onHit(readerCoreKey, filter);
             final Stats shardStats = getStats(readerCoreKey);
-            shardStats.hitCount += 1;
+            if (shardStats != null) {
+                shardStats.hitCount += 1;
+            }
         }
 
         @Override
         protected void onMiss(Object readerCoreKey, Query filter) {
             super.onMiss(readerCoreKey, filter);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
-            shardStats.missCount += 1;
+            if (shardStats != null) {
+                shardStats.missCount += 1;
+            }
         }
     }
 }

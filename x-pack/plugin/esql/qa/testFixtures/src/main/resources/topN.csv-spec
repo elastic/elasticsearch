@@ -168,3 +168,30 @@ FROM employees
 avg_worked_seconds:long | birth_date:date      | emp_no:i | gender:k | height:d | height.float:d     | height.half_float:d | height.scaled_float:d | hire_date:date       | is_rehired:bool      | job_positions:k     | languages:i | languages.byte:i | languages.long:l | languages.short:short | salary:i | salary_change:d | salary_change.int:i | salary_change.keyword:k | salary_change.long:l | still_hired:bool | name:k  | first_name:k | last_name:k
 349086555               | 1961-09-01T00:00:00Z | 10056    | F        | 1.57     | 1.5700000524520874 | 1.5703125           | 1.57                  | 1990-02-01T00:00:00Z | [false, false, true] | [Senior Team Lead]  | 2           | 2                | 2                | 2                     | 33370    | [-5.17, 10.99]  | [-5, 10]            | [-5.17, 10.99]          | [-5, 10]             | true             | Brendon | Bernini      | Brendon
 ;
+
+
+compoundSortWithNonPushableTrailingKeyNotPartiallyPushed
+required_capability: fix_partial_prefix_compound_topn_pushdown
+
+// Regression test for https://github.com/elastic/elasticsearch/pull/155923.
+// 'languages' is pushable but the trailing 'tiebreak' expression is not, so the compound SORT must not be partially
+// pushed to Lucene. Within emp_no <= 10019, 'languages' has ties (four rows =1, five rows =2) that straddle the
+// LIMIT 6 boundary, and the full sort orders those ties by emp_no DESC (tiebreak = 0 - emp_no). Before the fix Lucene
+// truncated to six documents by 'languages' alone, dropping the high-emp_no languages=2 rows (10018, 10017) at the
+// source so they could never be recovered - returning 10008 and 10001 instead.
+FROM employees
+| WHERE emp_no <= 10019
+| EVAL tiebreak = 0 - emp_no
+| SORT languages ASC, tiebreak ASC
+| LIMIT 6
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10019          | 1
+10013          | 1
+10009          | 1
+10005          | 1
+10018          | 2
+10017          | 2
+;

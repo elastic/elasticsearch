@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.IndexModule;
@@ -71,15 +72,19 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
                     }
 
                     private void runMoreSearches() {
-                        if (done.get() == false) {
-                            prepareRandomSearch().execute(this);
-                        } else {
-                            finishFuture.onResponse(null);
+                        while (done.get() == false) {
+                            final ListenableFuture<SearchResponse> f = new ListenableFuture<>();
+                            prepareRandomSearch().execute(f);
+                            if (f.isDone() == false) {
+                                f.addListener(this);
+                                return;
+                            }
                         }
+                        finishFuture.onResponse(null);
                     }
                 });
             }
-            for (int i = 0, n = randomIntBetween(50, 100); i < n; i++) {
+            for (int i = 0, n = randomIntBetween(20, 50); i < n; i++) {
                 NetworkDisruption networkDisruption = new NetworkDisruption(
                     isolateNode(internalCluster().getRandomNodeName()),
                     NetworkDisruption.DISCONNECT

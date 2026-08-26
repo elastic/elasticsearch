@@ -144,15 +144,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), SOURCE);
         }
 
-        // Reindex should take about 60s, but be regularly active
-        final float requestsPerSecond = numDocs / 60f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(1);
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -292,15 +291,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         ensureGreen(TaskResultsService.TASK_INDEX);
 
-        // Reindex should take about 60s, but be regularly active
-        final float requestsPerSecond = numDocs / 60f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(numDocs / 60); // Reindex should take ~60 requests
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -403,14 +401,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        // Reindex should take about 60s, but be regularly active
-        final float requestsPerSecond = numDocs / 60f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(numDocs / 60); // Reindex should take ~60 requests
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE).setDestIndex(DEST).setRefresh(true).setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -485,14 +479,10 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        // Reindex should take about 60s, but be regularly active
-        final float requestsPerSecond = numDocs / 60f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(numDocs / 60); // Reindex should take ~60 requests
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE).setDestIndex(DEST).setRefresh(true).setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         // Start the reindexing task
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -702,15 +692,14 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         indexRandom(true, SOURCE, numDocs);
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
-        // Reindex should take about 60s, but be regularly active
-        final float requestsPerSecond = numDocs / 60.0f;
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
-            .setDestIndex(DEST)
-            .setRefresh(true)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(numDocs / 60); // Reindex should take ~60 requests
+        final ReindexRequest request = configureIndexingBatchSizeAndRate(
+            new ReindexRequest().setSourceIndices(SOURCE)
+                .setDestIndex(DEST)
+                .setRefresh(true)
+                .setShouldStoreResult(true)
+                .setEligibleForRelocationOnShutdown(true),
+            numDocs
+        );
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -863,5 +852,24 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             }
             throw new AssertionError("no root reindex task found for rethrottle after relocation");
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /// Configure a reindex request such that it sends regular small requests, but takes a long time
+    /// to complete. This ensures the task will be responsive to relocation requests, but will not
+    /// complete before timeouts expire.
+    ///
+    /// [ReindexRequest#setRequestsPerSecond(float)] actually refers to sub-requests, i.e., documents;
+    /// it's effectively how many documents we'll reindex per second.
+    ///
+    /// So if we configure a `numDocs / 60f` requests per second, we'll index all the documents in one minute
+    /// if we additionally configure the batch size to be `numDocs / 120`, we'll index all the documents in
+    /// one minute, sending a request every 500ms
+    private static ReindexRequest configureIndexingBatchSizeAndRate(ReindexRequest request, int numDocuments) {
+        assert numDocuments >= 120
+            : "We want to send a request every 500ms and we want the whole thing to take 60s, so we need at least 120 docs";
+        final float documentsPerSecond = numDocuments / 60f;
+        request.setRequestsPerSecond(documentsPerSecond);
+        request.getSearchRequest().source().size(numDocuments / 120);
+        return request;
     }
 }

@@ -169,11 +169,7 @@ public class InsertProcessorTests extends AbstractWireSerializingTestCase<Insert
 
         assertEquals(
             MAX_RESULT_LENGTH,
-            new Insert(EMPTY, l(""), l(1), l(2_000_000_000), l(maxReplacement)).makePipe()
-                .asProcessor()
-                .process(null)
-                .toString()
-                .length()
+            new Insert(EMPTY, l(""), l(1), l(2_000_000_000), l(maxReplacement)).makePipe().asProcessor().process(null).toString().length()
         );
     }
 }

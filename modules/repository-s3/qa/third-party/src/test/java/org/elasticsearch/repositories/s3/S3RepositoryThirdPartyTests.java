@@ -49,6 +49,8 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -294,14 +296,21 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
             final S3BlobContainer destinationBlobContainer = (S3BlobContainer) repository.blobStore()
                 .blobContainer(repository.basePath().add("target"));
-            destinationBlobContainer.executeMultipartCopy(
-                randomPurpose(),
-                (S3BlobContainer) sourceBlobContainer,
-                sourceBlobName,
-                destinationBlobName,
-                blobBytes.length(),
-                null
-            );
+            final ExecutorService executorService = randomBoolean() ? null : Executors.newFixedThreadPool(randomIntBetween(1, 4));
+            try {
+                destinationBlobContainer.executeMultipartCopy(
+                    randomPurpose(),
+                    (S3BlobContainer) sourceBlobContainer,
+                    sourceBlobName,
+                    destinationBlobName,
+                    blobBytes.length(),
+                    executorService
+                );
+            } finally {
+                if (executorService != null) {
+                    executorService.shutdownNow();
+                }
+            }
 
             return destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName).readAllBytes();
         });

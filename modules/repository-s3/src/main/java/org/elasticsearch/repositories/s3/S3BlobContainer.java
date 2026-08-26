@@ -763,8 +763,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                     completedParts[i - 1] = partOperation.doPart(uploadId, i, lastPart ? lastPartSize : partSize, lastPart);
                 }
             } else {
+                final String finalUploadId = uploadId;
                 ConcurrentMultipartHelper.runConcurrentParts(blobSize, partSize, executor, (partNum0, offset, curPartSize, lastPart) -> {
-                    completedParts[partNum0] = partOperation.doPart(uploadId, partNum0 + 1, curPartSize, lastPart);
+                    completedParts[partNum0] = partOperation.doPart(finalUploadId, partNum0 + 1, curPartSize, lastPart);
                 });
             }
 

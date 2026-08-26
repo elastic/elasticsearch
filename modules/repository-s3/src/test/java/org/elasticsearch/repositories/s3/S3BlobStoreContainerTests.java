@@ -866,7 +866,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         );
 
         if (stage == 0) {
-            assertEquals("Failed to execute concurrent multipart operation for [" + blobName + "]", e.getMessage());
+            assertEquals("Failed to upload parts", e.getMessage());
             assertThat(e.getCause(), instanceOf(AwsServiceException.class));
         } else {
             assertEquals("Unable to upload or copy object [" + blobName + "] using multipart upload", e.getMessage());

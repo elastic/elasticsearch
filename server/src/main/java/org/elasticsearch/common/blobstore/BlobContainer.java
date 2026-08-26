@@ -243,6 +243,7 @@ public interface BlobContainer {
      * @param blobSize            The size of the source blob in bytes (needed because some object stores use different implementations
      *                            for very large blobs)
      * @param executor            Executor for concurrent part copies, {@code null} means parts are copied serially
+     *                            Currently only used by S3, Azure, GCS, and Fs ignore this
      * @throws NoSuchFileException If the source blob does not exist
      * @throws IOException        If the operation generates an IO error
      */

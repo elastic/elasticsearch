@@ -41,9 +41,19 @@ import java.util.List;
 import javax.security.auth.x500.X500Principal;
 
 /**
- * Utility class providing convenience methods for common operations on X.509 certificates.
- *
- * @author  Middleware Services
+ * Patched copy of cryptacular's {@code CertUtil} for Elasticsearch's FIPS-safe shadow jar.
+ * Two changes from upstream:
+ * <ol>
+ *   <li>{@code generateX509Certificate} is stubbed out. The original method caught
+ *       {@code OperatorCreationException} (bcpkix), which the JVM resolves in the class's
+ *       exception table at load time. Without bcpkix on the security plugin's runtime classpath,
+ *       this caused {@code NoClassDefFoundError} the moment any code loaded {@code CertUtil}.
+ *       Even code paths that only call {@code decodeCertificate}. This method is never called
+ *       by OpenSAML or any Elasticsearch code path.</li>
+ *   <li>The {@code BouncyCastleProvider} instantiation that was present in the original
+ *       {@code generateX509Certificate} body is removed. The default JCA provider is used
+ *       instead, which resolves to the appropriate provider (BC-FIPS or bcprov) at runtime.</li>
+ * </ol>
  */
 public final class CertUtil {
 

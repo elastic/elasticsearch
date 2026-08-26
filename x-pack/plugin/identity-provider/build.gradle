@@ -47,7 +47,6 @@ dependencies {
   api "com.google.code.findbugs:jsr305:3.0.2"
   api "org.apache.santuario:xmlsec:3.0.6"
   api "io.dropwizard.metrics:metrics-core:4.2.39"
-  // cryptacular is embedded in the es-opensaml-security-api shadow jar (with a FIPS-safe CertUtil patch)
 
   // provided by x-pack-core
   compileOnly "org.slf4j:slf4j-api:${versions.slf4j}"

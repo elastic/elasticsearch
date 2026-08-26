@@ -358,8 +358,6 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         throws ResolverException, ComponentInitializationException {
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SslProfile sslProfile = sslService.profile(sslKey);
-        // Build a classic (blocking) connection manager with the TLS configuration.
-        // SSLConnectionSocketFactory here is org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory (httpclient5).
         final SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
             sslProfile.sslContext(),
             sslProfile.hostnameVerifier()

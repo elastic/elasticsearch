@@ -758,18 +758,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FromDatasetIT
   method: testAbsentDeclaredColumnEmitsResponseWarningNdjson
   issue: https://github.com/elastic/elasticsearch/issues/157593
-- class: org.elasticsearch.xpack.stateless.CorruptionIT
-  method: testConcurrentOperations
-  issue: https://github.com/elastic/elasticsearch/issues/157629
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut
-  issue: https://github.com/elastic/elasticsearch/issues/157680
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
-  method: testDeleteAndRecreateIndexDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/157725
-- class: org.elasticsearch.xpack.stateless.StatelessSearchIT
-  method: testRefreshAndGet
-  issue: https://github.com/elastic/elasticsearch/issues/157727
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testDataVisibility
   issue: https://github.com/elastic/elasticsearch/issues/157732

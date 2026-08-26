@@ -84,6 +84,72 @@ public class AsyncShardFetchTests extends ESTestCase {
         }
     }
 
+    /**
+     * While the fetch is in-flight, peekData should return no data too.
+     * When the fetch is complete, peekData should return data.
+     */
+    public void testPeekData() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        test.addSimulation(node1.getId(), response1);
+
+        AsyncShardFetch.FetchResult<Response> fetchData = test.fetchData(nodes, emptySet());
+        assertThat(fetchData.hasData(), equalTo(false));
+        assertThat(test.getNumberOfInFlightFetches(), equalTo(1));
+
+        AsyncShardFetch.FetchResult<Response> peekData = test.peekData(nodes);
+        assertThat(peekData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(0));
+        assertThat(test.getNumberOfInFlightFetches(), equalTo(1));
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.reroute.get(), equalTo(1));
+
+        peekData = test.peekData(nodes);
+        assertThat(peekData.hasData(), equalTo(true));
+        assertThat(peekData.getData().size(), equalTo(1));
+        assertThat(peekData.getData().get(node1), sameInstance(response1));
+        assertThat(test.reroute.get(), equalTo(1));
+    }
+
+    public void testPeekDataDoesNotStartFetches() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        test.addSimulation(node1.getId(), response1);
+
+        AsyncShardFetch.FetchResult<Response> peekData = test.peekData(nodes);
+        assertThat(peekData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(0));
+        assertThat(test.getNumberOfInFlightFetches(), equalTo(0));
+    }
+
+    public void testPeekDataOnClosedFetchReturnsNoData() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
+        test.addSimulation(node1.getId(), response1);
+        assertThat(test.fetchData(nodes, emptySet()).hasData(), equalTo(false));
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.peekData(nodes).hasData(), equalTo(true));
+
+        test.close();
+        AsyncShardFetch.FetchResult<Response> peekData = test.peekData(nodes);
+        assertThat(peekData.hasData(), equalTo(false));
+        assertThat(test.reroute.get(), equalTo(1));
+    }
+
+    public void testPeekDataWithIncompleteCacheReturnsNoData() throws Exception {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
+        test.addSimulation(node1.getId(), response1);
+        test.addSimulation(node2.getId(), response2);
+        assertThat(test.fetchData(DiscoveryNodes.builder().add(node1).build(), emptySet()).hasData(), equalTo(false));
+
+        test.fireSimulationAndWait(node1.getId());
+        assertThat(test.peekData(DiscoveryNodes.builder().add(node1).build()).hasData(), equalTo(true));
+
+        AsyncShardFetch.FetchResult<Response> peekData = test.peekData(nodes);
+        assertThat(peekData.hasData(), equalTo(false));
+        assertThat(test.getNumberOfInFlightFetches(), equalTo(0));
+        assertThat(test.reroute.get(), equalTo(1));
+    }
+
     public void testFullCircleSingleNodeSuccess() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).build();
         test.addSimulation(node1.getId(), response1);

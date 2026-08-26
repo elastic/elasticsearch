@@ -154,6 +154,32 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     }
 
     /**
+     * Snapshot of the current fetch state for this shard, without starting new fetches or mutating fetch state.
+     * If this fetch has been {@link #close() closed}, a fetch is still in flight, or data has not yet been
+     * fetched from every current data node, the result has no data
+     */
+    public synchronized FetchResult<T> peekData(DiscoveryNodes nodes) {
+        if (closed || hasAnyNodeFetching()) {
+            return new FetchResult<>(shardId, null, emptySet());
+        }
+        for (DiscoveryNode node : nodes.getDataNodes().values()) {
+            NodeEntry<T> nodeEntry = cache.get(node.getId());
+            if (nodeEntry == null || nodeEntry.hasData() == false) {
+                return new FetchResult<>(shardId, null, emptySet());
+            }
+        }
+        Map<DiscoveryNode, T> fetchData = new HashMap<>();
+        for (Map.Entry<String, NodeEntry<T>> entry : cache.entrySet()) {
+            DiscoveryNode node = nodes.get(entry.getKey());
+            NodeEntry<T> nodeEntry = entry.getValue();
+            if (node != null && nodeEntry.isFailed() == false && nodeEntry.getValue() != null) {
+                fetchData.put(node, nodeEntry.getValue());
+            }
+        }
+        return new FetchResult<>(shardId, fetchData, Set.copyOf(nodesToIgnore));
+    }
+
+    /**
      * Called by the response handler of the async action to fetch data. Verifies that its still working
      * on the same cache generation, otherwise the results are discarded. It then goes and fills the relevant data for
      * the shard (response + failures), issuing a reroute at the end of it to make sure there will be another round

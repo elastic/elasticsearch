@@ -1,7 +1,0 @@
-area: ES|QL
-issues:
- - 156433
- - 156381
-pr: 156931
-summary: Unmapped load all parent field implementation
-type: feature

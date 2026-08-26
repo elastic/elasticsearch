@@ -21,10 +21,9 @@ dependencies {
   implementation ("org.cryptacular:cryptacular:1.3.0") {
     exclude group: 'org.bouncycastle'
   }
-  // CertUtil.java references BC types at compile time; at runtime they come from bcprov/bcpkix
+  // CertUtil.java references bcprov ASN1 types at compile time; at runtime they come from bcprov
   // transitively via xmlsec and shib-security in the consuming plugins.
   compileOnly "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
-  compileOnly "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
 }
 
 ['jarHell', 'thirdPartyAudit', 'splitPackagesAudit', 'forbiddenApisMain', 'licenseHeaders', 'checkstyleMain'].each {

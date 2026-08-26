@@ -2,23 +2,12 @@
 
 package org.cryptacular.util;
 
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x500.style.RFC4519Style;
-import org.bouncycastle.asn1.x509.BasicConstraints;
-import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.asn1.x509.GeneralNamesBuilder;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.PolicyInformation;
-import org.bouncycastle.cert.CertIOException;
-import org.bouncycastle.cert.X509v3CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.cryptacular.CryptUtil;
 import org.cryptacular.EncodingException;
 import org.cryptacular.StreamException;
@@ -33,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.security.KeyPair;
@@ -44,7 +32,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -519,14 +506,7 @@ public final class CertUtil {
         final Duration duration,
         final String signatureAlgo
     ) {
-        CryptUtil.assertNotNullArg(keyPair, "Key pair cannot be null");
-        CryptUtil.assertNotNullArg(dn, "DN cannot be null");
-        CryptUtil.assertNotNullArg(duration, "Duration cannot be null");
-        CryptUtil.assertNotNullArg(signatureAlgo, "Signature algorithm cannot be null");
-        final Instant now = Instant.now();
-        final Date notBefore = Date.from(now);
-        final Date notAfter = Date.from(now.plus(duration));
-        return generateX509Certificate(keyPair, dn, notBefore, notAfter, signatureAlgo);
+        throw new UnsupportedOperationException("Certificate generation not supported in this build");
     }
 
     /**
@@ -547,29 +527,7 @@ public final class CertUtil {
         final Date notAfter,
         final String signatureAlgo
     ) {
-        CryptUtil.assertNotNullArg(keyPair, "Key pair cannot be null");
-        CryptUtil.assertNotNullArg(dn, "DN cannot be null");
-        CryptUtil.assertNotNullArg(notBefore, "Not before cannot be null");
-        CryptUtil.assertNotNullArg(notAfter, "Not after cannot be null");
-        CryptUtil.assertNotNullArg(signatureAlgo, "Signature algorithm cannot be null");
-        final Instant now = Instant.now();
-        final BigInteger serial = BigInteger.valueOf(now.toEpochMilli());
-
-        try {
-            final ContentSigner contentSigner = new JcaContentSignerBuilder(signatureAlgo).build(keyPair.getPrivate());
-            final X500Name x500Name = new X500Name(RFC4519Style.INSTANCE, dn);
-            final X509v3CertificateBuilder certificateBuilder = new JcaX509v3CertificateBuilder(
-                x500Name,
-                serial,
-                notBefore,
-                notAfter,
-                x500Name,
-                keyPair.getPublic()
-            ).addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
-            return new JcaX509CertificateConverter().getCertificate(certificateBuilder.build(contentSigner));
-        } catch (OperatorCreationException | CertIOException | CertificateException e) {
-            throw new RuntimeException("Certificate generation error", e);
-        }
+        throw new UnsupportedOperationException("Certificate generation not supported in this build");
     }
 
     /**

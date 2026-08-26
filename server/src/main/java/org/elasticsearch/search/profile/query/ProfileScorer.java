@@ -12,6 +12,7 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -25,13 +26,14 @@ final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
 
-    private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
+    private final Timer scoreTimer, nextDocTimer, intoBitSetTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
     ProfileScorer(Scorer scorer, QueryProfileBreakdown profile) {
         this.scorer = scorer;
         scoreTimer = profile.getNewTimer(QueryTimingType.SCORE);
         nextDocTimer = profile.getNewTimer(QueryTimingType.NEXT_DOC);
+        intoBitSetTimer = profile.getNewTimer(QueryTimingType.INTO_BIT_SET);
         advanceTimer = profile.getNewTimer(QueryTimingType.ADVANCE);
         matchTimer = profile.getNewTimer(QueryTimingType.MATCH);
         shallowAdvanceTimer = profile.getNewTimer(QueryTimingType.SHALLOW_ADVANCE);
@@ -143,6 +145,16 @@ final class ProfileScorer extends Scorer {
                 return in.nextDoc();
             } finally {
                 nextDocTimer.stop();
+            }
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            intoBitSetTimer.start();
+            try {
+                in.intoBitSet(upTo, bitSet, offset);
+            } finally {
+                intoBitSetTimer.stop();
             }
         }
 

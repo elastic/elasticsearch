@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
@@ -198,6 +199,29 @@ public class ProfileScorerTests extends ESTestCase {
         assertEquals(42f, profileWeight.scorer(null).getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
         assertEquals(42, profileWeight.matches(null, 1).getMatches("some_field").startPosition());
         assertEquals("fake_description", profileWeight.explain(null, 1).getDescription());
+    }
+
+    public void testIntoBitSet() throws IOException {
+        int maxDoc = 100;
+        DocIdSetIterator allDocs = DocIdSetIterator.all(maxDoc);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown();
+        ProfileScorer profileScorer = new ProfileScorer(new FakeScorer() {
+            @Override
+            public DocIdSetIterator iterator() {
+                return allDocs;
+            }
+        }, profile);
+
+        FixedBitSet bitSet = new FixedBitSet(maxDoc);
+        DocIdSetIterator it = profileScorer.iterator();
+        it.nextDoc();
+        // call to nextDoc initializes iterator
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC.name().toLowerCase() + "_count"));
+
+        it.intoBitSet(maxDoc, bitSet, 0);
+        assertEquals(maxDoc, bitSet.cardinality());
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.INTO_BIT_SET.name().toLowerCase() + "_count"));
+        assertEquals(1L, (long) profile.toBreakdownMap().get(QueryTimingType.NEXT_DOC.name().toLowerCase() + "_count"));
     }
 
     public void testPropagateTopLevelScoringClause() throws IOException {

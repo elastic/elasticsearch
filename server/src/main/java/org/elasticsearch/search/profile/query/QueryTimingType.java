@@ -16,6 +16,7 @@ public enum QueryTimingType {
     COUNT_WEIGHT,
     BUILD_SCORER,
     NEXT_DOC,
+    INTO_BIT_SET,
     ADVANCE,
     MATCH,
     SCORE,

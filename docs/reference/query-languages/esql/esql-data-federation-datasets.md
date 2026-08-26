@@ -300,14 +300,18 @@ PUT /_query/dataset/access_logs
 }
 ```
 
-To turn exclusion off entirely and read every object the resource pattern matches, set `"file_exclusions": []`.
+To turn name-based exclusion off entirely, set `"file_exclusions": []`. Directory placeholder keys are still
+skipped — see below — so this reads every object the resource pattern matches except those.
 
 Two rules are worth knowing. Entries match one path-segment name, never a path, so `_temporary` is correct
 and `_temporary/**` is rejected when you register the dataset. And exclusion applies to wildcard discovery
-only — an object you name explicitly in `resource`, or through brace expansion such as `{a,b}.parquet`, is
-always read, because naming it is a request to read it.
+only. An object you name explicitly in `resource` is always read, because naming it is a request to read it —
+whether the resource carries no wildcard at all, or names the object as one segment of a comma-separated
+resource.
 
-Objects ending in `/` are directory placeholder keys rather than files, and are always skipped.
+Objects whose key ends in `/` are directory placeholders rather than files — the empty markers an object-store
+console creates for a folder. They are always skipped, and no setting reads them, because a segment name never
+carries its trailing slash and so no glob could name one.
 
 ### CSV and TSV settings
 

@@ -98,15 +98,25 @@ public class ExclusionConfigTests extends ESTestCase {
             () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("_temporary/**")))
         );
         assertEquals(
-            "[file_exclusions] must contain only single path-segment name globs — entries cannot be empty or contain "
-                + "'/' or '**', got [_temporary/**]",
+            "[file_exclusions] must contain only single path-segment name globs — entries cannot contain '/' or '**', "
+                + "got [_temporary/**]",
             e.getMessage()
         );
     }
 
-    public void testValidateRejectsRecursionAndEmptyEntries() {
+    public void testValidateRejectsRecursion() {
         expectThrows(IllegalArgumentException.class, () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("**"))));
-        expectThrows(IllegalArgumentException.class, () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of(""))));
+        expectThrows(IllegalArgumentException.class, () -> ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of("a/b"))));
+    }
+
+    /**
+     * An empty entry is a shape problem, and the caller's string-list check already reports it. Reporting it here
+     * as well would put two validation errors on one setting for one mistake, so this returns silently — the same
+     * split {@code PartitionConfig.validate} uses for a value the enum validator has already rejected.
+     */
+    public void testValidateLeavesEmptyEntriesToTheCaller() {
+        ExclusionConfig.validate(Map.of(CONFIG_FILE_EXCLUSIONS, List.of("")));
+        ExclusionConfig.validate(Map.of(CONFIG_FILE_INCLUSIONS, List.of("_*", "")));
     }
 
     public void testValidateRejectsAnUncompilableGlob() {
@@ -155,6 +165,12 @@ public class ExclusionConfigTests extends ESTestCase {
         ).compile();
         assertFalse(matchers.keeps("staging/a.tmp"));
         assertTrue("the convention is not augmented onto a custom list", matchers.keeps("_SUCCESS"));
+    }
+
+    /** Both components are required — a half-built config would make {@code keeps} throw deep inside a listing. */
+    public void testNullComponentsAreRejected() {
+        expectThrows(NullPointerException.class, () -> new ExclusionConfig(null, List.of()));
+        expectThrows(NullPointerException.class, () -> new ExclusionConfig(List.of(), null));
     }
 
     public void testConfigIsImmutableAgainstCallerMutation() {

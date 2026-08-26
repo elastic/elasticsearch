@@ -121,7 +121,7 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
      * registration path accepts is exactly a value the read path uses as written.
      */
     private static boolean validEntry(String glob) {
-        if (glob == null || glob.isEmpty() || glob.indexOf('/') >= 0 || glob.contains("**")) {
+        if (glob.isEmpty() || glob.indexOf('/') >= 0 || glob.contains("**")) {
             return false;
         }
         try {
@@ -157,12 +157,16 @@ public record ExclusionConfig(List<String> fileExclusions, List<String> fileIncl
             return;
         }
         for (String entry : entries) {
-            if (entry.isEmpty() || entry.indexOf('/') >= 0 || entry.contains("**")) {
+            if (entry.isEmpty()) {
+                // Emptiness is a shape problem, already reported by the caller's string-list check. Reporting it
+                // here too would put two errors on one setting for one mistake.
+                continue;
+            }
+            if (entry.indexOf('/') >= 0 || entry.contains("**")) {
                 throw new IllegalArgumentException(
                     "["
                         + field
-                        + "] must contain only single path-segment name globs — entries cannot be empty or contain "
-                        + "'/' or '**', got ["
+                        + "] must contain only single path-segment name globs — entries cannot contain '/' or '**', got ["
                         + entry
                         + "]"
                 );

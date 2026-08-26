@@ -38,7 +38,7 @@ public class GlobExpanderTests extends ESTestCase {
     /** The legacy switch that turns partition detection off, now folded into Strategy.NONE. */
     private static final Map<String, Object> HIVE_OFF = Map.of(PartitionConfig.CONFIG_PARTITIONING_HIVE, "false");
 
-    /** Hive off, and every name-based exclusion off — the raw listing an empty exclusion list restores. */
+    /** Hive off, and every name-based exclusion off. Directory placeholder keys are still skipped regardless. */
     private static final Map<String, Object> NO_EXCLUSION = Map.of(
         PartitionConfig.CONFIG_PARTITIONING_HIVE,
         "false",
@@ -1025,18 +1025,20 @@ public class GlobExpanderTests extends ESTestCase {
     /**
      * The property the listing cache key rests on: equal discriminators must mean equal listings. Hints reach the
      * listing through the glob rewrite and the {@code _file.*} filters, and nothing else. This catches a new listing
-     * channel added to the expansion but not the discriminator — <b>only for the hint shapes and flag values below</b>,
-     * so extend {@code hintSets} and the {@code excludeNonData} loop whenever a new channel or hint kind is introduced,
-     * or it can slip through.
+     * channel added to the expansion but not the discriminator — <b>only for the hint shapes and configs below</b>,
+     * so extend {@code hintSets} and {@code configs} whenever a new channel or hint kind is introduced, or it can
+     * slip through.
      */
     public void testDiscriminatorDeterminesTheListing() throws IOException {
+        // Each partition carries an excludable object as well as data, so crossing the exclusion configs below
+        // actually changes the listings rather than producing the same file set under every config.
         Map<String, List<StorageEntry>> tree = Map.of(
             "s3://bucket/data/",
             List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2025/b.parquet", 200)),
             "s3://bucket/data/year=2024/",
-            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100)),
+            List.of(entry("s3://bucket/data/year=2024/a.parquet", 100), entry("s3://bucket/data/year=2024/_SUCCESS", 0)),
             "s3://bucket/data/year=2025/",
-            List.of(entry("s3://bucket/data/year=2025/b.parquet", 200))
+            List.of(entry("s3://bucket/data/year=2025/b.parquet", 200), entry("s3://bucket/data/year=2025/.b.crc", 4))
         );
         String pattern = "s3://bucket/data/year=*/*.parquet";
 
@@ -1077,10 +1079,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The {@code excludeNonDataObjects} flag is a listing channel — it changes which entries survive the iterator
-     * loop — so it must be part of the cache key. This test uses a flat {@code *} pattern so that {@code _SUCCESS}
-     * genuinely matches the glob and the two flag values produce different listings. It verifies both that the
-     * discriminator moves (cache-safety) and that the expansions actually differ (the channel is wired in).
+     * The exclusion settings are a listing channel — they change which entries survive the iterator loop — so they
+     * must be part of the cache key. The pattern is a flat {@code *} so that {@code _SUCCESS} genuinely matches the
+     * glob and the two configs produce different listings. It verifies both that the discriminator moves
+     * (cache-safety) and that the expansions actually differ (the channel is wired in).
      */
     public void testDiscriminatorCoversExclusionConfigChannel() throws IOException {
         Map<String, List<StorageEntry>> tree = Map.of(
@@ -1104,8 +1106,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * An empty {@code file_exclusions} list returns the raw listing, restoring the pre-exclusion behavior. This
-     * also proves the default is resolved from the settings rather than hard-wired inside the expansion.
+     * An empty {@code file_exclusions} list turns name-based exclusion off, so the marker is listed again. It does
+     * NOT restore the whole pre-exclusion listing: directory placeholder keys stay skipped unconditionally, because
+     * that rule is listing normalization rather than exclusion policy. This also proves the default is resolved
+     * from the settings rather than hard-wired inside the expansion.
      */
     public void testNonDataExclusionCanBeDisabled() throws IOException {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/_SUCCESS", 0), entry("s3://bucket/data/file.parquet", 100));

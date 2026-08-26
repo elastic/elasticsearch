@@ -36,7 +36,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
         : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
-    /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
 
     public NdJsonCompressedFormatSpecIT(
         String fileName,

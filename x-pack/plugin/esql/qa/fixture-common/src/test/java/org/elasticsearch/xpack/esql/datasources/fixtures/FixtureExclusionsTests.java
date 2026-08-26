@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -70,10 +71,20 @@ public class FixtureExclusionsTests extends ESTestCase {
         assertThat(onRs.kind(), equalTo(FixtureExclusions.Kind.BUG));
     }
 
-    public void testEverySuiteThatDeclaresExclusionsDeclaresAtLeastOne() {
+    /**
+     * The check the old version of this test only looked like: that every suite an exclusion names is a
+     * suite that exists. It replaces an assertion that could not fail -- suites() is the key set of the
+     * same map casesFor() reads, so a key existed only because an entry had created it.
+     *
+     * <p>What it guards is a typo. Before the declared 'suites' list, exclude.parqet.someCase parsed
+     * happily, created a "parqet" suite, and excluded nothing -- indistinguishable from a working
+     * exclusion, and silent forever.
+     */
+    public void testEverySuiteNamedByAnExclusionIsDeclared() {
         FixtureExclusions exclusions = FixtureExclusions.get();
+        Set<String> declared = Set.of("csv", "tsv", "ndjson", "ndjson-compressed", "orc", "parquet", "parquet-compressed", "parquet-rs");
         for (String suite : exclusions.suites()) {
-            assertThat("suite " + suite + " is listed but excludes nothing", exclusions.casesFor(suite), not(empty()));
+            assertThat("exclusion names a suite that is not declared", declared, hasItem(suite));
         }
     }
 }

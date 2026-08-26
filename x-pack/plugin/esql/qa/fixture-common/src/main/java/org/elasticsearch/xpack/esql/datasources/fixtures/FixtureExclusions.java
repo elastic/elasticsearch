@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -76,7 +77,22 @@ public final class FixtureExclusions {
 
     private FixtureExclusions(Properties props) {
         Map<String, Map<String, Exclusion>> parsed = new LinkedHashMap<>();
+        String suitesValue = props.getProperty("suites");
+        if (suitesValue == null || suitesValue.isBlank()) {
+            throw new IllegalStateException("fixture-exclusions.properties must declare a 'suites' list");
+        }
+        Set<String> declaredSuites = new LinkedHashSet<>();
+        for (String token : suitesValue.split(",")) {
+            String trimmed = token.trim();
+            if (trimmed.isEmpty() == false) {
+                declaredSuites.add(trimmed);
+            }
+        }
+
         for (String key : props.stringPropertyNames()) {
+            if (key.equals("suites")) {
+                continue;
+            }
             if (key.startsWith("exclude.") == false) {
                 continue;
             }
@@ -86,6 +102,17 @@ public final class FixtureExclusions {
                 throw new IllegalStateException("malformed exclusion key [" + key + "]; expected exclude.<suite>.<caseName>");
             }
             String suite = rest.substring(0, dot);
+            if (declaredSuites.contains(suite) == false) {
+                throw new IllegalStateException(
+                    "exclusion ["
+                        + key
+                        + "] names suite ["
+                        + suite
+                        + "], which is not in the declared 'suites' list "
+                        + declaredSuites
+                        + ". A typo here creates a phantom suite whose entries never apply to any test."
+                );
+            }
             String caseName = rest.substring(dot + 1);
             String value = props.getProperty(key).trim();
 

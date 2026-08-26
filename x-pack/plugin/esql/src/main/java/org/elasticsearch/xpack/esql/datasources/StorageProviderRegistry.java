@@ -42,7 +42,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p>All non-file providers are automatically wrapped with per-scheme concurrency limiting and retry logic for
  * transient storage failures (503, 429, connection resets, timeouts). Wrap order:
- * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}
+ * {@code caller → Retryable(with adaptive backoff) → ConcurrencyLimited → raw provider}.
+ * Non-empty WITH-config providers are additionally pooled: {@code createProvider} returns a
+ * lease wrapper whose {@code close()} returns the client to {@link StorageProviderCache}.
  *
  * <p>Concurrency limiters are shared per-scheme and adaptive backoff state is shared per-throttle-scope across all
  * providers (including per-query config providers), because cloud API rate limits are per account/IP, not per client
@@ -66,7 +68,8 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
 
     // Cache for providers created with a non-empty per-query configuration map.
-    // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
+    // Returns a pool lease per call; overlapping queries share one SDK client, idle clients
+    // expire after 5 minutes from the last return, and in-use clients are never true-closed.
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;

@@ -61,16 +61,39 @@ tasks.register('checkFixtureCoverage') {
         .findAll { it != 'standalone' }
         .sort()
 
-    // Which templates does the visible spec corpus read? Comments are stripped first: a {{template}}
-    // mentioned in a `//` line documents a cell, it does not consume it.
-    def referenced = [] as Set
-    coverageSpecDirs.each { dir ->
-      if (dir.directory) {
-        dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { specFile ->
-          def body = specFile.readLines().findAll { it.trim().startsWith('//') == false }.join('\n')
-          (body =~ /\{\{([a-z0-9_]+)\}\}/).each { m -> referenced.add(m[1]) }
+    // Which templates does each suite actually read? Resolved from the SAME declaration the suite's
+    // ParametersFactory reads (suite.<token>.specs), not by scanning directories. Scanning
+    // over-approximated: a spec sitting in a scanned directory that no suite loaded still counted as a
+    // consumer, which reported the csv column covered for hive_shadow while every shadow execution was TSV.
+    // Comments are stripped first: a {{template}} in a `//` line documents a cell, it does not consume it.
+    def templatesFor = { String format ->
+      def patterns = props.getProperty("suite.${format}.specs")
+      if (patterns == null || patterns.trim().isEmpty()) {
+        throw new GradleException(
+            "suite [${format}] declares no [suite.${format}.specs]; the coverage gate cannot know which " +
+            "specs it loads, and an undeclared routing is indistinguishable from one nobody wrote")
+      }
+      // A declared pattern is a classpath glob such as /csv-*.csv-spec or /external-basic.csv-spec.
+      // Glob to regex: split on '*' and quote the literal parts, so a '*' in the declared pattern is the
+      // only metacharacter. Quoting the whole pattern first and then trying to unquote the star does not
+      // work -- Pattern.quote wraps the string in \Q...\E, so the star never appears as itself.
+      def regexes = patterns.split(',').collect { it.trim() }.findAll { it.isEmpty() == false }.collect { pat ->
+        def name = pat.replaceFirst('^/', '')
+        def body = name.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*')
+        java.util.regex.Pattern.compile('^' + body + '$')
+      }
+      def found = [] as Set
+      coverageSpecDirs.each { dir ->
+        if (dir.directory) {
+          dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { specFile ->
+            if (regexes.any { it.matcher(specFile.name).matches() }) {
+              def body = specFile.readLines().findAll { it.trim().startsWith('//') == false }.join('\n')
+              (body =~ /\{\{([a-z0-9_]+)\}\}/).each { m -> found.add(m[1]) }
+            }
+          }
         }
       }
+      found
     }
     // Longest suffix wins so a future _hive_shadow-style name is not read as its shorter sibling.
     def layoutOf = { String template ->
@@ -82,10 +105,9 @@ tasks.register('checkFixtureCoverage') {
       }
       best
     }
-    def consumed = referenced.collect { layoutOf(it) }.findAll { it != null } as Set
-
     def problems = []
     coverageFormats.each { format ->
+      def consumed = templatesFor(format).collect { layoutOf(it) }.findAll { it != null } as Set
       def declaredCells = []
       def declaredGaps = [:]
       layouts.each { layout ->

@@ -109,6 +109,20 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 7 arguments:
      * (fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend).
      */
+    /**
+     * Loads the csv-spec files declared for a suite in {@code suite.<token>.specs}, rather than a list
+     * written out here.
+     *
+     * <p>The declaration has two consumers -- this method and the coverage gate that asks whether a
+     * declared fixture cell has a reader. While the list lived in the suite, the gate could only
+     * approximate it by scanning directories, and a spec in a scanned directory that no suite loaded still
+     * counted as a consumer: that reported the csv column covered for hive_shadow while every one of the
+     * ten shadow executions was TSV.
+     */
+    protected static List<Object[]> readExternalSpecTestsForSuite(String suiteToken) throws Exception {
+        return readExternalSpecTests(MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+    }
+
     protected static List<Object[]> readExternalSpecTests(String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
@@ -732,7 +746,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             // formats (parquet, ...) reject the trim_spaces key, so only the csv/tsv backends read the
             // column-aligned fixtures with trimming; the shared injector adds the key.
             boolean csvOrTsv = format.equals("csv") || format.startsWith("csv.") || format.equals("tsv") || format.startsWith("tsv.");
-            return csvOrTsv ? injectTrimSpaces(s.withJson()) : s.withJson();
+            if (csvOrTsv == false) {
+                return s.withJson();
+            }
+            return injectMultiValueSyntax(injectTrimSpaces(s.withJson()), s.resource());
         });
     }
 
@@ -744,6 +761,47 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * parser-guaranteed to be a brace-delimited object or {@code null}, so {@code lastIndexOf('}')} is always the
      * structural closer, outside any nested object.
      */
+    /**
+     * Adds {@code "multi_value_syntax": "brackets"} for a source whose fixtures were WRITTEN with bracket
+     * multi-values, unless the directive already sets it.
+     *
+     * <p>Per source, not per suite. employees.csv carries bracket multi-values on all 100 rows, so an
+     * RFC-4180 reader splitting on commas misaligns every column of anything derived from it; employees_no_mv
+     * carries none. A single spec can read both, so there is no suite-wide answer -- and injecting brackets
+     * everywhere would retire the coverage of the {@code none} default, which is what real users get.
+     *
+     * <p>The dialect comes from the declaration via {@link FixtureMatrix#writeDialectForTemplate}, keyed on
+     * the template the directive names. It is a property of the authored data, and checkFixtureDialect fails
+     * if the declaration and the CSV disagree.
+     */
+    static String injectMultiValueSyntax(String withJson, String resource) {
+        String template = templateNameIn(resource);
+        if (template == null || "brackets".equals(MATRIX.writeDialectForTemplate(template)) == false) {
+            return withJson;
+        }
+        if (DatasetRegistry.declaresSetting(withJson, "multi_value_syntax")) {
+            return withJson;
+        }
+        if (withJson == null) {
+            return "{\"multi_value_syntax\": \"brackets\"}";
+        }
+        int close = withJson.lastIndexOf('}');
+        String head = withJson.substring(0, close).trim();
+        String separator = head.endsWith("{") ? "" : ", ";
+        return head + separator + "\"multi_value_syntax\": \"brackets\"" + withJson.substring(close);
+    }
+
+    /** The {@code {{template}}} a dataset directive's resource names, or null when it names none. */
+    private static String templateNameIn(String resource) {
+        if (resource == null) {
+            return null;
+        }
+        Matcher m = TEMPLATE_REFERENCE.matcher(resource);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static final Pattern TEMPLATE_REFERENCE = Pattern.compile("\\{\\{([a-z0-9_]+)\\}\\}");
+
     static String injectTrimSpaces(String withJson) {
         if (DatasetRegistry.declaresSetting(withJson, "trim_spaces")) {
             return withJson;

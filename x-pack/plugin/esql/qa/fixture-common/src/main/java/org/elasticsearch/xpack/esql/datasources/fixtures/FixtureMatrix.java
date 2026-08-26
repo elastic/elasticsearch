@@ -85,6 +85,7 @@ public final class FixtureMatrix {
     }
 
     private final Map<String, List<String>> specPatterns;
+    private final Properties declaration;
 
     private FixtureMatrix(Properties props) {
         Map<String, List<String>> parsedSpecPatterns = new LinkedHashMap<>();
@@ -99,6 +100,7 @@ public final class FixtureMatrix {
             }
         }
         this.specPatterns = Map.copyOf(parsedSpecPatterns);
+        this.declaration = props;
         this.formats = List.copyOf(splitList(required(props, "formats")));
 
         Map<String, List<String>> byFormat = new LinkedHashMap<>();
@@ -225,6 +227,45 @@ public final class FixtureMatrix {
      * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
      * for hive_shadow while zero shadow cases ran on any CSV suite.
      */
+    /**
+     * The multi-value dialect the fixtures behind a template were WRITTEN in.
+     *
+     * <p>Resolved from the declaration rather than guessed: a standalone template is its own dataset, a
+     * layout derived from a dataset inherits that dataset's dialect, and a layout assembled from its own
+     * authored source files carries {@code none} -- those sources are bracket-free, which
+     * checkFixtureDialect pins.
+     *
+     * <p>Per-source rather than per-suite on purpose. A single spec file can read one bracket-written
+     * dataset and one bracket-free one, so a suite-wide setting would misread one of them; and injecting
+     * {@code brackets} everywhere would retire the coverage of {@code none}, which is the default real
+     * users get.
+     */
+    public String writeDialectForTemplate(String templateName) {
+        Layout layout = layoutFor(templateName);
+        String dataset;
+        if (layout.isStandalone()) {
+            dataset = templateName;
+        } else {
+            String derived = declaration.getProperty("layout." + layout.name() + ".derived_from");
+            if (derived == null) {
+                // Assembled from its own authored sources, which are bracket-free by construction.
+                return "none";
+            }
+            dataset = derived.trim();
+        }
+        String declared = declaration.getProperty("dataset." + dataset + ".write_dialect");
+        if (declared == null) {
+            throw new IllegalStateException(
+                "dataset ["
+                    + dataset
+                    + "] declares no write_dialect, so the read dialect for template ["
+                    + templateName
+                    + "] cannot be resolved"
+            );
+        }
+        return declared.trim();
+    }
+
     public List<String> specPatterns(String suiteToken) {
         List<String> patterns = specPatterns.get(suiteToken);
         if (patterns == null) {

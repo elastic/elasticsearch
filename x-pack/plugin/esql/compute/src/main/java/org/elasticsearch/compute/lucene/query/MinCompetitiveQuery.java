@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -130,7 +131,7 @@ public class MinCompetitiveQuery implements Releasable {
                 Query query = buildMinCompetitiveQuery(value);
                 log.debug("updating min competitive to {} using {}", query, value);
                 changedValue++;
-                Weight weight = query.createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 0.0F);
+                Weight weight = uncachedWeight(ctx, query);
                 PerMinValue result = new PerMinValue(value, weight);
                 value = null;
                 return result;
@@ -155,6 +156,12 @@ public class MinCompetitiveQuery implements Releasable {
             greaterThanMinCompetitive++;
             return q;
         }
+    }
+
+    private static Weight uncachedWeight(ShardContext ctx, Query query) throws IOException {
+        IndexSearcher searcher = new IndexSearcher(ctx.searcher().getIndexReader());
+        searcher.setQueryCache(null);
+        return query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 0.0F);
     }
 
     private class PerMinValue implements Releasable {

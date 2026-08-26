@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -218,10 +219,7 @@ public class DenseVectorFieldEmbeddingsFieldIT extends AbstractVectorFieldEmbedd
 
     @Override
     IndexVersion minIndexVersion() {
-        // Before this version, dense vector doc values are stored big-endian, but VectorEncoderDecoder.decodeBFloat16DenseVector
-        // always decodes little-endian. We cannot use bfloat16 prior to this index version.
-        // TODO: Set to MINIMUM_COMPATIBLE once https://github.com/elastic/elasticsearch/issues/157696 is fixed
-        return DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION;
+        return IndexVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override

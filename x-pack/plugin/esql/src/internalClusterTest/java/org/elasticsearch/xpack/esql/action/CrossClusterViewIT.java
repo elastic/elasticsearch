@@ -30,13 +30,13 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         createViewOnCluster(REMOTE_CLUSTER_1, "logs-mobile", "FROM logs-2 | LIMIT 10");
     }
 
-    public void testRemoteViewIsIgnoredByWildcard() {
+    public void testRemoteViewIsIgnoredByWildcardExpression() {
         try (var result = runQuery("FROM cluster-a:logs-*", null)) {
             assertOk(result);
         }
     }
 
-    public void testRemoteViewCanNotBeResolvedConcreteMatchFailsQuery() {
+    public void testRemoteViewCanNotBeResolvedByConcreteExpression() {
         expectThrows(
             VerificationException.class,
             containsString("Unknown index [cluster-a:logs-web]"),

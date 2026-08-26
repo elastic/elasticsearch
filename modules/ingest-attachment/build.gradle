@@ -113,7 +113,7 @@ dependencies {
   // EPUB books
   api "org.apache.commons:commons-lang3:${versions.commonsLang3}"
   // Microsoft Word files with visio diagrams
-  api "org.apache.commons:commons-math3:${versions.commons_math3}"
+  api "org.apache.commons:commons-math3:${versions.commonsMath3}"
   // POIs dependency
   api "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
 }

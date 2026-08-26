@@ -12,7 +12,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -523,14 +522,10 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      * {@code EsqlResolveFieldsAction} runs before IN-subquery resolution and cannot be bypassed.
      */
     public void testRemoteViewRejectedWithInSubquery() {
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [cluster-a:remote_events_view]"),
-            () -> runQuery("""
-                FROM events
-                | WHERE id IN (FROM cluster-a:remote_events_view | KEEP id)
-                """, null).close()
-        );
+        expectThrows(VerificationException.class, containsString("Unknown index [cluster-a:remote_events_view]"), () -> runQuery("""
+            FROM events
+            | WHERE id IN (FROM cluster-a:remote_events_view | KEEP id)
+            """, null).close());
     }
 
     // ---- LOOKUP JOIN inside WHERE IN subquery body (issue #149877) ----

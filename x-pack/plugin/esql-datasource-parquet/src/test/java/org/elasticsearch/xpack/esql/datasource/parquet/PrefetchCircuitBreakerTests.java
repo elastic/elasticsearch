@@ -400,7 +400,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
     /**
      * Allocator-backed in-memory storage: default {@code readBytesAsync} allocates through
      * {@link DirectBufferFactory}. Distinct from {@link #createAsyncStorageObject}, which uses a
-     * heap {@code ByteBuffer} and a no-op closer so older breaker tests do not charge Arrow for
+     * heap {@code ByteBuffer} and a no-op closer so older breaker tests do not charge the breaker for
      * prefetch bytes. Do not merge the two stubs.
      */
     private static final class InMemoryStorageObject implements StorageObject {

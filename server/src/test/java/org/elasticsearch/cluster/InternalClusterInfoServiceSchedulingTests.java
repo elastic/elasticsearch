@@ -131,7 +131,8 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             mockEstimatedHeapUsageCollector,
             mockCacheSizesAndCommitmentCollector,
             PartitionSizeCollector.EMPTY,
-            nodeUsageStatsForThreadPoolsCollector
+            nodeUsageStatsForThreadPoolsCollector,
+            SearchLaneRequirementsCollector.EMPTY
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
             new WriteLoadConstraintMonitor(

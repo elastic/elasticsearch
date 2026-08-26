@@ -1627,16 +1627,13 @@ public class VerifierTests extends ESTestCase {
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
-    public void testDoubleRangeUnsupportedOperations() {
+    public void testDoubleRangeOperations() {
+        assumeTrue("requires GROUP_BY_DOUBLE_RANGE capability", EsqlCapabilities.Cap.GROUP_BY_DOUBLE_RANGE.isEnabled());
         analyzer().addIndex("heights", "mapping-heights.json")
             .stripErrorPrefix(true)
             .error("FROM heights | SORT height_range", containsString("cannot sort on double_range"));
-        analyzer().addIndex("heights", "mapping-heights.json")
-            .stripErrorPrefix(true)
-            .error(
-                "FROM heights | STATS count(*) BY height_range",
-                containsString("cannot group by on [double_range] type for grouping [height_range]")
-            );
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | STATS count(*) BY height_range");
+        analyzer().addIndex("heights", "mapping-heights.json").query("FROM heights | LIMIT 1 BY height_range");
         analyzer().addIndex("heights", "mapping-heights.json")
             .addLookupIndex("heights_lookup", "mapping-heights.json")
             .stripErrorPrefix(true)
@@ -2961,6 +2958,40 @@ public class VerifierTests extends ESTestCase {
             containsString("Invalid option [include_lower]")
         );
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
+    }
+
+    public void testMvGreaterInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": true })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bnd\": true })",
+            containsString("Invalid option [include_bnd]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": \"banana\" })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": null })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_greater(salary, 1, 5)", containsString("must be a map expression"));
+    }
+
+    public void testMvLessInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_less(salary, 1, { \"include_bound\": true })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bnd\": true })",
+            containsString("Invalid option [include_bnd]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bound\": \"banana\" })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bound\": null })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_less(salary, 1, 5)", containsString("must be a map expression"));
     }
 
     public void testMvLikePattern() {

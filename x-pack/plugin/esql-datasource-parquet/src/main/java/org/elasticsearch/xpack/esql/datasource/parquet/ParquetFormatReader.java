@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.bytes.HeapByteBufferAllocator;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
@@ -519,14 +519,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // parquet-mr defaults useColumnIndexFilter=true (since 1.12.0), so when a FilterPredicate
         // is set via withRecordFilter, page-index filtering (ColumnIndex/OffsetIndex) is automatically
         // active in addition to row-group level statistics, dictionary, and bloom filter checks.
-        // Note: all read operations happen synchronously with the ESQL engine. If some operations
-        // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
+        // Footer prefetch and parquet-mr allocations can complete on generic/HTTP threads.
+        // Unwrap a LocalCircuitBreaker here so the allocator stays a pass-through.
         //
         // Keep the delegate heap-backed. parquet-mr's DirectByteBufferAllocator.release() is empty, so a
         // direct delegate returns the breaker charge but leaves the memory to a Cleaner -- reclamation
         // becomes a function of GC frequency, which a large heap starves. Nothing reads these buffers
         // natively either: they are footers and dictionary-page copies, both copied to the heap next step.
-        var breaker = blockFactory.breaker();
+        var breaker = LocalCircuitBreaker.forAsyncIo(blockFactory.breaker());
         var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
@@ -677,7 +677,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
         ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
@@ -743,8 +743,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         int tailLen = (int) Math.min(FOOTER_TAIL_PREFETCH_BYTES, length);
-        BufferAllocator allocator = blockFactory.arrowAllocator();
-        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
+        DirectBufferFactory factory = DirectBufferFactory.forBreaker(blockFactory.breaker());
 
         object.readBytesAsync(length - tailLen, tailLen, factory, executor, ActionListener.wrap(tail -> {
             final byte[] tailBytes;
@@ -1284,7 +1283,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // it emits any other column. Pushed filters, late materialization, page skipping, and
             // row-group skipping all stay on — each surviving row carries its identity, and the
             // matching extractor binds those identities back to the file's full footer.
-            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
             long footerStartNanos = System.nanoTime();
             ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
             counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
@@ -1358,7 +1357,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.breaker());
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
@@ -1616,7 +1615,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(
                 object,
                 rangeEnd - rangeStart,
-                blockFactory.arrowAllocator()
+                blockFactory.breaker()
             );
             ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
             // Footer resolution order:
@@ -1656,7 +1655,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 reader,
                 context.projectedColumns(),
                 context.batchSize(),
-                NO_LIMIT,
+                // Same remaining budget the whole-file path already threads into count-only,
+                // baseline, and optimized iterators. Previously hard-coded NO_LIMIT so a range
+                // split could over-read and the producer discarded surplus. The value is
+                // state.rowsRemaining, so truncation here is equivalent and lets the optimized
+                // path stop unread groups/pages.
+                context.rowLimit(),
                 context.resolvedAttributes(),
                 // The deferred extractor scopes itself to the file's full footer rather than the
                 // range-filtered subset, so the produced extractor can resolve any file-global
@@ -1879,22 +1883,33 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
         // Gate ColumnIndex/OffsetIndex prefetch to the columns a plan actually consumes (see
         // computeIndexColumnPaths). A full scan with no filter and no threshold consumes none of
-        // them, so this emits zero index ranges.
+        // them, so this emits zero index ranges. Unfiltered LIMIT additionally fetches OffsetIndex
+        // for the first K covering row groups so prefix page ranges can clip first-window I/O.
+        boolean unfilteredLimit = unfilteredLimit(
+            rowLimit,
+            FilterCompat.isFilteringRequired(recordFilter),
+            filterPredicate != null,
+            lateMaterializationEnabled && pushedExpressions != null,
+            dynamicThreshold != null
+        );
         IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
             FilterCompat.isFilteringRequired(recordFilter),
             filterPredicate != null,
             predicateColumnPaths,
             dynamicThreshold != null ? dynamicThreshold.columnName() : null,
-            projectedSchema
+            projectedSchema,
+            unfilteredLimit ? rowLimit : NO_LIMIT
         );
 
+        int offsetIndexRowGroupLimit = unfilteredLimit ? coveringRowGroupLimit(reader.getRowGroups(), rowLimit) : Integer.MAX_VALUE;
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
             reader,
             storageObject,
             predicateColumnPaths,
             indexColumnPaths.columnIndexPaths(),
             indexColumnPaths.offsetIndexPaths(),
-            blockFactory.arrowAllocator()
+            offsetIndexRowGroupLimit,
+            blockFactory.breaker()
         );
         boolean metadataHandedOff = false;
         try {
@@ -2022,16 +2037,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     /**
      * Restricts page-index prefetch to the columns a plan actually consumes, so a full scan does not
      * pay for ColumnIndex/OffsetIndex bytes nothing reads. Index ranges are only used when a Parquet
-     * {@link FilterPredicate} drives {@code RowRanges} ({@code pageRangeFilterActive}) or for the
-     * dynamic-threshold sort column. Returns {@code null} sets (unrestricted, legacy behavior) when a
-     * filter is active but its predicate columns can't be enumerated ({@code predicateColumnPaths == null}).
+     * {@link FilterPredicate} drives {@code RowRanges} ({@code pageRangeFilterActive}), for the
+     * dynamic-threshold sort column, or for unfiltered {@code LIMIT} (OffsetIndex on projected
+     * columns so the first-window prefix can skip unread pages). Returns {@code null} sets
+     * (unrestricted, legacy behavior) when a filter is active but its predicate columns can't be
+     * enumerated ({@code predicateColumnPaths == null}). {@code unfilteredLimitBudget} is the
+     * unfiltered-LIMIT row budget; callers must pass {@link FormatReader#NO_LIMIT} for filtered,
+     * late-mat, and TopN limits so this does not fetch OffsetIndex bytes nothing reads.
      */
     static IndexColumnPaths computeIndexColumnPaths(
         boolean filteringRequired,
         boolean pageRangeFilterActive,
         Set<String> predicateColumnPaths,
         String thresholdColumn,
-        MessageType projectedSchema
+        MessageType projectedSchema,
+        int unfilteredLimitBudget
     ) {
         if (filteringRequired && predicateColumnPaths == null) {
             return new IndexColumnPaths(null, null);
@@ -2046,12 +2066,57 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             columnIndexPaths.add(thresholdColumn);
             offsetIndexPaths.add(thresholdColumn);
         }
-        if (pageRangeFilterActive) {
+        // Unfiltered LIMIT: OffsetIndex only (ColumnIndex min/max is unused). The caller must
+        // pass NO_LIMIT when the budget is a filtered / late-mat / TopN limit — those paths
+        // must not fetch OffsetIndex bytes nothing reads. The row-group cap is applied at
+        // preload time; this only names the projected columns.
+        if (pageRangeFilterActive || unfilteredLimitBudget != NO_LIMIT) {
             for (ColumnDescriptor descriptor : projectedSchema.getColumns()) {
                 offsetIndexPaths.add(String.join(".", descriptor.getPath()));
             }
         }
         return new IndexColumnPaths(columnIndexPaths, offsetIndexPaths);
+    }
+
+    /**
+     * Unfiltered {@code LIMIT}: a remaining row budget with no record filter, no FilterPredicate
+     * page ranges, no late materialization, and no dynamic-threshold TopN. Only then may source
+     * row counts stand in for survivor counts (stop later groups, prefix-clip the first window).
+     */
+    static boolean unfilteredLimit(
+        int rowLimit,
+        boolean filteringRequired,
+        boolean pageRangeFilterActive,
+        boolean lateMaterializationActive,
+        boolean dynamicThresholdActive
+    ) {
+        return rowLimit != NO_LIMIT
+            && filteringRequired == false
+            && pageRangeFilterActive == false
+            && lateMaterializationActive == false
+            && dynamicThresholdActive == false;
+    }
+
+    /**
+     * Fewest leading row groups whose {@code rowCount} sum covers {@code rowLimit}. Used to bound
+     * OffsetIndex preload for unfiltered LIMIT so a multi-thousand-group file does not fetch every
+     * group's page index for {@code LIMIT 1}. {@link FormatReader#NO_LIMIT} returns {@code blocks.size()}.
+     */
+    static int coveringRowGroupLimit(List<BlockMetaData> blocks, int rowLimit) {
+        if (rowLimit == NO_LIMIT) {
+            return blocks.size();
+        }
+        if (rowLimit <= 0) {
+            return 0;
+        }
+        long rows = 0;
+        for (int i = 0; i < blocks.size(); i++) {
+            rows += blocks.get(i).getRowCount();
+            if (rows >= rowLimit) {
+                return i + 1;
+            }
+        }
+        return blocks.size();
     }
 
     private static ColumnDescriptor resolveDynamicThresholdColumn(MessageType schema, DynamicThreshold dynamicThreshold) {

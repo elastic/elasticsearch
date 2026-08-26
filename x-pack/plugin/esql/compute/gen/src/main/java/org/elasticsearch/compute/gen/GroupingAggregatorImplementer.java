@@ -287,6 +287,11 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
+    /** Returns true if the generated grouping aggregator supports the partitioned-split protocol. */
+    public boolean supportsPartitionedSplit() {
+        return aggState.type().equals(LONG_ARRAY_STATE);
+    }
+
     private String partitionedSplitPrefix() {
         String name = implementation.simpleName();
         return name.endsWith("GroupingAggregatorFunction")

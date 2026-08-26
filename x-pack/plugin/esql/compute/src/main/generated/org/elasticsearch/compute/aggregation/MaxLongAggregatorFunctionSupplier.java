@@ -40,6 +40,11 @@ public final class MaxLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
+  public boolean supportsPartitionedSplit() {
+    return true;
+  }
+
+  @Override
   public String describe() {
     return "max of longs";
   }

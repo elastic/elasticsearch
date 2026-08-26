@@ -10,6 +10,7 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Aggregator;
@@ -106,6 +107,9 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addMethod(groupingIntermediateStateDesc());
         builder.addMethod(aggregator());
         builder.addMethod(groupingAggregator());
+        if (groupingAggregatorImplementer.supportsPartitionedSplit()) {
+            builder.addMethod(supportsPartitionedSplit());
+        }
         builder.addMethod(describe());
         return builder.build();
     }
@@ -232,5 +236,14 @@ public class AggregatorFunctionSupplierImplementer {
             builder.addStatement("return $T.$L()", declarationType, "describe");
         }
         return builder.build();
+    }
+
+    private MethodSpec supportsPartitionedSplit() {
+        return MethodSpec.methodBuilder("supportsPartitionedSplit")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(TypeName.BOOLEAN)
+            .addStatement("return true")
+            .build();
     }
 }

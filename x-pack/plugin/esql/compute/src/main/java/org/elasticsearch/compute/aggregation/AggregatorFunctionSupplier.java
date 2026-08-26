@@ -24,6 +24,14 @@ public interface AggregatorFunctionSupplier extends Describable {
 
     GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels);
 
+    /**
+     * Returns {@code true} if the grouping aggregator function produced by this supplier supports
+     * the partitioned-split protocol required by {@code SinglePassPartitionedAggregatorV2}.
+     */
+    default boolean supportsPartitionedSplit() {
+        return false;
+    }
+
     default Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
         return new Aggregator.Factory() {
             @Override

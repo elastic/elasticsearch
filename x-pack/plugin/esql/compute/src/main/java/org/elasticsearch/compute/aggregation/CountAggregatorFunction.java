@@ -188,6 +188,11 @@ public class CountAggregatorFunction implements AggregatorFunction {
         }
 
         @Override
+        public boolean supportsPartitionedSplit() {
+            return true;
+        }
+
+        @Override
         public String describe() {
             return "count";
         }

@@ -135,8 +135,12 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 tasks.named('check').configure { dependsOn csvSpecTests }
 
 ext.fixtureCoverageFormats = ['parquet-rs']
+// Mirrors what the source sets actually mount above: parquet-rs reads the PARQUET module's spec
+// resources as well as its own, so a gate scanning only its own directory would report live exclusions
+// as dead -- which is exactly what checkFixtureExclusions reported before this line existed.
 ext.fixtureCoverageSpecDirs = [
   project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),
-  file('src/javaRestTest/resources')
+  file('src/javaRestTest/resources'),
+  parquetQaProject.file('src/javaRestTest/resources')
 ]
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')

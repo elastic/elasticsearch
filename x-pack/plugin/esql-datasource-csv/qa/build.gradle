@@ -256,6 +256,10 @@ apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts
 
 // This module hosts BOTH the Csv and Tsv suites, so it owns two columns of the matrix.
 ext.fixtureCoverageFormats = ['csv', 'tsv']
+ext.fixtureCoverageLayoutRoots = [
+  csv: file("${csvIcebergFixtureRoot}/iceberg-fixtures"),
+  tsv: file("${tsvFixtureOutputRoot}/iceberg-fixtures")
+]
 ext.fixtureCoverageSpecDirs = [
   project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),
   file('src/javaRestTest/resources')

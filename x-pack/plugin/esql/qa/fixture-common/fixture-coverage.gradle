@@ -40,9 +40,12 @@
 def declarationFile = project(xpackModule('esql:qa:fixture-common'))
     .file('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-matrix.properties')
 
-// Read ext and resolve Files at script level, not inside the task closure.
+// Read ext and resolve Files at SCRIPT level, never inside a task closure: there `ext` resolves to the
+// task's own property bag, not the project's. Every task in this file has been written wrong that way at
+// least once.
 def coverageFormats = ext.fixtureCoverageFormats
 def coverageSpecDirs = ext.fixtureCoverageSpecDirs.collect { file(it) }
+def coverageLayoutRoots = ext.has('fixtureCoverageLayoutRoots') ? ext.fixtureCoverageLayoutRoots : null
 
 tasks.register('checkFixtureCoverage') {
   description = 'Fails when a declared layout cell has no spec that reads it.'
@@ -206,4 +209,145 @@ tasks.register('checkFixtureDialect') {
   }
 }
 
-tasks.named('precommit').configure { dependsOn 'checkFixtureCoverage', 'checkFixtureDialect' }
+/*
+ * Fails when an exclusion names a case its suite never loads.
+ *
+ * This is the rot direction. An exclusion whose case was renamed, moved or deleted keeps sitting there
+ * looking legitimate while disabling nothing -- and an exclusion naming a spec the suite does not route
+ * silences nothing at all. Six ndjson-compressed entries survived three months that way, describing a
+ * defect that had already been fixed, and deleting them recovered 112 executions.
+ *
+ * Fully static now that routing is declared: resolve suite.<token>.specs, parse the case names out of the
+ * routed spec files, and require every exclusion to name a pair that exists.
+ */
+def exclusionsFile = project(xpackModule('esql:qa:fixture-common'))
+    .file('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-exclusions.properties')
+
+tasks.register('checkFixtureExclusions') {
+  description = 'Fails when an exclusion names a case its suite never loads.'
+  group = 'verification'
+
+  doLast {
+    def matrix = new Properties()
+    matrix.load(new StringReader(declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
+    def exclusions = new Properties()
+    exclusions.load(new StringReader(exclusionsFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
+
+    // (spec -> case names) for every spec file this module can see.
+    def casesBySpec = [:].withDefault { [] as Set }
+    coverageSpecDirs.each { dir ->
+      if (dir.directory) {
+        dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { f ->
+          def spec = f.name - '.csv-spec'
+          f.readLines().each { line ->
+            def t = line.trim()
+            if (t && t.startsWith('//') == false && t.endsWith(';') == false && t ==~ /[A-Za-z][A-Za-z0-9_]*/) {
+              casesBySpec[spec] << t
+            }
+          }
+        }
+      }
+    }
+
+    def problems = []
+    coverageFormats.each { token ->
+      def patterns = matrix.getProperty("suite.${token}.specs")
+      def routed = patterns.split(',').collect { it.trim().replaceFirst('^/', '') - '.csv-spec' }
+          .findAll { it.isEmpty() == false }
+      def routedSpecs = casesBySpec.keySet().findAll { spec ->
+        routed.any { pat -> spec ==~ ('^' + pat.split('\\*', -1).collect { java.util.regex.Pattern.quote(it) }.join('.*') + '$') }
+      }
+      exclusions.stringPropertyNames().findAll { it.startsWith("exclude.${token}.") }.each { key ->
+        def rest = key - "exclude.${token}."
+        def dot = rest.indexOf('.')
+        def spec = rest.substring(0, dot)
+        def caseName = rest.substring(dot + 1)
+        if (routedSpecs.contains(spec) == false) {
+          problems.add("[${token}] excludes ${spec}.${caseName}, but this suite does not route ${spec} -- " +
+                       "the entry disables nothing")
+        } else if (casesBySpec[spec].contains(caseName) == false) {
+          problems.add("[${token}] excludes ${spec}.${caseName}, but ${spec} declares no such case -- " +
+                       "renamed, moved or already fixed, and the entry is now dead weight")
+        }
+      }
+    }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("stale exclusions:\n  " + problems.join("\n  "))
+    }
+    logger.lifecycle("fixture exclusions: every entry for ${coverageFormats} names a case its suite loads")
+  }
+}
+
+/*
+ * Fails when a declared cell produced no files.
+ *
+ * The generation direction, and the one the original defect needed: 20 of 40 layout x format cells were
+ * never generated, and a cell that is never generated fails nothing -- the test simply does not exist for
+ * that format. The consumption gate above cannot see it, because a spec reading the cell looks perfectly
+ * healthy right up to the missing file.
+ *
+ * Observes the artifact rather than the task graph on purpose. Enumerating registered tasks is defeated by
+ * a task that is registered but disabled, by an empty outputs.dir satisfying "declared", and by modules
+ * whose fixture aggregate does not list every generator. A file on disk is not defeated by any of those,
+ * and it makes fixtureLayoutSkip unambiguous by construction: skipping exempts REGISTRATION, never
+ * EXISTENCE.
+ *
+ * Requires ext.fixtureCoverageLayoutRoots: [format: rootDir] for the formats this module generates.
+ */
+tasks.register('checkFixtureGeneration') {
+  description = 'Fails when a declared layout cell produced no fixture files.'
+  group = 'verification'
+
+  doLast {
+    if (coverageLayoutRoots == null) {
+      logger.lifecycle('fixture generation: no layout roots declared for this module, nothing to walk')
+      return
+    }
+    def roots = coverageLayoutRoots
+    def props = new Properties()
+    props.load(new StringReader(declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')))
+
+    def layouts = props.stringPropertyNames()
+        .findAll { it.startsWith('layout.') && it.endsWith('.dir') }
+        .collect { it.substring('layout.'.length(), it.length() - '.dir'.length()) }
+        .findAll { it != 'standalone' }
+        .sort()
+
+    def problems = []
+    roots.each { format, rootDir ->
+      def root = file(rootDir)
+      layouts.each { layout ->
+        def override = props.getProperty("layout.${layout}.sources.${format}")
+        def base = props.getProperty("layout.${layout}.sources")
+        def derived = props.getProperty("layout.${layout}.derived_from")
+        boolean declaredGap = override != null && override.trim().isEmpty()
+        boolean declared = declaredGap == false && (override != null || base != null || derived != null)
+        if (declared == false) {
+          return
+        }
+        def dir = new File(root, props.getProperty("layout.${layout}.dir"))
+        if (dir.directory == false) {
+          problems.add("[${format}] layout [${layout}] is declared but ${dir} does not exist")
+          return
+        }
+        def produced = []
+        dir.eachFileRecurse { f -> if (f.file && f.name.endsWith(".${format}")) { produced << f } }
+        if (produced.isEmpty()) {
+          problems.add("[${format}] layout [${layout}] is declared but ${dir} holds no *.${format} file")
+        }
+      }
+    }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException(
+          "declared fixture cells were not generated:\n  " + problems.join("\n  ") +
+          "\nA cell nothing generates fails nothing -- the test simply does not exist for that format.")
+    }
+    logger.lifecycle("fixture generation: every declared cell for ${roots.keySet()} produced files")
+  }
+}
+
+tasks.named('precommit').configure {
+  dependsOn 'checkFixtureCoverage', 'checkFixtureDialect', 'checkFixtureExclusions', 'checkFixtureGeneration'
+}

@@ -1415,6 +1415,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return innerGet(get, false, splitShardCountSummary, this::wrapSearcher);
     }
 
+    public Engine.GetResult getForUpdate(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
+        assert get.realtime() && get.isReadFromTranslog();
+
+        readAllowed();
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        if (shouldShortCircuitGet(mappingLookup)) {
+            return GetResult.NOT_EXISTS;
+        }
+        return withEngine(
+            // TODO use SplitShardCountSummary
+            engine -> engine.getForUpdate(get, mapperService.mappingLookup(), mapperService.documentParser(), this::wrapSearcher)
+        );
+    }
+
     /**
      * Invokes the consumer with a {@link MultiEngineGet} that can perform multiple engine gets without wrapping searchers multiple times.
      * Callers must not pass the provided {@link MultiEngineGet} to other threads.
@@ -1446,11 +1460,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
-        if (mappingLookup.hasMappings() == false) {
+        if (shouldShortCircuitGet(mappingLookup)) {
             return GetResult.NOT_EXISTS;
-        }
-        if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-            throw new IllegalStateException("get operations not allowed on a legacy index");
         }
         if (translogOnly) {
             return withEngine(engine -> engine.getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper));
@@ -1458,6 +1469,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return withEngine(
             engine -> engine.get(get, mappingLookup, mapperService.documentParser(), splitShardCountSummary, searcherWrapper)
         );
+    }
+
+    private boolean shouldShortCircuitGet(MappingLookup mappingLookup) {
+        if (mappingLookup.hasMappings() == false) {
+            return true;
+        }
+        if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+            throw new IllegalStateException("get operations not allowed on a legacy index");
+        }
+        return false;
     }
 
     /**

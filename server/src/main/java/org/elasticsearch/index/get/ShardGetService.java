@@ -337,7 +337,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             false,
             SplitShardCountSummary.UNSET,
             false,
-            indexShard::get
+            indexShard::getForUpdate
         );
     }
 
@@ -421,7 +421,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 UNASSIGNED_SEQ_NO,
                 UNASSIGNED_PRIMARY_TERM
             );
-            final Engine.GetResult getResult = indexShard.get(engineGet, splitShardCountSummary);
+            // TODO use SplitShardCountSummary
+            final Engine.GetResult getResult = indexShard.getForUpdate(engineGet, splitShardCountSummary);
 
             // counted in addition to the consuming get: the id resolution and the fetch are accounted separately
             if (getResult.exists()) {

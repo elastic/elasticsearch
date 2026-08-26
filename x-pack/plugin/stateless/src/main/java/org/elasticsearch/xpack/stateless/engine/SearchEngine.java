@@ -1053,6 +1053,16 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        throw unsupportedException();
+    }
+
+    @Override
     protected void onSearcherCreation(String source, SearcherScope scope) {
         super.onSearcherCreation(source, scope);
         if (source.equals(CAN_MATCH_SEARCH_SOURCE) || source.equals(SEARCH_SOURCE)) {

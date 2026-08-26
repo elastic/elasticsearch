@@ -173,7 +173,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 new InternalEngineFactory(),
                 NOOP_GCP_SYNCER,
                 RetentionLeaseSyncer.EMPTY,
-                EMPTY_EVENT_LISTENER
+                IndexEventListener.NOOP
             ),
             true
         );
@@ -547,7 +547,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             indexShard.engineFactory,
             indexShard.getGlobalCheckpointSyncer(),
             indexShard.getRetentionLeaseSyncer(),
-            EMPTY_EVENT_LISTENER
+            IndexEventListener.NOOP
         );
     }
 

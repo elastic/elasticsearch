@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.FlatCentroidIndex;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -49,14 +50,11 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
 
     private final ConcurrentHashMap<String, AshProjectionMatrix> ashMatrixCache;
 
-    /** Default query quantization bits for ASH integer scoring (D2Q4). Set to 0 to use the float path. */
-    static final int DEFAULT_ASH_QUERY_BITS_PER_DIM = 4;
-
     private final int queryBitsPerDim;
 
     public ESNextDiskASHVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
-        this(state, getFormatReader, DEFAULT_ASH_QUERY_BITS_PER_DIM);
+        this(state, getFormatReader, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
     }
 
     public ESNextDiskASHVectorsReader(

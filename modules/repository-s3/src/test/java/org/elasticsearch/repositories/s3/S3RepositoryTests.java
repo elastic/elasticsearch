@@ -45,6 +45,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.InvalidRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryDeprecationInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.VerifyNodeRepositoryCoordinationAction;
@@ -66,6 +67,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -293,6 +295,75 @@ public class S3RepositoryTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testDeprecationInfosForInsecureCredentials() {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
+                        .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret")
+                        .build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        "S3 repository stores credentials in insecure repository settings",
+                        ReferenceDocs.SECURE_SETTINGS,
+                        S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING,
+                        false
+                    )
+                )
+            );
+        }
+        assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
+    }
+
+    public void testDeprecationInfosIfIncompatibleWithConditionalWrites() {
+        assertDeprecationInfosForConditionalWritesSetting(true);
+    }
+
+    public void testDeprecationInfosIfExplicitlyCompatibleWithConditionalWrites() {
+        assertDeprecationInfosForConditionalWritesSetting(false);
+    }
+
+    private void assertDeprecationInfosForConditionalWritesSetting(boolean disablesConditionalWrites) {
+        try (
+            var repo = createS3Repo(
+                new RepositoryMetadata(
+                    randomRepoName(),
+                    "mock",
+                    Settings.builder()
+                        .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                        .put(S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(), disablesConditionalWrites)
+                        .build()
+                )
+            )
+        ) {
+            assertThat(
+                repo.getDeprecationInfos(),
+                contains(
+                    new RepositoryDeprecationInfo(
+                        RepositoryDeprecationInfo.Level.CRITICAL,
+                        "S3 repository explicitly configures a deprecated conditional writes setting",
+                        ReferenceDocs.S3_COMPATIBLE_REPOSITORIES,
+                        S3Repository.UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES_DEPRECATION_WARNING,
+                        false
+                    )
+                )
+            );
+        }
+        assertWarnings("""
+            [unsafely_incompatible_with_s3_conditional_writes] setting was deprecated in Elasticsearch and will be removed in a future \
+            release. See the breaking changes documentation for the next major version.""");
     }
 
     // ensures that chunkSize is limited to chunk_size setting, when buffer_size * parts_num is bigger

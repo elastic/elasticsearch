@@ -1348,7 +1348,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         // A blocking gate holds every recovery back until it flips to run.
         final var gateDecision = new AtomicReference<>(RecoveryGate.Decision.block(randomIdentifier(), randomAlphaOfLengthBetween(5, 30)));
-        final RecoveryGate gate = gateDecision::get;
+        final var gateEvaluations = new AtomicInteger();
+        final RecoveryGate gate = () -> {
+            gateEvaluations.incrementAndGet();
+            return gateDecision.get();
+        };
         final var service = new ThrottlingRecoveryService(
             taskQueue.getThreadPool(),
             DefaultProjectResolver.INSTANCE,
@@ -1359,31 +1363,43 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.start();
 
         final var started = new AtomicInteger();
-        final int count = between(2, 5);
-        for (int i = 0; i < count; i++) {
-            service.enqueue(
-                ProjectId.DEFAULT,
-                RecoveryListener.NOOP,
-                newRecoveryState(),
-                newIndexMetadata(),
-                UUIDs.randomBase64UUID(),
-                stats,
-                listener -> {
-                    started.incrementAndGet();
-                    listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                }
-            );
+        final Runnable enqueueRecovery = () -> service.enqueue(
+            ProjectId.DEFAULT,
+            RecoveryListener.NOOP,
+            newRecoveryState(),
+            newIndexMetadata(),
+            UUIDs.randomBase64UUID(),
+            stats,
+            listener -> {
+                started.incrementAndGet();
+                listener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            }
+        );
+        final int initialCount = between(2, 5);
+        for (int i = 0; i < initialCount; i++) {
+            enqueueRecovery.run();
         }
 
         taskQueue.runAllRunnableTasks();
         assertThat("gate should hold every recovery back", started.get(), equalTo(0));
-        assertThat(service.currentQueueSize(), equalTo(count));
+        assertThat(service.currentQueueSize(), equalTo(initialCount));
+        assertThat(gateEvaluations.get(), equalTo(2));
+
+        final int blockedCount = between(2, 5);
+        for (int i = 0; i < blockedCount; i++) {
+            enqueueRecovery.run();
+        }
+        assertFalse(taskQueue.hasRunnableTasks());
+        assertThat(gateEvaluations.get(), equalTo(2));
+
+        final int totalCount = initialCount + blockedCount;
+        assertThat(service.currentQueueSize(), equalTo(totalCount));
 
         // Conditions improve: the periodic recheck notices the gate now allows recoveries and wakes the scheduler.
         gateDecision.set(RecoveryGate.Decision.RUN);
         taskQueue.advanceTime();
         taskQueue.runAllRunnableTasks();
-        assertThat(started.get(), equalTo(count));
+        assertThat(started.get(), equalTo(totalCount));
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 

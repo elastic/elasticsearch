@@ -353,3 +353,4 @@ def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
 }
 
 tasks.named('check').configure { dependsOn csvSpecTests }
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -55,6 +56,12 @@ public class CreateIndexCapabilities {
      */
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
+    /**
+     * Support for {@code doc_values.on_failure=ignore} ({@code index.mapping.doc_values.on_failure=ignore}). Advertised
+     * only when the feature flag is on, so YAML tests can gate on it and skip on builds where the feature is unavailable.
+     */
+    private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
+
     public static final Set<String> CAPABILITIES;
 
     static {
@@ -73,6 +80,9 @@ public class CreateIndexCapabilities {
         caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
+        }
+        if (FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled()) {
+            caps.add(DOC_VALUES_ON_FAILURE_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

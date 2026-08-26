@@ -337,6 +337,12 @@ public abstract class FieldMapper extends Mapper {
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
         }
+        // Multi-fields run unconditionally, even when redirectedToFailureColumn is true. Each sub-field applies its
+        // own doc_values configuration (multi_value, on_failure) independently; a constraint on the parent does not
+        // propagate to the sub-field. This is consistent with how ignore_above and ignore_malformed behave: values
+        // rejected by the parent still reach the multi-field, which may index them. Parent and multi-field can
+        // therefore hold different value sets — see docs/reference/elasticsearch/mapping-reference/doc-values.md
+        // §on_failure: ignore and issue https://github.com/elastic/elasticsearch/issues/156113.
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
         if (builderParams.multiFields.mappers.length != 0) {

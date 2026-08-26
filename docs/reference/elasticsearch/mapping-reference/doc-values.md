@@ -200,7 +200,52 @@ The document is accepted. The behavior depends on which constraint was violated:
 Redirected values are visible in [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) only. The failure column is **not** searchable, not returned by the `fields` API, and not visible to aggregations or ES|QL — the field continues to present itself as single-valued to all of those paths. Only the first value per document participates in search, aggregation, and ES|QL queries.
 ::::
 
-The following example demonstrates the round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
+### Interaction with multi-fields [doc-values-on-failure-multi-fields]
+
+[Multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md) are always parsed independently of their parent field. A `multi_value: false` or `nullability: false` violation on the parent does **not** propagate to its sub-fields — every value that the parent rejected is still passed to each multi-field, which then applies its own `doc_values` configuration. This is consistent with the general rule that [a multi-field inherits no mapping options from its parent](/reference/elasticsearch/mapping-reference/multi-fields.md), and with how `ignore_above` and `ignore_malformed` already behave.
+
+As a consequence, parent and multi-field can legitimately hold **different** value sets. A query on `field.raw` may match a value that a query on `field` does not, because the parent redirected that value to its failure column while the multi-field indexed it normally.
+
+To give a sub-field the same single-value semantics, configure `doc_values: { multi_value: false }` on the sub-field itself. It then enforces the constraint independently and redirects its own duplicate to a separate `<field>.<sub>._on_failure` column.
+
+The index-level settings `index.mapping.doc_values.multi_value` and `index.mapping.doc_values.on_failure` apply to **all** fields in the index, multi-fields included — this is the one path through which a sub-field inherits the constraint without naming it explicitly in the mapping.
+
+::::{important}
+A sub-field that has `multi_value: false` at the default `on_failure: fail` will **reject the whole document** even when its parent is configured to `ignore` the violation, because each field's `on_failure` setting is evaluated independently.
+::::
+
+The following example illustrates the asymmetry. The parent `kw` is configured with `multi_value: false, on_failure: ignore`, while the sub-field `kw.raw` uses the defaults. Indexing `["val1","val2"]` keeps `val1` in `kw` and indexes both values in `kw.raw`:
+
+```console
+PUT my-on-failure-multifield-index
+{
+  "settings": { "mode": "columnar" },
+  "mappings": {
+    "properties": {
+      "kw": {
+        "type": "keyword",
+        "doc_values": { "multi_value": false, "on_failure": "ignore" },
+        "fields": {
+          "raw": { "type": "keyword" }
+        }
+      }
+    }
+  }
+}
+
+PUT my-on-failure-multifield-index/_doc/1
+{ "kw": ["val1", "val2"] }
+
+GET my-on-failure-multifield-index/_search
+{
+  "query": { "term": { "kw.raw": "val2" } }
+}
+```
+% TEST[skip:requires the doc_values_on_failure feature flag]
+
+After indexing, a `term` query on `kw: "val2"` returns zero hits, but a `term` query on `kw.raw: "val2"` returns one hit. The document's `_ignored` field contains `"kw"` (the parent) but not `"kw.raw"` (the multi-field).
+
+The following example demonstrates the single-field round-trip. Indexing `["val1","val2","val3"]` into a field mapped with `multi_value: false, on_failure: ignore` keeps `val1` as the queryable doc value and redirects `val2` and `val3` to the sidecar. The `_source` reconstruction returns all three values in their original order; `_ignored` records the field name; and a `term` query on the redirected values finds no documents:
 
 ```console
 PUT my-on-failure-index

@@ -97,8 +97,8 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -947,8 +947,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 ActionListener.wrap(ignored -> {}, failure::set)
             );
             assertThat(failure.get(), nullValue());
-            // each fetched hit's source should be charged against the request breaker under the fetch[source] label
-            assertThat(sourceCharges, hasSize(greaterThan(0)));
+            // each of the 3 fetched hits' source should be charged against the request breaker under the fetch[source] label
+            assertThat(sourceCharges, hasSize(3));
         } finally {
             // releasing the fetch result frees the retained last-chunk pages; after that the breaker must be back to baseline
             Releasables.close(searchContext);
@@ -956,6 +956,97 @@ public class FetchSearchPhaseTests extends ESTestCase {
             dir.close();
         }
         assertThat("all fetch-phase circuit breaker bytes should be released", used.get(), is(0L));
+    }
+
+    public void testStreamingFetchReleasesLeakedBytesOnFailure() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        String body = "{ \"thefield\": \" " + randomAlphaOfLength(1_200_000) + "\" }";
+        Document document = new Document();
+        document.add(new StringField("id", "0", Field.Store.YES));
+        document.add(new StoredField("_source", new BytesRef(body)));
+        w.addDocument(document);
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        long innerHitsLikeBytes = 1_200_000L;
+        LowLimitCircuitBreaker breaker = new LowLimitCircuitBreaker(1_500_000L);
+
+        SearchContext searchContext = createSearchContext(contextIndexSearcher, true, breaker);
+        try {
+            setTotalHits(searchContext, 1);
+            FetchPhase fetchPhase = new FetchPhase(List.of(fetchContext -> new FetchSubPhaseProcessor() {
+                @Override
+                public void setNextReader(LeafReaderContext readerContext) {}
+
+                @Override
+                public void process(FetchSubPhase.HitContext hitContext) {
+                    fetchContext.chargeScriptFieldsBytes(innerHitsLikeBytes);
+                    Source source = hitContext.source();
+                    hitContext.hit().sourceRef(source.internalSourceRef());
+                }
+
+                @Override
+                public StoredFieldsSpec storedFieldsSpec() {
+                    return StoredFieldsSpec.NEEDS_SOURCE;
+                }
+            }));
+            PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            fetchPhase.execute(
+                searchContext,
+                new int[] { 0 },
+                null,
+                null,
+                streamingWriter(recycler, breaker),
+                1,
+                Math.toIntExact(ByteSizeValue.ofMb(1).getBytes()),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                ActionListener.noop(),
+                ActionListener.wrap(ignored -> {}, failure::set)
+            );
+            assertThat(failure.get(), instanceOf(CircuitBreakingException.class));
+        } finally {
+            Releasables.close(searchContext);
+            r.close();
+            dir.close();
+        }
+        assertThat("bytes held for the hit that never reached onHitSerialized() must be released", breaker.getUsed(), is(0L));
+    }
+
+    private static final class LowLimitCircuitBreaker extends NoopCircuitBreaker {
+        private final AtomicLong used = new AtomicLong();
+        private final long limit;
+
+        LowLimitCircuitBreaker(long limit) {
+            super(CircuitBreaker.REQUEST);
+            this.limit = limit;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            long newUsed = used.addAndGet(bytes);
+            if (newUsed > limit) {
+                used.addAndGet(-bytes);
+                throw new CircuitBreakingException("test breaker tripped", bytes, limit, Durability.TRANSIENT);
+            }
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+
+        @Override
+        public long getLimit() {
+            return limit;
+        }
     }
 
     private static void setTotalHits(SearchContext searchContext, int totalHits) {

@@ -16,7 +16,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -44,6 +43,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -306,16 +306,10 @@ public class LuceneSourceOperator extends LuceneOperator {
             return found[0];
         }
 
-        // copied from UsageTrackingQueryCachingPolicy
         static boolean isCostlyToBuildScorer(Query query) {
-            if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
-                return true;
-            }
-            final String clazzName = query.getClass().getSimpleName();
-            if (clazzName.equals("MultiTermQueryConstantScoreBlendedWrapper") || clazzName.equals("MultiTermQueryConstantScoreWrapper")) {
-                return true;
-            }
-            return false;
+            return CostlyMultiTermQueries.isCostlyMultiTermQuery(query)
+                || query instanceof PointRangeQuery
+                || query instanceof PointInSetQuery;
         }
 
         static Query unwrapQuery(Query query) {

@@ -26,7 +26,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.BitsIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.profile.query.ProfileWeight;
@@ -316,7 +316,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             getOrCreateLeafExecutionAccounting();
             return new PointRangeBreakerWeight(this, weight, pointRangeQuery, query instanceof IndexOrDocValuesQuery);
         }
-        if (circuitBreaker != null && isCostlyMultiTermQuery(unwrapBoost(query))) {
+        if (circuitBreaker != null && CostlyMultiTermQueries.isCostlyMultiTermQuery(unwrapBoost(query))) {
             getOrCreateLeafExecutionAccounting();
             return new MultiTermBreakerWeight(this, weight);
         }
@@ -368,18 +368,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             query = boostQuery.getQuery();
         }
         return query;
-    }
-
-    /**
-     * Whether {@code query} is a {@link MultiTermQuery} or its constant-score rewrite wrapper,
-     * both of which allocate an untracked per-leaf {@code DocIdSet}.
-     */
-    private static boolean isCostlyMultiTermQuery(Query query) {
-        if (query instanceof MultiTermQuery) {
-            return true;
-        }
-        final String className = query.getClass().getSimpleName();
-        return className.equals("MultiTermQueryConstantScoreBlendedWrapper") || className.equals("MultiTermQueryConstantScoreWrapper");
     }
 
     /**

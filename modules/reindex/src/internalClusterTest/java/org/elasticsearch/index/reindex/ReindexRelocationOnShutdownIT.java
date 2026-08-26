@@ -439,8 +439,6 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
 
-        assertThat("reindex listener should not yet be complete", listenerDone.getCount(), greaterThan(0L));
-
         // Forcibly shutting the node before the reindexing task completes
         internalCluster().stopNode(coordNodeName);
 

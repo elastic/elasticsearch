@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.DeclaredReadSpec;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
@@ -56,6 +57,13 @@ public record SourceOperatorContext(
     List<Expression> pushedExpressions,
     FileList fileList,
     Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+    /**
+     * The pre-prune Unified schema, or {@code null} when the plan carried none. Distinct from {@code attributes},
+     * which the optimizer prunes to the query's projection: a projection-dependent schema cannot identify how a file
+     * is read, because a coordinator resolving the full schema and a data node reading a subset would derive
+     * different identities for the same read.
+     */
+    @Nullable ExternalSchema unifiedSchema,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
@@ -135,6 +143,7 @@ public record SourceOperatorContext(
             null,
             fileList,
             Map.of(),
+            null,
             split,
             null,
             null,
@@ -180,6 +189,7 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
@@ -218,6 +228,7 @@ public record SourceOperatorContext(
             null,
             null,
             Map.of(),
+            null,
             null,
             null,
             null,
@@ -260,6 +271,7 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            null,
             1,
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
@@ -291,6 +303,8 @@ public record SourceOperatorContext(
         private List<Expression> pushedExpressions;
         private FileList fileList;
         private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+        @Nullable
+        private ExternalSchema unifiedSchema;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
@@ -452,6 +466,12 @@ public record SourceOperatorContext(
          * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, {@code _id.path} stamps
          * {@code _id} from that column.
          */
+        /** The pre-prune Unified schema; see the record component. */
+        public Builder unifiedSchema(@Nullable ExternalSchema unifiedSchema) {
+            this.unifiedSchema = unifiedSchema;
+            return this;
+        }
+
         public Builder declaredReadSpec(DeclaredReadSpec declaredReadSpec) {
             this.declaredReadSpec = declaredReadSpec;
             return this;
@@ -474,6 +494,7 @@ public record SourceOperatorContext(
                 pushedExpressions,
                 fileList,
                 schemaMap,
+                unifiedSchema,
                 split,
                 partitionColumnNames,
                 sliceQueue,

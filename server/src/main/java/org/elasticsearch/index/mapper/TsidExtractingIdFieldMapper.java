@@ -337,7 +337,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         final String indexName = context.indexSettings().getIndexMetadata().getIndex().getName();
         final BytesRef[] derivedUids = new BytesRef[docCount];
 
-        final EscfLongColumn timestamps = context.timestampColumn();
+        final EscfLongColumn timestamps = context.timestamps();
         for (int d = 0; d < docCount; d++) {
             final BytesRef tsid = tsids[d];
             assert tsid != null : "_tsid must not be null for doc [" + d + "]";

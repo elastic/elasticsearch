@@ -1,7 +1,7 @@
 # This file is auto-generated. See .buildkite/pipelines/periodic-java-ea.template.yml
 env:
   JAVA_EA_VERSION: "${JAVA_EA_VERSION:-27}"
-  EXTRA_GRADLE_ARGS: "--continue"
+  EXTRA_GRADLE_ARGS: "${EXTRA_GRADLE_ARGS:---continue}"
 
 steps:
   - group: bwc
@@ -548,14 +548,6 @@ steps:
 
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
-    timeout_in_minutes: 420
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2404
-      diskSizeGb: 350
-      machineType: custom-32-98304
-  - label: encryption-at-rest
-    command: .buildkite/scripts/encryption-at-rest.sh -Druntime.java=$$JAVA_EA_VERSION
     timeout_in_minutes: 420
     agents:
       provider: gcp

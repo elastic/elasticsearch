@@ -25,23 +25,20 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCompare;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.math.BigDecimal;
@@ -63,9 +60,9 @@ import java.util.function.Supplier;
  * function from a field name to the {@link Expression} that stands for that field on the source being translated
  * against. A present field binds to its attribute; a missing field binds to {@link Literal#NULL}. Because every leaf
  * predicate the translator emits is two-valued (never returns null — {@code mv_contains}, {@code mv_intersects},
- * {@code mv_in_range} and {@code IS NOT NULL} all have {@code Nullability.FALSE}, and the one-sided range comparisons
- * are wrapped by {@link #twoValued}), plain {@code AND}/{@code OR}/{@code NOT} composition over a null-bound leaf
- * reproduces the DSL leniency rules for free, negation included.
+ * {@code mv_in_range}, {@code mv_greater}, {@code mv_less} and {@code IS NOT NULL} all have {@code Nullability.FALSE}),
+ * plain {@code AND}/{@code OR}/{@code NOT} composition over a null-bound leaf reproduces the DSL leniency rules for
+ * free, negation included.
  *
  * <p>Literals are bound to the <em>field's</em> type, not the JSON value's: the rewrite runs after the analyzer, so
  * nothing downstream inserts the implicit cast a user-written {@code WHERE} would get. A JSON date string against a
@@ -659,27 +656,16 @@ public final class QueryDslTranslator {
             );
         }
 
-        // Exactly one bound. Comparing against the field's extreme value is exact any-value here — "some value clears
-        // the lower bound" is precisely "the largest value clears it" (and symmetrically for the upper bound with the
-        // smallest). mv_max/mv_min are nullable, so twoValued() folds a missing field's null to false and the leniency
-        // composes like the other leaves (missing field: must → nothing, must_not → all).
+        // One bound → mv_greater / mv_less (any-value, two-valued).
         if (hasLower) {
-            Expression max = new MvMax(Source.EMPTY, field);
-            Literal lo = literalFor(field, range.from());
             return checkedLeaf(
                 field,
-                twoValued(
-                    range.includeLower()
-                        ? new GreaterThanOrEqual(Source.EMPTY, max, lo, null)
-                        : new GreaterThan(Source.EMPTY, max, lo, null)
-                )
+                new MvGreater(Source.EMPTY, field, literalFor(field, range.from()), includeBoundOptions(range.includeLower()))
             );
         }
-        Expression min = new MvMin(Source.EMPTY, field);
-        Literal hi = literalFor(field, range.to());
         return checkedLeaf(
             field,
-            twoValued(range.includeUpper() ? new LessThanOrEqual(Source.EMPTY, min, hi, null) : new LessThan(Source.EMPTY, min, hi, null))
+            new MvLess(Source.EMPTY, field, literalFor(field, range.to()), includeBoundOptions(range.includeUpper()))
         );
     }
 
@@ -734,11 +720,8 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Resolve a date range to a closed inclusive interval and build the any-value leaf over it, mirroring the index
-     * path's {@code DateFieldType} resolution: each bound is parsed with the round direction that bound uses ({@code
-     * roundUp} for an inclusive upper or an exclusive lower), then an exclusive bound is nudged one unit inward so the
-     * interval is always closed. Both bounds → {@code mv_in_range}; one bound → an inclusive comparison against the
-     * field's extreme value (the same any-value reduction the numeric path uses), wrapped {@link #twoValued}.
+     * Date range → closed inclusive interval (same rounding as {@code DateFieldType}), then
+     * {@code mv_in_range} or inclusive {@code mv_greater}/{@code mv_less}.
      */
     private Expression dateRange(
         Expression field,
@@ -759,13 +742,10 @@ public final class QueryDslTranslator {
         }
         if (hasLower) {
             long lo = closedLowerBound(type, range.from(), formatter, range.includeLower());
-            return checkedLeaf(
-                field,
-                twoValued(new GreaterThanOrEqual(Source.EMPTY, new MvMax(Source.EMPTY, field), longLit(lo, type), null))
-            );
+            return checkedLeaf(field, new MvGreater(Source.EMPTY, field, longLit(lo, type), includeBoundOptions(true)));
         }
         long hi = closedUpperBound(type, range.to(), formatter, range.includeUpper());
-        return checkedLeaf(field, twoValued(new LessThanOrEqual(Source.EMPTY, new MvMin(Source.EMPTY, field), longLit(hi, type), null)));
+        return checkedLeaf(field, new MvLess(Source.EMPTY, field, longLit(hi, type), includeBoundOptions(true)));
     }
 
     /**
@@ -838,12 +818,15 @@ public final class QueryDslTranslator {
     }
 
     /**
-     * Wrap a nullable comparison so a null result (a missing or empty field) becomes {@code false}, keeping the leaf
-     * two-valued. Without this a one-sided range over a missing field is {@code null}, and {@code NOT null} is {@code
-     * null} — so {@code must_not} over a missing field would drop the row instead of matching everything.
-     */
-    private static Expression twoValued(Expression comparison) {
-        return new Coalesce(Source.EMPTY, comparison, List.of(Literal.FALSE));
+    /** Inclusive DSL bound → {@code include_bound: true}; exclusive omits options (default). */
+    private static Expression includeBoundOptions(boolean includeBound) {
+        if (includeBound == false) {
+            return null;
+        }
+        return new MapExpression(
+            Source.EMPTY,
+            List.of(Literal.keyword(Source.EMPTY, MvCompare.INCLUDE_BOUND), new Literal(Source.EMPTY, true, DataType.BOOLEAN))
+        );
     }
 
     /**

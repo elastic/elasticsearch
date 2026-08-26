@@ -3336,10 +3336,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
         }
 
-        private Block readColumnBlock(ColumnReader cr, ColumnInfo info, int rowsToRead, int colIndex) {
-            return readColumnBlock(cr, info, rowsToRead, colIndex, null);
-        }
-
         private Block readColumnBlock(
             ColumnReader cr,
             ColumnInfo info,

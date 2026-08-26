@@ -1230,6 +1230,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private final String fileLocation;
         /** See {@link #coercionWarnings()}. */
         private SkipWarnings coercionWarnings;
+        /**
+         * Relay for this read's per-value coercion warnings, or {@code null} to fall back to emitting
+         * directly via {@code HeaderWarning}. Under the async source this iterator runs on a background
+         * reader thread, so a non-null sink (the source buffer relay) is required for the warnings to
+         * reach the response; see {@link #coercionWarnings()}. Mirrors {@code ParquetFormatReader}.
+         */
+        @Nullable
+        private final Consumer<String> warningSink;
         /** The read's error policy; strict ({@code fail_fast}) makes {@link #coercionWarnings()} return {@code null}. */
         private final ErrorPolicy errorPolicy;
         /**
@@ -1275,6 +1283,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
+            this.warningSink = warningSink;
             this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.rows = rows;
@@ -1392,7 +1401,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                             "ORC file ["
                                 + fileLocation
                                 + "] has columns whose on-disk type is incompatible with the planner type; "
-                                + "they are returned as null"
+                                + "they are returned as null",
+                            warningSink
                         );
                     }
                     skipWarnings.add(
@@ -1715,7 +1725,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     ? "their entire row is dropped"
                     : "they are returned as null";
                 coercionWarnings = new SkipWarnings(
-                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome
+                    "ORC file [" + fileLocation + "] has values that could not be coerced to the declared column type; " + outcome,
+                    warningSink
                 );
             }
             return coercionWarnings;

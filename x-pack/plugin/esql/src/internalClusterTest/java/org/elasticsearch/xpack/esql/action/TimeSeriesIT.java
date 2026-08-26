@@ -1176,6 +1176,19 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * The {@code hosts} index has two dimensions, {@code host} and {@code cluster}. A query that groups only by
+     * {@code host} must not need {@code cluster}: it succeeds and {@code cluster} never appears in the output. This guards
+     * that a {@code TS} query no longer forces every dimension the index has into the plan.
+     */
+    public void testTsDoesNotResolveDimensionsTheQueryNeverNames() {
+        try (var resp = run("TS hosts | STATS peak_memory = max(last_over_time(memory)) BY host | SORT host")) {
+            assertColumnNames(resp.columns(), List.of("peak_memory", "host"));
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, not(empty()));
+        }
+    }
+
     private static double round(double value) {
         return new BigDecimal(value).setScale(6, RoundingMode.HALF_UP).doubleValue();
     }

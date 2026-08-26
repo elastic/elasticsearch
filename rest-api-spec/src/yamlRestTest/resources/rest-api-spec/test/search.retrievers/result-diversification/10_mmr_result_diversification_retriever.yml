@@ -811,24 +811,142 @@ teardown:
   - match: { error.type: action_request_validation_exception }
 
 ---
-"Test MMR diversification with hex vectors stored in source":
+"Test MMR diversification with encoded float vectors stored in source":
   - requires:
       cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
-      reason: "Diversify retriever decodes hex/base64 vectors fetched from _source"
+      reason: "Diversify retriever fetches dense_vector embeddings from doc values"
+
+  - do:
+      indices.create:
+        index: test-float-vec-source-index
+        body:
+          settings:
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              textvector:
+                type: dense_vector
+                dims: 4
+                element_type: float
+              textbody:
+                type: text
+              id:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-float-vec-source-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 1, "textbody": "array", "textvector": [0.4, 0.2, 0.4, 0.4]}
+          {"index":{}}
+          {"id": 2, "textbody": "base64 fp32", "textvector": "PczMzT8AAAA+mZmaPzMzMw=="}
+          {"index":{}}
+          {"id": 3, "textbody": "base64 bfloat16", "textvector": "P0w9zD8ZPkw="}
+          {"index":{}}
+          {"id": 4, "textbody": "no vector"}
+
+  - do:
+      search:
+        index: test-float-vec-source-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: 10
+              lambda: 0.7
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 3 }
+
+---
+"Test MMR diversification with encoded bfloat16 vectors stored in source":
+  - requires:
+      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      reason: "Diversify retriever fetches dense_vector embeddings from doc values"
+  - requires:
+      cluster_features: [ "mapper.vectors.generic_vector_format" ]
+      reason: "bfloat16 element type requires generic vector format support"
+
+  - do:
+      indices.create:
+        index: test-bfloat16-vec-source-index
+        body:
+          settings:
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              textvector:
+                type: dense_vector
+                dims: 4
+                element_type: bfloat16
+              textbody:
+                type: text
+              id:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-bfloat16-vec-source-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 1, "textbody": "array", "textvector": [0.2, 0.7, 0.3, 0.5]}
+          {"index":{}}
+          {"id": 2, "textbody": "base64 fp32", "textvector": "PxmZmj3MzM0/AAAAP2ZmZg=="}
+          {"index":{}}
+          {"id": 3, "textbody": "base64 bfloat16", "textvector": "Ppk/TD3MPsw="}
+          {"index":{}}
+          {"id": 4, "textbody": "no vector"}
+
+  - do:
+      search:
+        index: test-bfloat16-vec-source-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: 10
+              lambda: 0.7
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 3 }
+
+---
+"Test MMR diversification with encoded byte vectors stored in source":
+  - requires:
+      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      reason: "Diversify retriever fetches dense_vector embeddings from doc values"
 
   - do:
       indices.create:
         index: test-byte-vec-source-index
         body:
           settings:
-            number_of_shards: 1
             index.mapping.exclude_source_vectors: false
           mappings:
             properties:
               textvector:
                 type: dense_vector
-                dims: 16
-                element_type: bit
+                dims: 4
+                element_type: byte
+              textbody:
+                type: text
               id:
                 type: integer
 
@@ -840,15 +958,13 @@ teardown:
         refresh: true
         body: |
           {"index":{}}
-          {"id": 1, "textvector": "0BB8"}
+          {"id": 1, "textbody": "array", "textvector": [12, -5, 3, 7]}
           {"index":{}}
-          {"id": 2, "textvector": "94A2"}
+          {"id": 2, "textbody": "hex", "textvector": "040A080F"}
           {"index":{}}
-          {"id": 3, "textvector": "0560"}
+          {"id": 3, "textbody": "base64", "textvector": "FOIF9g=="}
           {"index":{}}
-          {"id": 4, "textvector": "2112"}
-          {"index":{}}
-          {"id": 5, "textvector": "5051"}
+          {"id": 4, "textbody": "no vector"}
 
   - do:
       search:
@@ -858,17 +974,69 @@ teardown:
             diversify:
               type: "mmr"
               field: "textvector"
-              size: 3
+              size: 10
               lambda: 0.7
               retriever:
                 standard:
                   query:
-                    match_all: {}
+                    match_all: { }
 
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 4 }
   - length: { hits.hits: 3 }
 
+---
+"Test MMR diversification with encoded bit vectors stored in source":
+  - requires:
+      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      reason: "Diversify retriever fetches dense_vector embeddings from doc values"
+
   - do:
-      indices.delete:
-        index: test-byte-vec-source-index
-        ignore: 404
+      indices.create:
+        index: test-bit-vec-source-index
+        body:
+          settings:
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              textvector:
+                type: dense_vector
+                dims: 16
+                element_type: bit
+              textbody:
+                type: text
+              id:
+                type: integer
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-bit-vec-source-index
+        refresh: true
+        body: |
+          {"index":{}}
+          {"id": 1, "textbody": "array", "textvector": [11, -72]}
+          {"index":{}}
+          {"id": 2, "textbody": "hex", "textvector": "94A2"}
+          {"index":{}}
+          {"id": 3, "textbody": "base64", "textvector": "BWA="}
+          {"index":{}}
+          {"id": 4, "textbody": "no vector"}
+
+  - do:
+      search:
+        index: test-bit-vec-source-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: 10
+              lambda: 0.7
+              retriever:
+                standard:
+                  query:
+                    match_all: { }
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 3 }

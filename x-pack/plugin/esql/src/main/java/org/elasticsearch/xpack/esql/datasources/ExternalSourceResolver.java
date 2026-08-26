@@ -2883,8 +2883,16 @@ public class ExternalSourceResolver {
         }
         // Copy-of to match every sibling producer on this seam (buildUnifiedMetadata / applyFirstFileWinsAggregatedStats
         // / SchemaCacheEntry.safeMetadata are all immutable): this map becomes the long-lived sourceMetadata() below.
+        // Serve gate, ahead of the overlay: the cached statistics were harvested under whatever shape produced them,
+        // and the declaration may have changed the shape of the read we are about to do — a retype or a per-column
+        // date pattern changes which rows survive under a lenient policy, so those numbers are not ours to serve.
+        // Only the physical record count crosses, and only where the producer licensed it (FAIL_FAST).
+        Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadShape(
+            inferred.sourceMetadata(),
+            ReadShapeFingerprint.of(unified.output(), declaredReadSpecOf(declaredMapping))
+        );
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
-            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(inferred.sourceMetadata(), physicalToLogical, poisonColumns)
+            SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(servableStats, physicalToLogical, poisonColumns)
         );
         ExternalSourceMetadata overlaidMetadata = new ExternalSourceMetadata() {
             @Override

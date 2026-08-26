@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -323,6 +325,39 @@ public final class SourceStatisticsSerializer {
             out.remove(columnNullCountKey(column));  // to -1 -> COUNT(col) safe-misses; COUNT(*) is unaffected
         }
         return out;
+    }
+
+    /**
+     * Restricts cached statistics to what a read of shape {@code expectedShape} may legitimately be served — the
+     * serve-side dual of the publish gate.
+     * <p>
+     * An entry's statistics measure the rows the read that produced them produced, so a read of a different shape
+     * must not be handed them. The physical record count is the exception, and only where the producer licensed it
+     * ({@link ExternalStats#ROW_COUNT_SHAPE_INDEPENDENT_KEY}): under {@code FAIL_FAST} that count is the same number
+     * for every declaration.
+     * <p>
+     * The gate bites only when the entry carries a shape at all. An entry stamped by a rail that computes none is
+     * left exactly as it was before shapes existed, so the columnar readers — which harvest without stamping — keep
+     * their current warmth instead of silently going cold.
+     */
+    public static Map<String, Object> restrictToReadShape(Map<String, Object> stats, String expectedShape) {
+        if (stats == null || stats.isEmpty()) {
+            return stats;
+        }
+        Object entryShape = stats.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+        if (entryShape == null || Objects.equals(entryShape, expectedShape)) {
+            return stats;
+        }
+        boolean countSurvives = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY));
+        Map<String, Object> restricted = new HashMap<>(stats.size());
+        for (Map.Entry<String, Object> entry : stats.entrySet()) {
+            String key = entry.getKey();
+            boolean drop = key.startsWith(STATS_COL_PREFIX) || (countSurvives == false && key.equals(STATS_ROW_COUNT));
+            if (drop == false) {
+                restricted.put(key, entry.getValue());
+            }
+        }
+        return restricted;
     }
 
     /**

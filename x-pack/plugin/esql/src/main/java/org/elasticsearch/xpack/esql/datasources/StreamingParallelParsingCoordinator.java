@@ -1039,15 +1039,13 @@ public final class StreamingParallelParsingCoordinator {
                 // carries a coverage.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
                 long startCpu = ThreadCpuTimer.currentNanos();
-                try {
-                    try (bound) {
-                        try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
-                            while (pages.hasNext()) {
-                                if (firstError.get() != null || closed) {
-                                    break;
-                                }
-                                putPageAndSignal(queue, pages.next());
+                try (bound) {
+                    try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
+                        while (pages.hasNext()) {
+                            if (firstError.get() != null || closed) {
+                                break;
                             }
+                            putPageAndSignal(queue, pages.next());
                         }
                     }
                 } finally {

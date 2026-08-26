@@ -868,7 +868,10 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
-        LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory);
+        LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = tryBuildLuceneMinCompetitiveTimestampTopN(
+            topNExec,
+            context.blockFactory
+        );
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
         }
@@ -1125,7 +1128,10 @@ public class LocalExecutionPlanner {
      * with a single {@code @timestamp}-like sort key.
      */
     @Nullable
-    private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(TopNExec topNExec, BlockFactory blockFactory) {
+    private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
+        TopNExec topNExec,
+        BlockFactory blockFactory
+    ) {
         List<Order> orders = topNExec.order();
         if (orders.size() != 1) {
             return null;

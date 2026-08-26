@@ -258,16 +258,27 @@ public class ShardHeapEstimatorTests extends ESTestCase {
         assertThat(result.maxShardHeapInBytes(), equalTo(estimator.computeShardHeapUsage(large)));
     }
 
-    public void testAggregateShardMetricsPropagatesNonExactQuality() {
+    public void testAggregateShardMetricsPropagatesNonExactQuality_AllValues() {
+        testAggregateShardMetricsPropagatesNonExactQuality(MetricQuality.values(), MetricQuality.MISSING);
+    }
+
+    public void testAggregateShardMetricsPropagatesNonExactQuality_MinimumAndExact() {
+        testAggregateShardMetricsPropagatesNonExactQuality(
+            new MetricQuality[] { MetricQuality.EXACT, MetricQuality.MINIMUM },
+            MetricQuality.MINIMUM
+        );
+    }
+
+    public void testAggregateShardMetricsPropagatesNonExactQuality(MetricQuality[] qualitiesToInclude, MetricQuality expectedQuality) {
         ShardHeapEstimator estimator = fixedEstimator(ByteSizeValue.ofBytes(500));
         final var shardMemoryMetrics = new LinkedHashMap<ShardId, StatelessMemoryMetricsService.ShardMemoryMetrics>(3);
-        final var metricsValues = shuffledList(MetricQuality.EXACT, MetricQuality.MINIMUM, MetricQuality.MISSING);
+        final var metricsValues = shuffledList(qualitiesToInclude);
         for (int i = 0; i < metricsValues.size(); i++) {
             final var shardMetrics = metrics(0, 0, 0, 0, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, metricsValues.get(i));
             shardMemoryMetrics.put(new ShardId(new Index("idx" + i, "uuid" + i), 0), shardMetrics);
         }
         var result = estimator.aggregateShardMetrics(shardMemoryMetrics);
-        assertThat(result.metricQuality(), equalTo(MetricQuality.MISSING));
+        assertThat(result.metricQuality(), equalTo(expectedQuality));
     }
 
     public void testAggregateShardMetricsVisitorCalledForEachShard() {

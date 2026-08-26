@@ -558,8 +558,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null),
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            ShardRouting.Role.DEFAULT
         );
 
         // Build an assigned/started shard routing (simulates shard re-allocated after disruption resolves)
@@ -568,8 +567,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null),
-            ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            ShardRouting.Role.DEFAULT
         ).initialize("node-1", AllocationId.newInitializing().getId(), 0).moveToStarted(0);
 
         // First tryAction call observes the unassigned shard; subsequent calls see it assigned

@@ -1602,6 +1602,10 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/147863
          */
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
+        /**
+         * Makes views not visible on remote clusters / linked projects
+         */
+        VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
 
         /**
          * Fixes two related bugs where mixing TS-mode and standard sources caused the optimizer to

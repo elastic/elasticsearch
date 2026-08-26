@@ -49,6 +49,8 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -768,30 +770,35 @@ public class MultiClustersIT extends ESRestTestCase {
         return randomBoolean();
     }
 
+    @SuppressWarnings("unchecked")
     public void testRemoteViewFailsQuery() throws IOException {
-        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions")));
+        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of(
+            "views_crud_as_index_actions", "views_not_discoverable_on_remotes")));
         try (RestClient remoteClient = remoteClusterClient()) {
             Request putView = new Request("PUT", "/_query/view/test-remote-view");
             putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");
             assertOK(remoteClient.performRequest(putView));
         }
         try {
-            ResponseException e = expectThrows(
-                ResponseException.class,
-                () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build())
-            );
-            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
-            assertThat(error.get("type"), equalTo("remote_view_not_supported_exception"));
-            assertThat(
-                (String) error.get("reason"),
-                equalTo(
-                    "ES|QL queries with remote views are not supported. Matched [remote_cluster:test-remote-view]."
-                        + " Remove them from the query pattern or exclude them with"
-                        + " [remote_cluster:-test-remote-view] if matched by a wildcard."
-                )
-            );
+            // not available when using concrete expression
+            {
+                ResponseException e = expectThrows(
+                    ResponseException.class,
+                    () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-view").build())
+                );
+                assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
+                assertThat(error.get("type"), equalTo("verification_exception"));
+                assertThat(error.get("reason"), equalTo("Unknown index [remote_cluster:test-remote-view]"));
+            }
+
+            // not visible when using wildcard
+            {
+                var response = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build());
+                assertThat(response.get("error"), nullValue());
+                assertThat((List<String>) response.get("columns"), contains("<no-fields>"));
+                assertThat((List<String>) response.get("values"), empty());
+            }
         } finally {
             try (RestClient remoteClient = remoteClusterClient()) {
                 Request deleteView = new Request("DELETE", "/_query/view/test-remote-view");

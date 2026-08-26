@@ -351,8 +351,8 @@ public final class RecordFieldMapper extends FieldMapper {
 
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
-            String keyedValue = FlattenedFieldParser.createKeyedValue(key, value.toString());
-            return new BytesRef(keyedValue);
+            String stringValue = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
+            return new BytesRef(FlattenedFieldParser.createKeyedValue(key, stringValue));
         }
 
         @Override
@@ -389,17 +389,20 @@ public final class RecordFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            // Values are stored as keyword strings, so string range.
-            String lower = lowerTerm == null
-                ? FlattenedFieldParser.createKeyedValue(key, "")
-                : FlattenedFieldParser.createKeyedValue(key, lowerTerm.toString());
-            String upper = upperTerm == null
-                ? FlattenedFieldParser.createKeyedValue(key, "￿￿")
-                : FlattenedFieldParser.createKeyedValue(key, upperTerm.toString());
-            // When the lower is the key prefix (open range), include it.
-            boolean actualIncludeLower = lowerTerm == null ? true : includeLower;
-            boolean actualIncludeUpper = upperTerm == null ? false : includeUpper;
-            return new TermRangeQuery(name(), new BytesRef(lower), new BytesRef(upper), actualIncludeLower, actualIncludeUpper);
+            if (lowerTerm != null && upperTerm != null) {
+                // Both bounds defined: delegate to StringFieldType which calls indexedValueForSearch for each bound.
+                return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            }
+            // Open-ended range: use sentinels to pin the query inside this key's term slice.
+            // Lower sentinel "key\0" covers value "" (inclusive). Upper sentinel "key\1" is
+            // exclusive and sits just past every "key\0<value>" encoding.
+            BytesRef lower = lowerTerm == null
+                ? new BytesRef(FlattenedFieldParser.createKeyedValue(key, ""))
+                : indexedValueForSearch(lowerTerm);
+            BytesRef upper = upperTerm == null ? new BytesRef(key + "\u0001") : indexedValueForSearch(upperTerm);
+            boolean actualIncludeLower = lowerTerm == null || includeLower;
+            boolean actualIncludeUpper = upperTerm != null && includeUpper;
+            return new TermRangeQuery(name(), lower, upper, actualIncludeLower, actualIncludeUpper);
         }
 
         @Override

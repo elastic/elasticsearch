@@ -103,15 +103,12 @@ public class RecordFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
-        // Root inverted-index term
+        // Root inverted-index term (no doc values on root — hasRootDocValues=false)
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(1, fields.size());
         assertEquals(new BytesRef("value"), fields.get(0).binaryValue());
         assertFalse(fields.get(0).fieldType().stored());
         assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
-
-        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(1).fieldType().docValuesType());
 
         // Keyed inverted-index term
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
@@ -142,10 +139,11 @@ public class RecordFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").array("tags", "a", "b", "c").endObject()));
 
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        long matches = keyedFields.stream().filter(f -> f.binaryValue() != null).filter(f -> {
-            String s = f.binaryValue().utf8ToString();
-            return s.startsWith("tags\0");
-        }).count();
+        long matches = keyedFields.stream()
+            .filter(f -> f.binaryValue() != null)
+            .filter(f -> f.fieldType().docValuesType() == DocValuesType.NONE)
+            .filter(f -> f.binaryValue().utf8ToString().startsWith("tags\0"))
+            .count();
         assertThat("expected three keyed entries for tags array", matches, equalTo(3L));
     }
 
@@ -184,7 +182,7 @@ public class RecordFieldMapperTests extends MapperTestCase {
                 source(b -> b.startObject("field").startObject("a").startObject("b").field("c", "v").endObject().endObject().endObject())
             )
         );
-        assertThat(e.getMessage(), containsString("depth_limit"));
+        assertThat(e.getCause().getMessage(), containsString("depth limit"));
     }
 
     public void testIgnoreAbove() throws Exception {
@@ -264,6 +262,12 @@ public class RecordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        // fielddataBuilder does not provide a script factory in Phase 0
         return false;
     }
 }

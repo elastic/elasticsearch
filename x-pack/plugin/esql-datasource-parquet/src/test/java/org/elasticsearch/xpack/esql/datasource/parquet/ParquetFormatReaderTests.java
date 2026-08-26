@@ -120,9 +120,12 @@ import java.util.function.BiConsumer;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -4162,7 +4165,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertEquals(43L, longs.getLong(longs.getFirstValueIndex(1)));
                 page.releaseBlocks();
             }
-            drainWarnings();
+            // The response headers must describe a row drop, not a null-fill: the summary and the per-cell detail
+            // have to agree with each other AND with what the page actually shows, or the user reads "returning
+            // null" next to a row that is gone. Both readers word it identically, as does ORC
+            // (OrcFormatReaderTests.testSkipRowDropsBadRow).
+            List<String> warnings = drainWarnings();
+            assertThat(warnings, hasItem(containsString("their entire row is dropped")));
+            assertThat(warnings, hasItem(allOf(containsString("[x]"), containsString("; row will be dropped"))));
+            assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
         }
     }
 
@@ -4345,13 +4355,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, budget)
                 )
             ) {
-                expectThrows(ParsingException.class, () -> {
+                ParsingException e = expectThrows(ParsingException.class, () -> {
                     while (it.hasNext()) {
                         it.next().releaseBlocks();
                     }
                 });
+                // The thrown message is the one the client actually sees, so it must name the counts and the file.
+                assertThat(e.getMessage(), containsString("dropped rows"));
+                assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
             }
-            drainWarnings();
+            // checkBudget also records the trip into the same collector, ahead of the throw.
+            assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
         }
     }
 

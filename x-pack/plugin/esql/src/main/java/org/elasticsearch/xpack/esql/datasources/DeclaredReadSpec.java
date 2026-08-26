@@ -137,6 +137,11 @@ public record DeclaredReadSpec(
      * because each of those moves the page's shape away from the point where the reader drops rows. Two of them are
      * plan-time and one is execution-time, so any drift between them shows up as a plan the factory cannot honour.
      * <p>
+     * Footer statistics need no such gate: {@code FileSplitProvider} already poisons declared-retyped and
+     * date-format columns out of the published stats (their pre-coercion extrema are untrustworthy), and the
+     * surviving {@code row_count} is what a {@code COUNT(*)} scan returns anyway — that scan projects no column, so
+     * nothing is decoded and no row can be dropped.
+     * <p>
      * Keyed on the <b>logical</b> {@code declaredTypeColumns}; {@code FileSourceFactory} physicalizes the same set
      * through the {@code path} renames for the by-name readers, which is a 1:1 map and so cannot change emptiness.
      */

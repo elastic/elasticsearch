@@ -50,9 +50,11 @@ import java.util.Set;
  * Bail-out conditions (rule returns the plan unchanged):
  * <ul>
  *     <li>No {@link ExternalSourceExec} reachable below the TopN through a {@link UnaryExec} spine.</li>
- *     <li>{@link #supportsDeferredExtraction(String, ExternalOptimizerContext)} returns
- *         {@code false} for the source's format — the underlying reader does not implement
- *         {@link ColumnExtractorAware}.</li>
+ *     <li>{@link #resolveReader(String, ExternalOptimizerContext)} yields no reader for the source's format, or
+ *         one that does not implement {@link ColumnExtractorAware}.</li>
+ *     <li>The read drops rows on a coercion failure ({@code error_mode: skip_row} over declared column types):
+ *         the extract operator runs after the page shape is fixed and cannot drop rows, so the columnar iterator
+ *         has to do the filtering itself — see {@code DeclaredReadSpec#dropsRowsOnCoercionFailure}.</li>
  *     <li>The TopN's limit is unknown or exceeds {@link #TOPN_EXTRACT_LIMIT_MAX}.</li>
  *     <li>Fewer than {@link #DEFERRED_COLUMN_MIN} columns would actually be deferred.</li>
  *     <li>One of the source's columns is already named {@value #ROW_POSITION_NAME} — we refuse to
@@ -230,26 +232,6 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         TopNExec rewrittenTopN = (TopNExec) replaceSource(topN, externalSource, narrowedSource);
 
         return new ExternalFieldExtractExec(topN.source(), rewrittenTopN, List.copyOf(deferredColumns), rowPositionAttribute);
-    }
-
-    /**
-     * Returns {@code true} when the source is configured with {@code error_mode: skip_row} AND has
-     * declared-type coercion columns. In that combination the columnar iterator must filter bad rows
-     * at emit time; the {@link ExternalFieldExtractExec} runs after the page shape is fixed and
-     * cannot participate in row-dropping. Inserting the extract operator would create a plan/factory
-     * mismatch: the factory would decline deferred extraction at runtime, but the plan node would
-     * still attempt to use a SourceExtractors registry that was never filled — surfacing as
-     * "extractor id [0] is out of range [0, 0)".
-     */
-    /**
-     * Whether the configured external-source reader for the given {@code sourceType} can serve
-     * positional column reads after the forward scan — the precondition for inserting an
-     * {@link ExternalFieldExtractExec} above a TopN. Returns {@code false} when the rule has no
-     * way to verify the capability (no external context, no registry, source type unregistered),
-     * causing the rule to bail out and leave the plan unchanged.
-     */
-    static boolean supportsDeferredExtraction(String sourceType, ExternalOptimizerContext external) {
-        return resolveReader(sourceType, external) instanceof ColumnExtractorAware;
     }
 
     /**

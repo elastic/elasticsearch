@@ -73,7 +73,14 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public enum Mode {
         /** Abort immediately — equivalent to Spark {@code FAILFAST}. */
         FAIL_FAST,
-        /** Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}. */
+        /**
+         * Drop the entire row — equivalent to Spark {@code DROPMALFORMED}, DuckDB {@code ignore_errors}.
+         * <p>
+         * Honoured by the row-oriented (text) readers and, via {@code ColumnarRowDropHelper}, by the columnar ones.
+         * One coercion site is exempt and null-fills instead: the cross-file schema-unification cast in
+         * {@code ColumnMapping#mapPage}, which runs above the reader and outside its error budget — see the
+         * "Known gap" note there.
+         */
         SKIP_ROW,
         /**
          * Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. The contract is
@@ -193,15 +200,6 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     }
 
     /**
-     * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns
-     * {@code defaultPolicy} when none of {@link #CONFIG_ERROR_MODE},
-     * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are set.
-     *
-     * <p>Validation matches what {@code FileSourceFactory} applied historically: invalid
-     * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
-     * are all rejected with {@link IllegalArgumentException}.
-     */
-    /**
      * {@link #fromConfig} against the policy {@code reader} defaults to, or {@link #STRICT} when the reader is
      * unknown (unregistered format, no registry in the optimizer context).
      * <p>
@@ -215,6 +213,18 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         return fromConfig(config, reader != null ? reader.defaultErrorPolicy() : STRICT);
     }
 
+    /**
+     * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns
+     * {@code defaultPolicy} when none of {@link #CONFIG_ERROR_MODE},
+     * {@link #CONFIG_MAX_ERRORS}, or {@link #CONFIG_MAX_ERROR_RATIO} are set.
+     *
+     * <p>Validation matches what {@code FileSourceFactory} applied historically: invalid
+     * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
+     * are all rejected with {@link IllegalArgumentException}.
+     *
+     * <p>Prefer {@link #forReader} when the read is served by a known reader, so the fallback is the reader's
+     * own default rather than a hard-coded one.
+     */
     public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy defaultPolicy) {
         if (config == null) {
             return defaultPolicy;

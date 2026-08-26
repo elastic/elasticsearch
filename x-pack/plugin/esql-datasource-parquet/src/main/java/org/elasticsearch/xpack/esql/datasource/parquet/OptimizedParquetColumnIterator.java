@@ -1695,8 +1695,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Propagates the {@link #rowDropHelper} sink to every non-null {@link #pageColumnReaders} entry.
-     * Must be called after any method that rebuilds the {@code pageColumnReaders} array.
+     * Propagates the {@link #rowDropHelper} sink to every non-null {@link #pageColumnReaders} entry and to
+     * {@link #listColumnSink}.
+     * <p>
+     * Must be called by any method that rebuilds {@link #columnReaders}, because {@link #listColumnSink} is a field
+     * rather than a per-call argument and would otherwise carry over from the previous row group. Today that is
+     * {@link #initColumnReaders} alone. The other two builders — {@link #initPredicateColumnReaders} and
+     * {@link #initProjectionColumnReaders} — deliberately do <em>not</em> call it and are safe without it on both
+     * counts: a freshly constructed {@link PageColumnReader} defaults to a {@code null} sink, and both null
+     * {@code columnReaders}, so the {@link #listColumnSink} branch of {@link #readColumnBlock} cannot be reached
+     * from them regardless of what the field holds.
      *
      * @param arm when {@code true}, installs {@link ColumnarRowDropHelper#markFailed} as the sink
      *            (only meaningful for {@code skip_row} mode, where the standard path will apply

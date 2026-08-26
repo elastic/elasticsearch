@@ -253,14 +253,20 @@ public final class ColumnarRowDropHelper {
     /**
      * Checks whether the error budget has been exceeded and throws a {@link ParsingException}
      * (HTTP 400 — client-data problem) if so. Emits a budget-exceeded warning before throwing,
-     * matching {@code CsvFormatReader.checkBudget}'s contract so clients see which batch tripped
-     * the limit even when the request fails.
+     * matching {@code CsvFormatReader.checkBudget}'s contract.
+     * <p>
+     * The thrown exception is the reliable channel: it always carries the counts, the file and the configured
+     * limits. The warning is best-effort — see the {@code warnings} note below.
      *
      * @param warnings the reader's per-value coercion-warning collector, or {@code null} when it has
      *                 none. The budget line goes into that same collector — as CSV does — so the
      *                 response carries one summary header followed by the per-cell details and then
      *                 the line saying which batch tripped the limit, rather than two competing
-     *                 summaries from two collectors.
+     *                 summaries from two collectors. Sharing the collector also means sharing its cap
+     *                 ({@link SkipWarnings#MAX_ADDED_WARNINGS}): a budget above that many errors has, by
+     *                 definition, already spent the detail quota on per-cell warnings by the time it trips,
+     *                 so the budget line collapses into the collector's "further warnings suppressed" entry.
+     *                 That is why the exception, not the header, states the failure.
      */
     public void checkBudget(@Nullable SkipWarnings warnings) {
         if (policy.isBudgetExceeded(errorCount, rowCount)) {

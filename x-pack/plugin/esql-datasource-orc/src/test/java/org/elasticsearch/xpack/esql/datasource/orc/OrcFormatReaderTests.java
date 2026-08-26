@@ -78,6 +78,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
+
 public class OrcFormatReaderTests extends ESTestCase {
 
     private BlockFactory blockFactory;
@@ -1911,12 +1917,64 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(ErrorPolicy.STRICT, new OrcFormatReader(blockFactory).defaultErrorPolicy());
     }
 
-    public void testDropsRowsUnderPushedFilter() {
-        // ORC has one decode path: convertToPage always applies ColumnarRowDropHelper#filterBlocks, and a pushed
-        // predicate only prunes whole stripes (never individual rows within a batch), so skip_row keeps working
-        // with the pushdown on. Hence the base FormatReader default, unlike Parquet's late-materialization path
-        // (ParquetFormatReaderTests.testDoesNotDropRowsUnderPushedFilter). Pinned so a future row-level ORC
-        // predicate path cannot quietly inherit "true" and start null-filling instead of dropping.
+    /**
+     * The behavioural half of {@link FormatReader#dropsRowsUnderPushedFilter()}: with a SearchArgument actually
+     * pushed in, a {@code skip_row} coercion failure must still drop the whole row.
+     * <p>
+     * This is the assertion that carries weight, and it is the mirror image of Parquet's
+     * {@code testSkipRowDoesNotDropUnderPushedFilterHencePushdownIsWithheld}. Parquet answers {@code false}, which
+     * is the safe answer — the planner then withholds the filter and nothing downstream depends on the reader. ORC
+     * answers {@code true}, which is what *permits* {@code PushFiltersToSource} to hand it a filter for a
+     * {@code skip_row} read, so the row-drop under that filter has to be demonstrated rather than assumed. ORC can
+     * make that promise because it has one decode path — {@code convertToPage} always runs
+     * {@code ColumnarRowDropHelper#filterBlocks} — and because it never calls {@code OrcFile.ReaderOptions#setRowFilter},
+     * so a SearchArgument prunes whole stripes and row-index ranges but never individual rows inside a batch,
+     * leaving batch coordinates intact.
+     * <p>
+     * The predicate matches every row, so the emitted count is entirely about the row-drop.
+     */
+    public void testDropsRowsUnderPushedFilter() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("n", TypeDescription.createString())
+            .addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "41".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "oops".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(2, "43".getBytes(StandardCharsets.UTF_8));
+            LongColumnVector idCol = (LongColumnVector) batch.cols[1];
+            idCol.vector[0] = 1L;
+            idCol.vector[1] = 2L;
+            idCol.vector[2] = 3L;
+        });
+
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
+        OrcFormatReader reader = (OrcFormatReader) declaredReader("n").withPushedFilter(sarg);
+        List<Attribute> plannerSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG)
+        );
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("n", "id"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("skip_row must still drop the bad row with a filter pushed in", 2, page.getPositionCount());
+            LongBlock ns = (LongBlock) page.getBlock(0);
+            assertEquals(41L, ns.getLong(ns.getFirstValueIndex(0)));
+            assertEquals(43L, ns.getLong(ns.getFirstValueIndex(1)));
+            // The id column drops in lockstep: row 2 is gone from every column, not just the failing one.
+            LongBlock ids = (LongBlock) page.getBlock(1);
+            assertEquals(1L, ids.getLong(ids.getFirstValueIndex(0)));
+            assertEquals(3L, ids.getLong(ids.getFirstValueIndex(1)));
+            page.releaseBlocks();
+        }
+        drainWarnings();
+
+        // ...which is why the reader may advertise the capability. Pinned so a future row-level ORC predicate path
+        // cannot quietly inherit "true" and start null-filling instead of dropping.
         assertTrue(new OrcFormatReader(blockFactory).dropsRowsUnderPushedFilter());
     }
 
@@ -2011,7 +2069,13 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(43L, longs.getLong(longs.getFirstValueIndex(1)));
             page.releaseBlocks();
         }
-        drainWarnings();
+        // The response headers must describe a row drop, not a null-fill: the summary and the per-cell detail have
+        // to agree with each other AND with what the page actually shows, or the user reads "returning null" next
+        // to a row that is gone. Pinned in both readers (ParquetFormatReaderTests.testSkipRowDropsBadRow).
+        List<String> warnings = drainWarnings();
+        assertThat(warnings, hasItem(containsString("their entire row is dropped")));
+        assertThat(warnings, hasItem(allOf(containsString("[n]"), containsString("; row will be dropped"))));
+        assertThat("no null-fill wording under skip_row", warnings, everyItem(not(containsString("returning null"))));
     }
 
     public void testSkipRowMultiColumnSingleBadRowDropsAllColumns() throws Exception {
@@ -2104,13 +2168,17 @@ public class OrcFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, budget)
             )
         ) {
-            expectThrows(ParsingException.class, () -> {
+            ParsingException e = expectThrows(ParsingException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
             });
+            // The thrown message is the one the client actually sees, so it must name the counts and the file.
+            assertThat(e.getMessage(), containsString("dropped rows"));
+            assertThat(e.getMessage(), containsString("maximum allowed is [1] errors"));
         }
-        drainWarnings();
+        // checkBudget also records the trip into the same collector, ahead of the throw.
+        assertThat(drainWarnings(), hasItem(containsString("Columnar error budget exceeded")));
     }
 
     public void testStringToDatetimeBadTokenNullFieldWarnsFailFastFails() throws Exception {

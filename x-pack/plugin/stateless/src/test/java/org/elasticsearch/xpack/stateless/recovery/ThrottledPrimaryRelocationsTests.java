@@ -7,17 +7,19 @@
 
 package org.elasticsearch.xpack.stateless.recovery;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.DelayRecoveryException;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +30,6 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -46,6 +47,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
 
         final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
             taskQueue::scheduleNow,
             (task, request, shard, listener) -> listener.onResponse(EMPTY_START_RELOCATION_RESPONSE)
         );
@@ -81,6 +83,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var completed = new AtomicInteger();
         final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
             taskQueue::scheduleNow,
             (task, request, shard, listener) -> completed.incrementAndGet()
         );
@@ -127,6 +130,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var capturedListener = new AtomicReference<ActionListener<StartRelocationResponse>>();
         final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
             taskQueue::scheduleNow,
             (task, request, shard, listener) -> capturedListener.set(listener)
         );
@@ -186,6 +190,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var capturedListener = new AtomicReference<ActionListener<StartRelocationResponse>>();
         final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
             taskQueue::scheduleNow,
             (task, request, shard, listener) -> capturedListener.set(listener)
         );
@@ -236,6 +241,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var listeners = new CompositeRecoverySchedulingListener();
         final var completed = new AtomicInteger();
         final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
             taskQueue::scheduleNow,
             (task, request, shard, listener) -> completed.incrementAndGet()
         );
@@ -264,6 +270,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var completed = new AtomicInteger();
         final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
             taskQueue::scheduleNow,
             (task, request, shard, listener) -> completed.incrementAndGet()
         );
@@ -307,7 +314,11 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 discarded.incrementAndGet();
             }
         });
-        final var throttle = new ThrottledPrimaryRelocations(taskQueue::scheduleNow, (task, request, shard, listener) -> {});
+        final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
+            taskQueue::scheduleNow,
+            (task, request, shard, listener) -> {}
+        );
         throttle.registerRecoverySchedulingListeners(listeners);
         throttle.updateMaxConcurrentOutgoingRelocations(1);
 
@@ -350,7 +361,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(1));
         assertThat(failures, hasSize(1));
-        assertThat(failures.getFirst(), instanceOf(DelayRecoveryException.class));
+        assertThat(failures.getFirst(), instanceOf(NodeClosedException.class));
         assertThat(discarded.get(), equalTo(1));
         assertThat(shard2.recoveryStats().currentAsSourceQueued(), equalTo(0));
         assertTrue(shard2.recoveryStats().noCurrentRecoveries());
@@ -370,7 +381,11 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
                 discarded.incrementAndGet();
             }
         });
-        final var throttle = new ThrottledPrimaryRelocations(taskQueue::scheduleNow, (task, request, shard, listener) -> {});
+        final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
+            taskQueue::scheduleNow,
+            (task, request, shard, listener) -> {}
+        );
         throttle.registerRecoverySchedulingListeners(listeners);
         throttle.updateMaxConcurrentOutgoingRelocations(1);
 
@@ -398,8 +413,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertThat(failures, hasSize(1));
-        assertThat(failures.get(0), instanceOf(DelayRecoveryException.class));
-        assertThat(failures.get(0).getMessage(), containsString("source node is closing"));
+        assertThat(failures.get(0), instanceOf(NodeClosedException.class));
         assertThat(discarded.get(), equalTo(1));
         assertTrue(shard2.recoveryStats().noCurrentRecoveries());
         // Active relocation is unaffected.
@@ -408,7 +422,11 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
     public void testCancelOnShardClosed() {
         final var taskQueue = new DeterministicTaskQueue();
-        final var throttle = new ThrottledPrimaryRelocations(taskQueue::scheduleNow, (task, request, shard, listener) -> {});
+        final var throttle = new ThrottledPrimaryRelocations(
+            mockClusterService(),
+            taskQueue::scheduleNow,
+            (task, request, shard, listener) -> {}
+        );
         throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
         throttle.updateMaxConcurrentOutgoingRelocations(1);
 
@@ -436,11 +454,45 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
 
         assertThat(throttle.queuedRelocationCount(), equalTo(0));
         assertThat(failures, hasSize(1));
-        final var failure = failures.getFirst();
-        assertThat(failure, instanceOf(DelayRecoveryException.class));
-        assertThat(failure.getMessage(), containsString("index shard closed"));
+        assertThat(failures.getFirst(), instanceOf(AlreadyClosedException.class));
         assertTrue(shard2.recoveryStats().noCurrentRecoveries());
         assertThat(throttle.activeRelocationCount(), equalTo(1));
+    }
+
+    public void testEnqueueAfterCloseFailsWithNodeClosedException() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var localNode = DiscoveryNodeUtils.create(randomIdentifier());
+        final var clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(localNode);
+
+        final var throttle = new ThrottledPrimaryRelocations(
+            clusterService,
+            taskQueue::scheduleNow,
+            (task, request, shard, listener) -> fail("runner should not be invoked after close")
+        );
+        throttle.registerRecoverySchedulingListeners(new CompositeRecoverySchedulingListener());
+        throttle.updateMaxConcurrentOutgoingRelocations(Integer.MAX_VALUE);
+        taskQueue.runAllRunnableTasks();
+
+        throttle.close();
+
+        final var shardId = new ShardId(randomIndexName(), randomUUID(), 0);
+        final var shard = mockShard(shardId);
+        final var failures = new ArrayList<Exception>();
+
+        throttle.enqueueRelocation(
+            createStartRelocationRequest(DiscoveryNodeUtils.create(randomIdentifier()), shardId),
+            createTask(),
+            shard,
+            ActionListener.wrap(ignored -> fail("expected failure"), failures::add)
+        );
+
+        assertThat(failures, hasSize(1));
+        assertThat(failures.getFirst(), instanceOf(NodeClosedException.class));
+        assertThat(throttle.queuedRelocationCount(), equalTo(0));
+        assertThat(throttle.activeRelocationCount(), equalTo(0));
+        assertTrue(shard.recoveryStats().noCurrentRecoveries());
+        assertFalse(taskQueue.hasRunnableTasks());
     }
 
     private static StatelessPrimaryRelocationAction.Request createStartRelocationRequest(DiscoveryNode targetNode, ShardId shardId) {
@@ -453,6 +505,12 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         when(shard.recoveryStats()).thenReturn(new RecoveryStats());
         when(shard.shardId()).thenReturn(shardId);
         return shard;
+    }
+
+    private static ClusterService mockClusterService() {
+        final var clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(randomIdentifier()));
+        return clusterService;
     }
 
     private static Task createTask() {

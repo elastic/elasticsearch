@@ -25,7 +25,9 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
+import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -72,6 +74,13 @@ public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginI
                 Integer.MAX_VALUE
             )
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE);
+    }
+
+    @After
+    public void verifyNoOutstandingRecoveries() {
+        for (final var nodeName : internalCluster().getNodeNames()) {
+            assertTrue("expected no current recoveries on node [" + nodeName + "]", getRecoveryStats(nodeName).noCurrentRecoveries());
+        }
     }
 
     public void testSourceNodeQueuesRelocationsPastConcurrencyLimit() {
@@ -194,6 +203,91 @@ public class StatelessIndexThrottlingRecoveryIT extends AbstractStatelessPluginI
 
         proceedWithHandoffs.countDown();
         ensureGreen(indexName);
+    }
+
+    public void testSourceNodeShutdown() throws IOException {
+        startMasterOnlyNode();
+        final var sourceNode = startIndexNode(
+            Settings.builder()
+                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
+        );
+        final var targetNode = startIndexNode();
+
+        final var indexName = randomIndexName();
+        createIndex(
+            indexName,
+            indexSettings(2, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", targetNode)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
+                .build()
+        );
+        indexDocs(indexName, between(1, 50));
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Stall the active relocation so the source slot stays occupied and the second shard is queued.
+        final var proceedWithHandoff = new CountDownLatch(1);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(
+                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    safeAwait(proceedWithHandoff);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexName);
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1));
+
+        internalCluster().stopNode(sourceNode);
+        proceedWithHandoff.countDown();
+        startIndexNode();
+        ensureGreen(indexName);
+    }
+
+    public void testQueuedRelocationCancelledWhenShardClosed() {
+        startMasterOnlyNode();
+        final var sourceNode = startIndexNode(
+            Settings.builder()
+                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
+        );
+        final var targetNode = startIndexNode();
+
+        final var indexA = randomIndexName();
+        final var indexB = randomIndexName();
+        for (final var idx : List.of(indexA, indexB)) {
+            createIndex(idx, indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", targetNode).build());
+            indexDocs(idx, between(1, 50));
+            flush(idx);
+        }
+        ensureGreen(indexA, indexB);
+
+        // Stall index A's relocation at the target's handler
+        final var proceedWithHandoff = new CountDownLatch(1);
+        MockTransportService.getInstance(targetNode)
+            .addRequestHandlingBehavior(
+                TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    safeAwait(proceedWithHandoff);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+        // Trigger index A's relocation: active
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexA);
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 0));
+
+        // Trigger index B's relocation: queued
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", sourceNode), indexB);
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1));
+
+        // Deleting index B closes shard B on the source.
+        client().admin().indices().prepareDelete(indexB).get();
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 0));
+
+        proceedWithHandoff.countDown();
+        ensureGreen(indexA);
     }
 
     public void testDynamicLimitIncreaseDispatchesPendingRelocationsUpToLimit() {

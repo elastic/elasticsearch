@@ -147,7 +147,11 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
         this.hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
-        this.throttledPrimaryRelocations = new ThrottledPrimaryRelocations(recoveryExecutor, this::startRelocationWithFreshClusterState);
+        this.throttledPrimaryRelocations = new ThrottledPrimaryRelocations(
+            clusterService,
+            recoveryExecutor,
+            this::startRelocationWithFreshClusterState
+        );
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -651,7 +655,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             this.runner = runner;
         }
 
-        private synchronized void close() {
+        // visible for testing
+        synchronized void close() {
             this.closed = true;
         }
 

@@ -49,7 +49,7 @@ public final class FixtureExclusions {
     }
 
     /** One exclusion: which suite, which case, what kind, and the reason in full. */
-    public record Exclusion(String suite, String caseName, Kind kind, String reason) {}
+    public record Exclusion(String suite, String spec, String caseName, Kind kind, String reason) {}
 
     private final Map<String, Map<String, Exclusion>> bySuite;
     private final Set<String> declaredSuites;
@@ -98,11 +98,25 @@ public final class FixtureExclusions {
                 continue;
             }
             String rest = key.substring("exclude.".length());
-            int dot = rest.lastIndexOf('.');
+            // FIRST dot: the key is exclude.<suite>.<spec>.<case>, and the suite token is the leading
+            // segment. lastIndexOf would swallow the spec into the suite name.
+            int dot = rest.indexOf('.');
             if (dot < 0) {
                 throw new IllegalStateException("malformed exclusion key [" + key + "]; expected exclude.<suite>.<caseName>");
             }
             String suite = rest.substring(0, dot);
+            String afterSuite = rest.substring(dot + 1);
+            int specDot = afterSuite.indexOf('.');
+            if (specDot < 0) {
+                throw new IllegalStateException(
+                    "malformed exclusion key ["
+                        + key
+                        + "]; expected exclude.<suite>.<spec>.<caseName>. The spec segment is required: case names are "
+                        + "NOT unique across spec files, so a key without it silences every same-named case."
+                );
+            }
+            String spec = afterSuite.substring(0, specDot);
+            String caseOnly = afterSuite.substring(specDot + 1);
             if (declaredSuites.contains(suite) == false) {
                 throw new IllegalStateException(
                     "exclusion ["
@@ -114,7 +128,6 @@ public final class FixtureExclusions {
                         + ". A typo here creates a phantom suite whose entries never apply to any test."
                 );
             }
-            String caseName = rest.substring(dot + 1);
             String value = props.getProperty(key).trim();
 
             int colon = value.indexOf(':');
@@ -138,7 +151,7 @@ public final class FixtureExclusions {
             if (reason.isEmpty()) {
                 throw new IllegalStateException("exclusion [" + key + "] states a kind but no reason");
             }
-            parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>()).put(caseName, new Exclusion(suite, caseName, kind, reason));
+            parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>()).put(caseOnly, new Exclusion(suite, spec, caseOnly, kind, reason));
         }
         this.bySuite = Map.copyOf(parsed);
         this.declaredSuites = Set.copyOf(declaredSuites);
@@ -157,6 +170,19 @@ public final class FixtureExclusions {
     /** The exclusion for a case on a suite, or {@code null} if the suite runs it. */
     public Exclusion find(String suite, String caseName) {
         return bySuite.getOrDefault(suite, Map.of()).get(caseName);
+    }
+
+    /**
+     * The exclusion for a case in a specific spec, or {@code null} if that suite runs it.
+     *
+     * <p>The spec is part of the identity because case names are NOT unique across spec files -- 24 names
+     * are duplicated, 48 instances -- so matching on the bare name silences every same-named case. A
+     * lookup that ignored the spec would, for example, take the exclusion declared against
+     * external-multivalue and apply it to csv-multivalue's identically-named case as well.
+     */
+    public Exclusion find(String suite, String spec, String caseName) {
+        Exclusion candidate = bySuite.getOrDefault(suite, Map.of()).get(caseName);
+        return candidate != null && candidate.spec().equals(spec) ? candidate : null;
     }
 
     /**

@@ -343,6 +343,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     private final StorageBackend storageBackend;
     private final String format;
+    private final String specName;
     /**
      * Per-test choice of Azure URI form, set once in {@link #doTest()} so that all template
      * substitutions within a single test (including wildcard expansions returning multiple files)
@@ -372,6 +373,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
         this.storageBackend = storageBackend;
         this.format = format;
+        this.specName = groupName;
     }
 
     /**
@@ -392,7 +394,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void shouldSkipTest(String testName) throws IOException {
         // One skip path for every external-source suite, reading the single declaration. The message is the
         // declared reason, so a skip explains itself in the log rather than asserting a hard-coded cause.
-        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(exclusionSuiteToken(), testName);
+        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(exclusionSuiteToken(), specName, testName);
         if (exclusion != null) {
             assumeTrue(testName + ": " + exclusion.reason(), false);
         }

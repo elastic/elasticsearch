@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FixtureExclusionsTests extends ESTestCase {
@@ -39,6 +40,19 @@ public class FixtureExclusionsTests extends ESTestCase {
      * eight-token one, so three registries disagreed about which suites exist -- the duplicate-registry
      * failure this whole declaration exists to remove, reproduced inside its own tests.
      */
+    /**
+     * The reason the key carries a spec segment. 24 case names are duplicated across spec files (48
+     * instances), so a lookup on the bare name would apply an exclusion declared against one spec to an
+     * identically-named case in another -- silently, and looking exactly like a working exclusion.
+     */
+    public void testAnExclusionDoesNotLeakToASameNamedCaseInAnotherSpec() {
+        FixtureExclusions exclusions = FixtureExclusions.get();
+        // Declared against external-multifile-temporal for the ndjson suite.
+        assertThat(exclusions.find("ndjson", "external-multifile-temporal", "temporalWidensToMinMax"), notNullValue());
+        // The csv twin declares an identically-named case; it must NOT be caught by that entry.
+        assertThat(exclusions.find("ndjson", "csv-multifile-temporal", "temporalWidensToMinMax"), nullValue());
+    }
+
     public void testSuitesAreNamedByTheirFormatToken() {
         FixtureExclusions exclusions = FixtureExclusions.get();
         for (String suite : exclusions.suites()) {

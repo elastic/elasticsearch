@@ -283,6 +283,62 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("brace-enumerated _SUCCESS must be returned: explicit opt-in, not wildcard discovery", 2, result.fileCount());
     }
 
+    /**
+     * A Hive partition directory whose name begins with '_' is NOT a hidden object: the convention exempts a
+     * segment carrying a {@code key=value} spelling, so {@code _dept=alpha/} survives while a plain {@code _hidden/}
+     * does not. Pinned here through the public expansion path — the predicate-level pin lives with the predicate,
+     * but only this test proves the exemption reaches a real listing, which is what a partitioned dataset depends on.
+     */
+    public void testExpandGlobKeepsUnderscorePrefixedPartitionDirectory() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/_dept=alpha/part1.csv", 100),
+            entry("s3://bucket/data/_hidden/x.csv", 50)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/**/*.csv", provider);
+        assertTrue(result.isResolved());
+        assertEquals("the key=value segment is exempt, the plain _ segment is not", 1, result.fileCount());
+        assertEquals("s3://bucket/data/_dept=alpha/part1.csv", result.path(0).toString());
+    }
+
+    /**
+     * Exclusion applies to the listing the glob REWRITE produced, not only to an un-hinted one. A hint narrows
+     * {@code year=*} to {@code year=2024} before the prefix is listed, and the marker inside that partition must
+     * still be dropped — and dropping it must not be mistaken for "the rewrite narrowed to empty", which would
+     * fire a second, full listing.
+     */
+    public void testNonDataExclusionAppliesToTheRewrittenListing() throws IOException {
+        Map<String, List<StorageEntry>> tree = Map.of(
+            "s3://bucket/logs/year=2024/",
+            List.of(entry("s3://bucket/logs/year=2024/_SUCCESS", 0), entry("s3://bucket/logs/year=2024/part-0.parquet", 100))
+        );
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(tree);
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/year=*/*", provider, hints, HIVE_ON, MAX, MAX);
+        assertTrue(result.isResolved());
+        assertEquals("the marker is excluded from the rewritten listing", 1, result.fileCount());
+        assertEquals("s3://bucket/logs/year=2024/part-0.parquet", result.path(0).toString());
+        assertEquals("a non-empty result must not trigger the rewrite fallback re-list", 1, provider.listCallCount);
+    }
+
+    /**
+     * Characterization of the defensive branch in the listing loop: when a provider returns an entry whose path
+     * does not begin with the listing prefix, the relative path degrades to the object's leaf name, so a hidden
+     * INTERMEDIATE directory is not seen and the entry survives. This documents today's behavior — the branch
+     * carries a TODO to fix it upstream in the providers — so that a change to it is a deliberate one.
+     */
+    public void testHiddenIntermediateDirectoryIsMissedOnPrefixIncompatiblePaths() throws IOException {
+        List<StorageEntry> listing = List.of(entry("s3://bucket/elsewhere/_hidden/x.parquet", 100));
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("s3://bucket/data/*", provider);
+        assertTrue(result.isResolved());
+        assertEquals("leaf-only relative path hides the _hidden segment from the predicate", 1, result.fileCount());
+        assertEquals("s3://bucket/elsewhere/_hidden/x.parquet", result.path(0).toString());
+    }
+
     // -- expandCommaSeparated --
 
     public void testExpandCommaSeparatedMixedGlobAndLiteral() throws IOException {

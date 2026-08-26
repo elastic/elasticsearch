@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -301,7 +302,8 @@ public abstract class FullTextFunction extends Function
                             || lp instanceof OrderBy
                             || lp instanceof EsRelation
                             || lp instanceof ParameterizedQuery
-                            || lp instanceof Sample),
+                            || lp instanceof Sample
+                            || lp instanceof AbstractSubqueryJoin),
                         fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
                         failures
                     );
@@ -370,7 +372,7 @@ public abstract class FullTextFunction extends Function
         Failures failures
     ) {
         condition.forEachDown(typeToken, exp -> {
-            plan.forEachDown(LogicalPlan.class, lp -> {
+            AbstractSubqueryJoin.forEachDownExcludingInSubqueries(plan, lp -> {
                 // `checkCommandsBeforeExpression` should be completely skipped for search functions that do not operate on index fields,
                 // but for now all checks apply, except for MV_EXPAND which can be used before a runtime search function
                 if ((lp instanceof MvExpand && exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) == false
@@ -477,7 +479,7 @@ public abstract class FullTextFunction extends Function
             }
 
             plan.forEachExpression(function.getClass(), m -> {
-                if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
+                if (function.children().contains(field) && hasUnionAllInChildrenPlans(plan) == false) {
                     String fieldName = field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText();
                     String federatedSourceClause = isFieldFromFederatedSource(plan, field)
                         ? " (the source is a federated data source, not an index)"
@@ -743,7 +745,7 @@ public abstract class FullTextFunction extends Function
     /**
      * Checks if there is a subquery in the children plans.
      */
-    private static boolean hasSubqueryInChildrenPlans(LogicalPlan plan) {
+    private static boolean hasUnionAllInChildrenPlans(LogicalPlan plan) {
         Holder<Boolean> hasSubquery = new Holder<>(false);
         plan.forEachDown(p -> {
             if (p instanceof UnionAll) {

@@ -4750,3 +4750,299 @@ emp_no:integer | a:boolean
 10002          | false
 10003          | false
 ;
+
+kqlOrInSubquery
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: kql_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+FROM books
+| WHERE kql("author: William") OR book_no IN (FROM books | WHERE book_no == "9032" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+5404            | William Faulkner
+5578            | William Faulkner
+8077            | William Faulkner
+9032            | Tolstoy Leo
+9896            | William Faulkner
+;
+
+
+qstrOrNotInSubquery
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: qstr_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+FROM books
+| WHERE qstr("author: William") OR book_no NOT IN (FROM books | WHERE book_no == "9032" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, author
+| LIMIT 10
+;
+
+book_no:keyword | author:text
+1211            | Fyodor Dostoevsky
+1463            | J. R. R. Tolkien
+1502            | Nikolai Vasilevich Gogol
+1937            | Fyodor Dostoevsky
+1985            | Fyodor Dostoevsky
+2130            | [Christopher Tolkien, John Ronald Reuel Tolkien]
+2236            | Ursula K. Le Guin
+2301            | John Ronald Reuel Tolkien
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2382            | Ursula K. Le Guin
+;
+
+qstrAndInSubqueryHashJoinPathMultiValuedField
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: qstr_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM employees
+| WHERE QSTR("last_name: Simmel") AND job_positions IN (FROM employees | WHERE emp_no == 10002 | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, last_name
+;
+
+emp_no:integer | last_name:keyword
+10002          | Simmel
+;
+
+kqlAndInSubqueryHashJoinPathMultiValuedField
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: kql_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM employees
+| WHERE KQL("last_name: Simmel") AND job_positions IN (FROM employees | WHERE emp_no == 10002 | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, last_name
+;
+
+emp_no:integer | last_name:keyword
+10002          | Simmel
+;
+
+qstrAndNotInSubqueryHashJoinPathMultiValuedField
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: qstr_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM employees
+| WHERE QSTR("last_name: Warwick") AND job_positions NOT IN (FROM employees | WHERE emp_no == 10002 | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, last_name
+;
+
+emp_no:integer | last_name:keyword
+10020          | Warwick
+;
+
+kqlAndNotInSubqueryHashJoinPathMultiValuedField
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: kql_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM employees
+| WHERE KQL("last_name: Warwick") AND job_positions NOT IN (FROM employees | WHERE emp_no == 10002 | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, last_name
+;
+
+emp_no:integer | last_name:keyword
+10020          | Warwick
+;
+
+qstrOrInSubqueryHashJoinPathMultiValuedField
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: qstr_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM employees
+| WHERE QSTR("last_name: Simmel") OR job_positions IN (FROM employees | WHERE emp_no == 10056 | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, last_name
+;
+warningRegex:Line \d+:\d+: evaluation of \[job_positions IN \(FROM.*\)\] failed, treating result as null. Only first \d+ failures recorded.
+warningRegex:Line \d+:\d+: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | last_name:keyword
+10002          | Simmel
+10056          | Bernini
+;
+
+kqlOrInSubqueryHashJoinPathMultiValuedField
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: kql_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM employees
+| WHERE KQL("last_name: Simmel") OR job_positions IN (FROM employees | WHERE emp_no == 10056 | KEEP job_positions)
+| SORT emp_no
+| KEEP emp_no, last_name
+;
+warningRegex:Line \d+:\d+: evaluation of \[job_positions IN \(FROM.*\)\] failed, treating result as null. Only first \d+ failures recorded.
+warningRegex:Line \d+:\d+: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | last_name:keyword
+10002          | Simmel
+10056          | Bernini
+;
+
+kqlOrInSubqueryWithEvalAfterWhere
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: kql_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+FROM books
+| WHERE kql("author: William") OR book_no IN (FROM books | WHERE book_no == "9032" | KEEP book_no)
+| EVAL book_id = CONCAT("book-", book_no)
+| SORT book_no
+| KEEP book_id, author
+;
+
+book_id:keyword | author:text
+book-2713       | William Faulkner
+book-2883       | William Faulkner
+book-4724       | William Faulkner
+book-4977       | William Faulkner
+book-5119       | William Faulkner
+book-5404       | William Faulkner
+book-5578       | William Faulkner
+book-8077       | William Faulkner
+book-9032       | Tolstoy Leo
+book-9896       | William Faulkner
+;
+
+qstrOrInSubqueryWithEvalAfterWhereHashJoinPath
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: qstr_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM books
+| WHERE qstr("author: William") OR book_no IN (FROM books | WHERE book_no == "9032" | KEEP book_no)
+| EVAL book_id = CONCAT("book-", book_no)
+| SORT book_no
+| KEEP book_id, author
+;
+
+book_id:keyword | author:text
+book-2713       | William Faulkner
+book-2883       | William Faulkner
+book-4724       | William Faulkner
+book-4977       | William Faulkner
+book-5119       | William Faulkner
+book-5404       | William Faulkner
+book-5578       | William Faulkner
+book-8077       | William Faulkner
+book-9032       | Tolstoy Leo
+book-9896       | William Faulkner
+;
+
+kqlOrInSubqueryWithEvalInSubqueryHashJoinPath
+skip_flattened_rewrite: kql_qstr_eval_before_where
+required_capability: where_in_subquery_without_view
+required_capability: kql_function
+required_capability: where_in_subquery_with_qstr_kql_fix
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM books
+| WHERE kql("author: William") OR book_no IN (FROM books | EVAL bn = book_no | WHERE bn == "9032" | KEEP bn)
+| SORT book_no
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+5404            | William Faulkner
+5578            | William Faulkner
+8077            | William Faulkner
+9032            | Tolstoy Leo
+9896            | William Faulkner
+;
+
+evalBeforeDisjunctiveInSubquery
+required_capability: where_in_subquery_without_view
+
+FROM books
+| EVAL book_id = CONCAT("book-", book_no)
+| WHERE book_id == "book-2713" OR book_no IN (FROM books | WHERE book_no == "9032" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, book_id, author
+;
+
+book_no:keyword | book_id:keyword | author:text
+2713            | book-2713       | William Faulkner
+9032            | book-9032       | Tolstoy Leo
+;
+
+evalBeforeDisjunctiveInSubqueryHashJoinPath
+required_capability: where_in_subquery_without_view
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM books
+| EVAL book_id = CONCAT("book-", book_no)
+| WHERE book_id == "book-2713" OR book_no IN (FROM books | WHERE book_no == "9032" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, book_id, author
+;
+
+book_no:keyword | book_id:keyword | author:text
+2713            | book-2713       | William Faulkner
+9032            | book-9032       | Tolstoy Leo
+;
+
+evalBeforeDisjunctiveNotInSubqueryHashJoinPath
+required_capability: where_in_subquery_without_view
+
+pragma: in_subquery_hash_join_threshold=0
+
+FROM books
+| EVAL book_id = CONCAT("book-", book_no)
+| WHERE book_id == "book-2713" OR book_no NOT IN (FROM books | WHERE book_no != "9032" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, book_id, author
+;
+
+book_no:keyword | book_id:keyword | author:text
+2713            | book-2713       | William Faulkner
+9032            | book-9032       | Tolstoy Leo
+;

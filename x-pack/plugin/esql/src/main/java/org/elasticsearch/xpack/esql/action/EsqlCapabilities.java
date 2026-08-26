@@ -1528,6 +1528,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_FORK_UNKNOWN_COLUMN_FIX,
 
         /**
+         * Allow disjunctive IN subquery to work with QSTR/KQL, including the fix for the KQL/QSTR positional check failing with a
+         * VerificationException when the subquery is inlined via the hash-join and there is a synthetic attribute in the Eval before
+         * QSTR or KQL.
+         */
+        WHERE_IN_SUBQUERY_WITH_QSTR_KQL_FIX,
+
+        /**
          * Support IN subquery inside {@code CASE}, {@code COALESCE}, and {@code IS [NOT] NULL} expressions in the {@code WHERE} command.
          */
         WHERE_IN_SUBQUERY_WITH_CASE_COALESCE_IS_NULL,

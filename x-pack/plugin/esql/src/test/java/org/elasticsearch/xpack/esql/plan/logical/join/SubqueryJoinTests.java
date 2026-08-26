@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -932,6 +933,53 @@ public class SubqueryJoinTests extends ESTestCase {
         assertThat(caseExpr.children(), hasSize(2));
         as(caseExpr.children().get(0), IsNotNull.class);
         assertThat(caseExpr.children().get(1), equalTo(Literal.TRUE));
+    }
+
+    public void testInlineDataMarkJoinKeepsMarkEvalSeparateFromUserEval() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+
+        // left() = Eval(x = 1, relation): a user-written EVAL below the MarkJoin.
+        Alias userAlias = new Alias(Source.EMPTY, "x", new Literal(Source.EMPTY, 1, DataType.INTEGER));
+        Eval userEval = new Eval(Source.EMPTY, emptyLocalRelation(List.of(leftField)), List.of(userAlias));
+        Attribute markAttribute = new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            InSubqueryResolver.MARK_ATTRIBUTE_NAME_PREFIX + "0",
+            DataType.BOOLEAN,
+            Nullability.TRUE,
+            new NameId(),
+            true
+        );
+        MarkJoin mj = new MarkJoin(
+            Source.EMPTY,
+            userEval,
+            emptyLocalRelation(List.of(rightField)),
+            List.of(leftField),
+            List.of(rightField),
+            markAttribute
+        );
+
+        Block keyBlock = intBlock(1, 2, 3);
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        // Filter path: Eval(mark) sits directly atop the untouched user Eval.
+        Eval markEval = as(AbstractSubqueryJoin.inlineData(mj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null), Eval.class);
+        assertThat(markEval.fields(), hasSize(1));
+        assertThat(markEval.child(), sameInstance(userEval));
+        assertTrue("mark Eval is an inlined boundary", MarkJoin.isInlinedBoundary(markEval));
+        assertFalse("user Eval must not be classified as a boundary", MarkJoin.isInlinedBoundary(userEval));
+
+        // Hash-join path: Project(Eval(mark, Join(Eval(svGuard, userEval), LocalRelation))).
+        LogicalPlan inlined = AbstractSubqueryJoin.inlineData(mj, result, 0, BLOCK_FACTORY, null);
+        Project project = as(inlined, Project.class);
+        assertTrue("hash-join Project is an inlined boundary", MarkJoin.isInlinedBoundary(project));
+        Eval hashJoinMarkEval = as(project.child(), Eval.class);
+        assertThat(hashJoinMarkEval.fields(), hasSize(1));
+        Join join = as(hashJoinMarkEval.child(), Join.class);
+        Eval svGuardEval = as(join.left(), Eval.class);
+        assertFalse("SV-guard Eval must not be classified as a boundary", MarkJoin.isInlinedBoundary(svGuardEval));
+        assertThat(svGuardEval.child(), sameInstance(userEval));
     }
 
     // -- subplan discovery tests --

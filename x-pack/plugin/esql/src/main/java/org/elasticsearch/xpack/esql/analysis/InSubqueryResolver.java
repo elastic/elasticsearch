@@ -78,6 +78,9 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class InSubqueryResolver {
 
+    public static final String MARK_ATTRIBUTE_NAME_PREFIX = "$$in_subquery_mark$";
+    public static final String CONST_ATTRIBUTE_NAME_PREFIX = "$$in_subquery_const$";
+
     /**
      * Resolves all {@link InSubquery} expressions in {@link Filter} conditions and {@link Eval} field
      * definitions, and validates the result. Throws a {@link VerificationException} when an
@@ -554,7 +557,7 @@ public class InSubqueryResolver {
      *  produces only one join and one synthetic alias.
      */
     private static String syntheticConstName(Expression value, LogicalPlan subquery, int ordinal) {
-        return "$$in_subquery_const$" + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
+        return CONST_ATTRIBUTE_NAME_PREFIX + value.hashCode() + "$" + subquery.hashCode() + "$" + ordinal;
     }
 
     /**
@@ -567,7 +570,7 @@ public class InSubqueryResolver {
      *  join and one mark attribute.
      */
     private static String syntheticMarkName(InSubquery inSubquery, int ordinal) {
-        return "$$in_subquery_mark$" + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
+        return MARK_ATTRIBUTE_NAME_PREFIX + inSubquery.value().hashCode() + "$" + inSubquery.subquery().hashCode() + "$" + ordinal;
     }
 
     /**
@@ -580,7 +583,7 @@ public class InSubqueryResolver {
      *  only one join and one mark attribute.
      */
     private static String syntheticMarkName(MultiColumnInSubquery mcs, int ordinal) {
-        return "$$in_subquery_mark$" + mcs.hashCode() + "$" + ordinal;
+        return MARK_ATTRIBUTE_NAME_PREFIX + mcs.hashCode() + "$" + ordinal;
     }
 
     public static void verify(LogicalPlan plan) {

@@ -1,0 +1,2 @@
+FROM employees
+| WHERE KQL("last_name: Smith") OR emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)

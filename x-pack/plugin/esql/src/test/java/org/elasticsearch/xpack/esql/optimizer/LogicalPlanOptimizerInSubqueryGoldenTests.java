@@ -319,6 +319,36 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
+    // -- KQL / QSTR combined with OR (NOT) IN subqueries --
+
+    public void testQstrOrInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE QSTR("last_name: Smith") OR emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testKqlOrInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE KQL("last_name: Smith") OR emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testQstrOrNotInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE QSTR("last_name: Smith") OR emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testKqlOrNotInSubquery() {
+        runGoldenTest("""
+            FROM employees
+            | WHERE KQL("last_name: Smith") OR emp_no NOT IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+            """, STAGES);
+    }
+
     // -- IN / NOT IN subqueries referencing views --
 
     public void testInSubqueryReferencingView() {

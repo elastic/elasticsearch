@@ -264,8 +264,9 @@ public final class FetchPhase {
 
     /**
      * Creates the docs iterator that handles per-document fetching and sub-phase processing, shared between sync and
-     * streaming modes. In streaming mode per-hit source/script-field bytes are charged to the request circuit breaker and
-     * released once the hit is serialized (see {@link StreamingFetchPhaseDocsIterator#onHitSerialized()}); otherwise they are
+     * streaming modes. In streaming mode, only per-hit source/script-field bytes exceeding
+     * {@link SearchContext#memAccountingBufferSize()} are charged to the request circuit breaker;
+     * In non-streaming mode, bytes are accumulated and charged once the threshold is crossed, and
      * held until the fetch response is released.
      */
     private StreamingFetchPhaseDocsIterator createDocsIterator(
@@ -311,7 +312,7 @@ public final class FetchPhase {
         LongConsumer scriptFieldsByteChecker;
         if (streaming) {
             scriptFieldsByteChecker = bytes -> {
-                if (bytes > 0) {
+                if (bytes > context.memAccountingBufferSize()) {
                     context.circuitBreaker()
                         .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
                     streamingHeldBytes[0] += bytes;
@@ -363,7 +364,7 @@ public final class FetchPhase {
             IdLoader.Leaf leafIdLoader;
 
             IntConsumer memChecker = streaming ? bytes -> {
-                if (bytes > 0) {
+                if (bytes > context.memAccountingBufferSize()) {
                     context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
                     streamingHeldBytes[0] += bytes;
                 }

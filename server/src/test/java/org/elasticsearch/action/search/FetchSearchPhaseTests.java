@@ -900,7 +900,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testStreamingFetchAccountsAndReleasesSourceBytes() throws IOException {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
-        String body = "{ \"thefield\": \" " + randomAlphaOfLength(20_000) + "\" }";
+        String body = "{ \"thefield\": \" " + randomAlphaOfLength(1_200_000) + "\" }";
         for (int i = 0; i < 3; i++) {
             Document document = new Document();
             document.add(new StringField("id", Integer.toString(i), Field.Store.YES));

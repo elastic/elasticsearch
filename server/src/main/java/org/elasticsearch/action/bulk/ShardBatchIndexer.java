@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +60,18 @@ public final class ShardBatchIndexer {
     ShardBatchIndexer(Settings settings, Recycler<BytesRef> recycler) {
         this.batchIndexingEnabled = BATCH_INDEXING.get(settings);
         this.recycler = recycler;
+    }
+
+    /**
+     * Returns {@code true} when the three cluster-level gates for batch indexing are all satisfied:
+     * the {@code indices.batch_indexing} cluster setting is enabled, the {@code batch_indexing}
+     * feature flag is enabled, and every node in the cluster supports
+     * {@link BulkShardRequest#BULK_SHARD_BATCH}.
+     */
+    public static boolean isBatchIndexingSupported(ClusterService clusterService) {
+        return BATCH_INDEXING.get(clusterService.getSettings())
+            && BATCH_INDEXING_FEATURE_FLAG.isEnabled()
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_BATCH);
     }
 
     /**

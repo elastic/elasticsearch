@@ -42,6 +42,7 @@ public class StreamOutputToBytesTests extends ESTestCase {
         final var bufferStart = between(0, bufferPool.length - KB.toIntBytes(1));
         final var bufferLen = between(1, bufferPool.length - bufferStart);
         final var buffer = new BytesRef(bufferPool, bufferStart, bufferLen);
+        final var maxFieldLen = Math.max(2000, bufferLen * 4);
 
         final var bufferPoolCopy = ArrayUtil.copyArray(bufferPool); // kept so we can check no out-of-bounds writes
         Arrays.fill(bufferPoolCopy, bufferStart, bufferStart + bufferLen, (byte) 0xa5);
@@ -78,7 +79,7 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 final var b = randomByte();
                 return s -> s.writeByte(b);
             }, () -> {
-                final var bytes = randomByteArrayOfLength(between(1, bufferLen * 4));
+                final var bytes = randomByteArrayOfLength(between(1, maxFieldLen));
                 final var start = between(0, bytes.length - 1);
                 final var length = between(0, bytes.length - start - 1);
                 return s -> {
@@ -116,13 +117,13 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 final var value = randomLong() >> between(0, Long.SIZE);
                 return s -> s.writeZLong(value);
             }, () -> {
-                final var value = randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeString(value);
             }, () -> {
-                final var value = randomBoolean() ? null : randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomBoolean() ? null : randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeOptionalString(value);
             }, () -> {
-                final var value = randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeGenericString(value);
             });
 

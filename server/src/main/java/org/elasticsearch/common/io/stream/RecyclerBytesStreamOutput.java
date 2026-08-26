@@ -358,8 +358,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         writeVInt(charCount);
         int i = 0;
         int position = currentOffset;
-        int lastSafePosition = this.maxOffset - MAX_CHAR_BYTES;
         while (i < charCount) {
+            final int lastSafePosition = this.maxOffset - MAX_CHAR_BYTES;
             final var currentBufferPool = this.currentBufferPool;
             while (i < charCount && position <= lastSafePosition) {
                 position = putCharUtf8(currentBufferPool, str.charAt(i++), position);

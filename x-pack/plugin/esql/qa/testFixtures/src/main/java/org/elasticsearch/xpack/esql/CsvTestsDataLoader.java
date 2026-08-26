@@ -622,7 +622,7 @@ public class CsvTestsDataLoader {
         return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
-    private static boolean isLookupDataset(TestDataset dataset) throws IOException {
+    static boolean isLookupDataset(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
@@ -637,7 +637,7 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    private static boolean isTimeSeries(TestDataset dataset) throws IOException {
+    static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("time_series"));

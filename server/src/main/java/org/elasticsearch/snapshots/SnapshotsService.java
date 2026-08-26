@@ -1081,7 +1081,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             );
                             snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithSnapshotState);
                             snapshotMetrics.snapshotsDurationHistogram()
-                                .record((threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0, attributesWithSnapshotState);
+                                .record(
+                                    (threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0,
+                                    attributesWithSnapshotState
+                                );
                             snapshotMetrics.shardsUnsuccessfulHistogram().record(shardFailures.size(), attributesWithSnapshotState);
                             // Counter broken down by shard state (MISSING/FAILED), not snapshot state
                             unsuccessfulShardCountByState.forEach(

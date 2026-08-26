@@ -1,0 +1,2 @@
+    FROM all_types
+    | WHERE mv_in_range(date, "2020-01-01"::datetime, "2021-01-01"::datetime)

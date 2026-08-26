@@ -541,7 +541,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     private static final int REPRO_SMALL_CAP = 3;
 
     /**
-     * Hard regression gate for the fix: with {@code max_concurrent_open_segments = cap}, the number of
+     * Hard regression gate for the fix: with {@code external_max_concurrent_open_segments = cap}, the number of
      * concurrently-open object-store range streams never exceeds {@code cap}, no matter how many segments
      * or parser threads exist. This is an upper bound the window enforces regardless of thread scheduling,
      * so it is not timing-dependent. {@link StreamCountingStorageObject} holds each open briefly so that a
@@ -630,7 +630,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Tightest window: {@code max_concurrent_open_segments == 1}. Asserts only one segment stream is ever
+     * Tightest window: {@code external_max_concurrent_open_segments == 1}. Asserts only one segment stream is ever
      * open at a time and the read completes (no deadlock). At cap=1 segments run strictly one after another
      * — the next is submitted only in the previous worker's finally — so the single FIFO shared queue
      * happens to yield rows in file order. That ordering is a <em>consequence</em> of serial execution here,

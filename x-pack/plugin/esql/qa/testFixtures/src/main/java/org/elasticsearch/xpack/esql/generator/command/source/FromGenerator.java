@@ -103,7 +103,7 @@ public class FromGenerator implements CommandGenerator {
      * {@code commandContext}. Subqueries and mixed-view wildcards are kept mutually exclusive, because
      * nesting them triggers a planner error (https://github.com/elastic/elasticsearch/issues/149396).
      */
-    protected static void appendFromCommand(
+    protected void appendFromCommand(
         StringBuilder result,
         QuerySchema schema,
         QueryExecutor executor,
@@ -125,7 +125,7 @@ public class FromGenerator implements CommandGenerator {
                 hasSubquery = true;
             } else {
                 String idxName = availableIndices.get(randomIntBetween(0, availableIndices.size() - 1));
-                String pattern = EsqlQueryGenerator.indexPattern(idxName);
+                String pattern = indexPattern(idxName);
                 if (pattern.endsWith("*")) {
                     String prefix = pattern.substring(0, pattern.length() - 1);
                     // A wildcard hitting both a view and regular indices creates a ViewUnionAll nested
@@ -143,6 +143,19 @@ public class FromGenerator implements CommandGenerator {
             }
         }
         commandContext.put(HAS_UNION_ALL, hasSubquery || hasViewInFrom);
+    }
+
+    /**
+     * Returns the index pattern to emit for the given index name. The default delegates to
+     * {@link EsqlQueryGenerator#indexPattern}, which may return a wildcard form (e.g.
+     * {@code emp*} or even bare {@code *}).
+     *
+     * <p>Subclasses that must confine generated patterns to a namespace (e.g. a cross-index-mode
+     * test that prefixes each index set) should override this to guarantee the prefix is retained
+     * in the emitted pattern.
+     */
+    protected String indexPattern(String indexName) {
+        return EsqlQueryGenerator.indexPattern(indexName);
     }
 
     protected String randomQueryApproximationSettings() {

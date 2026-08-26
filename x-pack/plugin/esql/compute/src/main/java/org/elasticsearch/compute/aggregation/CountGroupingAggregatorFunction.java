@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -42,7 +44,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return INTERMEDIATE_STATE_DESC;
     }
 
-    CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+    public CountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.counts = driverContext.bigArrays().newLongArray(256);
@@ -288,7 +290,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return this::evaluateFinal;
     }
 
-    private void accumulateCount(int groupId, long value) {
+    public long getCount(int ordinal) {
+        return ordinal < counts.size() ? counts.get(ordinal) : 0L;
+    }
+
+    public void accumulateCount(int groupId, long value) {
         if (groupId < counts.size()) {
             counts.increment(groupId, value);
         } else {
@@ -372,8 +378,92 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return sb.toString();
     }
 
+    public void clear() {
+        counts.clear();
+    }
+
+    public PartitionedHashTable.AggSplitter newSplitter() {
+        return new CountAggSplitter();
+    }
+
+    public void combinePartition(PartitionedHashTable.PartitionedAgg source, int partition, int[] dstIds, int offset, int length) {
+        final long[] sourceCounts = ((CountPartitionedAgg) source).subs[partition];
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            accumulateCount(dstIds[i], sourceCounts[i]);
+        }
+    }
+
     @Override
     public void close() {
         counts.close();
+    }
+
+    private final class CountAggSplitter implements PartitionedHashTable.AggSplitter {
+        private long[][] subs;
+        private int[] lengths;
+
+        CountAggSplitter() {}
+
+        @Override
+        public void preAllocate(int[] partitionCounts) {
+            subs = new long[partitionCounts.length][];
+            lengths = new int[partitionCounts.length];
+            for (int p = 0; p < partitionCounts.length; p++) {
+                subs[p] = new long[partitionCounts[p]];
+            }
+        }
+
+        @Override
+        public void split(PartitionedHashTable.ScratchBuffer scratch, int idOffset, int totalPositions, short[] positions, int[] fills) {
+            long[] buffer = scratch.longs;
+            if (buffer.length < totalPositions) {
+                buffer = scratch.longs = new long[ArrayUtil.oversize(totalPositions, Long.BYTES)];
+            }
+            final int readLen = (int) Math.min(totalPositions, Math.max(0L, counts.size() - idOffset));
+            if (readLen > 0) {
+                counts.bulkGet(idOffset, buffer, 0, readLen);
+            }
+            if (readLen < totalPositions) {
+                Arrays.fill(buffer, readLen, totalPositions, 0L);
+            }
+            for (int p = 0; p < subs.length; p++) {
+                final int c = fills[p];
+                if (c == 0) continue;
+                final int base = p * scratch.splitWriteBatchSize;
+                long[] sub = subs[p];
+                int dst = lengths[p];
+                for (int i = 0; i < c; i++) {
+                    sub[dst++] = buffer[positions[base + i] & 0xFFFF];
+                }
+                lengths[p] += c;
+            }
+        }
+
+        @Override
+        public CountPartitionedAgg finish() {
+            return new CountPartitionedAgg(subs);
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    static final class CountPartitionedAgg implements PartitionedHashTable.PartitionedAgg {
+        final long[][] subs;
+
+        CountPartitionedAgg(long[][] subs) {
+            this.subs = subs;
+        }
+
+        @Override
+        public void releasePartition(int partition) {
+            subs[partition] = null;
+        }
+
+        @Override
+        public void close() {
+            Arrays.fill(subs, null);
+        }
     }
 }

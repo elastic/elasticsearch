@@ -58,4 +58,21 @@ public interface LongArray extends BigArray, Writeable {
      */
     void set(long index, byte[] buf, int offset, int len);
 
+    /**
+     * Zero-fill all elements, equivalent to {@code fill(0, size(), 0L)}.
+     */
+    default void clear() {
+        fill(0, size(), 0L);
+    }
+
+    /**
+     * Bulk copy of {@code length} elements starting at {@code fromIndex} into {@code dest} starting at {@code destOffset}.
+     * Implementations may override this for faster page-level bulk reads.
+     */
+    default void bulkGet(long fromIndex, long[] dest, int destOffset, int length) {
+        for (int i = 0; i < length; i++) {
+            dest[destOffset + i] = get(fromIndex + i);
+        }
+    }
+
 }

@@ -2281,6 +2281,7 @@ millis:date_nanos              | nanos:date_nanos                               
 ImplicitCastingMultiTypedMVFieldsEval
 required_capability: date_nanos_type
 required_capability: implicit_casting_date_and_date_nanos
+skip_columnar: Multi-typed MV field evaluation differs in columnar mode due to source vs doc-values ordering
 
 FROM date_nanos, date_nanos_union_types
 | EVAL nanos = MV_MAX(nanos)

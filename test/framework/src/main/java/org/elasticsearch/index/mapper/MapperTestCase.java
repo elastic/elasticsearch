@@ -63,6 +63,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
@@ -106,6 +107,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -194,6 +196,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testExistsQueryMinimalMapping() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    /**
+     * Most field types expose no embeddings, so they must return {@code null} for every requested vector type. Field types that can
+     * produce embeddings override this test.
+     */
+    public void testEmbeddingsFieldAndFormat() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertNull(fieldType.embeddingsFieldAndFormat(null));
+        for (VectorType vectorType : VectorType.values()) {
+            assertNull(fieldType.embeddingsFieldAndFormat(vectorType));
+        }
         assertParseMinimalWarnings();
     }
 
@@ -686,7 +702,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
                 fieldDataLookup(mapperService),
-                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics(), null)
             );
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
             IndexSearcher searcher = newSearcher(iw);
@@ -706,7 +722,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
                 throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
-            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics());
+            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics(), null);
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
                 new FieldDataContext(
@@ -1127,8 +1143,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
-                .getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics(),
+                null
+            ).getSource(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
@@ -1592,13 +1612,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
-                SourceLoader loader = mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP);
+                SourceLoader loader = mapper.mappers().newSourceLoader(null, SourceFieldMetrics.NOOP, null);
                 StoredFieldLoader storedFieldLoader = loader.requiredStoredFields().isEmpty()
                     ? StoredFieldLoader.empty()
                     : StoredFieldLoader.create(false, loader.requiredStoredFields());
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
-                    SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
+                    SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf, docIds);
                     LeafStoredFieldLoader storedLeaf = storedFieldLoader.getLoader(leaf, docIds);
                     for (int docId : docIds) {
                         storedLeaf.advanceTo(docId);
@@ -2368,6 +2388,39 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * A {@code null} with no {@code null_value} configured is silently discarded and does not consume the single-value slot,
+     * so {@code [null, value]} is treated identically to {@code [value]} — no multi-value violation. Asserts the
+     * null-token exemption in {@link FieldMapper#shouldEnforceSingleValue(org.elasticsearch.xcontent.XContentParser.Token)}
+     * across all mapper types that support {@code multi_value=false}.
+     */
+    public void testMultiValueFalseAcceptsNullThenValue() throws Exception {
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        assumeTrue("mapper must accept null values", allowsNullValues());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").nullValue().value(getSampleValueForDocument()).endArray()));
+        assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
+        assertThat("non-null value must be indexed", doc.rootDoc().getFields("field"), not(empty()));
+    }
+
+    /**
+     * Mirror of {@link #testMultiValueFalseAcceptsNullThenValue} with the order reversed: first value is non-null, second is null.
+     */
+    public void testMultiValueFalseAcceptsValueThenNull() throws Exception {
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        assumeTrue("mapper must accept null values", allowsNullValues());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(getSampleValueForDocument()).nullValue().endArray()));
+        assertThat("null discarded: no multi_value violation", doc.rootDoc().getFields("_ignored"), empty());
+        assertThat("non-null value must be indexed", doc.rootDoc().getFields("field"), not(empty()));
+    }
+
+    /**
      * Whether this mapper exposes the {@code doc_values.nullability} sub-parameter. Override and return {@code true} for mappers that
      * participate in required-field enforcement (ie. expose {@code isNullable()}).
      */
@@ -2421,6 +2474,121 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             minimalMapping(b);
             b.startObject("doc_values").field("nullability", false).endObject();
         });
+    }
+
+    /**
+     * Whether this mapper exposes the {@code doc_values.on_failure} sub-parameter. Override and return {@code true} for mappers that
+     * participate in single-value or nullability enforcement and support {@code on_failure: ignore} — i.e. those that also override
+     * {@link #supportsMultiValueParameter()} or {@link #supportsNullabilityParameter()}.
+     */
+    protected boolean supportsOnFailureParameter() {
+        return false;
+    }
+
+    private void assumeOnFailureIgnoreSupported() {
+        assumeTrue("supports doc_values on_failure parameter", supportsOnFailureParameter());
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
+    }
+
+    private XContentBuilder onFailureIgnoreMapping(String enforcedParameter) throws IOException {
+        return fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field(enforcedParameter, false).field("on_failure", "ignore").endObject();
+        });
+    }
+
+    /**
+     * With {@code multi_value: false, on_failure: ignore}, a document containing multiple values for the field is accepted instead of
+     * rejected: the first value goes to the primary doc-values column, extras are redirected to the {@code ._on_failure} sidecar (or
+     * {@code _ignored_source} for FALLBACK loaders), and the field name is recorded in {@code _ignored}.
+     */
+    public void testOnFailureIgnoreAcceptsMultipleValues() throws Exception {
+        assumeOnFailureIgnoreSupported();
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(onFailureIgnoreMapping("multi_value"));
+        Object sample = getSampleValueForDocument();
+        ParsedDocument doc = mapper.parse(source(b -> b.array("field", sample, sample)));
+        assertEquals(
+            "exactly one doc-values entry must be written for the primary column",
+            1,
+            doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count()
+        );
+        assertThat(
+            "field must be recorded in _ignored",
+            TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")),
+            contains("field")
+        );
+        assertViolatingValueCaptured(mapper, doc);
+    }
+
+    /**
+     * Negative control for {@link #testOnFailureIgnoreAcceptsMultipleValues}: a single value must not write anything to the
+     * {@code ._on_failure} sidecar, and the field must not appear in {@code _ignored}.
+     */
+    public void testOnFailureIgnoreDoesNotAffectSingleValuedDocument() throws Exception {
+        assumeOnFailureIgnoreSupported();
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(onFailureIgnoreMapping("multi_value"));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        assertThat(
+            "no _ignored entry for a single-valued document",
+            doc.rootDoc().getFields("_ignored").stream().noneMatch(f -> "field".equals(f.stringValue())),
+            equalTo(true)
+        );
+        assertThat(
+            "._on_failure column must be empty for a single-valued document",
+            doc.rootDoc().getFields(OnFailureStoredValues.name("field")),
+            empty()
+        );
+    }
+
+    /**
+     * With {@code nullability: false, on_failure: ignore}, a document that omits the required field is accepted (field recorded in
+     * {@code _ignored}) rather than rejected. Exercises the empty-document short-circuit in
+     * {@link DocumentParserContext#enforceRequiredFields()}.
+     */
+    public void testOnFailureIgnoreAcceptsMissingRequiredField() throws Exception {
+        assumeOnFailureIgnoreSupported();
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(onFailureIgnoreMapping("nullability"));
+        ParsedDocument doc = mapper.parse(source(b -> {}));
+        assertThat(
+            "field must be recorded in _ignored when nullability violation is ignored",
+            TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")),
+            contains("field")
+        );
+    }
+
+    /**
+     * With {@code nullability: false, on_failure: ignore}, a document that provides {@code null} for the required field is accepted
+     * (field recorded in {@code _ignored}) rather than rejected.
+     */
+    public void testOnFailureIgnoreAcceptsNullForRequiredField() throws Exception {
+        assumeOnFailureIgnoreSupported();
+        assumeTrue("supports doc_values nullability parameter", supportsNullabilityParameter());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(onFailureIgnoreMapping("nullability"));
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        assertThat(
+            "field must be recorded in _ignored when nullability violation is ignored",
+            TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")),
+            contains("field")
+        );
+    }
+
+    /**
+     * Asserts that a value that violated {@code multi_value: false, on_failure: ignore} was captured in the appropriate storage
+     * location. For fields with a native synthetic source, the extra value lands in the {@code ._on_failure} sidecar column; for
+     * fields with a FALLBACK synthetic source, it is captured in {@code _ignored_source} instead.
+     */
+    private void assertViolatingValueCaptured(DocumentMapper mapper, ParsedDocument doc) {
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        if (fieldMapper.onFailureColumnEnabled()) {
+            assertThat(doc.rootDoc().getFields(OnFailureStoredValues.name("field")), not(empty()));
+        } else {
+            // FALLBACK synthetic source has no composite loader; the violating value is captured in
+            // _ignored_source rather than the sidecar column.
+            assertThat(doc.rootDoc().getFields(IgnoredSourceFieldMapper.NAME), not(empty()));
+        }
     }
 
     /**

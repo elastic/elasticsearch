@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -125,6 +126,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineDynamicSettings;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapMetrics;
@@ -142,18 +144,21 @@ import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessIndexNodeRecoveryListener;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService;
+import org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationTargetService;
 import org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -503,16 +508,28 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     StatelessPrimaryRelocationAction.TYPE,
                     new TransportStatelessPrimaryRelocationAction(
                         transportService(),
-                        clusterService(),
                         actionFilters,
                         indicesService,
                         new CompositeRecoverySchedulingListener(),
+                        new StatelessPrimaryRelocationSourceService(
+                            clusterService(),
+                            transportService().getThreadPool(),
+                            indicesService,
+                            testStatelessPlugin.hollowShardsService,
+                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            mock(IndexShardCacheWarmer.class),
+                            HollowShardsMetrics.NOOP
+                        ),
+                        new StatelessPrimaryRelocationTargetService(
+                            clusterService(),
+                            transportService().getThreadPool(),
+                            indicesService,
+                            new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
+                            mock(IndexShardCacheWarmer.class),
+                            new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
+                        ),
                         peerRecoveryTargetService,
-                        new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
-                        mock(IndexShardCacheWarmer.class),
-                        testStatelessPlugin.hollowShardsService,
-                        HollowShardsMetrics.NOOP,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        new StatelessPrimaryRelocationMetricsCollectorProvider(StatelessPrimaryRelocationMetricsCollector.NOOP)
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
@@ -1005,7 +1022,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         bccHeaderReadExecutor,
                         cacheService,
                         snapshotsCommitService,
-                        StatelessRecoveryMetricsCollector.NOOP
+                        StatelessPrimaryRelocationMetricsCollector.NOOP
                     )
                 );
             }
@@ -1088,7 +1105,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         translogConfig.getBigArrays(),
                         translogConfig.getBufferSize(),
                         translogConfig.getDiskIoBufferPool(),
-                        (operation, seqNo, location) -> translogReplicator.add(translogConfig.getShardId(), operation, seqNo, location),
+                        translogReplicator.listenerFor(translogConfig.getShardId()),
                         false // translog is replicated to the object store, no need fsync that
                     );
 
@@ -1109,6 +1126,16 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         statelessCommitService.getCommitBCCResolverForShard(newConfig.getShardId()),
                         DocumentParsingProvider.EMPTY_INSTANCE,
                         new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+                        new IndexEngineDynamicSettings(
+                            new ClusterSettings(
+                                newConfig.getIndexSettings().getNodeSettings(),
+                                Sets.addToCopy(
+                                    ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                                    IndexEngine.MERGE_FORCE_REFRESH_SIZE,
+                                    IndexEngine.MERGE_BACKLOG_THROTTLE_FACTOR
+                                )
+                            )
+                        ),
                         shardId -> true,
                         statelessCommitService.getShardLocalCommitsTracker(newConfig.getShardId()).shardLocalReadersTracker()
                     );

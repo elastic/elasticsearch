@@ -678,7 +678,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                     point.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }));
                 if (ignoreMalformed()) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                    // In strict-columnar mode, malformed values land in ._on_failure (FallbackPostMapper#route routes them there).
+                    layers.add(
+                        indexSettings.getMode().isStrictColumnar()
+                            ? CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated())
+                            : CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated())
+                    );
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

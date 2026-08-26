@@ -96,10 +96,12 @@ public class TDigestFieldMapper extends FieldMapper {
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
         private final IndexVersion indexCreatedVersion;
+        private final boolean strictColumnar;
 
-        public Builder(String name, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
+        public Builder(String name, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion, boolean strictColumnar) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
+            this.strictColumnar = strictColumnar;
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -164,7 +166,12 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.getIndexSettings().getIndexVersionCreated()),
+        (n, c) -> new Builder(
+            n,
+            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
+            c.getIndexSettings().getIndexVersionCreated(),
+            c.getIndexSettings().getMode().isStrictColumnar()
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -174,6 +181,7 @@ public class TDigestFieldMapper extends FieldMapper {
     private final double compression;
     private final TimeSeriesParams.MetricType metricType;
     private final IndexVersion indexCreatedVersion;
+    private final boolean strictColumnar;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -183,6 +191,7 @@ public class TDigestFieldMapper extends FieldMapper {
         this.compression = builder.compression.getValue();
         this.metricType = builder.metric.get();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.strictColumnar = builder.strictColumnar;
     }
 
     @Override
@@ -205,7 +214,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion, strictColumnar).metric(metricType).init(this);
     }
 
     @Override
@@ -571,7 +580,10 @@ public class TDigestFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new TDigestSyntheticFieldLoader(),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
+                // In strict-columnar mode, malformed values land in ._on_failure (FallbackPostMapper#route routes them there).
+                strictColumnar
+                    ? CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion)
+                    : CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
             )
         );
     }

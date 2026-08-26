@@ -733,22 +733,26 @@ public class BooleanFieldMapper extends FieldMapper {
                     (b, value) -> b.value(value == 1)
                 )
             );
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(
+                layers,
+                fullPath(),
+                indexSettings.getIndexVersionCreated(),
+                ignoreMalformed.value(),
+                onFailureColumnEnabled(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> b.value(value == 1)));
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(
+                layers,
+                fullPath(),
+                indexSettings.getIndexVersionCreated(),
+                ignoreMalformed.value(),
+                onFailureColumnEnabled(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }

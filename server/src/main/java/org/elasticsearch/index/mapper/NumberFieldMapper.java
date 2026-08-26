@@ -2213,16 +2213,19 @@ public class NumberFieldMapper extends FieldMapper {
             String fieldSimpleName,
             boolean ignoreMalformed,
             IndexVersion indexVersion,
-            boolean writesOnFailureColumn
+            boolean onFailureEnabled,
+            boolean strictColumnar
         ) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fieldName, NumberType.this::writeValue));
-            if (ignoreMalformed) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fieldName, indexVersion));
-            }
-            if (writesOnFailureColumn) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fieldName, indexVersion));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(
+                layers,
+                fieldName,
+                indexVersion,
+                ignoreMalformed,
+                onFailureEnabled,
+                strictColumnar
+            );
             return new CompositeSyntheticFieldLoader(fieldSimpleName, fieldName, layers);
         }
 
@@ -3126,12 +3129,14 @@ public class NumberFieldMapper extends FieldMapper {
         if (offsetsFieldName != null) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
-            if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
-            if (onFailureColumnEnabled()) {
-                layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-            }
+            CompositeSyntheticFieldLoader.addFallbackLayers(
+                layers,
+                fullPath(),
+                indexSettings.getIndexVersionCreated(),
+                ignoreMalformed.value(),
+                onFailureColumnEnabled(),
+                indexSettings.getMode().isStrictColumnar()
+            );
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
             return type.syntheticFieldLoader(
@@ -3139,7 +3144,8 @@ public class NumberFieldMapper extends FieldMapper {
                 leafName(),
                 ignoreMalformed.value(),
                 indexSettings.getIndexVersionCreated(),
-                onFailureColumnEnabled()
+                onFailureColumnEnabled(),
+                indexSettings.getMode().isStrictColumnar()
             );
         }
     }

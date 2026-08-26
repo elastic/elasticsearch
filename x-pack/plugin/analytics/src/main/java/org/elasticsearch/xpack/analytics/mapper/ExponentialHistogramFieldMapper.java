@@ -156,10 +156,18 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
         private final IndexVersion indexCreatedVersion;
+        private final boolean strictColumnar;
 
-        Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexVersion indexCreatedVersion) {
+        Builder(
+            String name,
+            boolean ignoreMalformedByDefault,
+            boolean coerceByDefault,
+            IndexVersion indexCreatedVersion,
+            boolean strictColumnar
+        ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
+            this.strictColumnar = strictColumnar;
             this.ignoreMalformed = FieldMapper.Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -201,7 +209,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             n,
             IGNORE_MALFORMED_SETTING.get(c.getSettings()),
             COERCE_SETTING.get(c.getSettings()),
-            c.getIndexSettings().getIndexVersionCreated()
+            c.getIndexSettings().getIndexVersionCreated(),
+            c.getIndexSettings().getMode().isStrictColumnar()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -213,6 +222,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     private final boolean coerceByDefault;
     private final TimeSeriesParams.MetricType metricType;
     private final IndexVersion indexCreatedVersion;
+    private final boolean strictColumnar;
 
     ExponentialHistogramFieldMapper(
         String simpleName,
@@ -227,6 +237,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.metricType = builder.metric.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.strictColumnar = builder.strictColumnar;
     }
 
     @Override
@@ -245,7 +256,8 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion, strictColumnar).metric(metricType)
+            .init(this);
     }
 
     @Override
@@ -810,7 +822,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new ExponentialHistogramSyntheticFieldLoader(),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
+                // In strict-columnar mode, malformed values land in ._on_failure (FallbackPostMapper#route routes them there).
+                strictColumnar
+                    ? CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion)
+                    : CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
             )
         );
     }

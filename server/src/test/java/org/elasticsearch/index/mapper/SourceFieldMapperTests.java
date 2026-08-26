@@ -832,9 +832,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             b.field("kwd", "long_ignored_value");
         }));
         LuceneDocument rootDoc = doc.rootDoc();
-        // Fallback fields for synthetic-source reconstruction must have been pruned
+        // Fallback fields for synthetic-source reconstruction must have been pruned.
+        // In COLUMNAR mode, ignore_malformed routes to ._on_failure (not ._ignore_malformed), and COLUMNAR_STORED prunes both.
         assertNull("._ignore_malformed field should have been pruned", rootDoc.getField("num._ignore_malformed"));
         assertNull("._ignore_malformed.counts field should have been pruned", rootDoc.getField("num._ignore_malformed.counts"));
+        assertNull("._on_failure field should have been pruned", rootDoc.getField("num._on_failure"));
+        assertNull("._on_failure.counts field should have been pruned", rootDoc.getField("num._on_failure.counts"));
         assertNull("._original field should have been pruned", rootDoc.getField("kwd._original"));
         assertNull("._original.counts field should have been pruned", rootDoc.getField("kwd._original.counts"));
         // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present

@@ -1174,12 +1174,14 @@ public class IpFieldMapper extends FieldMapper {
                     }
                 }
 
-                if (ignoreMalformed) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
-                if (onFailureColumnEnabled()) {
-                    layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
-                }
+                CompositeSyntheticFieldLoader.addFallbackLayers(
+                    layers,
+                    fullPath(),
+                    indexSettings.getIndexVersionCreated(),
+                    ignoreMalformed,
+                    onFailureColumnEnabled(),
+                    indexSettings.getMode().isStrictColumnar()
+                );
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
         }

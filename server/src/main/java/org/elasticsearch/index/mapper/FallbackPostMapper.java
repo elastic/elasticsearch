@@ -28,9 +28,12 @@ public final class FallbackPostMapper {
     enum Destination {
         /** {@code _ignored_source} metadata field; used for synthetic source reconstruction. */
         IGNORED_SOURCE,
-        /** Per-field {@code ._ignore_malformed} column; used with {@code ignore_malformed: true}. */
+        /** Per-field {@code ._ignore_malformed} column; used with {@code ignore_malformed: true} outside strict-columnar modes. */
         IGNORE_MALFORMED,
-        /** Per-field {@code ._on_failure} column; used with {@code multi_value: false, on_failure: ignore}. */
+        /**
+         * Per-field {@code ._on_failure} column; used with {@code multi_value: false, on_failure: ignore}, and additionally
+         * with {@code ignore_malformed: true} in strict-columnar modes (where malformed values share the column).
+         */
         ON_FAILURE;
     }
 
@@ -39,7 +42,11 @@ public final class FallbackPostMapper {
      * The reason alone determines the {@link Destination}; see {@link #route}.
      */
     public enum Reason {
-        /** Value failed to parse with {@code ignore_malformed: true}. Routes to {@link Destination#IGNORE_MALFORMED}. */
+        /**
+         * Value failed to parse with {@code ignore_malformed: true}. Routes to {@link Destination#IGNORE_MALFORMED} outside
+         * strict-columnar modes; routes to {@link Destination#ON_FAILURE} in strict-columnar modes so malformed values share the
+         * per-field {@code ._on_failure} sidecar column with multi-value violations.
+         */
         MALFORMED,
         /** {@code multi_value: false} field received a duplicate with {@code on_failure: ignore}.
          * Routes to {@link Destination#ON_FAILURE}. */
@@ -141,10 +148,14 @@ public final class FallbackPostMapper {
         }
     }
 
-    /** Maps a {@link Reason} to its {@link Destination}. */
-    static Destination route(Reason reason) {
+    /**
+     * Maps a {@link Reason} to its {@link Destination}.
+     * In strict-columnar index modes, {@link Reason#MALFORMED} routes to {@link Destination#ON_FAILURE} so that malformed values share
+     * the per-field {@code ._on_failure} sidecar column with multi-value violations, collapsing two fallback columns into one.
+     */
+    static Destination route(Reason reason, boolean strictColumnar) {
         return switch (reason) {
-            case MALFORMED -> Destination.IGNORE_MALFORMED;
+            case MALFORMED -> strictColumnar ? Destination.ON_FAILURE : Destination.IGNORE_MALFORMED;
             case MULTI_VALUE_VIOLATION -> Destination.ON_FAILURE;
             case SYNTHETIC_FALLBACK, SOURCE_KEEP_ALL, SOURCE_KEEP_ARRAYS_IN_ARRAY, COPY_TO_DESTINATION, DYNAMIC_DISABLED, DYNAMIC_RUNTIME,
                 OBJECT_DISABLED, FIELD_LIMIT_EXCEEDED, FIELD_NAME_TOO_LONG -> Destination.IGNORED_SOURCE;
@@ -210,7 +221,7 @@ public final class FallbackPostMapper {
      */
     public static boolean capture(DocumentParserContext context, String fieldPath, Reason reason, XContentBuilder builder)
         throws IOException {
-        return switch (route(reason)) {
+        return switch (route(reason, context.indexSettings().getMode().isStrictColumnar())) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath, builder);
             case IGNORE_MALFORMED -> {
                 IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, builder);
@@ -232,7 +243,7 @@ public final class FallbackPostMapper {
      * {@link DocumentParserContext#canAddIgnoredField()} is false; {@code true} otherwise.
      */
     public static boolean capture(DocumentParserContext context, String fieldPath, Reason reason) throws IOException {
-        return switch (route(reason)) {
+        return switch (route(reason, context.indexSettings().getMode().isStrictColumnar())) {
             case IGNORED_SOURCE -> writeToIgnoredSource(context, fieldPath);
             case IGNORE_MALFORMED -> {
                 IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fieldPath, context.parser());
@@ -252,7 +263,7 @@ public final class FallbackPostMapper {
      * as the captured entity (e.g. a disabled object), not a child field.
      */
     static boolean captureParent(DocumentParserContext context, Reason reason) throws IOException {
-        if (route(reason) == Destination.IGNORED_SOURCE) {
+        if (route(reason, context.indexSettings().getMode().isStrictColumnar()) == Destination.IGNORED_SOURCE) {
             return writeParentToIgnoredSource(context);
         }
         return capture(context, context.parent().fullPath(), reason);

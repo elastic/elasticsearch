@@ -816,6 +816,40 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
     }
 
+    /**
+     * In strict-columnar mode ({@link IndexMode#COLUMNAR}), {@code ignore_malformed} values must land in the {@code ._on_failure}
+     * sidecar column (shared with multi-value violations), not in {@code ._ignore_malformed}. The field must still appear in
+     * {@code _ignored} so callers can see that parsing was skipped for the document.
+     */
+    public void testIgnoreMalformedInColumnarModeWritesToOnFailureColumn() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true)))
+            .documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectOnFailure().verify();
+        assertThat(
+            "field must be recorded in _ignored when malformed value is encountered",
+            doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue())),
+            equalTo(true)
+        );
+    }
+
+    /**
+     * In a non-columnar (plain synthetic source) index, {@code ignore_malformed} values must still land in {@code ._ignore_malformed},
+     * not {@code ._on_failure} — this is the regression guard for the non-columnar path.
+     */
+    public void testIgnoreMalformedInNonColumnarModeWritesToIgnoreMalformedColumn() throws Exception {
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "integer").field("ignore_malformed", true))
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "not-a-number")));
+
+        FieldStorageVerifier.forField("field", doc.rootDoc()).expectIgnoreMalformed().verify();
+    }
+
     public void testOnFailureIgnoreNullabilityViolationStorageUniqueness() throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         DocumentMapper mapper = createMapperService(

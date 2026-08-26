@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -226,7 +227,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
 
     @Override
     public void testEmbeddingsFieldAndFormat() throws IOException {
-        FieldAndFormat expected = new FieldAndFormat("field", SemanticFieldMapper.EMBEDDINGS_FORMAT);
+        EmbeddingsFieldAndFormat expected = EmbeddingsFieldAndFormat.fields("field", SemanticFieldMapper.EMBEDDINGS_FORMAT);
 
         // Without model_settings, the field has never seen inference results and skips type validation — every requested vector type
         // is accepted.

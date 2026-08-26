@@ -72,6 +72,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -94,7 +95,6 @@ import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
@@ -3374,11 +3374,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        public EmbeddingsFieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
             if (vectorType != null && vectorType != VectorType.DENSE_VECTOR) {
                 return null;
             }
-            return new FieldAndFormat(name(), null);
+            return EmbeddingsFieldAndFormat.docValues(name(), "array");
         }
 
         @Override

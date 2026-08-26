@@ -91,6 +91,22 @@ setup:
                 type: integer
 
   - do:
+      indices.create:
+        index: test-byte-vec-source-index
+        body:
+          settings:
+            number_of_shards: 1
+            index.mapping.exclude_source_vectors: false
+          mappings:
+            properties:
+              textvector:
+                type: dense_vector
+                dims: 16
+                element_type: bit
+              id:
+                type: integer
+
+  - do:
       headers:
         Content-Type: application/json
       bulk:
@@ -190,11 +206,29 @@ setup:
           {"index":{}}
           {"id": 34, "textbody": "more first text to add additional results text", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test1_more", "rankfield": 8}
 
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-byte-vec-source-index
+        refresh: true
+        body: |
+          {"index":{"_id":"1"}}
+          {"id": 1, "textvector": "0BB8"}
+          {"index":{"_id":"2"}}
+          {"id": 2, "textvector": "94A2"}
+          {"index":{"_id":"3"}}
+          {"id": 3, "textvector": "0560"}
+          {"index":{"_id":"4"}}
+          {"id": 4, "textvector": "2112"}
+          {"index":{"_id":"5"}}
+          {"id": 5, "textvector": "5051"}
+
 ---
 teardown:
   - do:
       indices.delete:
-        index: [ test-result-diversification-index, test-result-diversification-index-other, test-result-byte-diversification-index, any-shards-test-result-diversification-index ]
+        index: [ test-result-diversification-index, test-result-diversification-index-other, test-result-byte-diversification-index, any-shards-test-result-diversification-index, test-byte-vec-source-index ]
         ignore: 404
 
   - do:
@@ -814,41 +848,7 @@ teardown:
 "Test MMR diversification with hex vectors stored in source":
   - requires:
       cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
-      reason: "Diversify retriever decodes hex/base64 vectors fetched from _source"
-
-  - do:
-      indices.create:
-        index: test-byte-vec-source-index
-        body:
-          settings:
-            number_of_shards: 1
-            index.mapping.exclude_source_vectors: false
-          mappings:
-            properties:
-              textvector:
-                type: dense_vector
-                dims: 16
-                element_type: bit
-              id:
-                type: integer
-
-  - do:
-      headers:
-        Content-Type: application/json
-      bulk:
-        index: test-byte-vec-source-index
-        refresh: true
-        body: |
-          {"index":{}}
-          {"id": 1, "textvector": "0BB8"}
-          {"index":{}}
-          {"id": 2, "textvector": "94A2"}
-          {"index":{}}
-          {"id": 3, "textvector": "0560"}
-          {"index":{}}
-          {"id": 4, "textvector": "2112"}
-          {"index":{}}
-          {"id": 5, "textvector": "5051"}
+      reason: "Diversify retriever loads dense_vector embeddings from doc values"
 
   - do:
       search:
@@ -868,7 +868,44 @@ teardown:
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 3 }
 
+---
+"Test MMR diversification with base64 vectors stored in source":
+  - requires:
+      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      reason: "Diversify retriever loads dense_vector embeddings from doc values"
+
   - do:
-      indices.delete:
+      headers:
+        Content-Type: application/json
+      bulk:
         index: test-byte-vec-source-index
-        ignore: 404
+        refresh: true
+        body: |
+          {"index":{"_id":"1"}}
+          {"id": 1, "textvector": "C7g="}
+          {"index":{"_id":"2"}}
+          {"id": 2, "textvector": "lKI="}
+          {"index":{"_id":"3"}}
+          {"id": 3, "textvector": "BWA="}
+          {"index":{"_id":"4"}}
+          {"id": 4, "textvector": "IRI="}
+          {"index":{"_id":"5"}}
+          {"id": 5, "textvector": "UFE="}
+
+  - do:
+      search:
+        index: test-byte-vec-source-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              size: 3
+              lambda: 0.7
+              retriever:
+                standard:
+                  query:
+                    match_all: {}
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 3 }

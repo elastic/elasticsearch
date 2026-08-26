@@ -31,6 +31,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -45,7 +46,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.inference.WeightedTokensUtils;
-import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -250,11 +250,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        public EmbeddingsFieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
             if (vectorType != null && vectorType != VectorType.SPARSE_VECTOR) {
                 return null;
             }
-            return new FieldAndFormat(name(), null);
+            return EmbeddingsFieldAndFormat.fields(name(), null);
         }
 
         @Override

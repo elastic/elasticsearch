@@ -3277,46 +3277,63 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     /**
      * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
-     * {@link FetchFieldsContext}, and silently skips unmapped fields and fields whose vector type does not
-     * match the requested one.
+     * {@link FetchFieldsContext} or {@link org.elasticsearch.search.fetch.subphase.FetchDocValuesContext},
+     * and silently skips unmapped fields and fields whose vector type does not match the requested one.
      */
     public void testFetchEmbeddingsFields() throws IOException {
         createEmbeddingsTestIndex("emb_test");
 
         // No embeddings fields set — fetchFieldsContext should remain null.
         assertThat(resolveFetchFields("emb_test", source -> {}), nullValue());
+        assertThat(resolveDocValueFields("emb_test", source -> {}), nullValue());
 
-        // dense_vector with no vector type → resolved to FieldAndFormat(dense, null).
-        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), contains(new FieldAndFormat("dense", null)));
-
-        // dense_vector with explicit DENSE_VECTOR type → same result.
+        // dense_vector → docvalue_fields with format array.
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), nullValue());
         assertThat(
-            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
-            contains(new FieldAndFormat("dense", null))
+            resolveDocValueFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)),
+            contains(new FieldAndFormat("dense", "array"))
         );
 
-        // sparse_vector with explicit SPARSE_VECTOR type → resolved.
+        // dense_vector with explicit DENSE_VECTOR type → same result.
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)), nullValue());
+        assertThat(
+            resolveDocValueFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", "array"))
+        );
+
+        // sparse_vector with explicit SPARSE_VECTOR type → resolved via the fields API.
         assertThat(
             resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
             contains(new FieldAndFormat("sparse", null))
         );
+        assertThat(resolveDocValueFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)), nullValue());
 
         // dense_vector field requested as SPARSE_VECTOR → type mismatch, skipped, no context.
         assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)), nullValue());
+        assertThat(resolveDocValueFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)), nullValue());
 
         // keyword field produces no embeddings → skipped, no context.
         assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("keyword", null)), nullValue());
+        assertThat(resolveDocValueFields("emb_test", s -> s.fetchEmbeddingsField("keyword", null)), nullValue());
 
         // Unmapped field → skipped, no context.
         assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
+        assertThat(resolveDocValueFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
 
-        // Mix: unmapped skipped, dense resolved → only dense in result.
+        // Mix: unmapped skipped, dense resolved → only dense in doc values.
         assertThat(
             resolveFetchFields(
                 "emb_test",
                 s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
             ),
-            contains(new FieldAndFormat("dense", null))
+            nullValue()
+        );
+        assertThat(
+            resolveDocValueFields(
+                "emb_test",
+                s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
+            ),
+            contains(new FieldAndFormat("dense", "array"))
         );
     }
 
@@ -3328,16 +3345,24 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     public void testFetchEmbeddingsFieldsWithFetchFields() throws IOException {
         createEmbeddingsTestIndex("emb_test");
 
-        // embeddings field resolved → placed before user fields in the merged list.
+        // dense embeddings use doc values; user fields stay on the fields API.
         assertThat(
             resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
-            contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
+            contains(new FieldAndFormat("keyword", null))
+        );
+        assertThat(
+            resolveDocValueFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", "array"))
         );
 
         // embeddings field skipped (type mismatch) → pre-existing fetchFieldsContext is left intact.
         assertThat(
             resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
             contains(new FieldAndFormat("keyword", null))
+        );
+        assertThat(
+            resolveDocValueFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR)),
+            nullValue()
         );
     }
 
@@ -3407,6 +3432,35 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         ) {
             FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
             return fetchFieldsContext == null ? null : fetchFieldsContext.fields();
+        }
+    }
+
+    private List<FieldAndFormat> resolveDocValueFields(String indexName, Consumer<SearchSourceBuilder> sourceConsumer) throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        searchRequest.source(source);
+        sourceConsumer.accept(source);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        try (
+            ReaderContext reader = createReaderContext(indexService, indexShard);
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
+        ) {
+            return context.docValuesContext() == null ? null : context.docValuesContext().fields();
         }
     }
 

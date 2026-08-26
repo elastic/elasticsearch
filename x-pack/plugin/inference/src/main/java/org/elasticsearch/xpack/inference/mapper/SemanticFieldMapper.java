@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -1097,7 +1098,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         @Override
-        public FieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
+        public EmbeddingsFieldAndFormat embeddingsFieldAndFormat(@Nullable VectorType vectorType) {
             // The vector type this field produces is determined by the inference endpoint's task type. When there are no model settings
             // the field has no indexed values and has never seen inference results from the endpoint; the fetcher will short-circuit at
             // fetch time and return empty.
@@ -1118,7 +1119,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 }
             }
 
-            return new FieldAndFormat(name(), EMBEDDINGS_FORMAT);
+            return EmbeddingsFieldAndFormat.fields(name(), EMBEDDINGS_FORMAT);
         }
 
         @Override

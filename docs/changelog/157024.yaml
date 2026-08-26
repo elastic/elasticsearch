@@ -2,5 +2,5 @@ area: Vector search
 issues:
  - 156942
 pr: 157024
-summary: Decode hex and base64 `dense_vector` values from `_source` in the diversify retriever
+summary: Load `dense_vector` embeddings from doc values for MMR diversification when vectors are stored in `_source`
 type: bug

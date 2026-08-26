@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.EmbeddingsFieldAndFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.VectorType;
 import org.elasticsearch.inference.WeightedToken;
-import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.ESTestCase;
@@ -141,8 +141,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     public void testEmbeddingsFieldAndFormat() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         MappedFieldType fieldType = mapperService.fieldType("field");
-        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(null));
-        assertEquals(new FieldAndFormat("field", null), fieldType.embeddingsFieldAndFormat(VectorType.SPARSE_VECTOR));
+        assertEquals(EmbeddingsFieldAndFormat.fields("field", null), fieldType.embeddingsFieldAndFormat(null));
+        assertEquals(EmbeddingsFieldAndFormat.fields("field", null), fieldType.embeddingsFieldAndFormat(VectorType.SPARSE_VECTOR));
         assertNull(fieldType.embeddingsFieldAndFormat(VectorType.DENSE_VECTOR));
         assertParseMinimalWarnings();
     }

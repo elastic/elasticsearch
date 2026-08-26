@@ -7,12 +7,17 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,17 +27,27 @@ import java.util.Map;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
+public class DiskBBQVectorSearchIT extends AbstractXpackRollingUpgradeTestCase {
 
-    private static final String BBQ_DISK_SUPPORT_FEATURE = "mapper.bbq_disk_support";
-    private static final String ES940_DISK_BBQ_FEATURE = "mapper.es940_disk_bbq";
     private static final String DISK_BBQ_INDEX_NAME = "diskbbq_vectors_index";
     private static final String DISK_BBQ_BITS_INDEX_PREFIX = "diskbbq_vectors_bits_index_";
     private static final int[] SUPPORTED_BITS = new int[] { 1, 2, 4, 7 };
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = buildCluster();
+
+    public DiskBBQVectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
     public void testSingleBitDiskBBQVectorSearch() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            assumeTrue("DiskBBQ vector format is not supported on this version", clusterSupportsFeature(BBQ_DISK_SUPPORT_FEATURE));
+        if (isOldCluster()) {
+            assumeTrue("DiskBBQ vector format is not supported on this version", oldClusterHasFeature(MapperFeatures.BBQ_DISK_SUPPORT));
             String mapping = """
                 {
                   "properties": {
@@ -60,8 +75,8 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     }
 
     public void testDiskBBQVectorSearchWithExplicitBits() throws Exception {
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            assumeTrue("DiskBBQ bits are not supported on this version", clusterSupportsFeature(ES940_DISK_BBQ_FEATURE));
+        if (isOldCluster()) {
+            assumeTrue("DiskBBQ bits are not supported on this version", oldClusterHasFeature(MapperFeatures.ES940_DISK_BBQ));
             for (int bits : SUPPORTED_BITS) {
                 String mapping = String.format(Locale.ROOT, """
                     {
@@ -172,10 +187,6 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
         return responseAsMap(response);
     }
 
-    private boolean clusterSupportsFeature(String feature) throws IOException {
-        return collectNodeInfos(adminClient()).stream().allMatch(node -> node.supportsFeature(feature));
-    }
-
     private boolean indexExistsOnCluster(String indexName) throws IOException {
         Request request = new Request("HEAD", "/" + indexName);
         try {
@@ -211,5 +222,4 @@ public class DiskBBQVectorSearchIT extends AbstractUpgradeTestCase {
     private static <T> T extractValue(Map<String, Object> map, String path) {
         return (T) XContentMapValues.extractValue(path, map);
     }
-
 }

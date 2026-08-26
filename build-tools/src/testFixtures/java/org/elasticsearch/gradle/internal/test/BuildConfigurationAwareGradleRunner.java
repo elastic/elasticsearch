@@ -145,7 +145,7 @@ public class BuildConfigurationAwareGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner forwardStdError(Writer writer) {
-        delegate.forwardStdOutput(writer);
+        delegate.forwardStdError(writer);
         return this;
     }
 

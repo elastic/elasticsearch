@@ -11,18 +11,27 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -337,6 +346,325 @@ public class RestoreServiceTests extends ESTestCase {
         // Test multiple matches accumulating
         result = RestoreService.safeRenameIndex("a-b-c", "-", "_");
         assertEquals("a_b_c", result);
+    }
+
+    // ---- isRestoringShardFromSnapshot predicate tests --------------------------------------------------
+
+    /**
+     * Bundles the objects needed to exercise {@link RestoreService#isRestoringShardFromSnapshot} with all six correlation
+     * conditions satisfied. Individual tests override specific parts to verify each failing condition.
+     */
+    private record RestoreTestState(ShardRouting primary, RestoreInProgress restoreInProgress, Snapshot snapshot) {}
+
+    /**
+     * Builds a {@link RestoreTestState} in which every predicate condition holds: the primary is
+     * {@code INITIALIZING} with a {@link SnapshotRecoverySource}, a matching {@link RestoreInProgress}
+     * entry exists, the source snapshot matches, the exact {@link ShardId} is present, and the shard's
+     * restore status is {@link RestoreInProgress.State#STARTED} (not completed).
+     */
+    private static RestoreTestState buildRestoreTestState() {
+        String restoreUuid = randomUUID();
+        String repoName = randomIdentifier();
+        String indexName = randomIdentifier();
+        String indexUuid = randomUUID();
+        String nodeId = randomUUID();
+
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), repoName, new SnapshotId(randomIdentifier(), randomUUID()));
+        ShardId shardId = new ShardId(indexName, indexUuid, 0);
+
+        ShardRouting primary = TestShardRouting.shardRoutingBuilder(shardId, nodeId, true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(
+                new SnapshotRecoverySource(restoreUuid, snapshot, IndexVersion.current(), new IndexId(indexName, indexUuid))
+            )
+            .build();
+
+        RestoreInProgress restoreInProgress = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                restoreUuid,
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(indexName),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId))
+            )
+        ).build();
+
+        return new RestoreTestState(primary, restoreInProgress, snapshot);
+    }
+
+    /**
+     * Baseline: all six conditions met, restore status {@code STARTED} — predicate must return {@code true}.
+     */
+    public void testIsRestoringShard_allConditionsMet_returnsTrue() {
+        var s = buildRestoreTestState();
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), s.primary()));
+    }
+
+    /**
+     * Condition 1: recovery source is not a {@link SnapshotRecoverySource} — must return {@code false}.
+     * Covers peer recovery, empty-store, and existing-store allocations.
+     */
+    public void testIsRestoringShard_nonSnapshotRecoverySource_returnsFalse() {
+        var s = buildRestoreTestState();
+        ShardRouting peerRecovery = TestShardRouting.shardRoutingBuilder(
+            s.primary().shardId(),
+            s.primary().currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), peerRecovery));
+    }
+
+    /**
+     * Condition 2: {@code restoreUUID} is {@link SnapshotRecoverySource#NO_API_RESTORE_UUID} — must return {@code false}.
+     * This sentinel marks searchable-snapshot allocations, which must not be treated as API-level restores.
+     */
+    public void testIsRestoringShard_noApiRestoreUuid_returnsFalse() {
+        var s = buildRestoreTestState();
+        ShardId shardId = s.primary().shardId();
+        ShardRouting noApiRouting = TestShardRouting.shardRoutingBuilder(
+            shardId,
+            s.primary().currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        )
+            .withRecoverySource(
+                new SnapshotRecoverySource(
+                    SnapshotRecoverySource.NO_API_RESTORE_UUID,
+                    s.snapshot(),
+                    IndexVersion.current(),
+                    new IndexId(shardId.getIndexName(), randomUUID())
+                )
+            )
+            .build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(s.restoreInProgress(), noApiRouting));
+    }
+
+    /**
+     * Condition 3: UUID present in the routing's recovery source has no matching entry in {@link RestoreInProgress}
+     * (stale routing) — must return {@code false}.
+     */
+    public void testIsRestoringShard_staleUuid_returnsFalse() {
+        var s = buildRestoreTestState();
+        // EMPTY has no entries at all, so the UUID lookup returns null
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(RestoreInProgress.EMPTY, s.primary()));
+    }
+
+    /**
+     * Condition 3 (variant): {@link RestoreInProgress} has an active entry, but it is keyed under a different
+     * UUID than the one in the shard's routing recovery source — UUID lookup still returns {@code null}, so
+     * the predicate must return {@code false}.
+     */
+    public void testIsRestoringShard_staleUuidWithOtherEntry_returnsFalse() {
+        var s = buildRestoreTestState();
+        String otherUuid = randomUUID();
+        ShardId otherShardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        Snapshot otherSnapshot = new Snapshot(
+            randomProjectIdOrDefault(),
+            randomIdentifier(),
+            new SnapshotId(randomIdentifier(), randomUUID())
+        );
+
+        RestoreInProgress unrelatedRestoreInProgress = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                otherUuid,
+                otherSnapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(otherShardId.getIndexName()),
+                Map.of(otherShardId, new RestoreInProgress.ShardRestoreStatus(randomUUID()))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(unrelatedRestoreInProgress, s.primary()));
+    }
+
+    /**
+     * Condition 4: an entry exists for the UUID but its {@link Snapshot} differs from the routing's recovery source
+     * (mismatched correlation state). With assertions enabled this throws {@link AssertionError}; in production
+     * (assertions disabled) it logs ERROR and returns {@code false}.
+     */
+    public void testIsRestoringShard_snapshotMismatch() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        Snapshot differentSnapshot = new Snapshot(
+            randomProjectIdOrDefault(),
+            randomIdentifier(),
+            new SnapshotId(randomIdentifier(), randomUUID())
+        );
+        RestoreInProgress mismatchedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                differentSnapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId()))
+            )
+        ).build();
+
+        if (Assertions.ENABLED) {
+            assertThrows(AssertionError.class, () -> RestoreService.isRestoringShardFromSnapshot(mismatchedRestore, s.primary()));
+        } else {
+            assertFalse(RestoreService.isRestoringShardFromSnapshot(mismatchedRestore, s.primary()));
+        }
+    }
+
+    /**
+     * Condition 5: entry has the right UUID and snapshot but does not contain this exact {@link ShardId}
+     * (entry covers a subset of shards) — must return {@code false}.
+     */
+    public void testIsRestoringShard_shardIdAbsent_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        ShardId otherShardId = new ShardId(shardId.getIndexName(), shardId.getIndex().getUUID(), shardId.id() + 1);
+        RestoreInProgress noShardRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(otherShardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId()))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(noShardRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6: shard restore status is {@link RestoreInProgress.State#SUCCESS} (completed) — must return {@code false}.
+     */
+    public void testIsRestoringShard_restoreStatusSuccess_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        RestoreInProgress completedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(completedRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6 variant: shard restore status is {@link RestoreInProgress.State#FAILURE} — must return {@code false}.
+     * This case is real: {@link RestoreService} seeds {@code ignoreShards} entries with {@code State.FAILURE}
+     * from the outset, so a live entry can carry already-completed shard statuses.
+     */
+    public void testIsRestoringShard_restoreStatusFailure_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        RestoreInProgress failedRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.FAILURE,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.FAILURE))
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(failedRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6 variant: the restore's overall state is still {@link RestoreInProgress.State#STARTED} (other shards remain
+     * in progress), but the specific shard under evaluation has already reached {@link RestoreInProgress.State#FAILURE}.
+     * The predicate must return {@code false} based on the individual shard status, bypassing the early-exit on entry state.
+     */
+    public void testIsRestoringShard_shardStatusFailureRestoreStarted_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+        ShardId otherShardId = new ShardId(shardId.getIndexName(), shardId.getIndex().getUUID(), shardId.id() + 1);
+
+        RestoreInProgress partiallyCompleteRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(
+                    shardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.FAILURE),
+                    otherShardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.STARTED)
+                )
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(partiallyCompleteRestore, s.primary()));
+    }
+
+    /**
+     * Condition 6 variant: the entry's overall state is still {@link RestoreInProgress.State#STARTED} (other shards remain
+     * in progress), but the specific shard under evaluation has already reached {@link RestoreInProgress.State#SUCCESS}.
+     * The predicate must return {@code false} based on the individual shard status.
+     */
+    public void testIsRestoringShard_shardStatusSuccessRestoreStarted_returnsFalse() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+        ShardId otherShardId = new ShardId(shardId.getIndexName(), shardId.getIndex().getUUID(), shardId.id() + 1);
+
+        RestoreInProgress partiallyCompleteRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(
+                    shardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.SUCCESS),
+                    otherShardId,
+                    new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.STARTED)
+                )
+            )
+        ).build();
+
+        assertFalse(RestoreService.isRestoringShardFromSnapshot(partiallyCompleteRestore, s.primary()));
+    }
+
+    /**
+     * All conditions met with restore status {@link RestoreInProgress.State#INIT} — shard is initialising
+     * before data transfer begins — predicate must return {@code true}.
+     */
+    public void testIsRestoringShard_shardStatusInit_returnsTrue() {
+        var s = buildRestoreTestState();
+        SnapshotRecoverySource source = (SnapshotRecoverySource) s.primary().recoverySource();
+        ShardId shardId = s.primary().shardId();
+
+        RestoreInProgress initRestore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                source.restoreUUID(),
+                s.snapshot(),
+                RestoreInProgress.State.INIT,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(s.primary().currentNodeId(), RestoreInProgress.State.INIT))
+            )
+        ).build();
+
+        assertTrue(RestoreService.isRestoringShardFromSnapshot(initRestore, s.primary()));
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

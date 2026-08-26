@@ -72,6 +72,7 @@ toc:
           - file: query-dsl/query-dsl-rule-query.md
       - file: query-dsl/term-level-queries.md
         children:
+          - file: query-dsl/query-dsl-bitmap-terms-query.md
           - file: query-dsl/query-dsl-exists-query.md
           - file: query-dsl/query-dsl-fuzzy-query.md
           - file: query-dsl/query-dsl-ids-query.md
@@ -355,6 +356,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_degrees.md
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
+                  - file: esql/functions-operators/type-conversion-functions/to_double_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
                   - file: esql/functions-operators/type-conversion-functions/to_gauge.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
@@ -383,10 +385,12 @@ toc:
                   - file: esql/functions-operators/mv-functions/mv_dedupe.md
                   - file: esql/functions-operators/mv-functions/mv_difference.md
                   - file: esql/functions-operators/mv-functions/mv_first.md
+                  - file: esql/functions-operators/mv-functions/mv_greater.md
                   - file: esql/functions-operators/mv-functions/mv_in_range.md
                   - file: esql/functions-operators/mv-functions/mv_intersection.md
                   - file: esql/functions-operators/mv-functions/mv_intersects.md
                   - file: esql/functions-operators/mv-functions/mv_last.md
+                  - file: esql/functions-operators/mv-functions/mv_less.md
                   - file: esql/functions-operators/mv-functions/mv_like.md
                   - file: esql/functions-operators/mv-functions/mv_max.md
                   - file: esql/functions-operators/mv-functions/mv_median.md
@@ -436,6 +440,7 @@ toc:
         children:
           - file: esql/esql-implicit-casting.md
           - file: esql/esql-time-spans.md
+          - file: esql/esql-flattened-fields.md
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-null-values.md
           - file: esql/esql-multivalued-fields.md

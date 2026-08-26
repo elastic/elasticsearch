@@ -40,10 +40,15 @@ case "$DRA_WORKFLOW" in
   *) echo "unsupported DRA_WORKFLOW='$DRA_WORKFLOW'" >&2; exit 2 ;;
 esac
 
-# DRA build id convention: `<full-version>-<commit-short>`. Overridable so we
-# can align with whatever RM reports if it ever diverges.
+# DRA build id convention across all pipelines (beats, ml-cpp, elasticsearch):
+# `<version>-<commit-short>` — no `-SNAPSHOT` suffix in the build-id itself,
+# even for snapshot workflows. E.g.
+# artifacts-snapshot.elastic.co/elasticsearch/9.6.0-55eee08c/maven/...
+# The `-SNAPSHOT` (or version qualifier) still lives inside the maven tree at
+# the artifact version directory (`.../9.6.0-SNAPSHOT/foo-9.6.0-SNAPSHOT.jar`).
+# Overridable so we can align with whatever RM reports if it ever diverges.
 COMMIT_SHORT="${BUILDKITE_COMMIT:0:8}"
-BUILD_ID="${DRA_BUILD_ID:-${ES_VERSION}${VERSION_SUFFIX}-${COMMIT_SHORT}}"
+BUILD_ID="${DRA_BUILD_ID:-${ES_VERSION}-${COMMIT_SHORT}}"
 
 ZIP="${MAVEN_AGGREGATION_ZIP:-build/distributions/elasticsearch-dra-maven-aggregation-${ES_VERSION}${VERSION_SUFFIX}.zip}"
 if [[ ! -f "$ZIP" ]]; then

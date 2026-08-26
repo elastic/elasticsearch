@@ -125,16 +125,24 @@ public class ShardHeapEstimator {
         if (fixedShardOverhead.getBytes() > 0) {
             return fixedShardOverhead.getBytes();
         }
-        long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.getNumSegments() * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
-            .getBytes() + metrics.getTotalFields() * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.getLiveDocsBytes() + metrics
-                .getPointsInMemoryBytes();
-        long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
-
-        return Math.max(adaptiveShardMemoryEstimationMinThreshold, estimateBytes + extraBytes);
+        long estimateBytes = estimateShardOverheadExcludingPostings(metrics, adaptiveExtraOverheadRatio);
+        return Math.max(adaptiveShardMemoryEstimationMinThreshold, estimateBytes);
     }
 
     private boolean isSelfReportedShardMemoryOverheadAvailable(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         return selfReportedShardMemoryOverheadEnabled
             && shardMemoryMetrics.getShardMemoryOverheadBytes() != UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+    }
+
+    /// This is package-private so it can be re-used in tests
+    static long estimateShardOverheadExcludingPostings(
+        StatelessMemoryMetricsService.ShardMemoryMetrics metrics,
+        double adaptiveExtraOverheadRatio
+    ) {
+        long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.getNumSegments() * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD
+            .getBytes() + metrics.getTotalFields() * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.getLiveDocsBytes() + metrics
+                .getPointsInMemoryBytes();
+        long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
+        return estimateBytes + extraBytes;
     }
 }

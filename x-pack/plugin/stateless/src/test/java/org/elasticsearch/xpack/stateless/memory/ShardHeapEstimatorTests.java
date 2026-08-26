@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
-import static org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator.ADAPTIVE_SEGMENT_MEMORY_OVERHEAD;
 import static org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.hamcrest.Matchers.equalTo;
@@ -372,14 +370,27 @@ public class ShardHeapEstimatorTests extends ESTestCase {
     }
 
     private static long getAdaptiveEstimateExcludingPostings(
-        long numSegments,
-        long totalFields,
+        int numSegments,
+        int totalFields,
         long liveDocsBytes,
         long pointsBytes,
         double adaptiveExtraOverheadRatio
     ) {
-        long unadjustedEstimate = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
-            + totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + liveDocsBytes + pointsBytes;
-        return (long) (unadjustedEstimate + (unadjustedEstimate * adaptiveExtraOverheadRatio));
+        return ShardHeapEstimator.estimateShardOverheadExcludingPostings(
+            new StatelessMemoryMetricsService.ShardMemoryMetrics(
+                0L,
+                numSegments,
+                totalFields,
+                0L,
+                liveDocsBytes,
+                pointsBytes,
+                UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+                randomNonNegativeLong(),
+                randomFrom(MetricQuality.values()),
+                randomIdentifier(),
+                randomLong()
+            ),
+            adaptiveExtraOverheadRatio
+        );
     }
 }

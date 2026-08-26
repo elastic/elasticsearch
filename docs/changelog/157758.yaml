@@ -1,0 +1,8 @@
+area: Task Management
+issues:
+ - 152291
+ - 156929
+ - 152925
+pr: 157758
+summary: Fix bulk cancellation use-after-free
+type: bug

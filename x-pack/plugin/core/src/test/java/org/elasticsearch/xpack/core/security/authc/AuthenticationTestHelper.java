@@ -454,6 +454,24 @@ public class AuthenticationTestHelper {
             return this;
         }
 
+        /**
+         * Unlike {@link #serviceAccount()}, this includes named roles and
+         * {@link ServiceAccountSettings#USER_MANAGED_SERVICE_ACCOUNT_FIELD}.
+         * Built-in accounts must have neither.
+         */
+        public AuthenticationTestBuilder userManagedServiceAccount(String principal, String... roles) {
+            return serviceAccount(
+                new User(
+                    principal,
+                    roles,
+                    "Service account - " + principal,
+                    null,
+                    Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true),
+                    true
+                )
+            );
+        }
+
         public AuthenticationTestBuilder apiKey() {
             return apiKey(ESTestCase.randomAlphaOfLength(20));
         }

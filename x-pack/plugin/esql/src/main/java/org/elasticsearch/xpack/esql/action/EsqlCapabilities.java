@@ -3380,9 +3380,9 @@ public class EsqlCapabilities {
 
         /**
          * Support for {@code STATS} under {@code unmapped_fields="LOAD_ALL"}.
-         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL} is available.
+         * Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
          */
-        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL.isEnabled()),
+        OPTIONAL_FIELDS_LOAD_ALL_STATS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

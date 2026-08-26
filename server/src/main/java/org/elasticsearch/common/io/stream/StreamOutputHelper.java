@@ -51,6 +51,11 @@ public enum StreamOutputHelper {
     }
 
     /**
+     * Maximum number of bytes in a UTF-8 character.
+     */
+    static final int MAX_CHAR_BYTES = 3;
+
+    /**
      * Write string prefixed by some number of bytes (possibly zero) from the beginning of the given {@code buffer}. The given
      * {@code buffer} will also be used when encoding the given string. This is almost certainly more efficient than calling
      * {@link StreamOutput#writeByte} repeatedly, but less efficient than writing the bytes directly into the buffer underneath the
@@ -69,20 +74,11 @@ public enum StreamOutputHelper {
         int total = 0;
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
-            if (c <= 0x007F) {
-                buffer[offset++] = ((byte) c);
-            } else if (c > 0x07FF) {
-                buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-                buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
-                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            } else {
-                buffer[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-                buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            }
+            offset = putCharUtf8(buffer, c, offset);
             // make sure any possible char can fit into the buffer in any possible iteration
             // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
             // left before we start another iteration
-            if (offset > buffer.length - 3) {
+            if (offset > buffer.length - MAX_CHAR_BYTES) {
                 outputStream.write(buffer, 0, offset);
                 total += offset;
                 offset = 0;
@@ -90,6 +86,40 @@ public enum StreamOutputHelper {
         }
         outputStream.write(buffer, 0, offset);
         return total + offset;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given character, starting at the given position in the buffer, and return the updated position.
+     * Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
+     */
+    static int putCharUtf8(byte[] buffer, int c, int position) {
+        if (c <= 0x7F) {
+            buffer[position++] = ((byte) c);
+        } else if (c > 0x07FF) {
+            buffer[position++] = ((byte) (0xE0 | c >> 12 & 0x0F));
+            buffer[position++] = ((byte) (0x80 | c >> 6 & 0x3F));
+            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            buffer[position++] = ((byte) (0xC0 | c >> 6 & 0x1F));
+            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
+        }
+        return position;
+    }
+
+    /**
+     * Write the UTF-8 encoding of the given character to the given {@link StreamOutput}.
+     */
+    static void writeCharUtf8(StreamOutput out, int c) throws IOException {
+        if (c <= 0x7F) {
+            out.writeByte((byte) c);
+        } else if (c > 0x07FF) {
+            out.writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+            out.writeByte((byte) (0x80 | c >> 6 & 0x3F));
+            out.writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            out.writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+            out.writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        }
     }
 
     /**

@@ -51,7 +51,8 @@ public class StreamOutputToBytesTests extends ESTestCase {
         final var isFullBufferWrite = equalTo(bufferLen);
         final var isExpectedWriteSize = new AtomicReference<>(isFullBufferWrite);
 
-        final var targetSize = between(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2);
+        final var maxFieldLen = PageCacheRecycler.PAGE_SIZE_IN_BYTES * 3;
+        final var targetSize = between(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES * 4);
 
         try (
             var countingStream = new CountingStreamOutput();
@@ -80,7 +81,7 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 final var b = randomByte();
                 return s -> s.writeByte(b);
             }, () -> {
-                final var bytes = randomByteArrayOfLength(between(1, bufferLen * 4));
+                final var bytes = randomByteArrayOfLength(between(1, maxFieldLen));
                 final var start = between(0, bytes.length - 1);
                 final var length = between(0, bytes.length - start - 1);
                 return s -> {
@@ -118,16 +119,16 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 final var value = randomLong() >> between(0, Long.SIZE);
                 return s -> s.writeZLong(value);
             }, () -> {
-                final var value = randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeString(value);
             }, () -> {
-                final var value = randomBoolean() ? null : randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomBoolean() ? null : randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeOptionalString(value);
             }, () -> {
-                final var value = randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomUnicodeOfLengthBetween(0, maxFieldLen);
                 return s -> s.writeGenericString(value);
             }, () -> {
-                final var value = randomUnicodeOfLengthBetween(0, 2000);
+                final var value = randomUnicodeOfLengthBetween(0, maxFieldLen);
                 final var byteLength = UnicodeUtil.calcUTF16toUTF8Length(value, 0, value.length());
                 final var text = new Text(value);
                 return s -> {

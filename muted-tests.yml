@@ -541,9 +541,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationBucketIncludeEmptyBucketsIT
   method: test {csv-spec:bucket_include_empty_buckets.Large number of buckets doesn't OOM - stats}
   issue: https://github.com/elastic/elasticsearch/issues/155921
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/156004
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testRelocatingTaskIsNotCancelledOnShutdownTimeout
   issue: https://github.com/elastic/elasticsearch/issues/155593

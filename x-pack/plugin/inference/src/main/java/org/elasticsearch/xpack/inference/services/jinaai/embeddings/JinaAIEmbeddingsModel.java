@@ -106,11 +106,6 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     }
 
     @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return super.getSecretSettings();
-    }
-
-    @Override
     public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }

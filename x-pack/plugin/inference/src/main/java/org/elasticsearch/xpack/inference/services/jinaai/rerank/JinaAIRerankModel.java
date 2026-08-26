@@ -88,11 +88,6 @@ public class JinaAIRerankModel extends JinaAIModel {
         return (JinaAIRerankTaskSettings) super.getTaskSettings();
     }
 
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return super.getSecretSettings();
-    }
-
     /**
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor          Interface for creating {@link ExecutableAction} instances for Jina AI models.

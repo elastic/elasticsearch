@@ -113,8 +113,6 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
 
     @Override
     public boolean usesParserForServiceSettings() {
-        // Service settings are parsed via ObjectParser, which validates unknown fields itself rather than relying on the framework's
-        // leftover-key detection (the parser does not remove consumed keys from the settings map).
         return true;
     }
 

@@ -269,6 +269,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private final boolean lateMaterialization;
     /**
+     * Cached at construction: remaining row budget with no record filter, no ColumnIndex
+     * {@link RowRanges}, no late-materialization, and no dynamic-threshold TopN. The other
+     * inputs are final; {@link #rowBudget} only walks down toward 0 and never back to
+     * {@link FormatReader#NO_LIMIT}, so this never flips for the iterator's lifetime.
+     */
+    private final boolean unfilteredLimit;
+    /**
      * When {@code true}, switches the prefetch + decode pipeline to a per-row-group two-phase
      * I/O flow: Phase 1 fetches only predicate column chunks, the iterator fully decodes them
      * to evaluate the filter and accumulate a global survivor mask, and Phase 2 then fetches
@@ -429,6 +436,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.pushedExpressions = pushedExpressions;
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
+        this.unfilteredLimit = ParquetFormatReader.unfilteredLimit(
+            rowBudget,
+            survivingRowGroups != null,
+            allRowRanges != null,
+            lateMaterialization,
+            dynamicThreshold != null
+        );
         this.survivorMask = lateMaterialization ? new WordMask() : null;
         this.dictionaryBitmaps = lateMaterialization ? new IdentityHashMap<>() : null;
         // Caller supplies null when late materialization is off; defensively also drop it here so
@@ -468,6 +482,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
             return;
         }
+        if (budgetExhausted()) {
+            return;
+        }
         int startOrdinal = nextSurvivingRowGroupOrdinal(0);
         fillPrefetchQueue(startOrdinal);
     }
@@ -489,6 +506,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         Set<String> phaseColumns = useTwoPhase ? predicateColumnPaths : projectedColumnPaths;
         int nextOrdinal = fromOrdinal;
         while (pendingPrefetches.size() < prefetchDepth && nextOrdinal < rowGroups.size()) {
+            if (budgetExhausted()) {
+                break;
+            }
+            if (limitPrefetchCovered()) {
+                break;
+            }
             if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
                 break;
             }
@@ -518,6 +541,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // applied to the predicate-column prefetch here.
                     nextRowRanges = null;
                 }
+                RowRanges limitRanges = limitPrefixRowRanges(nextOrdinal, nextBlock, (long) rowBudget - limitCoveredRows());
+                if (limitRanges != null) {
+                    nextRowRanges = nextRowRanges == null ? limitRanges : nextRowRanges.intersect(limitRanges);
+                }
                 CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future;
                 if (nextRowRanges != null) {
                     future = ColumnChunkPrefetcher.prefetchAsync(
@@ -540,6 +567,78 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
         }
+    }
+
+    private boolean budgetExhausted() {
+        return rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0;
+    }
+
+    /**
+     * Source rows already open or queued. Used to stop later-group prefetch and to prefix-clip
+     * a later group's pages to the remaining need rather than the original {@link #rowBudget}.
+     */
+    private long limitCoveredRows() {
+        long rows = 0;
+        if (rowGroupOrdinal >= 0) {
+            rows += rowsRemainingInGroup;
+        }
+        for (PendingPrefetch pending : pendingPrefetches) {
+            rows += reader.getRowGroups().get(pending.ordinal()).getRowCount();
+        }
+        return rows;
+    }
+
+    /**
+     * True when already-open plus queued row groups contain at least {@link #rowBudget} rows, so
+     * later groups would never be read. Filtered / late-mat LIMIT must not use this: a large group
+     * may yield zero survivors.
+     */
+    private boolean limitPrefetchCovered() {
+        if (unfilteredLimit == false) {
+            return false;
+        }
+        return limitCoveredRows() >= rowBudget;
+    }
+
+    /**
+     * Prefix {@code [0, min(remainingNeed, rgRows))} when every projected column has an OffsetIndex
+     * so filtered prefetch fetches dictionary + overlapping pages instead of the full chunk.
+     * {@code remainingNeed} is the rows this group can still contribute ({@link #rowBudget} minus
+     * already-open and already-queued groups at prefetch time; remaining {@link #rowBudget} at
+     * decode time). Missing index on any projected column → {@code null} (full chunk):
+     * {@link PrefetchedRowGroupBuilder} falls back to a sequential full-chunk read for index-less
+     * columns, while {@code rowsRemainingInGroup} would still become {@code selectedRowCount()}
+     * of the clipped ranges. Mixed files are rare enough that skipping the clip is safer.
+     * A prefix that covers the whole group is also {@code null}: clipping would be a no-op.
+     */
+    private RowRanges limitPrefixRowRanges(int ordinal, BlockMetaData block, long remainingNeed) {
+        if (unfilteredLimit == false) {
+            return null;
+        }
+        if (hasAllOffsetIndexes(ordinal, projectedColumnPaths) == false) {
+            return null;
+        }
+        long rgRows = block.getRowCount();
+        long end = Math.min(remainingNeed, rgRows);
+        if (end <= 0) {
+            return RowRanges.of(0, 0, rgRows);
+        }
+        if (end >= rgRows) {
+            return null;
+        }
+        return RowRanges.of(0, end, rgRows);
+    }
+
+    private boolean hasAllOffsetIndexes(int ordinal, Set<String> columnPaths) {
+        if (preloadedMetadata == null || columnPaths == null || columnPaths.isEmpty()) {
+            return false;
+        }
+        for (String path : columnPaths) {
+            if (preloadedMetadata.getOffsetIndex(ordinal, path) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean rowGroupDominatedByThreshold(BlockMetaData block) {
@@ -763,7 +862,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Computes the initial (floor) prefetch depth from the projected byte footprint of the
      * first row group. This value serves as the floor for the adaptive depth — the runtime
      * stall detector may increase depth up to {@link #MAX_PREFETCH_DEPTH} but never below
-     * this byte-based result.
+     * this byte-based result. {@link #limitPrefetchCovered()} still stops the queue once open
+     * plus queued groups cover an unfiltered {@code LIMIT} budget, so extra groups are not
+     * fetched even when this floor is greater than 1.
      */
     private static int computePrefetchDepth(List<BlockMetaData> rowGroups, Set<String> projectedColumnPaths) {
         if (rowGroups.isEmpty()) {
@@ -991,8 +1092,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (exhausted) {
             return false;
         }
-        if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
+        if (budgetExhausted()) {
             exhausted = true;
+            releaseHeldIo();
             return false;
         }
         // Under two-phase, drain leading fully-filtered batches before deciding: the source-row
@@ -1022,7 +1124,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
         if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
             exhausted = true;
-            cancelPendingPrefetch();
+            releaseHeldIo();
             return false;
         }
         try {
@@ -1095,8 +1197,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 int nextOrdinal = nextSurvivingRowGroupOrdinal(rowGroupOrdinal + 1);
                 if (nextOrdinal >= reader.getRowGroups().size()) {
                     exhausted = true;
-                    cancelPendingPrefetch();
-                    releaseCurrentReservation();
+                    releaseHeldIo();
                     logIteratorDiagnostics();
                     return false;
                 }
@@ -1284,6 +1385,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (thresholdRanges != null) {
             ranges = ranges == null ? thresholdRanges : ranges.intersect(thresholdRanges);
         }
+        RowRanges limitRanges = limitPrefixRowRanges(rowGroupOrdinal, block, rowBudget);
+        if (limitRanges != null) {
+            ranges = ranges == null ? limitRanges : ranges.intersect(limitRanges);
+        }
         if (ranges == null) {
             return null;
         }
@@ -1356,6 +1461,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         long rowsConsumed = 0;
         try {
             while (rowsConsumed < rowGroupRowCount) {
+                if (rowBudget != FormatReader.NO_LIMIT && totalSurvivors >= rowBudget) {
+                    // LIMIT can stop Phase-1 without decoding the tail. sourceRowsPerBatch then
+                    // sums to less than rowGroupRowCount; rowsRemainingInGroup is still set to the
+                    // full group below so per-batch bookkeeping stays in source-row units.
+                    // hasNext() zeroes it when hasMoreBatches() is false after the last emitted batch.
+                    break;
+                }
                 int rowsToRead = (int) Math.min(batchSize, rowGroupRowCount - rowsConsumed);
                 BatchPredicateResult batch = decodePredicateBatch(rowsToRead, (int) rowsConsumed, globalSurvivors);
                 predicateBatches.add(batch.compactedPredicateBlocks);
@@ -1407,7 +1519,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             return false;
         }
-        rowsEliminatedByLateMaterialization += (rowGroupRowCount - totalSurvivors);
+        rowsEliminatedByLateMaterialization += (rowsConsumed - totalSurvivors);
 
         RowRanges survivorRanges = WordMaskRowRangesConverter.fromWordMask(globalSurvivors, rowGroupRowCount);
         // Phase-2 fetch path:
@@ -1837,8 +1949,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * Adjusts {@link #prefetchDepth} based on whether the consumed prefetch future was already
      * complete. A stall ({@code wasReady == false}) means the consumer outpaced the producer —
      * grow depth by {@link #PREFETCH_DEPTH_GROWTH} unless the circuit breaker is under pressure.
-     * Sustained no-stalls mean the queue is deep enough — shrink by 1 after
-     * {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
+     * Unfiltered LIMIT still grows: {@link #limitPrefetchCovered()} is what stops extra groups
+     * once the remaining budget is queued. Sustained no-stalls mean the queue is deep enough —
+     * shrink by 1 after {@link #SHRINK_AFTER_NO_STALLS} consecutive hits.
      */
     // Package-private for testing
     void adaptPrefetchDepth(boolean wasReady) {
@@ -2534,23 +2647,61 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     @Override
     public void close() throws IOException {
-        cancelPendingPrefetch();
+        try {
+            releaseHeldIo(true);
+        } finally {
+            reader.close();
+        }
+    }
+
+    /**
+     * Drops the current row-group store, cancels queued prefetches, and releases breaker-accounted
+     * chunk buffers. Used when the row budget is exhausted (before {@link #close()}), at EOF, and
+     * from {@link #close()} itself. Idempotent.
+     *
+     * <p>A failing {@code rowGroup.close()} is logged and swallowed on the {@code hasNext} / EOF
+     * path so LIMIT exhaust cannot fail the query. {@link #close()} rethrows it: a failed store
+     * close usually means leaked breaker bytes.
+     */
+    private void releaseHeldIo() {
+        try {
+            releaseHeldIo(false);
+        } catch (IOException e) {
+            logger.warn("Failed to release held I/O for [{}] in [{}]", rowGroupOrdinal, fileLocation, e);
+        }
+    }
+
+    private void releaseHeldIo(boolean propagateRowGroupClose) throws IOException {
+        Exception rowGroupCloseException = null;
         try {
             closeTwoPhaseState();
             closePageColumnReaders();
             if (rowGroup != null) {
-                rowGroup.close();
+                try {
+                    rowGroup.close();
+                } catch (Exception e) {
+                    if (propagateRowGroupClose) {
+                        rowGroupCloseException = e;
+                    } else {
+                        logger.warn("Failed to close row-group store for [{}] in [{}]", rowGroupOrdinal, fileLocation, e);
+                    }
+                }
                 rowGroup = null;
             }
         } finally {
+            cancelPendingPrefetch();
             releaseCurrentReservation();
-            try {
-                if (preloadedMetadata != null) {
-                    preloadedMetadata.close();
-                }
-            } finally {
-                reader.close();
+            if (preloadedMetadata != null) {
+                // Drop OffsetIndex / ColumnIndex buffers once this iterator will not open another
+                // row group (LIMIT exhaust, EOF, TopN early-stop, close).
+                preloadedMetadata.close();
             }
+        }
+        if (rowGroupCloseException != null) {
+            if (rowGroupCloseException instanceof IOException ioe) {
+                throw ioe;
+            }
+            throw new IOException(rowGroupCloseException);
         }
     }
 

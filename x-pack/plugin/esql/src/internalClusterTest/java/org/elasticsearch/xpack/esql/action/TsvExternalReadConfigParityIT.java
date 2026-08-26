@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import java.util.Collection;
 import java.util.List;
 
-/** TSV binding of {@link AbstractExternalReadShapeParityIT}. */
-public class TsvExternalReadShapeParityIT extends AbstractExternalReadShapeParityIT {
+/** TSV binding of {@link AbstractExternalReadConfigParityIT}. */
+public class TsvExternalReadConfigParityIT extends AbstractExternalReadConfigParityIT {
 
     @Override
     protected String format() {

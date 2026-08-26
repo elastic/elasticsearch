@@ -35,29 +35,29 @@ public final class ExternalStats {
     public static final String CONFIG_FINGERPRINT_KEY = "_stats.config_fingerprint";
 
     /**
-     * Node-stable fingerprint of the READ SHAPE this contribution was harvested under (see
-     * {@link ReadShapeFingerprint}) — how the file's bytes were interpreted, as opposed to which file it is or which
-     * options were asked for. A statistic is a measurement over the rows a read produced, so two reads whose shapes
+     * Node-stable fingerprint of the RESOLVED READ CONFIGURATION this contribution was harvested under (see
+     * {@link ReadConfigFingerprint}) — how the file's bytes were interpreted, as opposed to which file it is or which
+     * options were asked for. A statistic is a measurement over the rows a read produced, so two reads whose read configurations
      * differ measured different things and must not enrich or serve each other's entry.
      * <p>
-     * {@link ReadShapeFingerprint#UNKNOWN} (absent, or empty) means the producing path had no coordinator-minted read
-     * schema to describe. That is a legitimate state, not an error, and it must never compare equal to a known shape:
-     * an unknown shape safe-misses rather than sharing on the strength of not knowing.
+     * {@link ReadConfigFingerprint#UNKNOWN} (absent, or empty) means the producing path had no coordinator-minted read
+     * schema to describe. That is a legitimate state, not an error, and it must never compare equal to a known read configuration:
+     * an unknown read configuration safe-misses rather than sharing on the strength of not knowing.
      */
-    public static final String READ_SHAPE_FINGERPRINT_KEY = "_stats.read_shape_fingerprint";
+    public static final String READ_CONFIG_FINGERPRINT_KEY = "_stats.read_config_fingerprint";
 
     /**
-     * Set by a producer whose error policy makes the harvested row count INDEPENDENT of the read shape: under
+     * Set by a producer whose error policy makes the harvested row count INDEPENDENT of the resolved read configuration: under
      * {@code FAIL_FAST} any structural mismatch aborts the query before publish, so a committed row count is the
      * file's physical record count and is the same number for every way of reading it. That is the one statistic
-     * that may legitimately cross read shapes, and this flag is how the producer — the only party that knows its
+     * that may legitimately cross resolved read configurations, and this flag is how the producer — the only party that knows its
      * effective policy — licenses the crossing.
      * <p>
-     * Absent means "no licence": the row count is treated as shape-scoped like every other statistic. Under
+     * Absent means "no licence": the row count is treated as read-config-scoped like every other statistic. Under
      * {@code skip_row} or {@code null_field} a width-overflow row is dropped, so the count becomes a function of the
      * declared column count and may not be shared.
      */
-    public static final String ROW_COUNT_SHAPE_INDEPENDENT_KEY = "_stats.row_count_shape_independent";
+    public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
 
     /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as

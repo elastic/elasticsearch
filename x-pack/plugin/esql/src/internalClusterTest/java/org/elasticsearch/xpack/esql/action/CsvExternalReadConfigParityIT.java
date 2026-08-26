@@ -8,34 +8,34 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 
 import java.util.Collection;
 import java.util.List;
 
-/** NDJSON binding of {@link AbstractExternalReadShapeParityIT}. */
-public class NdjsonExternalReadShapeParityIT extends AbstractExternalReadShapeParityIT {
+/** CSV binding of {@link AbstractExternalReadConfigParityIT}. */
+public class CsvExternalReadConfigParityIT extends AbstractExternalReadConfigParityIT {
 
     @Override
     protected String format() {
-        return "ndjson";
+        return "csv";
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(NdJsonDataSourcePlugin.class);
+        return List.of(CsvDataSourcePlugin.class);
     }
 
     @Override
     protected String fileExtension() {
-        return ".ndjson";
+        return ".csv";
     }
 
     @Override
     protected String buildContent(int rows) {
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder("id:integer,age:keyword\n");
         for (int i = 0; i < rows; i++) {
-            sb.append("{\"id\":").append(i).append(",\"age\":\"").append(20 + i % 50).append("\"}\n");
+            sb.append(i).append(',').append(20 + i % 50).append('\n');
         }
         return sb.toString();
     }

@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
-import org.elasticsearch.xpack.esql.datasources.cache.ReadShapeFingerprint;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
@@ -546,7 +546,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     // How a file's bytes get interpreted, bound to this query's declaration and applied per file by
                     // the operator factory. Computed here because the declared spec lives here; derived rather than
                     // shipped, so both sides reach the same value from what the coordinator already minted.
-                    .readShaper(schema -> ReadShapeFingerprint.of(schema, context.declaredReadSpec()))
+                    .readConfigFingerprinter(schema -> ReadConfigFingerprint.of(schema, context.declaredReadSpec()))
                     // For the split-less rails, which read one whole file and so have no per-split schema.
                     .unifiedReadSchema(context.unifiedSchema() == null ? null : context.unifiedSchema().attributes())
                     // Declared _id.path (logical column name): stamps _id from that column instead of the synthetic id.

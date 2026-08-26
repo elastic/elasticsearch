@@ -138,10 +138,10 @@ public record SchemaCacheKey(
      * paths.
      * <p>
      * Under a lenient error policy ({@code skip_row}/{@code null_field}) a harvested row count IS
-     * declaration-dependent, which is why the read shape now participates in the stats identity
-     * ({@link ReadShapeFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
-     * same shape. The dataset aggregate memoizes exactly what the per-file rail serves, so it inherits that
-     * gate rather than needing one of its own. What still crosses shapes is the physical record count under
+     * declaration-dependent, which is why the resolved read configuration now participates in the stats identity
+     * ({@link ReadConfigFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
+     * same read configuration. The dataset aggregate memoizes exactly what the per-file rail serves, so it inherits that
+     * gate rather than needing one of its own. What still crosses read configurations is the physical record count under
      * {@code FAIL_FAST}, licensed by the producer because there the count is the same number for every
      * declaration.
      */

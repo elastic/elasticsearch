@@ -59,7 +59,7 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.MTIME_MILLIS_KEY,
         ExternalStats.CONFIG_FINGERPRINT_KEY,
         // Which read produced the entry, not a measurement over its rows — so a row drop does not invalidate it.
-        ExternalStats.READ_SHAPE_FINGERPRINT_KEY
+        ExternalStats.READ_CONFIG_FINGERPRINT_KEY
     );
 
     /**
@@ -83,8 +83,8 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.STRIPE_LAST_INDEX_KEY,
         ExternalStats.STRIPE_GRID_KEY,
         // A licence attached to the row count, not a measurement of its own: it records that the producing policy
-        // makes the count shape-independent. Invalidated with the entry that carries it.
-        ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY
+        // makes the count read-config-independent. Invalidated with the entry that carries it.
+        ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY
     );
 
     /**

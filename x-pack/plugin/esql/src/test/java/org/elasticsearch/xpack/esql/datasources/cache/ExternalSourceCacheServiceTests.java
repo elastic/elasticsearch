@@ -679,7 +679,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testDatasetAggregateRefusesForeignShapedContributions() throws Exception {
-        // The multi-file rail is the way around the per-file gate if it is left shape-blind: a glob promise summing
+        // The multi-file rail is the way around the per-file gate if it is left read-config-blind: a glob promise summing
         // per-file counts would sum counts harvested by a DIFFERENT read. Same rule as the per-file tier — the
         // shape this resolution expects for that path, or the FAIL_FAST licence, or no fold at all.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
@@ -692,7 +692,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 Map.of(pathA, mtime, pathB, mtime),
                 2,
                 "fp",
-                Map.of(pathA, "shape-promised", pathB, "shape-promised"),
+                Map.of(pathA, "config-promised", pathB, "config-promised"),
                 "ndjson",
                 "file:///data/*.ndjson"
             );
@@ -700,22 +700,25 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             service.reconcileSourceStatsFromContributions(
                 Map.of(
                     pathA,
-                    List.of(wholeFileWithShape(mtime, "fp", "shape-foreign", 40L)),
+                    List.of(wholeFileWithShape(mtime, "fp", "config-foreign", 40L)),
                     pathB,
-                    List.of(wholeFileWithShape(mtime, "fp", "shape-foreign", 60L))
+                    List.of(wholeFileWithShape(mtime, "fp", "config-foreign", 60L))
                 )
             );
 
-            assertNull("a promise must not be fulfilled by counts harvested under another read shape", service.getDatasetAggregate(key));
+            assertNull(
+                "a promise must not be fulfilled by counts harvested under another resolved read configuration",
+                service.getDatasetAggregate(key)
+            );
         }
     }
 
-    /** A whole-file contribution carrying an explicit read shape. */
-    private static Map<String, Object> wholeFileWithShape(long mtime, String fingerprint, String readShape, long rowCount) {
+    /** A whole-file contribution carrying an explicit resolved read configuration. */
+    private static Map<String, Object> wholeFileWithShape(long mtime, String fingerprint, String readConfig, long rowCount) {
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
         raw.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-        raw.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        raw.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         raw.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
         return raw;
     }
@@ -724,7 +727,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         // The defect this closes: a declared dataset and an inferred one over the SAME file under the SAME options
         // address one entry, so under a lenient error policy — where a declared coercion drops a record the inferred
         // read keeps — whichever ran first published its count and the other served it. Identity now includes how the
-        // file was read, so a foreign-shaped harvest may not enrich this entry at all.
+        // file was read, so a foreign-configured harvest may not enrich this entry at all.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "s3://bucket/data/file.csv";
             long mtime = 1000L;
@@ -738,7 +741,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     schema,
                     "csv",
                     path,
-                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred"),
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-inferred"),
                     Map.of()
                 )
             );
@@ -746,7 +749,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             Map<String, Object> foreign = new LinkedHashMap<>();
             foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
-            foreign.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-declared");
+            foreign.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
             foreign.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 41L);
             // Through reconcileSourceStatsFromContributions, NOT the map-shaped reconcile: the contribution path runs
             // SourceStatsContribution.classify, which is where the identity keys were being dropped. A test entering
@@ -760,12 +763,16 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
 
             Map<String, Object> own = new LinkedHashMap<>(foreign);
-            own.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred");
+            own.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-inferred");
             own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(own)));
 
             SchemaCacheEntry afterOwn = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
-            assertEquals("its own shape enriches normally", 42L, afterOwn.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+            assertEquals(
+                "its own read configuration enriches normally",
+                42L,
+                afterOwn.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
         }
     }
 
@@ -786,7 +793,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     schema,
                     "csv",
                     path,
-                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred"),
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-inferred"),
                     Map.of()
                 )
             );
@@ -794,15 +801,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             Map<String, Object> licensed = new LinkedHashMap<>();
             licensed.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
-            licensed.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-declared");
-            licensed.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
+            licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
+            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
 
             SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(
-                "FAIL_FAST licenses the physical record count to cross read shapes",
+                "FAIL_FAST licenses the physical record count to cross resolved read configurations",
                 42L,
                 entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
@@ -811,9 +818,9 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                 entry.safeMetadata().containsKey(SourceStatisticsSerializer.columnMinKey("id"))
             );
             assertEquals(
-                "the entry keeps its own shape rather than being relabelled as the foreign one",
-                "shape-inferred",
-                entry.safeMetadata().get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY)
+                "the entry keeps its own read configuration rather than being relabelled as the foreign one",
+                "config-inferred",
+                entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
             );
         }
     }
@@ -1769,7 +1776,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
     }
 
     public void testReconcileWholeFileWinsOverConcurrentPartials() throws Exception {
-        // Mixed shape: WholeFile + StripeFragments for the same file. The whole-file read is
+        // Mixed read configuration: WholeFile + StripeFragments for the same file. The whole-file read is
         // authoritative — its row count already covers every row — and fragments must not be
         // summed on top. Locks the reconciler's whole-file-first routing.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {

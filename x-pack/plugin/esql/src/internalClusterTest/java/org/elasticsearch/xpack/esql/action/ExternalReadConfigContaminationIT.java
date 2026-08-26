@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * End-to-end pin for the read-shape identity: one dataset must never be served a row count that a differently-read
+ * End-to-end pin for the read-configuration identity: one dataset must never be served a row count that a differently-read
  * dataset over the same file produced.
  *
  * <p>The sequence has to be ASYMMETRIC, which is why the obvious test does not work. {@code COUNT(*)} projects no
@@ -43,13 +43,13 @@ import static org.hamcrest.Matchers.equalTo;
  *
  * <p>What manifests the defect is a declared read that PARSES the column — dropping the row that will not coerce and
  * publishing the short count — followed by a plain {@code COUNT(*)} on the inferred dataset, which is neither
- * projected nor poisoned and so serves whatever the entry holds. Before the read shape entered the stats identity
+ * projected nor poisoned and so serves whatever the entry holds. Before the resolved read configuration entered the stats identity
  * both datasets addressed one entry and the inferred dataset answered with the declared read's count.
  */
 // Single node pins the coordinator: the warm cache is a per-node singleton, so a random coordinator would let the
 // second query land on an empty cache and re-scan, which passes for the wrong reason.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class ExternalReadShapeContaminationIT extends AbstractExternalDataSourceIT {
+public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourceIT {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final int ROWS = 200;
@@ -83,7 +83,7 @@ public class ExternalReadShapeContaminationIT extends AbstractExternalDataSource
      * <p>
      * That is why the count-based constructions do not work here. A dropped row is caught by the pinned-contribution
      * strip long before the cache sees it, and {@code COUNT(*)} parses no column at all. A same-type dialect
-     * difference is the one shape that reaches the cache with two legitimately different measurements.
+     * difference is the one read configuration that reaches the cache with two legitimately different measurements.
      */
     public void testDeclaredDialectDoesNotPoisonTheInferredExtremum() throws Exception {
         String uri = writeFixture();

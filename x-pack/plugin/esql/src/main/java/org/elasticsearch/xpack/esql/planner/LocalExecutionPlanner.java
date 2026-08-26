@@ -1016,7 +1016,7 @@ public class LocalExecutionPlanner {
      *         in) an {@link ExternalSourceExec}.</li>
      *     <li>The source's narrowed output is exactly {@code [sortKey, _rowPosition]} — two
      *         channels, sort key at channel 0, synthetic row-position column at channel 1.
-     *         {@code InsertExternalFieldExtraction} produces this shape; any extra eager column
+     *         {@code InsertExternalFieldExtraction} produces this read configuration; any extra eager column
      *         (pushed-filter input, virtual {@code _file.*}) leaves more than two channels and
      *         disqualifies the substitution because the specialised operator's 2-channel layout
      *         cannot pass extra columns through.</li>
@@ -2073,7 +2073,7 @@ public class LocalExecutionPlanner {
             .path(path)
             .projectedColumns(projectedColumns)
             .attributes(externalSource.output())
-            // Projection-independent, unlike attributes(): a read-shape identity must not vary with what the query
+            // Projection-independent, unlike attributes(): a read-configuration identity must not vary with what the query
             // selects, or a coordinator and a data node would derive different identities for the same read.
             .unifiedSchema(externalSource.unifiedSchema())
             .batchSize(pageSize)

@@ -19,14 +19,19 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * The 128-bit fingerprint of a file's READ SHAPE — how a query will interpret that file's bytes, as opposed to which
- * file it is ({@code path + mtime}) or which options were asked for ({@link SchemaCacheKey#buildFormatConfig}).
+ * The 128-bit fingerprint of a file's RESOLVED READ CONFIGURATION: the parameters that control how this query turns
+ * that file's bytes into rows and values. Per column, which file column is bound, the type it is parsed into and any
+ * declared date pattern; plus whether binding is by name or by position.
  * <p>
- * It exists because a cached statistic is a measurement over the rows a read produced, and which rows a read produces
- * is a function of the read shape. A dataset declaring a column as {@code long} under {@code skip_row} drops a record
- * that a dataset inferring the same column as {@code keyword} keeps; both address the same file under the same
- * options, so without this component they share one cache entry and serve each other's counts. The same blindness
- * covers a {@code union_by_name} widening pin, where nothing is declared at all and the read type still differs.
+ * RESOLVED, not declared, and the distinction is the whole design. This is the configuration the reader will actually
+ * run, not the settings a user wrote: declaring a column as exactly what inference already produced resolves to the
+ * same configuration and must share the same cached statistics, while a {@code union_by_name} widening resolves to a
+ * different one even though nobody configured anything. A fingerprint built from dataset settings would get both
+ * cases wrong.
+ * <p>
+ * It sits beside {@link SchemaCacheKey#buildFormatConfig}, which fingerprints the other half of the same idea — the
+ * {@code WITH} options. Two components rather than one is an accident of how they arrived; the end state is a single
+ * read configuration owning both, so that a new parameter has one place it must be considered.
  * <p>
  * <b>Derived, never shipped.</b> Both sides compute it from artifacts the coordinator already minted and the wire
  * already carries: the per-file read schema (a split's {@code readSchema}, or the exec's unified schema on the
@@ -58,26 +63,26 @@ import java.util.Map;
  * <h2>Encoding</h2>
  * Every variable-length piece is length-prefixed ({@code len:bytes}). Column names are open vocabulary — an
  * {@code _id.path} rename reaches arbitrary physical names, which may contain the delimiters — so a plain join would
- * let two different shapes render identically and collide onto one cache entry. Equal encodings must genuinely mean
- * equal shapes.
+ * let two different read configurations render identically and collide onto one cache entry. Equal encodings must genuinely mean
+ * equal read configurations.
  * <p>
  * 128 bits for the same reason {@link org.elasticsearch.xpack.esql.datasources.FileSetFingerprint} uses 128: a
  * collision serves one read's measurement to a different read — a wrong answer, not a slow path. Non-cryptographic
  * (Murmur3, matching the listing-cache and file-set precedents): this guards accidental collision, not an adversary.
  */
-public final class ReadShapeFingerprint {
+public final class ReadConfigFingerprint {
 
-    private ReadShapeFingerprint() {}
+    private ReadConfigFingerprint() {}
 
     /**
-     * The sentinel for "this read's shape is unknown". Returned when no coordinator-minted read schema is available,
-     * which is a legitimate state (an older node, a source that computes no pin). It must never compare equal to a
-     * real shape: an unknown shape safe-misses to a scan rather than sharing an entry on the strength of not knowing.
+     * The sentinel for "this read's configuration is unknown". Returned when no coordinator-minted read schema is
+     * available, which is a legitimate state (an older node, a source that computes no pin). It must never compare
+     * equal to a real one: not knowing is not a licence to share, so an unknown configuration safe-misses to a scan.
      */
     public static final String UNKNOWN = "";
 
     /**
-     * Computes the fingerprint of one file's read shape. {@code readSchema} is the per-file effective schema the
+     * Computes the fingerprint of one file's resolved read configuration. {@code readSchema} is the per-file effective schema the
      * reader will bind, in <b>logical</b> names as the resolution produced them; renames are applied here so both
      * sides agree on a physical-name encoding. Returns {@link #UNKNOWN} when there is no schema to describe.
      */

@@ -328,27 +328,27 @@ public final class SourceStatisticsSerializer {
     }
 
     /**
-     * Restricts cached statistics to what a read of shape {@code expectedShape} may legitimately be served — the
+     * Restricts cached statistics to what a read of shape {@code expectedReadConfig} may legitimately be served — the
      * serve-side dual of the publish gate.
      * <p>
      * An entry's statistics measure the rows the read that produced them produced, so a read of a different shape
      * must not be handed them. The physical record count is the exception, and only where the producer licensed it
-     * ({@link ExternalStats#ROW_COUNT_SHAPE_INDEPENDENT_KEY}): under {@code FAIL_FAST} that count is the same number
+     * ({@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}): under {@code FAIL_FAST} that count is the same number
      * for every declaration.
      * <p>
-     * The gate bites only when the entry carries a shape at all. An entry stamped by a rail that computes none is
-     * left exactly as it was before shapes existed, so the columnar readers — which harvest without stamping — keep
+     * The gate bites only when the entry carries a read configuration at all. An entry stamped by a rail that computes none is
+     * left exactly as it was before read configurations existed, so the columnar readers — which harvest without stamping — keep
      * their current warmth instead of silently going cold.
      */
-    public static Map<String, Object> restrictToReadShape(Map<String, Object> stats, String expectedShape) {
+    public static Map<String, Object> restrictToReadShape(Map<String, Object> stats, String expectedReadConfig) {
         if (stats == null || stats.isEmpty()) {
             return stats;
         }
-        Object entryShape = stats.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
-        if (entryShape == null || Objects.equals(entryShape, expectedShape)) {
+        Object entryReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+        if (entryReadConfig == null || Objects.equals(entryReadConfig, expectedReadConfig)) {
             return stats;
         }
-        boolean countSurvives = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY));
+        boolean countSurvives = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
         Map<String, Object> restricted = new HashMap<>(stats.size());
         for (Map.Entry<String, Object> entry : stats.entrySet()) {
             String key = entry.getKey();

@@ -462,11 +462,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final String canonicalConfig;
     /**
-     * Identity of how the file currently being read is interpreted (see {@code ReadShapeFingerprint}), or empty when
+     * Identity of how the file currently being read is interpreted (see {@code ReadConfigFingerprint}), or empty when
      * the producing path had no coordinator-minted read schema. Per FILE, so it is set at the per-file seam via
-     * {@link #withReadShape} rather than at config time like {@link #canonicalConfig}. Opaque here.
+     * {@link #withReadConfig} rather than at config time like {@link #canonicalConfig}. Opaque here.
      */
-    private final String readShape;
+    private final String readConfig;
     /**
      * Per-column declared date parse-patterns, keyed by <b>physical</b> (file) column name (the caller applied any
      * {@code path} rename). Set via {@link #withDeclaredDateFormats}; empty when no column declares a {@code format}.
@@ -553,7 +553,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int schemaSampleSize,
         ErrorPolicy effectivePolicy,
         String canonicalConfig,
-        String readShape,
+        String readConfig,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding
@@ -566,7 +566,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
         this.canonicalConfig = canonicalConfig;
-        this.readShape = readShape == null ? "" : readShape;
+        this.readConfig = readConfig == null ? "" : readConfig;
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
@@ -591,7 +591,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
-            readShape,
+            readConfig,
             enabled,
             declaredDateFormats,
             declaredProvenanceBinding
@@ -887,7 +887,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
-            readShape,
+            readConfig,
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding
@@ -905,7 +905,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
-            readShape,
+            readConfig,
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding
@@ -926,7 +926,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
-            readShape,
+            readConfig,
             directBlockEnabled,
             declaredDateFormats,
             binding
@@ -1056,7 +1056,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
-            readShape,
+            readConfig,
             directBlockEnabled,
             physicalNameToPattern,
             declaredProvenanceBinding
@@ -1064,8 +1064,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CsvFormatReader withReadShape(String newReadShape) {
-        if (newReadShape == null || newReadShape.equals(readShape)) {
+    public CsvFormatReader withReadConfig(String newReadConfig) {
+        if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
         return new CsvFormatReader(
@@ -1077,7 +1077,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             schemaSampleSize,
             effectivePolicy,
             canonicalConfig,
-            newReadShape,
+            newReadConfig,
             directBlockEnabled,
             declaredDateFormats,
             declaredProvenanceBinding
@@ -1107,7 +1107,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             newSampleSize,
             resolvedPolicy,
             canon,
-            result.readShape,
+            result.readConfig,
             result.directBlockEnabled,
             result.declaredDateFormats,
             result.declaredProvenanceBinding
@@ -1873,7 +1873,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema = resolvedSchema;
         }
         // mtime is pinned here at open-time so a mid-scan file replacement cannot pair a new
-        // mtime with old data. Two cacheable shapes:
+        // mtime with old data. Two cacheable read configurations:
         // - wholeFileRead: first + last split, no parallel slicing — iterator publishes a full
         // SourceStatistics for the file.
         // - parallel-parsing chunk (recordAligned=true): iterator publishes a partial keyed by
@@ -2338,7 +2338,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * a doubled quote inside a quoted field is a literal quote; an escape char before the delimiter
      * inside quotes keeps the delimiter literal. Fields are trimmed, matching
      * {@link #splitHeaderQuoteAware}; quotes are retained in the token exactly as that quote-aware
-     * sibling retains them, so the two paths agree on width and shape.
+     * sibling retains them, so the two paths agree on width and read configuration.
      */
     private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc) {
         List<String> entries = new ArrayList<>();
@@ -3050,7 +3050,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * requested. Not a CSV source column — filled from {@link #rowStartBytes}, the per-record
          * file-global byte offset (split start byte plus bytes consumed up to the record's first
          * character), so the value is identical for the same physical record across any split
-         * layout. Matches the NDJSON {@code recordFileOffset} shape.
+         * layout. Matches the NDJSON {@code recordFileOffset} read configuration.
          */
         private int rowPositionSlot = -1;
         /**
@@ -3462,7 +3462,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 chunkBytes,
                 pinnedMtimeMillis,
                 computeConfigFingerprint(),
-                readShape,
+                readConfig,
                 schema
             );
         }
@@ -3510,10 +3510,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // A DROPPED row (SKIP_ROW, or a structural malformed row -- e.g. an unescaped-delimiter
                     // extra column -- even under NULL_FIELD) does NOT make these stats wrong FOR THIS READ: which
                     // rows survive is a deterministic function of the file bytes, the error policy (pinned by the
-                    // cache fingerprint) AND the read shape -- a declared type or date pattern decides which values
+                    // cache fingerprint) AND the resolved read configuration -- a declared type or date pattern decides which values
                     // coerce, so it decides which rows drop. The shape is stamped alongside the fingerprint and the
-                    // cache refuses to serve these numbers to a read of a different shape, so committing them is
-                    // safe: they are published as this shape's measurement, not as the file's. So commit normally. NULL_FIELD field
+                    // cache refuses to serve these numbers to a read of a different read configuration, so committing them is
+                    // safe: they are published as this read configuration's measurement, not as the file's. So commit normally. NULL_FIELD
+                    // field
                     // null-fill likewise preserves the row and caches fully.
                     // FAIL_FAST aborts before EOF, so naturallyExhausted gates it out. NONE scope suppresses all
                     // publishing. (A scan cut short mid-way -- LIMIT, cancellation, a chunk exceeding its error
@@ -3590,16 +3591,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             Map<String, Object> base = new HashMap<>();
             base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-            // Absent means UNKNOWN — see ExternalStats#READ_SHAPE_FINGERPRINT_KEY. Never stamp an empty string:
+            // Absent means UNKNOWN — see ExternalStats#READ_CONFIG_FINGERPRINT_KEY. Never stamp an empty string:
             // absence and "" would then be indistinguishable to a comparator.
-            if (readShape.isEmpty() == false) {
-                base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+            if (readConfig.isEmpty() == false) {
+                base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
-            // Only FAIL_FAST licenses this count to cross read shapes: any structural mismatch aborts before publish,
+            // Only FAIL_FAST licenses this count to cross resolved read configurations: any structural mismatch aborts before publish,
             // so a committed count is the physical record count for every declaration. Under the lenient policies a
             // width-overflow row is dropped, which makes the count a function of the declared column count.
             if (errorPolicy.isStrict()) {
-                base.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
+                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
@@ -4126,7 +4127,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 SyntheticColumns.Kind kind = syntheticKinds[i];
                 if (kind != null) {
-                    // Registry-driven: the Kind carries its own attribute shape, so a new member
+                    // Registry-driven: the Kind carries its own attribute read configuration, so a new member
                     // works here without a per-kind dispatch arm.
                     projectedTypes[i] = kind.dataType();
                     projectedAttrs[i] = SyntheticColumns.newAttribute(kind);

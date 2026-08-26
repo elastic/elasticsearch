@@ -96,11 +96,11 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Long> pathToMtimeMillis,
         String configFingerprint,
         /**
-         * The read shape this resolution expects PER PATH, or empty when it could not say. Per path rather than one
+         * The resolved read configuration this resolution expects PER PATH, or empty when it could not say. Per path rather than one
          * value for the glob: the files of a glob are not necessarily read alike, so a single shape taken from a
          * reference file would refuse every honest contribution from its siblings.
          */
-        Map<String, String> pathToReadShape,
+        Map<String, String> pathToReadConfig,
         String sourceType,
         String location,
         long registeredAtNanos
@@ -317,7 +317,7 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Long> pathToMtimeMillis,
         int expectedFileCount,
         String configFingerprint,
-        Map<String, String> pathToReadShape,
+        Map<String, String> pathToReadConfig,
         String sourceType,
         String location
     ) {
@@ -337,7 +337,7 @@ public class ExternalSourceCacheService implements Closeable {
             datasetKey,
             Map.copyOf(pathToMtimeMillis),
             configFingerprint,
-            pathToReadShape == null ? Map.of() : Map.copyOf(pathToReadShape),
+            pathToReadConfig == null ? Map.of() : Map.copyOf(pathToReadConfig),
             sourceType,
             location,
             System.nanoTime()
@@ -569,7 +569,7 @@ public class ExternalSourceCacheService implements Closeable {
             k -> delta.stripes().get(k),
             delta.mtimeMillis(),
             delta.fingerprint(),
-            delta.readShape()
+            delta.readConfig()
         );
     }
 
@@ -586,7 +586,7 @@ public class ExternalSourceCacheService implements Closeable {
         LongFunction<Map<String, Object>> stripeAt,
         long mtimeMillis,
         String fingerprint,
-        String readShape
+        String readConfig
     ) {
         if (lastOrdinal < 0) {
             return null;
@@ -599,7 +599,7 @@ public class ExternalSourceCacheService implements Closeable {
             }
             stripes.add(stripe);
         }
-        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readShape);
+        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readConfig);
     }
 
     /**
@@ -617,7 +617,7 @@ public class ExternalSourceCacheService implements Closeable {
         List<Map<String, Object>> stripes,
         long mtimeMillis,
         String fingerprint,
-        String readShape
+        String readConfig
     ) {
         Map<String, Object> whole = stripes.size() == 1
             ? new HashMap<>(stripes.get(0))
@@ -629,12 +629,12 @@ public class ExternalSourceCacheService implements Closeable {
             if (fingerprint != null) {
                 whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             }
-            // The merge keeps only recognised _stats.* keys, so the shape has to be re-attached here like the mtime
-            // and the fingerprint. Losing it turns a folded whole-file result into a shapeless contribution, which
+            // The merge keeps only recognised _stats.* keys, so the read configuration has to be re-attached here like the mtime
+            // and the fingerprint. Losing it turns a folded whole-file result into a read configurationless contribution, which
             // every identity gate downstream then treats as "unknown" — the stripe rail's counts stop matching the
             // very entry they came from.
-            if (readShape != null && readShape.isEmpty() == false) {
-                whole.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+            if (readConfig != null && readConfig.isEmpty() == false) {
+                whole.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
             }
         }
         return whole;
@@ -665,15 +665,15 @@ public class ExternalSourceCacheService implements Closeable {
             if (Objects.equals(stats.get(ExternalStats.CONFIG_FINGERPRINT_KEY), pending.configFingerprint()) == false) {
                 return null; // harvested under a different row-interpretation config — not this promise's stats
             }
-            // Same rule as the per-file tier: a count harvested under a different READ SHAPE measured a different set
+            // Same rule as the per-file tier: a count harvested under a different RESOLVED READ CONFIGURATION measured a different set
             // of rows. Without it the multi-file rail is a way around that gate — a declared glob could be handed the
             // sum of an inferred read's counts. Compared per path, and only where this resolution recorded what it
             // expects for that path; an unrecorded path falls back to the config-level check alone.
-            String expectedShape = pending.pathToReadShape().get(expected.getKey());
-            if (expectedShape != null) {
-                Object contributionShape = stats.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
-                boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY));
-                if (Objects.equals(contributionShape, expectedShape) == false && licensed == false) {
+            String expectedReadConfig = pending.pathToReadConfig().get(expected.getKey());
+            if (expectedReadConfig != null) {
+                Object contributionReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+                boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+                if (Objects.equals(contributionReadConfig, expectedReadConfig) == false && licensed == false) {
                     return null;
                 }
             }
@@ -782,28 +782,28 @@ public class ExternalSourceCacheService implements Closeable {
      * The part of {@code contribution} that may legitimately enrich {@code entry}, or {@code null} when none of it
      * may — the second tier of contribution matching, after path/mtime/config identity.
      * <p>
-     * A statistic measures the rows a read produced, so a contribution harvested under a different READ SHAPE
+     * A statistic measures the rows a read produced, so a contribution harvested under a different RESOLVED READ CONFIGURATION
      * measured a different set of rows and may not enrich this entry at all. The single exception is the physical
      * record count under {@code FAIL_FAST}, which the producer licenses explicitly (see
-     * {@link ExternalStats#ROW_COUNT_SHAPE_INDEPENDENT_KEY}) because a committed count there is the same number for
+     * {@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}) because a committed count there is the same number for
      * every way of reading the file. That licence is what keeps the strict warm {@code COUNT(*)} rail alive across
      * differently-declared datasets, which is correct and deliberate.
      * <p>
-     * Two absent shapes compare equal on purpose: a rail that stamps no shape enriches entries that carry none,
-     * exactly as it did before shapes existed. A known shape never matches an absent one — "unknown" must not be
+     * Two absent read configurations compare equal on purpose: a rail that stamps no read configuration enriches entries that carry none,
+     * exactly as it did before read configurations existed. A known shape never matches an absent one — "unknown" must not be
      * license to share.
      * <p>
-     * The count tier deliberately carries ONLY the row count across: writing the foreign shape or its column
+     * The count tier deliberately carries ONLY the row count across: writing the foreign read configuration or its column
      * families would relabel this entry as a read it did not come from.
      */
     @Nullable
     private static Map<String, Object> applicableStats(SchemaCacheEntry entry, Map<String, Object> contribution) {
-        Object entryShape = entry.safeMetadata().get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
-        Object contributionShape = contribution.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
-        if (Objects.equals(entryShape, contributionShape)) {
+        Object entryReadConfig = entry.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+        Object contributionReadConfig = contribution.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
+        if (Objects.equals(entryReadConfig, contributionReadConfig)) {
             return contribution;
         }
-        if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY))
+        if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY))
             && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount) {
             return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
         }
@@ -828,15 +828,15 @@ public class ExternalSourceCacheService implements Closeable {
      * boundary where the reconciler hands typed statistics to the shared, cross-format map-based
      * merger ({@link SourceStatisticsSerializer#mergeStatistics}) and to the schema cache, both of
      * which speak the flat map. Re-attaches EVERY keying field that lives outside {@link SourceStatistics} — mtime,
-     * the config fingerprint, the read shape and the count licence. Dropping one here does not fail: it makes the
+     * the config fingerprint, the resolved read configuration and the count licence. Dropping one here does not fail: it makes the
      * identity gate compare against {@code null} and pass everything, silently.
      */
     private static Map<String, Object> toFlatMap(
         SourceStatistics stats,
         long mtimeMillis,
         String configFingerprint,
-        String readShape,
-        boolean rowCountShapeIndependent
+        String readConfig,
+        boolean rowCountReadConfigIndependent
     ) {
         Map<String, Object> base = new HashMap<>();
         if (mtimeMillis >= 0) {
@@ -845,11 +845,11 @@ public class ExternalSourceCacheService implements Closeable {
         if (configFingerprint != null) {
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, configFingerprint);
         }
-        if (readShape != null && readShape.isEmpty() == false) {
-            base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        if (readConfig != null && readConfig.isEmpty() == false) {
+            base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
-        if (rowCountShapeIndependent) {
-            base.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
+        if (rowCountReadConfigIndependent) {
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }
         return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
     }
@@ -866,8 +866,8 @@ public class ExternalSourceCacheService implements Closeable {
         long lastStripeOrdinal,
         long mtimeMillis,
         String fingerprint,
-        /** The read shape every fragment in this delta agreed on; {@code null} when the rail stamped none. */
-        String readShape,
+        /** The resolved read configuration every fragment in this delta agreed on; {@code null} when the rail stamped none. */
+        String readConfig,
         long stripeSize
     ) {}
 
@@ -897,7 +897,7 @@ public class ExternalSourceCacheService implements Closeable {
         long stripeSize = -1L;
         long mtime = -1L;
         String fingerprint = null;
-        String readShape = null;
+        String readConfig = null;
         // ordinal -> (start offset -> fragments starting there). Multiple fragments can share a start
         // (the same stripe prefix observed by two scans), so the value is a list.
         Map<Long, Map<Long, List<SourceStatsContribution.StripeFragment>>> byStripe = new HashMap<>();
@@ -909,13 +909,13 @@ public class ExternalSourceCacheService implements Closeable {
                 stripeSize = f.stripeSize();
                 mtime = f.mtimeMillis();
                 fingerprint = f.configFingerprint();
-                readShape = f.readShape();
+                readConfig = f.readConfig();
             } else if (stripeSize != f.stripeSize()) {
                 return null; // mixed grids (mid-upgrade settings skew) — bail rather than guess
             } else if (mtime != f.mtimeMillis() || Objects.equals(fingerprint, f.configFingerprint()) == false
             // Fragments from reads of different SHAPES describe different row sets; folding them into one cover
             // would mix them, so the same disagreement rule the fingerprint gets applies here.
-                || Objects.equals(readShape, f.readShape()) == false) {
+                || Objects.equals(readConfig, f.readConfig()) == false) {
                     // Fragments for the same path observed at different mtimes (the file was modified between
                     // sibling scans) or under different configs describe different file versions. Folding them
                     // would mix versions and commit the result under the first fragment's freshness key — a
@@ -945,7 +945,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (complete.isEmpty()) {
             return null;
         }
-        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readShape, stripeSize);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, stripeSize);
     }
 
     /**
@@ -1021,12 +1021,12 @@ public class ExternalSourceCacheService implements Closeable {
         for (SourceStatsContribution.StripeFragment f : chain) {
             // Fragments in a chain are already required to agree on shape (foldStripeFragments), so any one of them
             // carries the chain's. The licence is per-producer and rides the same way.
-            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readShape(), false));
+            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readConfig(), false));
         }
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
         // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey
         // is an idempotent overwrite.
-        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint, chain.isEmpty() ? null : chain.get(0).readShape());
+        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint, chain.isEmpty() ? null : chain.get(0).readConfig());
     }
 
     /**
@@ -1086,9 +1086,9 @@ public class ExternalSourceCacheService implements Closeable {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
             // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating per-entry fold,
-            // so a foreign-shaped delta cannot contribute even its row count without mixing two reads' stripes into
+            // so a foreign-configured delta cannot contribute even its row count without mixing two reads' stripes into
             // one cover. Same-shape only; anything else safe-misses to a scan.
-            if (Objects.equals(existing.safeMetadata().get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY), delta.readShape()) == false) {
+            if (Objects.equals(existing.safeMetadata().get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY), delta.readConfig()) == false) {
                 continue;
             }
             Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
@@ -1292,7 +1292,7 @@ public class ExternalSourceCacheService implements Closeable {
                 return stripeMap;
             }
             return null; // ordinal missing — knowledge incomplete, keep accumulating
-        }, delta.mtimeMillis(), delta.fingerprint(), delta.readShape());
+        }, delta.mtimeMillis(), delta.fingerprint(), delta.readConfig());
     }
 
     /**
@@ -1329,7 +1329,7 @@ public class ExternalSourceCacheService implements Closeable {
         // typed contributions to the wire map at this boundary (mirrors foldFragments).
         List<Map<String, Object>> maps = new ArrayList<>(wholeFile.size());
         for (SourceStatsContribution.WholeFile wf : wholeFile) {
-            maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint(), wf.readShape(), wf.rowCountShapeIndependent()));
+            maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint(), wf.readConfig(), wf.rowCountReadConfigIndependent()));
         }
         if (maps.size() == 1) {
             return maps.get(0);
@@ -1442,7 +1442,7 @@ public class ExternalSourceCacheService implements Closeable {
                     SchemaCacheEntry existing = match.getValue();
                     Map<String, Object> applicable = applicableStats(existing, mergedStats);
                     if (applicable == null) {
-                        // Harvested under a different read shape, with no licence to cross: enriching would serve one
+                        // Harvested under a different resolved read configuration, with no licence to cross: enriching would serve one
                         // read's measurement as another's. Safe-miss — the foreign read re-scans.
                         continue;
                     }

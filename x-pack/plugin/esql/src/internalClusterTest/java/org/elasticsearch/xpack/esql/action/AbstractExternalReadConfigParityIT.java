@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Cross-format guardrail for the two properties of the read-shape identity that are NOT about blocking contamination:
+ * Cross-format guardrail for the two properties of the read-configuration identity that are NOT about blocking contamination:
  * that it does not split the cache when it should not, and that a multiset listing folds per position.
  *
  * <p>Anti-fragmentation matters as much as the correctness half and is easier to break silently: an identity that
@@ -41,10 +41,10 @@ import static org.hamcrest.Matchers.equalTo;
  * fragment the fingerprint failed to redden them, because the values perturbed do not differ between an inferred
  * read and a no-op declaration in the first place. They still assert a real and desirable property end to end — that
  * declaring nothing new keeps the warm entry — and the encoder half of it is pinned directly by
- * {@code ReadShapeFingerprintTests#testNoOpRedeclarationSharesTheInferredShape}. Read them as behavioural
+ * {@code ReadConfigFingerprintTests#testNoOpRedeclarationSharesTheInferredShape}. Read them as behavioural
  * documentation with a live assertion, not as proof the identity cannot fragment.
  *
- * <p>Contamination is pinned separately, in {@link ExternalReadShapeContaminationIT}. It does not live here because
+ * <p>Contamination is pinned separately, in {@link ExternalReadConfigContaminationIT}. It does not live here because
  * the constructions that look like they would prove it — two datasets both counting rows, or a per-column aggregate
  * over a retyped column — cannot fail: {@code COUNT(*)} parses no column, and a retyped column is already
  * safe-missed by the declared-overlay poison and its harvest stripped as a union_by_name pin.
@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 // numDataNodes=1: the warm cache is a per-node singleton, so a single node is what pins the coordinator. A random
 // coordinator lets the second query land on an empty cache and re-scan, which passes for the wrong reason.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public abstract class AbstractExternalReadShapeParityIT extends AbstractExternalDataSourceIT {
+public abstract class AbstractExternalReadConfigParityIT extends AbstractExternalDataSourceIT {
 
     protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(60);
     protected static final int ROWS = 200;

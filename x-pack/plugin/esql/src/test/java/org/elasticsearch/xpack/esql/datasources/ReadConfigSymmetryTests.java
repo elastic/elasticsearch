@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.cache.ReadShapeFingerprint;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The read shape is DERIVED on both sides rather than shipped: the coordinator computes it while resolving, and the
+ * The resolved read configuration is DERIVED on both sides rather than shipped: the coordinator computes it while resolving, and the
  * data node recomputes it from the split it was handed. That only works if the two derivations agree — and an identity
  * the two sides compute differently is worse than none, because it matches nothing and disables the warm path in
  * silence rather than failing.
@@ -36,7 +36,7 @@ import java.util.Set;
  * planner-internal UNKNOWN normalized to nullable, so an attribute does not survive the round trip byte-identical.
  * These tests pin that the FINGERPRINT survives it anyway.
  */
-public class ReadShapeSymmetryTests extends ESTestCase {
+public class ReadConfigSymmetryTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of(FileSplit.ENTRY));
 
@@ -44,16 +44,16 @@ public class ReadShapeSymmetryTests extends ESTestCase {
         List<Attribute> coordinatorSchema = List.of(attr("user", DataType.KEYWORD), attr("count", DataType.LONG));
         DeclaredReadSpec spec = new DeclaredReadSpec(Map.of(), null, Map.of(), Set.of(), SchemaProvenance.INFERRED);
 
-        String coordinatorSide = ReadShapeFingerprint.of(coordinatorSchema, spec);
-        String dataNodeSide = ReadShapeFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec);
+        String coordinatorSide = ReadConfigFingerprint.of(coordinatorSchema, spec);
+        String dataNodeSide = ReadConfigFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec);
 
-        assertEquals("the coordinator and the data node must derive the same read shape", coordinatorSide, dataNodeSide);
-        assertNotEquals(ReadShapeFingerprint.UNKNOWN, coordinatorSide);
+        assertEquals("the coordinator and the data node must derive the same resolved read configuration", coordinatorSide, dataNodeSide);
+        assertNotEquals(ReadConfigFingerprint.UNKNOWN, coordinatorSide);
     }
 
     public void testFingerprintSurvivesTheRoundTripUnderADeclaration() throws IOException {
         // A declaration is where the two sides have the most room to disagree: renames, per-column patterns and the
-        // binding mode all feed the shape, and only the schema half crosses the wire in the split.
+        // binding mode all feed the read configuration, and only the schema half crosses the wire in the split.
         List<Attribute> coordinatorSchema = List.of(attr("user", DataType.KEYWORD), attr("ts", DataType.DATETIME));
         DeclaredReadSpec spec = new DeclaredReadSpec(
             Map.of("user", "user_name"),
@@ -64,8 +64,8 @@ public class ReadShapeSymmetryTests extends ESTestCase {
         );
 
         assertEquals(
-            ReadShapeFingerprint.of(coordinatorSchema, spec),
-            ReadShapeFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec)
+            ReadConfigFingerprint.of(coordinatorSchema, spec),
+            ReadConfigFingerprint.of(roundTrip(coordinatorSchema).readSchema(), spec)
         );
     }
 
@@ -80,20 +80,20 @@ public class ReadShapeSymmetryTests extends ESTestCase {
         );
 
         assertEquals(
-            ReadShapeFingerprint.of(unknownNullability, DeclaredReadSpec.NONE),
-            ReadShapeFingerprint.of(explicitlyNullable, DeclaredReadSpec.NONE)
+            ReadConfigFingerprint.of(unknownNullability, DeclaredReadSpec.NONE),
+            ReadConfigFingerprint.of(explicitlyNullable, DeclaredReadSpec.NONE)
         );
         assertEquals(
-            ReadShapeFingerprint.of(unknownNullability, DeclaredReadSpec.NONE),
-            ReadShapeFingerprint.of(roundTrip(unknownNullability).readSchema(), DeclaredReadSpec.NONE)
+            ReadConfigFingerprint.of(unknownNullability, DeclaredReadSpec.NONE),
+            ReadConfigFingerprint.of(roundTrip(unknownNullability).readSchema(), DeclaredReadSpec.NONE)
         );
     }
 
     public void testAbsentReadSchemaDerivesUnknownOnBothSides() throws IOException {
-        // Legitimate on the rails that carry no pin. Both sides must agree that the shape is unknown, so neither
+        // Legitimate on the rails that carry no pin. Both sides must agree that the read configuration is unknown, so neither
         // stamps nor matches on it.
-        assertEquals(ReadShapeFingerprint.UNKNOWN, ReadShapeFingerprint.of(null, DeclaredReadSpec.NONE));
-        assertEquals(ReadShapeFingerprint.UNKNOWN, ReadShapeFingerprint.of(roundTrip(null).readSchema(), DeclaredReadSpec.NONE));
+        assertEquals(ReadConfigFingerprint.UNKNOWN, ReadConfigFingerprint.of(null, DeclaredReadSpec.NONE));
+        assertEquals(ReadConfigFingerprint.UNKNOWN, ReadConfigFingerprint.of(roundTrip(null).readSchema(), DeclaredReadSpec.NONE));
     }
 
     /** Ships a split carrying {@code readSchema} through the wire and returns what the data node would see. */

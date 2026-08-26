@@ -318,8 +318,8 @@ public interface FormatReader extends Closeable {
     }
 
     /**
-     * Returns a reader that stamps {@code readShape} onto the statistics it harvests — the caller-computed identity of
-     * how THIS file is being read (see {@code ReadShapeFingerprint}). Opaque to the reader, exactly like the canonical
+     * Returns a reader that stamps {@code readConfig} onto the statistics it harvests — the caller-computed identity of
+     * how THIS file is being read (see {@code ReadConfigFingerprint}). Opaque to the reader, exactly like the canonical
      * config string it sits beside: the reader carries it through onto its contributions and never interprets it.
      * <p>
      * The value is per FILE, not per query, so it is applied at the per-file seam rather than at configuration time.
@@ -329,7 +329,7 @@ public interface FormatReader extends Closeable {
      * <p>
      * Default no-op: a format that harvests no statistics has nothing to stamp.
      */
-    default FormatReader withReadShape(String readShape) {
+    default FormatReader withReadConfig(String readConfig) {
         return this;
     }
 
@@ -339,7 +339,7 @@ public interface FormatReader extends Closeable {
      *
      * <p>True only for a headered text reader binding a DECLARED schema by name: the binding is resolved against the
      * file's header line, and only the first split carries it. A headerless file's physical names encode their own
-     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the shape the
+     * positions ({@code col4} -> field 4), so it binds on any split and stays fully splittable — which is the read configuration the
      * throughput-sensitive reads actually use.
      */
     default boolean declaredNameBindingNeedsFileStart() {

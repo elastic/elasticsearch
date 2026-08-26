@@ -90,12 +90,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     /** Computes the cache fingerprint from the FULL file schema at close time — must match {@code metadata()}'s input. */
     private final Function<List<Attribute>, String> fingerprinter;
     /** Identity of how THIS file is read; stamped beside the config fingerprint. Empty when unknown. */
-    private final String readShape;
+    private final String readConfig;
     /**
-     * Whether this read's error policy makes its row count independent of the read shape (FAIL_FAST only). Derived at
+     * Whether this read's error policy makes its row count independent of the resolved read configuration (FAIL_FAST only). Derived at
      * construction because the policy itself is consumed while opening the stream and is not retained.
      */
-    private final boolean rowCountShapeIndependent;
+    private final boolean rowCountReadConfigIndependent;
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
@@ -213,7 +213,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         StorageObject cacheableObject,
         long pinnedMtimeMillis,
         Function<List<Attribute>, String> fingerprinter,
-        String readShape,
+        String readConfig,
         boolean chunkMode,
         NdJsonReaderCounters counters,
         long splitStartByte,
@@ -231,8 +231,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.cacheableObject = cacheableObject;
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
-        this.readShape = readShape == null ? "" : readShape;
-        this.rowCountShapeIndependent = errorPolicy.isStrict();
+        this.readConfig = readConfig == null ? "" : readConfig;
+        this.rowCountReadConfigIndependent = errorPolicy.isStrict();
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         this.chunkMode = chunkMode;
@@ -675,10 +675,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             // Cache on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
             // A DROPPED line (NDJSON drops the whole line on any parse error) does NOT make these stats wrong FOR
             // THIS READ: which lines survive is a deterministic function of the file bytes, the error policy
-            // (pinned by the cache fingerprint) AND the read shape -- a declared type or date pattern decides
+            // (pinned by the cache fingerprint) AND the resolved read configuration -- a declared type or date pattern decides
             // which values coerce, so it decides which lines drop. The shape is stamped alongside the fingerprint
-            // and the cache refuses to serve these numbers to a read of a different shape, so committing them is
-            // safe: they are this shape's measurement, not the file's. So commit normally. NONE scope suppresses all publishing. A scan cut
+            // and the cache refuses to serve these numbers to a read of a different read configuration, so committing them is
+            // safe: they are this read configuration's measurement, not the file's. So commit normally. NONE scope suppresses all
+            // publishing. A scan cut
             // short mid-way (LIMIT, cancellation, a
             // chunk exceeding its error budget) leaves naturallyExhausted false or an uncovered stripe, so it
             // safe-misses rather than serving; the coordinator's whole-file poison covers the non-clean-close case.
@@ -708,7 +709,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 chunkBytes,
                                 pinnedMtimeMillis,
                                 fingerprinter.apply(fullSchema),
-                                readShape,
+                                readConfig,
                                 fullSchema
                             );
                         }
@@ -741,12 +742,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         Map<String, Object> base = new HashMap<>();
         base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
         base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
-        if (readShape.isEmpty() == false) {
-            base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        if (readConfig.isEmpty() == false) {
+            base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
-        // See CsvFormatReader: only FAIL_FAST makes a committed row count shape-independent.
-        if (rowCountShapeIndependent) {
-            base.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
+        // See CsvFormatReader: only FAIL_FAST makes a committed row count read-config-independent.
+        if (rowCountReadConfigIndependent) {
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
         }
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

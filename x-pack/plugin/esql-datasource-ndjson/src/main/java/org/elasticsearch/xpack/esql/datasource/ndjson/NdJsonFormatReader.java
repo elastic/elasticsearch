@@ -113,12 +113,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      */
     private final String canonicalConfig;
     /**
-     * Identity of how the file currently being read is interpreted (see {@code ReadShapeFingerprint}), or empty when
+     * Identity of how the file currently being read is interpreted (see {@code ReadConfigFingerprint}), or empty when
      * the producing path had no coordinator-minted read schema. Per FILE, so it is set at the per-file seam via
-     * {@link #withReadShape}, not at config time like {@link #canonicalConfig}. Opaque here: carried onto harvested
+     * {@link #withReadConfig}, not at config time like {@link #canonicalConfig}. Opaque here: carried onto harvested
      * contributions, never interpreted.
      */
-    private final String readShape;
+    private final String readConfig;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
@@ -140,7 +140,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         DateFormatter datetimeFormatter,
         String canonicalConfig,
         Map<String, String> declaredDateFormats,
-        String readShape
+        String readConfig
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -150,7 +150,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.datetimeFormatter = datetimeFormatter;
         this.canonicalConfig = canonicalConfig;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.readShape = readShape == null ? "" : readShape;
+        this.readConfig = readConfig == null ? "" : readConfig;
     }
 
     @Override
@@ -164,13 +164,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             declaredDateFormats,
-            readShape
+            readConfig
         );
     }
 
     @Override
-    public NdJsonFormatReader withReadShape(String newReadShape) {
-        if (newReadShape == null || newReadShape.equals(readShape)) {
+    public NdJsonFormatReader withReadConfig(String newReadConfig) {
+        if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
         return new NdJsonFormatReader(
@@ -182,7 +182,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             declaredDateFormats,
-            newReadShape
+            newReadConfig
         );
     }
 
@@ -200,7 +200,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             physicalNameToPattern,
-            readShape
+            readConfig
         );
     }
 
@@ -226,7 +226,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newDatetimeFormatter,
             canon,
             declaredDateFormats,
-            readShape
+            readConfig
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -560,7 +560,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             pinnedMtimeMillis,
             // The fingerprint is the node-stable canonical config; the iterator's schema arg is ignored.
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
-            readShape,
+            readConfig,
             chunkMode,
             counters,
             context.splitStartByte(),

@@ -311,31 +311,31 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * The read-shape stamp is what keeps one read's statistics from being served to a differently-shaped read, and it
+     * The read-configuration stamp is what keeps one read's statistics from being served to a read configured differently, and it
      * is carried by a wither the reader could silently drop while still compiling. Pin both directions: a configured
      * shape reaches every harvested contribution, and an unconfigured one stamps no key at all — absence is how a
-     * consumer tells "shape unknown" from a real shape.
+     * consumer tells "shape unknown" from a real read configuration.
      */
-    public void testReadShapeIsStampedOnHarvestedContributions() throws Exception {
+    public void testReadConfigIsStampedOnHarvestedContributions() throws Exception {
         byte[] bytes = "n\n1\n2\n3\n".getBytes(StandardCharsets.UTF_8);
 
-        List<Map<String, Object>> stamped = captureWithReadShape(bytes, 64L, "shape-A");
+        List<Map<String, Object>> stamped = captureWithReadConfig(bytes, 64L, "config-A");
         assertThat("the read must harvest something to stamp", stamped, not(empty()));
         for (Map<String, Object> contribution : stamped) {
-            assertEquals("shape-A", contribution.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY));
+            assertEquals("config-A", contribution.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
         }
 
-        List<Map<String, Object>> unstamped = captureWithReadShape(bytes, 64L, null);
+        List<Map<String, Object>> unstamped = captureWithReadConfig(bytes, 64L, null);
         assertThat(unstamped, not(empty()));
         for (Map<String, Object> contribution : unstamped) {
             assertFalse(
-                "an unknown shape must leave the key absent, not empty",
-                contribution.containsKey(ExternalStats.READ_SHAPE_FINGERPRINT_KEY)
+                "an unknown read configuration must leave the key absent, not empty",
+                contribution.containsKey(ExternalStats.READ_CONFIG_FINGERPRINT_KEY)
             );
         }
     }
 
-    private List<Map<String, Object>> captureWithReadShape(byte[] bytes, long stripeSize, String readShape) throws Exception {
+    private List<Map<String, Object>> captureWithReadConfig(byte[] bytes, long stripeSize, String readConfig) throws Exception {
         StorageObject o = memoryObject(bytes);
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(List.of("n"))
@@ -350,8 +350,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         FormatReader reader = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
             Map.of(CsvFormatReader.CONFIG_HEADER_ROW, true)
         );
-        if (readShape != null) {
-            reader = reader.withReadShape(readShape);
+        if (readConfig != null) {
+            reader = reader.withReadConfig(readConfig);
         }
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = reader.read(o, ctx)) {

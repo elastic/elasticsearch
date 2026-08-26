@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadata;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
-import org.elasticsearch.xpack.esql.datasources.cache.ReadShapeFingerprint;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadConfigFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
@@ -677,7 +677,7 @@ public class ExternalSourceResolver {
                 String formatType = detectFormatType(storagePath);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return stampInferredReadShape(SchemaCacheEntry.from(resolveSingleSource(path, config)));
+                    return stampInferredReadConfig(SchemaCacheEntry.from(resolveSingleSource(path, config)));
                 });
                 List<Attribute> schema = schemaEntry.toAttributes();
                 extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -828,7 +828,7 @@ public class ExternalSourceResolver {
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
                 // to skip Phase 2 (split discovery) entirely for those queries.
                 //
-                // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
+                // This eager all-file aggregation is gated on requiresStats: only query read configurations that can consume the
                 // global stats — an ungrouped aggregate over the relation, detected by
                 // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads. Every other
                 // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
@@ -852,11 +852,11 @@ public class ExternalSourceResolver {
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
                 // Filled by the gather below, before this listener runs.
-                Map<String, String> ffwReadShapes = new HashMap<>(listing.fileCount());
+                Map<String, String> ffwReadConfigs = new HashMap<>(listing.fileCount());
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(
-                            ffwReadShapes,
+                            ffwReadConfigs,
                             datasetPrefetch,
                             aggregatedStats,
                             listing,
@@ -869,9 +869,9 @@ public class ExternalSourceResolver {
                     }
                 }, listener::onFailure);
                 if (cacheable) {
-                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, ffwReadShapes, statsListener);
+                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, ffwReadConfigs, statsListener);
                 } else {
-                    readAndAggregateAllFileStats(listing, config, implicitNulls, ffwReadShapes, statsListener);
+                    readAndAggregateAllFileStats(listing, config, implicitNulls, ffwReadConfigs, statsListener);
                 }
             } else if (listing.fileCount() > 1) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
@@ -1145,26 +1145,26 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Stamps an inferred entry with the shape of the read that produced it. Without this an inferred entry carries no
-     * shape at all, the serve gate's "entry has no shape" pass-through fires on every lookup, and the identity is
+     * Stamps an inferred entry with the read configuration of the read that produced it. Without this an inferred entry carries no
+     * shape at all, the serve gate's "entry has no read configuration" pass-through fires on every lookup, and the identity is
      * inert on exactly the rail the reported defect lives on. The declaration is {@code NONE} by construction here:
      * these are the inferred rails, and a declared read reaches its own seed elsewhere.
      */
-    private static SchemaCacheEntry stampInferredReadShape(SchemaCacheEntry entry) {
+    private static SchemaCacheEntry stampInferredReadConfig(SchemaCacheEntry entry) {
         // File-typed (columnar) formats do not participate in shape identity: they harvest without stamping, and
         // their rows never drop under a lenient policy, so a declared retype changes which VALUES a column yields
         // but not which rows exist. Stamping them would make the serve gate strip a row count that is genuinely
-        // shape-independent, taking COUNT(*) cold for every mapped columnar dataset. Their per-column stats are
+        // read-config-independent, taking COUNT(*) cold for every mapped columnar dataset. Their per-column stats are
         // already guarded by the declared-overlay poison.
         if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
             return entry;
         }
-        String shape = ReadShapeFingerprint.of(entry.toAttributes(), DeclaredReadSpec.NONE);
-        if (ReadShapeFingerprint.UNKNOWN.equals(shape)) {
+        String shape = ReadConfigFingerprint.of(entry.toAttributes(), DeclaredReadSpec.NONE);
+        if (ReadConfigFingerprint.UNKNOWN.equals(shape)) {
             return entry;
         }
         Map<String, Object> stamped = new HashMap<>(entry.safeMetadata());
-        stamped.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, shape);
+        stamped.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, shape);
         return entry.withSafeMetadata(stamped);
     }
 
@@ -1225,7 +1225,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * The dataset-level aggregate key for one multi-file resolve, or {@code null} when the shape does not
+     * The dataset-level aggregate key for one multi-file resolve, or {@code null} when the read configuration does not
      * qualify: single file, no file-set fingerprint, a non-cacheable provider (handled by callers), or — the
      * format gate — a format that folds an absent column stat as implicit nulls (Parquet/ORC). The
      * aggregate is ROW-COUNT-ONLY, and under the footer implicit-nulls contract an absent per-column
@@ -1296,7 +1296,7 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * One multi-file resolve's dataset-aggregate prefetch: the key (or {@code null} when the shape does
+     * One multi-file resolve's dataset-aggregate prefetch: the key (or {@code null} when the read configuration does
      * not qualify — including the non-cacheable case, gated here so it lives in one place) and the
      * memoized aggregate if present. Read BEFORE the per-file gather; see {@link #applyDatasetAggregate}
      * for why post-gather reads self-defeat under cache pressure. Package-private for testing.
@@ -1333,7 +1333,7 @@ public class ExternalSourceResolver {
      */
     @Nullable
     Map<String, Object> applyDatasetAggregate(
-        @Nullable Map<String, String> pathToReadShape,
+        @Nullable Map<String, String> pathToReadConfig,
         DatasetAggregatePrefetch prefetch,
         @Nullable Map<String, Object> aggregatedStats,
         FileList listing,
@@ -1386,7 +1386,7 @@ public class ExternalSourceResolver {
             pathToMtime,
             listing.fileCount(),
             fingerprint,
-            pathToReadShape,
+            pathToReadConfig,
             referenceMeta.sourceType(),
             listing.originalPattern()
         );
@@ -1478,15 +1478,15 @@ public class ExternalSourceResolver {
                     dropPinnedRowCount,
                     foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
                 );
-                Map<String, String> pathToReadShape = new HashMap<>(allMetadata.size());
+                Map<String, String> pathToReadConfig = new HashMap<>(allMetadata.size());
                 for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
                     Map<String, Object> meta = e.getValue().sourceMetadata();
-                    Object shape = meta == null ? null : meta.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+                    Object shape = meta == null ? null : meta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
                     if (shape instanceof String str) {
-                        pathToReadShape.put(e.getKey().toString(), str);
+                        pathToReadConfig.put(e.getKey().toString(), str);
                     }
                 }
-                aggregatedStats = applyDatasetAggregate(pathToReadShape, datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
+                aggregatedStats = applyDatasetAggregate(pathToReadConfig, datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
                 ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
                 // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats
@@ -1679,7 +1679,7 @@ public class ExternalSourceResolver {
             return;
         }
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
-            SchemaCacheEntry entry = stampInferredReadShape(SchemaCacheEntry.from(meta));
+            SchemaCacheEntry entry = stampInferredReadConfig(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
             return buildMetadataFromCache(entry, entry.toAttributes(), config);
         }));
@@ -1887,11 +1887,11 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
-        Map<String, String> readShapesOut,
+        Map<String, String> readConfigsOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
-            collectReadShapes(listing, allMeta, readShapesOut);
+            collectReadConfigs(listing, allMeta, readConfigsOut);
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
@@ -1918,16 +1918,16 @@ public class ExternalSourceResolver {
      * stats.
      */
     /**
-     * Records each file's stamped read shape, keyed by path, as the gather walks the listing. The dataset-aggregate
-     * promise needs a shape PER PATH — a glob's files are not necessarily read alike — and the gather is the only
+     * Records each file's stamped resolved read configuration, keyed by path, as the gather walks the listing. The dataset-aggregate
+     * promise needs a read configuration PER PATH — a glob's files are not necessarily read alike — and the gather is the only
      * place on the first-file-wins rail where per-file metadata exists.
      */
-    private static void collectReadShapes(FileList listing, List<SourceMetadata> allMeta, Map<String, String> into) {
+    private static void collectReadConfigs(FileList listing, List<SourceMetadata> allMeta, Map<String, String> into) {
         int count = Math.min(listing.fileCount(), allMeta.size());
         for (int i = 0; i < count; i++) {
             SourceMetadata meta = allMeta.get(i);
             Map<String, Object> fileMeta = meta == null ? null : meta.sourceMetadata();
-            Object shape = fileMeta == null ? null : fileMeta.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+            Object shape = fileMeta == null ? null : fileMeta.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
             if (shape instanceof String str) {
                 into.put(listing.path(i).toString(), str);
             }
@@ -1938,11 +1938,11 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
-        Map<String, String> readShapesOut,
+        Map<String, String> readConfigsOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
-            collectReadShapes(listing, allMeta, readShapesOut);
+            collectReadConfigs(listing, allMeta, readConfigsOut);
             List<Map<String, Object>> perFileStats = new ArrayList<>(allMeta.size());
             for (SourceMetadata meta : allMeta) {
                 Map<String, Object> fileMeta = meta.sourceMetadata();
@@ -2545,10 +2545,10 @@ public class ExternalSourceResolver {
      * declared width under {@code FAIL_FAST}); once a wider — or inferred — dataset over the same file+config has warmed
      * the shared entry, that dataset's {@code COUNT(*)} folds to the physical row-count instead of erroring. That is a
      * masked abort, not a wrong count (every materializing query on such a mis-bound dataset still fails loudly), and it
-     * flaps with cache state. The read-shape fingerprint now in the stats identity ({@link ReadShapeFingerprint}) closes
-     * the strict-vs-strict half by construction — two declarations of different widths are different shapes, so neither
+     * flaps with cache state. The read-configuration fingerprint now in the stats identity ({@link ReadConfigFingerprint}) closes
+     * the strict-vs-strict half by construction — two declarations of different widths are different read configurations, so neither
      * enriches nor serves the other. The inferred-vs-strict half is NOT closed: under {@code FAIL_FAST} the row count is
-     * licensed to cross read shapes (the count is the physical record count for any declaration), which is exactly the
+     * licensed to cross resolved read configurations (the count is the physical record count for any declaration), which is exactly the
      * licence this masked abort rides. Closing it would mean withdrawing that licence and making every strict dataset
      * re-scan, so the residual stands, deliberately, and is disclosed here rather than in a follow-up.
      * <p>
@@ -2556,7 +2556,7 @@ public class ExternalSourceResolver {
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
      * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the
      * multi-file glob correctly needs the declared schema woven into the cross-node stats fingerprint — which is what the
-     * read-shape component now does; the remaining limit here is the columnar exclusion above, not the identity.
+     * read-configuration component now does; the remaining limit here is the columnar exclusion above, not the identity.
      */
     private ExternalSourceMetadata strictSingleFileMetadata(
         String path,
@@ -2588,11 +2588,11 @@ public class ExternalSourceResolver {
                         mtimeMillis,
                         ExternalStats.CONFIG_FINGERPRINT_KEY,
                         SchemaCacheKey.buildFormatConfig(config),
-                        // Seed the shape too, from the declaration this entry was minted for. Without it the seed
-                        // would carry no shape while every harvest carries one, so the first contribution would match
+                        // Seed the read configuration too, from the declaration this entry was minted for. Without it the seed
+                        // would carry no read configuration while every harvest carries one, so the first contribution would match
                         // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
-                        ExternalStats.READ_SHAPE_FINGERPRINT_KEY,
-                        ReadShapeFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping))
+                        ExternalStats.READ_CONFIG_FINGERPRINT_KEY,
+                        ReadConfigFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping))
                     ),
                     Map.of()
                 )
@@ -2959,12 +2959,12 @@ public class ExternalSourceResolver {
         // Copy-of to match every sibling producer on this seam (buildUnifiedMetadata / applyFirstFileWinsAggregatedStats
         // / SchemaCacheEntry.safeMetadata are all immutable): this map becomes the long-lived sourceMetadata() below.
         // Serve gate, ahead of the overlay: the cached statistics were harvested under whatever shape produced them,
-        // and the declaration may have changed the shape of the read we are about to do — a retype or a per-column
+        // and the declaration may have changed the read configuration of the read we are about to do — a retype or a per-column
         // date pattern changes which rows survive under a lenient policy, so those numbers are not ours to serve.
         // Only the physical record count crosses, and only where the producer licensed it (FAIL_FAST).
         Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadShape(
             inferred.sourceMetadata(),
-            ReadShapeFingerprint.of(unified.output(), declaredReadSpecOf(declaredMapping))
+            ReadConfigFingerprint.of(unified.output(), declaredReadSpecOf(declaredMapping))
         );
         Map<String, Object> overlaidSourceMetadata = Map.copyOf(
             SourceStatisticsSerializer.overlayDeclaredSchemaOnStats(servableStats, physicalToLogical, poisonColumns)

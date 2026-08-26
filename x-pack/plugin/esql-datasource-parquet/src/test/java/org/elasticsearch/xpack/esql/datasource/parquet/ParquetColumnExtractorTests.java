@@ -113,7 +113,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
     private ParquetMetadata loadFooter(StorageObject so) throws IOException {
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
+                new ParquetStorageObjectAdapter(so, blockFactory.breaker()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {

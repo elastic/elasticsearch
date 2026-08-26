@@ -12,7 +12,7 @@ description = 'Fixture for emulating the Instance Metadata Service (IMDS) runnin
 
 dependencies {
   api project(':server')
-  api("junit:junit:${versions.junit}") {
+  api("junit:junit:${versions.junit4}") {
     transitive = false
   }
   api project(':test:framework')

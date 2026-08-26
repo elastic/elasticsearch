@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign;
 
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
+
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -35,16 +37,11 @@ public class LinkerHelper {
         // ntdll.dll but not kernel32.dll, so we add an explicit kernel32 lookup on that platform.
         SymbolLookup loaderLookup = SymbolLookup.loaderLookup();
         if (IS_WINDOWS) {
-            SymbolLookup kernel32 = kernel32Lookup();
+            SymbolLookup kernel32 = SymbolLookup.libraryLookup("kernel32.dll", Arena.global());
             SYMBOL_LOOKUP = name -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name)).or(() -> kernel32.find(name));
         } else {
             SYMBOL_LOOKUP = name -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
         }
-    }
-
-    @SuppressWarnings("restricted") // SymbolLookup.libraryLookup is a restricted native-access method; kernel32 is an OS library.
-    private static SymbolLookup kernel32Lookup() {
-        return SymbolLookup.libraryLookup("kernel32.dll", Arena.global());
     }
 
     public static SymbolLookup defaultLookup() {
@@ -59,12 +56,10 @@ public class LinkerHelper {
         return SYMBOL_LOOKUP.find(function).orElse(null);
     }
 
-    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
     public static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
-    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
     public static MethodHandle downcallHandle(
         MemorySegment functionAddress,
         FunctionDescriptor functionDescriptor,
@@ -83,7 +78,7 @@ public class LinkerHelper {
 
     // errno is a valid capture-state group element on every platform (including the Windows CRT), so
     // its VarHandle can resolve eagerly.
-    private static final VarHandle ERRNO_VH = MemoryLayoutVarHandles.varHandleWithoutOffset(
+    private static final VarHandle ERRNO_VH = MemorySegmentAdapter.varHandleWithoutOffset(
         Linker.Option.captureStateLayout(),
         groupElement("errno")
     );
@@ -93,7 +88,7 @@ public class LinkerHelper {
     // other platform and permanently poison the class for unrelated callers. Holding it in a nested
     // class defers that resolution until the Windows-only read path in systemError() touches it.
     private static final class LastErrorHolder {
-        private static final VarHandle LAST_ERROR_VH = MemoryLayoutVarHandles.varHandleWithoutOffset(
+        private static final VarHandle LAST_ERROR_VH = MemorySegmentAdapter.varHandleWithoutOffset(
             Linker.Option.captureStateLayout(),
             groupElement("GetLastError")
         );
@@ -122,7 +117,6 @@ public class LinkerHelper {
      * POSIX, {@code GetLastError} on Windows) into the shared buffer, binding that buffer as the
      * leading argument.
      */
-    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this helper exists to call it.
     public static MethodHandle downcallHandleWithSystemError(
         String function,
         FunctionDescriptor functionDescriptor,
@@ -148,7 +142,6 @@ public class LinkerHelper {
         }
     }
 
-    @SuppressWarnings("restricted") // Linker.upcallStub is a restricted native-access method; this helper exists to call it.
     public static <T> MemorySegment upcallStub(MethodHandle mh, T instance, FunctionDescriptor functionDescriptor, Arena arena) {
         try {
             mh = mh.bindTo(instance);

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.foreign.processor.model;
 
+import org.elasticsearch.foreign.Upcall;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,6 +19,9 @@ import java.util.Set;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
@@ -139,6 +144,24 @@ final class ModelUtil {
         return Set.of();
     }
 
+    /** Finds the first {@code public static} method with the given name on a type. */
+    static ExecutableElement findPublicStaticMethod(TypeElement type, String methodName) {
+        for (var enclosed : type.getEnclosedElements()) {
+            if (enclosed.getKind() != ElementKind.METHOD) {
+                continue;
+            }
+            ExecutableElement m = (ExecutableElement) enclosed;
+            if (m.getSimpleName().contentEquals(methodName) == false) {
+                continue;
+            }
+            var modifiers = m.getModifiers();
+            if (modifiers.contains(Modifier.PUBLIC) && modifiers.contains(Modifier.STATIC)) {
+                return m;
+            }
+        }
+        return null;
+    }
+
     /**
      * Returns the {@link NativeType} for a {@link TypeMirror}, or {@code null} if the type is not
      * supported. {@link NativeType#STRING} is returned for {@code java.lang.String} and validity in
@@ -149,13 +172,21 @@ final class ModelUtil {
             return NativeType.VOID;
         }
         if (mirror.getKind() == TypeKind.DECLARED) {
-            String fqn = ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().toString();
-            return switch (fqn) {
+            TypeElement typeElement = (TypeElement) ((DeclaredType) mirror).asElement();
+            String fqn = typeElement.getQualifiedName().toString();
+            NativeType byFqn = switch (fqn) {
                 case "java.lang.foreign.MemorySegment" -> NativeType.ADDRESS;
                 case "java.lang.String" -> NativeType.STRING;
                 case "org.elasticsearch.foreign.Addressable" -> NativeType.ADDRESSABLE;
                 default -> null;
             };
+            if (byFqn != null) {
+                return byFqn;
+            }
+            if (typeElement.getKind() == ElementKind.INTERFACE && typeElement.getAnnotation(Upcall.class) != null) {
+                return NativeType.UPCALL;
+            }
+            return null;
         }
         return switch (mirror.getKind()) {
             case INT -> NativeType.INT;

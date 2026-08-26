@@ -14,15 +14,18 @@ module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
     requires transitive org.elasticsearch.foreign;
+    requires org.elasticsearch.foreign.adapter;
     requires java.management; // for access to heap size
 
     exports org.elasticsearch.nativeaccess
         to
             org.elasticsearch.server,
             org.elasticsearch.blobcache,
+            // ColumNAR doc-values format: routes chunk compression through the native Zstd binding
+            // rather than a Java implementation.
+            org.elasticsearch.columnar,
             org.elasticsearch.parquetrs,
             org.elasticsearch.searchablesnapshots,
-            org.elasticsearch.simdvec,
             org.elasticsearch.systemd,
             org.elasticsearch.xpack.stateless,
             // ESQL data source compression-libs plugin: hosts PanamaZstd, the thin Panama

@@ -504,6 +504,44 @@ public class IndexDirectoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that {@link IndexDirectory.PreferLocalHint} in the {@link IOContext} routes reads to local disk even after the file has
+     * been marked as uploaded (at which point normal {@link IndexDirectory#openInput} would route to the blob-store cache directory).
+     * The local read succeeds as long as a local file reference is held.
+     */
+    public void testOpenInputPreferLocalHintPrefersLocalDisk() throws IOException {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final IndexBlobStoreCacheDirectory cacheDirectory = new IndexBlobStoreCacheDirectory(mockedCacheService(), null);
+        cacheDirectory.setBlobContainer(ignore -> mock(BlobContainer.class));
+        try (IndexDirectory directory = new IndexDirectory(FSDirectory.open(path), cacheDirectory, null, true)) {
+            final String filename = "test.cfe";
+            final byte[] content = randomByteArrayOfLength(between(1, 128));
+
+            try (IndexOutput output = directory.createOutput(filename, IOContext.DEFAULT)) {
+                output.writeBytes(content, content.length);
+            }
+
+            // Hold a local ref so the file stays on disk even after it is marked as uploaded.
+            try (var localRef = directory.tryAcquireLocalFileRef(filename)) {
+                directory.updateCommit(
+                    1L,
+                    content.length,
+                    Set.of(filename),
+                    Map.of(filename, createBlobFileRanges(1L, filename.hashCode(), 0L, content.length))
+                );
+
+                // With PreferLocalHint the read goes to local disk and returns the correct content,
+                // even though the file is now marked as uploaded (normal openInput would go to cache).
+                final var context = IOContext.DEFAULT.withHints(IndexDirectory.PreferLocalHint.INSTANCE);
+                try (IndexInput input = directory.openInput(filename, context)) {
+                    final byte[] read = new byte[content.length];
+                    input.readBytes(read, 0, read.length);
+                    assertArrayEquals(content, read);
+                }
+            }
+        }
+    }
+
     private static TestThreadPool getThreadPool(String name) {
         return new TestThreadPool(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }

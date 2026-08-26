@@ -32,7 +32,6 @@ public final class PosixMethodHandleResolver implements MethodHandleResolver {
     private static final int STAT_VER = System.getProperty("os.arch").equals("aarch64") ? 0 : 1;
 
     @Override
-    @SuppressWarnings("restricted") // Linker.downcallHandle is a restricted native-access method; this resolver exists to call it.
     public MethodHandle resolve(ResolvedSymbol symbol, FunctionDescriptor descriptor, Linker linker, Linker.Option... options) {
         if ("__fxstat".equals(symbol.name())) {
             List<MemoryLayout> argLayouts = new ArrayList<>();

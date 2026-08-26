@@ -30,10 +30,15 @@ import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.SelfAccountingIndexInput;
+import org.elasticsearch.index.store.StoreMetrics;
+import org.elasticsearch.index.store.StoreMetricsIndexInput;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.store.IndexInputUtils;
@@ -75,10 +80,22 @@ public class IndexDirectory extends ByteSizeDirectory {
     private static final Logger logger = LogManager.getLogger(IndexDirectory.class);
 
     /**
+     * An {@link IOContext.FileOpenHint} that instructs {@link #openInput} to prefer reading from local disk even for files that have
+     * already been uploaded to the object store. Passed by
+     * {@link org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit} to serve BCC chunk requests directly from the
+     * indexing node's local disk during the search-tier notification window.
+     * We should not rely on the cache having this filled, the indexing node's cache is for indexing, not for serving VBCCs to search.
+     */
+    public enum PreferLocalHint implements IOContext.FileOpenHint {
+        INSTANCE
+    }
+
+    /**
      * Directory used to access files stored in the object store through the shared cache. Once a commit is uploaded to the object store,
      * its files should be accessed using this cache directory.
      */
     private final IndexBlobStoreCacheDirectory cacheDirectory;
+
     /**
      * A callback to invoke when a generational file is deleted (by Lucene). It is used for
      * ref-counting their associated BCC blobs.
@@ -249,15 +266,25 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        context = maybeAddStatelessAdviceHint(name, context);
+        boolean preferLocal = context.hints().contains(PreferLocalHint.INSTANCE);
+        if (preferLocal == false) {
+            context = maybeAddStatelessAdviceHint(name, context);
+        }
 
-        if (cacheDirectory.containsFile(name) == false) {
+        // Enter the local-disk path if the file has not yet been uploaded (normal path) or if the caller
+        // explicitly requests local disk via PreferLocalHint (e.g. VirtualBatchedCompoundCommit serving BCC
+        // chunk requests during the search-tier notification window, where even uploaded files must be read
+        // from local disk instead of the blob-store cache).
+        if (preferLocal || cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
-            if (localFile != null && localFile.tryIncRefNotUploaded()) {
+            if (localFile != null && (preferLocal ? localFile.tryIncRef() : localFile.tryIncRefNotUploaded())) {
                 try {
+                    if (preferLocal) {
+                        return super.openInput(name, context);
+                    }
                     // Index inputs opened with READONCE IO context are expected to be read and closed within the same thread
                     // (see https://github.com/apache/lucene/pull/13535). This is not the case for ReopeningIndexInput that can be closed
                     // by the uploading thread.
@@ -279,6 +306,23 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         return cacheDirectory.openInput(name, context);
+    }
+
+    /**
+     * Acquires a reference to a local file via {@link LocalFileRef#tryIncRef()}, keeping it on disk even after
+     * {@link LocalFileRef#markAsUploaded()} has been called. Returns a no-op {@link Releasable} if the file is not locally available
+     * (e.g. it was from an older BCC and has already been freed from disk). The caller must close the returned {@link Releasable} when
+     * the local file is no longer needed.
+     */
+    public Releasable tryAcquireLocalFileRef(String name) {
+        LocalFileRef ref;
+        try (var ignored = readLock.acquire()) {
+            ref = localFiles.get(name);
+        }
+        if (ref != null && ref.tryIncRef()) {
+            return ref::decRef;
+        }
+        return () -> {};
     }
 
     /**
@@ -741,7 +785,7 @@ public class IndexDirectory extends ByteSizeDirectory {
      * exposed through {@link DirectAccessInput}, whose segments are scoped to a single callback, rather than through Lucene's
      * {@link MemorySegmentAccessInput}, whose segments must remain valid until the input is closed.
      */
-    class ReopeningIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput {
+    class ReopeningIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput, SelfAccountingIndexInput {
 
         private final String name;
         private final IOContext context;
@@ -752,6 +796,10 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final long sliceLength;
 
         private volatile Delegate delegate;
+        /**
+         * Where to account the bytes this input reads, whether from the local copy or through the cache.
+         */
+        private PluggableDirectoryMetricsHolder<StoreMetrics> storeMetrics = StoreMetrics.NOOP_HOLDER;
         private boolean closed;
         private boolean clone;
         private long position;
@@ -1052,6 +1100,22 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
+        public void accountBytesReadTo(PluggableDirectoryMetricsHolder<StoreMetrics> holder) {
+            this.storeMetrics = holder;
+        }
+
+        /**
+         * Passes the holder on to an input that escapes this one, so that reads through it are accounted to the same
+         * place. A clone of a fully buffered input is a plain byte array input, which cannot account for itself.
+         */
+        private IndexInput accountBytesRead(IndexInput input) {
+            if (storeMetrics == StoreMetrics.NOOP_HOLDER) {
+                return input;
+            }
+            return StoreMetricsIndexInput.create(input.toString(), input, storeMetrics.singleThreaded());
+        }
+
+        @Override
         public IndexInput clone() {
             var bufferClone = tryCloneBuffer();
             if (bufferClone != null) {
@@ -1063,7 +1127,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                         // We clone the actual delegate input. No need to clone our Delegate wrapper with the "cached" flag.
                         IndexInput inputToClone = current.getDelegate();
                         assert FilterIndexInput.unwrap(inputToClone) instanceof BlobCacheIndexInput : toString();
-                        return seekOnClone(inputToClone.clone());
+                        return accountBytesRead(seekOnClone(inputToClone.clone()));
                     } else {
                         final var clone = (ReopeningIndexInput) super.clone();
                         clone.delegate = (Delegate) current.clone();
@@ -1100,7 +1164,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             return executeLocallyOrReopen(current -> {
                 if (current.isCached()) {
                     assert FilterIndexInput.unwrap(current.getDelegate()) instanceof BlobCacheIndexInput : toString();
-                    return current.slice(sliceDescription, sliceOffset, sliceLength);
+                    return accountBytesRead(current.slice(sliceDescription, sliceOffset, sliceLength));
                 } else {
                     ensureSlice(sliceDescription, sliceOffset, sliceLength, current);
                     var slice = new ReopeningIndexInput(
@@ -1114,6 +1178,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                         sliceLength
                     );
                     slice.clone = true;
+                    slice.accountBytesReadTo(storeMetrics.singleThreaded());
                     return slice;
                 }
             });
@@ -1128,6 +1193,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 current.readBytes(b.array(), offset, len);
                 b.position(offset + len);
                 position += len;
+                storeMetrics.instance().addBytesRead(len);
                 return null;
             });
         }

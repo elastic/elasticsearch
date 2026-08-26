@@ -15,7 +15,6 @@ public class NativeAccessUtil {
      * We need to have this adapter even if the method is available in JDK 21, as it was in preview.
      * Available to JDK 22+, required for JDK 24+ when using --illegal-native-access=deny
      */
-    @SuppressWarnings("restricted") // Controller.enableNativeAccess is a restricted method; this adapter exists to call it.
     public static void enableNativeAccess(ModuleLayer.Controller controller, Module module) {
         controller.enableNativeAccess(module);
     }

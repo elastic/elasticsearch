@@ -458,6 +458,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Project Routing
         assertTrue(kibanaRole.cluster().check("cluster:admin/project_routing/delete", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:monitor/project_routing/get", request, authentication));
 
         // SAML and token
         assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request, authentication), is(true));
@@ -2094,6 +2095,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // delete_index is required to repair a plain index occupying the metadata data stream name
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertViewIndexMetadata(kibanaRole, indexName);
+        });
+
+        // Product aliases are not .entities.* names; ES authorizes aliases APIs against the alias name.
+        Arrays.asList(
+            "entities-latest-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "entities-updates-" + randomAlphaOfLength(randomIntBetween(1, 13)),
+            "entities-metadata-" + randomAlphaOfLength(randomIntBetween(1, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
         });
 
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {

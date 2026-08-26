@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.foreign.adapter.MemorySegmentAdapter;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
@@ -105,7 +106,6 @@ public class MacNativeAccess extends PosixNativeAccess {
         return Files.createTempFile("es", "sb");
     }
 
-    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; needed to size the native error buffer.
     private void initMacSandbox() {
         // macOS PIDs are 32-bit (pid_t); Math.toIntExact guards the implicit assumption
         int pid = Math.toIntExact(ProcessHandle.current().pid());
@@ -134,7 +134,7 @@ public class MacNativeAccess extends PosixNativeAccess {
             // if sandbox_init() fails, add the message from the OS (e.g. syntax error) and free the buffer
             if (ret != 0) {
                 MemorySegment errorPtr = errorBuf.get(ValueLayout.ADDRESS, 0);
-                String message = errorPtr.reinterpret(Long.MAX_VALUE).getString(0);
+                String message = MemorySegmentAdapter.getString(errorPtr.reinterpret(Long.MAX_VALUE), 0);
                 macLibc.sandbox_free_error(errorPtr);
                 throw new UnsupportedOperationException("sandbox_init(): " + message);
             }

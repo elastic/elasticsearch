@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'java-test-fixtures'
 
 dependencies {
@@ -19,8 +20,10 @@ dependencies {
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
+  // PosixGuardPageAllocator (test fixture) reaches into PosixCLibrary from libs:native.
+  testFixturesImplementation project(':libs:native')
+
   testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
-  testImplementation(testFixtures(project(':libs:native')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
@@ -39,6 +42,16 @@ tasks.named('compileJava').configure {
   options.compilerArgs << '-nowarn'
 }
 
+// The foreign-library annotation processor task is a separate JavaCompile that parses the
+// whole main source set with -proc:only. Panama scorers import jdk.incubator.vector, so the
+// module must be visible here too. Unlike compileJava this task runs on the JDK 25 toolchain
+// fixed by the foreign-library plugin, where we can already use -Xlint:-incubating
+tasks.named('processForeignAnnotations').configure {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  options.compilerArgs << '--add-reads=org.elasticsearch.simdvec=jdk.incubator.vector'
+  options.compilerArgs << '-Xlint:-incubating'
+}
+
 tasks.named('javadoc').configure {
   options.addStringOption("-add-modules", "jdk.incubator.vector")
   options.addStringOption("-add-reads", "org.elasticsearch.simdvec=jdk.incubator.vector")
@@ -52,6 +65,9 @@ tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector'
   }
+  // Required by VectorSystemPropertyTests, which spawns a subprocess via ProcessBuilder.
+  // The default ES test system call filter blocks posix_spawn.
+  systemProperty "tests.system_call_filter", "false"
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

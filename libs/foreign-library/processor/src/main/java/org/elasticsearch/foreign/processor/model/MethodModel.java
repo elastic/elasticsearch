@@ -34,6 +34,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
 import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_FIELD_FQN;
@@ -47,11 +48,15 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param returnType the return type; {@code null} for struct factory methods
  * @param paramTypes the parameter types in order; empty for struct factory methods
  * @param paramStructSimpleNames parallel list to {@code paramTypes}: the simple name of the
- *        enclosed struct interface for ADDRESSABLE parameters that are struct-typed (rather than
- *        explicitly {@code Addressable}-typed), or {@code null} for all other parameters. Used by
- *        code generation to emit the correct Java method descriptor when a struct does not declare
- *        {@code extends Addressable}.
+ *        enclosed struct interface, or enclosed record/class implementing {@code Addressable},
+ *        for ADDRESSABLE parameters whose declared type is not the literal {@code Addressable}
+ *        type, or {@code null} for all other parameters. Used by code generation to emit the
+ *        correct Java method descriptor when the declared parameter type is a {@code @StructSpecification}
+ *        that does not extend {@code Addressable}, or is a concrete {@code Addressable} implementer
+ *        rather than {@code Addressable} itself.
  * @param isCritical whether the method is annotated with {@code @Critical}
+ * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
+ *        or {@code null} if none was specified
  * @param capturedError which system-error channel the method captures after the native call
  *        ({@link CapturedError#NONE} when the method is not annotated with {@code @CaptureSystemError}),
  *        derived from the enclosing library's platform availability
@@ -63,6 +68,9 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param isProtected {@code true} when the method is declared {@code protected} (only possible for abstract-class
  *        specs); always {@code false} for interface-based specs
  * @param boundsChecks native-call bounds checks from parameter annotations, one entry per annotated parameter
+ * @param upcalls per-parameter metadata for each {@code @Upcall}-typed parameter, in parameter order;
+ *        empty when the method has none. A method cannot combine {@code @Upcall} parameters with
+ *        {@code String} parameters (see {@link #from}) since no current or planned binding needs both
  * @param wideStringParamIndices 0-based indices of {@code String} parameters annotated with {@code @WideString},
  *        marshaled as UTF-16LE rather than the implicit UTF-8 default; empty for {@code @StructFactory} methods
  *        and for {@code @Function} methods with no wide-string parameters
@@ -74,6 +82,7 @@ public record MethodModel(
     List<NativeType> paramTypes,
     List<String> paramStructSimpleNames,
     boolean isCritical,
+    String fallbackAdapterClassName,
     CapturedError capturedError,
     int firstVariadicArg,
     boolean isStructFactory,
@@ -81,6 +90,7 @@ public record MethodModel(
     String packedElementSimpleName,
     boolean isProtected,
     List<BoundsCheckModel> boundsChecks,
+    List<UpcallModel> upcalls,
     Set<Integer> wideStringParamIndices
 ) {
 
@@ -116,7 +126,10 @@ public record MethodModel(
      * @param method the method element to model
      * @param env the processing environment
      * @param enclosingStructNames simple names of {@code @StructSpecification} types enclosed in the same interface,
-     *        used to validate {@code @StructFactory} return types
+     *        plus any enclosed record/class that directly implements {@code Addressable} without that
+     *        annotation (e.g. an opaque pointer wrapper); used to validate
+     *        {@code @StructFactory} return types and to recognize struct- or {@code Addressable}-typed
+     *        parameters on {@code @Function} methods that are not the literal {@code Addressable} type
      * @param unavailableOn enum constant names of platforms where the enclosing {@code @LibrarySpecification} is
      *        unavailable, used to reject {@code @WideString} parameters on libraries unavailable on Windows and to
      *        derive the {@code @CaptureSystemError} capture channel ({@code errno} vs {@code GetLastError}) from the
@@ -162,6 +175,18 @@ public record MethodModel(
                 return null;
             }
             for (var param : method.getParameters()) {
+                if (ModelUtil.classifyType(param.asType()) == NativeType.UPCALL) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@StructFactory method '"
+                            + methodName
+                            + "' must not have an @Upcall-typed parameter '"
+                            + param.getSimpleName()
+                            + "'",
+                        method
+                    );
+                    return null;
+                }
                 if (param.getAnnotation(WideString.class) != null) {
                     messager.printMessage(
                         Kind.ERROR,
@@ -182,7 +207,7 @@ public record MethodModel(
 
         // @Function method
         NativeType returnType = ModelUtil.classifyType(method.getReturnType());
-        if (returnType == null) {
+        if (returnType == null || returnType == NativeType.UPCALL) {
             messager.printMessage(
                 Kind.ERROR,
                 "Unsupported return type '" + method.getReturnType() + "' on method '" + methodName + "'",
@@ -242,7 +267,69 @@ public record MethodModel(
             return null;
         }
 
+        List<UpcallModel> upcalls = List.of();
+        List<Integer> upcallIndices = new ArrayList<>();
+        for (int i = 0; i < paramTypes.size(); i++) {
+            if (paramTypes.get(i) == NativeType.UPCALL) {
+                upcallIndices.add(i);
+            }
+        }
+
+        if (upcallIndices.isEmpty() == false) {
+            if (paramTypes.contains(NativeType.STRING)) {
+                messager.printMessage(
+                    Kind.ERROR,
+                    "Method '"
+                        + methodName
+                        + "' combines an @Upcall-typed parameter with a String parameter; this combination is "
+                        + "not supported",
+                    method
+                );
+                return null;
+            }
+            List<UpcallModel> builtUpcalls = new ArrayList<>();
+            for (int upcallParamIndex : upcallIndices) {
+                var param = method.getParameters().get(upcallParamIndex);
+                TypeElement upcallType = (TypeElement) ((DeclaredType) param.asType()).asElement();
+                UpcallModel upcallModel = UpcallModel.from(
+                    upcallParamIndex,
+                    upcallType,
+                    param,
+                    env.getTypeUtils(),
+                    env.getElementUtils(),
+                    messager
+                );
+                if (upcallModel == null) {
+                    return null;
+                }
+                builtUpcalls.add(upcallModel);
+            }
+            upcalls = Collections.unmodifiableList(builtUpcalls);
+        }
+
         boolean isCritical = method.getAnnotation(Critical.class) != null;
+        final String fallbackAdapter;
+        if (isCritical) {
+            TypeElement adapterElement = resolveFallbackAdapter(method, messager, env.getTypeUtils());
+            if (adapterElement == null) {
+                return null;
+            }
+            var isUnsupportedFallback = adapterElement.getQualifiedName()
+                .contentEquals(Critical.UnsupportedFallback.class.getCanonicalName());
+            if (isUnsupportedFallback) {
+                // For a critical binding, fallbackAdapter is null when the Critical.UnsupportedFallback sentinel is used.
+                fallbackAdapter = null;
+            } else {
+                if (validateFallbackAdapter(method, adapterElement, paramTypes, returnType, messager) == false) {
+                    return null;
+                }
+                // For a critical binding, fallbackAdapter is the FQN of the JDK 21 adapter
+                fallbackAdapter = adapterElement.getQualifiedName().toString();
+            }
+        } else {
+            // A non-critical binding does not need a fallbackAdapter
+            fallbackAdapter = null;
+        }
 
         List<BoundsCheckModel> boundsChecks = BoundsCheckModel.from(method, paramTypes, messager);
         if (boundsChecks == null) {
@@ -256,6 +343,7 @@ public record MethodModel(
             paramTypes,
             Collections.unmodifiableList(new ArrayList<>(paramStructSimpleNames)),
             isCritical,
+            fallbackAdapter,
             capturedError,
             firstVariadicArg,
             false,
@@ -263,6 +351,7 @@ public record MethodModel(
             null,
             isProtected,
             boundsChecks,
+            upcalls,
             Collections.unmodifiableSet(wideStringParamIndices)
         );
     }
@@ -381,6 +470,7 @@ public record MethodModel(
             List.of(),
             List.of(),
             false,
+            null,
             CapturedError.NONE,
             -1,
             true,
@@ -388,8 +478,82 @@ public record MethodModel(
             packedElementSimpleName,
             isProtected,
             List.of(),
+            List.of(),
             Set.of() // @StructFactory params cannot carry @WideString (enforced above before this call)
         );
+    }
+
+    /**
+     * Resolves {@code @Critical.fallbackAdapter()} to its adapter {@link TypeElement}. Returns {@code null}
+     * (with a {@link Kind#ERROR} emitted) when the attribute is missing or does not reference a class. The
+     * returned element may be the {@link Critical.UnsupportedFallback} sentinel; the caller detects that
+     * before validating a real adapter with {@link #validateFallbackAdapter}.
+     */
+    private static TypeElement resolveFallbackAdapter(ExecutableElement method, Messager messager, Types types) {
+        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
+        if (criticalMirror == null) {
+            // Caller checked @Critical is present.
+            return null;
+        }
+        TypeMirror adapterMirror = ModelUtil.annotationClassValue(criticalMirror, "fallbackAdapter");
+        if (adapterMirror == null) {
+            messager.printMessage(Kind.ERROR, "@Critical requires fallbackAdapter to be set", method, criticalMirror);
+            return null;
+        }
+        TypeElement adapterElement = types.asElement(adapterMirror) instanceof TypeElement te ? te : null;
+        if (adapterElement == null) {
+            messager.printMessage(Kind.ERROR, "@Critical.fallbackAdapter must reference a class", method, criticalMirror);
+            return null;
+        }
+        return adapterElement;
+    }
+
+    /**
+     * Verifies that {@code adapterElement} declares a {@code public static} method with the same name as
+     * {@code method} and a parameter list of {@code (MethodHandle, …originalParams)} returning the same type
+     * as the annotated method. Returns {@code true} on success, or {@code false} (with a {@link Kind#ERROR}
+     * emitted) on validation failure.
+     */
+    private static boolean validateFallbackAdapter(
+        ExecutableElement method,
+        TypeElement adapterElement,
+        List<NativeType> paramTypes,
+        NativeType returnType,
+        Messager messager
+    ) {
+        AnnotationMirror criticalMirror = ModelUtil.findAnnotationMirror(method, Critical.class.getName());
+        String methodName = method.getSimpleName().toString();
+        String adapterFqn = adapterElement.getQualifiedName().toString();
+
+        ExecutableElement adapterMethod = ModelUtil.findPublicStaticMethod(adapterElement, methodName);
+        if (adapterMethod == null) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Critical.fallbackAdapter class '" + adapterFqn + "' has no public static method named '" + methodName + "'",
+                method,
+                criticalMirror
+            );
+            return false;
+        }
+        if (signatureMatches(adapterMethod, paramTypes, returnType) == false) {
+            messager.printMessage(
+                Kind.ERROR,
+                "@Critical.fallbackAdapter method '"
+                    + adapterFqn
+                    + "."
+                    + methodName
+                    + "' must have signature (MethodHandle, "
+                    + paramTypes
+                    + ") -> "
+                    + returnType
+                    + ", got "
+                    + describeSignature(adapterMethod),
+                method,
+                criticalMirror
+            );
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -403,5 +567,40 @@ public record MethodModel(
         TypeElement typeElement = (TypeElement) ((DeclaredType) mirror).asElement();
         String simpleName = typeElement.getSimpleName().toString();
         return enclosingStructNames.contains(simpleName) ? simpleName : null;
+    }
+
+    private static boolean signatureMatches(ExecutableElement adapter, List<NativeType> originalParams, NativeType originalReturn) {
+        var params = adapter.getParameters();
+        if (params.size() != originalParams.size() + 1) {
+            return false;
+        }
+        if (isMethodHandle(params.get(0).asType()) == false) {
+            return false;
+        }
+        for (int i = 0; i < originalParams.size(); i++) {
+            if (ModelUtil.classifyType(params.get(i + 1).asType()) != originalParams.get(i)) {
+                return false;
+            }
+        }
+        return ModelUtil.classifyType(adapter.getReturnType()) == originalReturn;
+    }
+
+    private static boolean isMethodHandle(TypeMirror mirror) {
+        if (mirror.getKind() != TypeKind.DECLARED) {
+            return false;
+        }
+        return ((TypeElement) ((DeclaredType) mirror).asElement()).getQualifiedName().contentEquals("java.lang.invoke.MethodHandle");
+    }
+
+    private static String describeSignature(ExecutableElement method) {
+        StringBuilder sb = new StringBuilder("(");
+        boolean first = true;
+        for (var p : method.getParameters()) {
+            if (first == false) sb.append(", ");
+            sb.append(p.asType());
+            first = false;
+        }
+        sb.append(") -> ").append(method.getReturnType());
+        return sb.toString();
     }
 }

@@ -8,12 +8,19 @@
  */
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+// Chunk decompression hands libzstd a MemorySegment view of the mapped file (java.lang.foreign).
 
 dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   // Vectorized numeric range scan (ESVectorUtil.inRangeBitmask). simdvec has no server dependency, so
   // columnar -> simdvec stays acyclic even once server depends on columnar.
   implementation project(":libs:simdvec")
+  // Native Zstd for chunk compression, and the IndexInput -> MemorySegment adapter that lets a chunk be
+  // decompressed straight out of the mapped file. Neither has a server dependency, so this stays acyclic.
+  implementation project(":libs:native")
+  implementation project(":libs:lucene-store")
+  // CheckedFunction, on the IndexInputUtils slice API.
+  implementation project(":libs:core")
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'columnar'

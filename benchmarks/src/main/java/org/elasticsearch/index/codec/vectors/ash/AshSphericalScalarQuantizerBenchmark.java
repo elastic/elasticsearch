@@ -51,7 +51,8 @@ public class AshSphericalScalarQuantizerBenchmark {
         TIED
     }
 
-    int numVectors = 1000;
+    @Param({ "1000" })
+    int numVectors;
 
     /** Projected dims: originalDim / 2 by default, so these cover 384/768/1024/1536-dim input vectors. */
     @Param({ "192", "384", "512", "768" })
@@ -97,15 +98,7 @@ public class AshSphericalScalarQuantizerBenchmark {
     public void threeBit(Blackhole bh) {
         final int bits = 3;
         for (int i = 0; i < numVectors; i++) {
-            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(
-                vectors[i],
-                0,
-                out,
-                0,
-                dims,
-                1 << (bits - 1),
-                (1 << (bits - 1)) - 1
-            );
+            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(vectors[i], 0, out, 0, dims, (1 << (bits - 1)) - 1);
             bh.consume(val);
         }
     }
@@ -114,15 +107,7 @@ public class AshSphericalScalarQuantizerBenchmark {
     public void fourBit(Blackhole bh) {
         final int bits = 4;
         for (int i = 0; i < numVectors; i++) {
-            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(
-                vectors[i],
-                0,
-                out,
-                0,
-                dims,
-                1 << (bits - 1),
-                (1 << (bits - 1)) - 1
-            );
+            float val = AshSphericalScalarQuantizer.quantizeExactGeneral(vectors[i], 0, out, 0, dims, (1 << (bits - 1)) - 1);
             bh.consume(val);
         }
     }

@@ -115,9 +115,23 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
 
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
 
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNoCallerCredential_DoesNotPromote() {
+        assumeTrue("CPS feature flag must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("preview_no_cred_feed", "job_foo");
+        builder.setIndices(Collections.singletonList("logs-*"));
+        builder.setIndicesOptions(org.elasticsearch.action.support.IndicesOptions.STRICT_EXPAND_OPEN);
+        CrossProjectModeDecider decider = new CrossProjectModeDecider(
+            Settings.builder().put("serverless.cross_project.enabled", true).build()
+        );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, false);
+
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), is(false));
     }
 
     public void testBuildDateNanosFieldCapsRequest_GivenCpsIndicesOptions_ShouldRequestResolvedTo() {
@@ -128,7 +142,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         CrossProjectModeDecider decider = new CrossProjectModeDecider(
             Settings.builder().put("serverless.cross_project.enabled", true).build()
         );
-        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider);
+        DatafeedConfig datafeed = DatafeedConfig.withCrossProjectModeIfEnabled(builder.build(), decider, true);
         assertThat(datafeed.getIndicesOptions().resolveCrossProjectIndexExpression(), is(true));
 
         FieldCapabilitiesRequest request = TransportPreviewDatafeedAction.buildDateNanosFieldCapsRequest(datafeed, "time");

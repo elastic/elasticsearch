@@ -60,7 +60,6 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         .module("constant-keyword")
         .module("x-pack-deprecation")
         .module("x-pack-ilm")
-        .module("x-pack-stack")
         .module("transform")
         .systemProperty("aws.region", regionSupplier)
         .systemProperty("es.allow_insecure_settings", "true")
@@ -69,6 +68,7 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         .setting("s3.client.default.endpoint", s3Fixture::getAddress)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .setting("xpack.ml.enabled", "false")
+        .setting("cluster.deprecation_indexing.enabled", "false")
         .build();
 
     @ClassRule

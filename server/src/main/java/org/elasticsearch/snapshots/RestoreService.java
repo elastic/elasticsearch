@@ -699,6 +699,7 @@ public final class RestoreService implements ClusterStateApplier {
         submitUnbatchedTask(
             "restore_snapshot_over_existing_data_stream[" + restoreUUID + "]",
             new RestoreSnapshotStateTask(
+                listener,
                 request,
                 snapshot,
                 Set.of(),
@@ -708,7 +709,6 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamsToRestore.values(),
                 (state, builder) -> {},
                 clusterService.getSettings(),
-                listener,
                 restoreUUID,
                 List.copyOf(targets)
             )
@@ -1623,6 +1623,7 @@ public final class RestoreService implements ClusterStateApplier {
             ActionListener<RestoreCompletionResponse> listener
         ) {
             this(
+                listener,
                 request,
                 snapshot,
                 featureStatesToRestore,
@@ -1632,13 +1633,13 @@ public final class RestoreService implements ClusterStateApplier {
                 dataStreamsToRestore,
                 updater,
                 settings,
-                listener,
                 UUIDs.randomBase64UUID(),
                 List.of()
             );
         }
 
         RestoreSnapshotStateTask(
+            ActionListener<RestoreCompletionResponse> listener,
             RestoreSnapshotRequest request,
             Snapshot snapshot,
             Set<String> featureStatesToRestore,
@@ -1648,7 +1649,6 @@ public final class RestoreService implements ClusterStateApplier {
             Collection<DataStream> dataStreamsToRestore,
             BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
             Settings settings,
-            ActionListener<RestoreCompletionResponse> listener,
             String restoreUUID,
             Collection<DataStreamRestoreTarget> guardedDataStreamTargets
         ) {

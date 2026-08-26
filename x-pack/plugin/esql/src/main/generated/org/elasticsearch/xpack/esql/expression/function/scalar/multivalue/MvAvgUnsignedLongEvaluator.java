@@ -41,11 +41,11 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         if (valueCount == 1) {
           long value = v.getLong(first);
@@ -105,11 +105,11 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       CompensatedSum work = new CompensatedSum();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         assert valueCount == 1;
         int first = v.getFirstValueIndex(p);
         long value = v.getLong(first);

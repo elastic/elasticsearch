@@ -7,11 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -31,14 +28,7 @@ import static org.mockito.Mockito.when;
 
 public class DirectByteBufferBodyHandlersTests extends ESTestCase {
 
-    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
-    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
-    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
-        .build();
-    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
 
     public void testFixedLengthSingleChunk() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(1, 4096));
@@ -51,7 +41,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         subscriber.onComplete();
 
         try (DirectReadBuffer result = subscriber.getBody().toCompletableFuture().get()) {
-            assertTrue(result.buffer().isDirect());
+            assertFalse(result.buffer().isDirect());
             assertArrayEquals(payload, toByteArray(result.buffer()));
         }
     }
@@ -68,7 +58,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         subscriber.onComplete();
 
         try (DirectReadBuffer result = subscriber.getBody().toCompletableFuture().get()) {
-            assertTrue(result.buffer().isDirect());
+            assertFalse(result.buffer().isDirect());
             assertArrayEquals(payload, toByteArray(result.buffer()));
         }
     }
@@ -118,7 +108,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         subscriber.onComplete();
 
         try (DirectReadBuffer result = subscriber.getBody().toCompletableFuture().get()) {
-            assertTrue(result.buffer().isDirect());
+            assertFalse(result.buffer().isDirect());
             assertArrayEquals(expected, toByteArray(result.buffer()));
         }
     }
@@ -183,7 +173,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         subscriber.onComplete();
 
         try (DirectReadBuffer result = subscriber.getBody().toCompletableFuture().get()) {
-            assertTrue(result.buffer().isDirect());
+            assertFalse(result.buffer().isDirect());
             assertArrayEquals(payload, toByteArray(result.buffer()));
         }
     }
@@ -218,7 +208,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         subscriber.onComplete();
 
         try (DirectReadBuffer result = subscriber.getBody().toCompletableFuture().get()) {
-            assertTrue(result.buffer().isDirect());
+            assertFalse(result.buffer().isDirect());
             assertArrayEquals(expected, toByteArray(result.buffer()));
         }
     }

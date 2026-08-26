@@ -60,19 +60,22 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var p0writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(0));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(0));
         final var p50writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(50));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(50));
         final var p90writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(90));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(90));
         final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
         final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME);
         final var countAboveThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME);
+            .getMeasurements(
+                InstrumentType.LONG_ASYNC_GAUGE,
+                WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
         final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_SUM_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_SUM_METRIC_NAME);
 
         logger.info(
             "Generated maximums p50={}/p90={}/p100={}",
@@ -155,7 +158,7 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var nodeAverageWriteLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME);
 
         assertEquals(2, nodeAverageWriteLoadMeasurements.size());
         assertThat(measurementForNode(nodeAverageWriteLoadMeasurements, "index_0").getDouble(), closeTo(utilization0 * poolSize, 0.001));
@@ -217,19 +220,22 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var p0writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(0));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(0));
         final var p50writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(50));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(50));
         final var p90writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(90));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(90));
         final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
         final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME);
         final var countAboveThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME);
+            .getMeasurements(
+                InstrumentType.LONG_ASYNC_GAUGE,
+                WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
         final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_SUM_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_SUM_METRIC_NAME);
 
         assertNoMetricsPublished(p0writeLoadMeasurements, additionalNodeId);
         assertNoMetricsPublished(p50writeLoadMeasurements, additionalNodeId);
@@ -257,19 +263,22 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var p0writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(0));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(0));
         final var p50writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(50));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(50));
         final var p90writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(90));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(90));
         final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
         final var writeLoadPrioritisationThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME);
         final var countAboveThresholdMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME);
+            .getMeasurements(
+                InstrumentType.LONG_ASYNC_GAUGE,
+                WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
+            );
         final var shardWriteLoadSumMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_SUM_METRIC_NAME);
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_SUM_METRIC_NAME);
 
         final var nonIndexNodes = testInfrastructure.mockClusterService.state()
             .nodes()
@@ -304,7 +313,7 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var p100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
 
         final double index0InitialP100WriteLoad = measurementForNode(p100writeLoadMeasurements, "index_0").getDouble();
         assertRoughlyInRange(
@@ -321,7 +330,7 @@ public class WriteLoadMetricsTests extends ESTestCase {
         testInfrastructure.meterRegistry.getRecorder().collect();
 
         final var lowerP100writeLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
+            .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(100));
 
         // this write-load should be lower than the first one and equal to 0.1
         final double index0LowerP100WriteLoad = measurementForNode(lowerP100writeLoadMeasurements, "index_0").getDouble();
@@ -352,7 +361,7 @@ public class WriteLoadMetricsTests extends ESTestCase {
 
         for (int percentile : trackedPercentiles) {
             final var percentileWriteLoadMeasurements = testInfrastructure.meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(percentile));
+                .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(percentile));
             assertEquals(measurementForNode(percentileWriteLoadMeasurements, "index_0").getDouble(), 0.1, 0.01);
         }
     }
@@ -369,26 +378,26 @@ public class WriteLoadMetricsTests extends ESTestCase {
         for (int percentile : new int[] { 0, 50, 90, 100 }) {
             assertThat(
                 testInfrastructure.meterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(percentile)),
+                    .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.shardWriteLoadDistributionMetricName(percentile)),
                 empty()
             );
         }
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME),
+                .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_METRIC_NAME),
             empty()
         );
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
                 .getMeasurements(
-                    InstrumentType.LONG_GAUGE,
+                    InstrumentType.LONG_ASYNC_GAUGE,
                     WriteLoadMetrics.WRITE_LOAD_PRIORITISATION_THRESHOLD_PERCENTILE_RANK_METRIC_NAME
                 ),
             empty()
         );
         assertThat(
             testInfrastructure.meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.DOUBLE_GAUGE, WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME),
+                .getMeasurements(InstrumentType.DOUBLE_ASYNC_GAUGE, WriteLoadMetrics.NODE_WRITE_LOAD_METRIC_NAME),
             empty()
         );
     }

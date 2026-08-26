@@ -4355,6 +4355,53 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testSkipRowListColumnDropsRow() throws Exception {
+        // error_mode: skip_row on a LIST column must DROP the entire row when any element fails declared-type
+        // coercion — not null-fill the cell. Three rows: good/bad/good → 2 survivor rows. Previously the optimized
+        // path missed the failedPositionSink and null-filled instead of dropping.
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x");
+        MessageType schema = new MessageType("test_schema", listType);
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group ok1 = factory.newGroup();
+            Group list1 = ok1.addGroup("x");
+            list1.addGroup("list").append("element", Binary.fromString("41"));
+            list1.addGroup("list").append("element", Binary.fromString("43"));
+            Group bad = factory.newGroup();
+            Group listBad = bad.addGroup("x");
+            listBad.addGroup("list").append("element", Binary.fromString("hello"));
+            Group ok2 = factory.newGroup();
+            Group list2 = ok2.addGroup("x");
+            list2.addGroup("list").append("element", Binary.fromString("45"));
+            return List.of(ok1, bad, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("bad row must be dropped under skip_row", 2, page.getPositionCount());
+                LongBlock longs = (LongBlock) page.getBlock(0);
+                // Row 0: list with values [41, 43]
+                assertEquals(2, longs.getValueCount(0));
+                int start0 = longs.getFirstValueIndex(0);
+                assertEquals(41L, longs.getLong(start0));
+                assertEquals(43L, longs.getLong(start0 + 1));
+                // Row 1: list with value [45]
+                assertEquals(1, longs.getValueCount(1));
+                assertEquals(45L, longs.getLong(longs.getFirstValueIndex(1)));
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
+    }
+
     public void testInt64DeclaredDoubleCoerces() throws Exception {
         // "The user declared it double; they told us what they want" — long->double coerces like bulk ingest.
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("x").named("test_schema");

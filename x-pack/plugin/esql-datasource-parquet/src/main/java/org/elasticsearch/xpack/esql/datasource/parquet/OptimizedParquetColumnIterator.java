@@ -259,6 +259,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private PrefetchedPageReadStore rowGroup;
     private ColumnReader[] columnReaders;
     private PageColumnReader[] pageColumnReaders;
+    /** Mirrors the sink installed on {@link #pageColumnReaders} by {@link #applyDropHelperSinks}; passed to list-column reads. */
+    @Nullable
+    private IntConsumer listColumnSink;
     private long rowsRemainingInGroup;
     private boolean exhausted = false;
     private int rowGroupOrdinal = -1;
@@ -1705,10 +1708,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      *            {@link ColumnarRowDropHelper#beginBatch} has not yet been called.
      */
     private void applyDropHelperSinks(boolean arm) {
+        IntConsumer sink = (arm && rowDropHelper != null) ? rowDropHelper::markFailed : null;
+        listColumnSink = sink;
         if (pageColumnReaders == null) {
             return;
         }
-        IntConsumer sink = (arm && rowDropHelper != null) ? rowDropHelper::markFailed : null;
         for (PageColumnReader r : pageColumnReaders) {
             if (r != null) {
                 r.setFailedPositionSink(sink);
@@ -2454,7 +2458,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsToRead,
                 blockFactory,
                 attributes.get(colIndex).name(),
-                coercionWarnings()
+                coercionWarnings(),
+                listColumnSink
             );
         }
         ParquetColumnDecoding.skipValues(cr, rowsToRead);

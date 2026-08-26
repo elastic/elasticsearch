@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -44,7 +44,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     private final long length;
     private final FooterByteCache.Key cacheKey;
     private final int windowSize;
-    private final BufferAllocator allocator;
+    private final CircuitBreaker breaker;
 
     /**
      * Optional pre-warmed cache installed before {@code RowGroupFilter} runs. When set, reads
@@ -70,10 +70,10 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     static final int MAX_WINDOW_SIZE = 16 * 1024 * 1024;
 
     /**
-     * Creates an adapter with the default 4MB sliding window backed by the given Arrow allocator.
+     * Creates an adapter with the default 4MB sliding window charged to the given circuit breaker.
      */
-    public ParquetStorageObjectAdapter(StorageObject storageObject, BufferAllocator allocator) {
-        this(storageObject, DEFAULT_WINDOW_SIZE, allocator);
+    public ParquetStorageObjectAdapter(StorageObject storageObject, CircuitBreaker breaker) {
+        this(storageObject, DEFAULT_WINDOW_SIZE, breaker);
     }
 
     /**
@@ -83,18 +83,18 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      *
      * @param rangeBytes byte span of the range being read; clamped to [{@link #DEFAULT_WINDOW_SIZE}, {@link #MAX_WINDOW_SIZE}]
      */
-    public static ParquetStorageObjectAdapter forRange(StorageObject storageObject, long rangeBytes, BufferAllocator allocator) {
+    public static ParquetStorageObjectAdapter forRange(StorageObject storageObject, long rangeBytes, CircuitBreaker breaker) {
         int windowSize = (int) Math.min(Math.max(rangeBytes, DEFAULT_WINDOW_SIZE), MAX_WINDOW_SIZE);
-        return new ParquetStorageObjectAdapter(storageObject, windowSize, allocator);
+        return new ParquetStorageObjectAdapter(storageObject, windowSize, breaker);
     }
 
-    private ParquetStorageObjectAdapter(StorageObject storageObject, int windowSize, BufferAllocator allocator) {
+    private ParquetStorageObjectAdapter(StorageObject storageObject, int windowSize, CircuitBreaker breaker) {
         if (storageObject == null) {
             throw new QlIllegalArgumentException("storageObject cannot be null");
         }
         this.storageObject = storageObject;
         this.windowSize = windowSize;
-        this.allocator = allocator;
+        this.breaker = breaker;
         try {
             this.length = storageObject.length();
         } catch (IOException e) {
@@ -139,7 +139,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
         // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
         // pre-warm optimization would be silently bypassed.
-        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, allocator, this::currentPreWarmedChunks);
+        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, breaker, this::currentPreWarmedChunks);
     }
 
     private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
@@ -169,24 +169,24 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * otherwise a new range is fetched via {@link StorageObject#newStream(long, long)}.
      *
      * <p>Window fills use {@link StorageObject#newStream(long, long)} with chunked
-     * {@link InputStream#read(byte[], int, int)} calls capped to {@link #STREAM_READ_CHUNK_SIZE}
-     * to prevent the JDK's thread-local direct ByteBuffer pool from growing to window size.
-     * The window is invalidated before each I/O so a partial-read failure never leaves
-     * stale data visible to subsequent reads.
+     * {@link InputStream#read(byte[], int, int)} into {@code window}. The chunk cap bounds the
+     * JDK's temporary direct buffer, not a heap destination — {@code read(byte[], off, len)}
+     * never allocates {@code len} heap bytes. The window is invalidated before each I/O so a
+     * partial-read failure never leaves stale data visible to subsequent reads.
      */
     private static class WindowedSeekableInputStream extends SeekableInputStream {
 
-        /** Caps each stream-read iteration to limit per-chunk heap allocation. */
+        /** Caps each stream-read iteration so the JDK's thread-local direct buffer stays bounded. */
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
+
+        private static final String WINDOW_BREAKER_LABEL = "parquet sliding window";
 
         private final StorageObject storageObject;
         private final FooterByteCache.Key cacheKey;
         private final long length;
         private final int windowSize;
-        private final ArrowBuf window;
-        // ArrowBuf.getBytes(inputstream) internally allocates an 8 kB buffer. To avoid it,
-        // use a staging buffer filled from the InputStream then copied into {@link #window}.
-        private final byte[] streamReadBuf = UninitializedArrays.newByteArray(STREAM_READ_CHUNK_SIZE);
+        private final CircuitBreaker breaker;
+        private final byte[] window;
 
         /**
          * Supplier that returns the adapter's current pre-warmed chunks map (or {@code null}).
@@ -207,14 +207,23 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             FooterByteCache.Key cacheKey,
             long length,
             int windowSize,
-            BufferAllocator allocator,
+            CircuitBreaker breaker,
             Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
         ) {
             this.storageObject = storageObject;
             this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
-            this.window = allocator.buffer(windowSize);
+            this.breaker = LocalCircuitBreaker.forAsyncIo(breaker);
+            this.breaker.addEstimateBytesAndMaybeBreak(windowSize, WINDOW_BREAKER_LABEL);
+            byte[] allocated;
+            try {
+                allocated = UninitializedArrays.newByteArray(windowSize);
+            } catch (Throwable t) {
+                this.breaker.addWithoutBreaking(-windowSize);
+                throw t;
+            }
+            this.window = allocated;
             this.preWarmedChunksSupplier = preWarmedChunksSupplier;
             this.windowStart = -1;
             this.windowLength = 0;
@@ -286,7 +295,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 int totalRead = 0;
                 while (totalRead < target) {
                     int chunk = Math.min(STREAM_READ_CHUNK_SIZE, target - totalRead);
-                    int n = in.read(streamReadBuf, 0, chunk);
+                    int n = in.read(window, totalRead, chunk);
                     if (n < 0) {
                         throw new IOException(
                             "Unexpected end of stream while filling window at position " + pos + "; read " + totalRead + " of " + target
@@ -295,7 +304,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                     if (n == 0 && chunk > 0) {
                         throw new IOException("InputStream.read returned 0 while " + chunk + " bytes were requested");
                     }
-                    window.setBytes(totalRead, streamReadBuf, 0, n);
                     totalRead += n;
                 }
                 windowStart = pos;
@@ -304,7 +312,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             if (windowLength > 0 && windowStart + windowLength == length) {
                 byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
-                window.getBytes(0L, tailBytes, 0, windowLength);
+                System.arraycopy(window, 0, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
             }
         }
@@ -375,8 +383,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             // visible if a later step throws.
             windowStart = -1;
             windowLength = 0;
-            ByteBuffer src = chunk.data().duplicate();
-            window.setBytes(0L, src, src.position() + offsetInChunk, copyLen);
+            ByteBuffer src = chunk.data();
+            src.get(src.position() + offsetInChunk, window, 0, copyLen);
             windowStart = pos;
             windowLength = copyLen;
             return true;
@@ -388,7 +396,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 int from = (int) (pos - cachedStart);
                 windowStart = -1;
                 windowLength = 0;
-                window.setBytes(0L, cached, from, toRead);
+                System.arraycopy(cached, from, window, 0, toRead);
                 windowStart = pos;
                 windowLength = toRead;
                 return true;
@@ -419,7 +427,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return -1;
             }
             int offset = (int) (position - windowStart);
-            int b = window.getByte(offset) & 0xFF;
+            int b = window[offset] & 0xFF;
             position++;
             return b;
         }
@@ -447,7 +455,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
             int toRead = Math.min(len, availableInWindow);
             int offset = (int) (position - windowStart);
-            window.getBytes(offset, b, off, toRead);
+            System.arraycopy(window, offset, b, off, toRead);
             position += toRead;
             return toRead;
         }
@@ -480,7 +488,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 closed = true;
                 windowStart = -1;
                 windowLength = 0;
-                window.close();
+                breaker.addWithoutBreaking(-windowSize);
             }
         }
 

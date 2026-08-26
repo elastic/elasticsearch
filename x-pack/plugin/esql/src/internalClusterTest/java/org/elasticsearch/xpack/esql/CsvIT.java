@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -105,6 +106,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -212,6 +214,17 @@ public class CsvIT extends ESTestCase {
          * Called once after the index for {@code dataset} has been fully populated.
          */
         default void afterIndexLoaded(CsvTestsDataLoader.TestDataset dataset, Client client) throws IOException {}
+
+        /**
+         * When {@code true}, multi-value fields in the result rows are compared as unordered
+         * sets rather than ordered lists. Use this for index modes (e.g. columnar) where the
+         * storage layer returns multi-valued fields in source insertion order rather than the
+         * doc-values order that the standard mode uses, causing spurious ordering differences
+         * that are not behavioural regressions. The default is {@code false} (ordered comparison).
+         */
+        default boolean ignoreValueOrder() {
+            return false;
+        }
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -280,9 +293,9 @@ public class CsvIT extends ESTestCase {
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
 
         var specs = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
+        var seed = Optional.ofNullable(System.getProperty("tests.seed")).map(SeedUtils::parseSeed).orElseGet(System::nanoTime);
         // forbidden aip require to pass random explicitly, however LuceneTestCase#random() is not yet initialized.
-        // Falling back to a new instance as repeatable scenario order is not essential here.
-        Collections.shuffle(specs, new Random(0));
+        Collections.shuffle(specs, new Random(seed));
         Collections.sort(specs, Comparator.comparing(spec -> GROUPS_WITH_VIEWS.contains((String) spec[1])));
         return specs;
     }
@@ -426,7 +439,7 @@ public class CsvIT extends ESTestCase {
                 expected,
                 actual.values(),
                 testCase.ignoreOrder,
-                false,
+                indexLoadStrategy.ignoreValueOrder(),
                 false,
                 logResults() ? logger : null
             );

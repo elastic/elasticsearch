@@ -214,7 +214,14 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             try {
                 executorService.submit(() -> {
                     blobStore.blobContainer(BlobPath.EMPTY)
-                        .writeBlobAtomic(purpose, blobName, blobSize, (offset, length) -> new ByteArrayInputStream(new byte[0]), false, executorService);
+                        .writeBlobAtomic(
+                            purpose,
+                            blobName,
+                            blobSize,
+                            (offset, length) -> new ByteArrayInputStream(new byte[0]),
+                            false,
+                            executorService
+                        );
                     return null;
                 }).get();
             } finally {
@@ -278,8 +285,11 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         return buildBlobStore(bucketName, meteredStorage, GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE);
     }
 
-    private static GoogleCloudStorageBlobStore buildBlobStore(String bucketName, MeteredStorage meteredStorage, long largeBlobThresholdInBytes)
-        throws IOException {
+    private static GoogleCloudStorageBlobStore buildBlobStore(
+        String bucketName,
+        MeteredStorage meteredStorage,
+        long largeBlobThresholdInBytes
+    ) throws IOException {
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         when(storageService.client(any(), any(), any(), any())).thenReturn(meteredStorage);
         final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);

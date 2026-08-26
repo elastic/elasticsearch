@@ -307,7 +307,10 @@ public final class WriterConstants {
     /** Name of the {@code AllocationMetrics} instance field injected into every metrics-enabled generated script class. */
     public static final String ALLOC_METRICS_FIELD = "$allocMetrics";
 
-    /** ASM {@link Type} for {@link AllocationMetrics}; used to emit the {@link #ALLOC_METRICS_FIELD} field and its interface call. */
+    /**
+     * ASM {@link Type} for {@link AllocationMetrics}; used to emit the {@link #ALLOC_METRICS_FIELD} field, the factory's
+     * injection of it, and the {@code INVOKEVIRTUAL} that records through it.
+     */
     public static final Type ALLOC_METRICS_TYPE = Type.getType(AllocationMetrics.class);
 
     /**

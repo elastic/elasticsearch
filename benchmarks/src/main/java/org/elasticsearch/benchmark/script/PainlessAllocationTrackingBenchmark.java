@@ -12,10 +12,12 @@ package org.elasticsearch.benchmark.script;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -50,11 +52,11 @@ import java.util.concurrent.atomic.LongAdder;
  *   <li>{@code limit} – per-site pre-checks + limit enforcement at 512 mb (never trips on these scripts)</li>
  * </ul>
  *
- * <p>The {@code metrics} mode installs a {@link LongHistogram} backed by a {@link LongAdder} via reflection
- * into the loaded classloader's {@code AllocationMetrics.instance}. This prevents the JIT from dead-code-
- * eliminating the {@code $allocBytes} tracking chain (which it would do with the NOOP backend, since a NOOP
- * {@code record()} has no observable side effects). The {@link LongAdder} is a realistic stand-in for the
- * production OTEL histogram backend, which also does atomic counter operations.
+ * <p>The {@code metrics} mode installs a {@link LongHistogram} backed by a {@link LongAdder}, by calling the plugin's
+ * {@code createComponents} with a {@link MeterRegistry} that hands one out — the same path a node takes. This prevents the
+ * JIT from dead-code-eliminating the {@code $allocBytes} tracking chain (which it would do with the NOOP backend, since a
+ * NOOP {@code record()} has no observable side effects). The {@link LongAdder} is a realistic stand-in for the production
+ * OTEL histogram backend, which also does atomic counter operations.
  *
  * <p>Run with:
  * <pre>
@@ -72,6 +74,13 @@ public class PainlessAllocationTrackingBenchmark {
     static {
         Utils.configureBenchmarkLogging();
     }
+
+    /**
+     * Mirrors {@code CompilerSettings.ALLOCATION_METRICS_ENABLED_PROPERTY}, which lives in the plugin classloader and so
+     * cannot be referenced directly from here. Keep the two in step: a mismatch silently turns {@code metrics} mode into a
+     * second copy of {@code off} rather than failing.
+     */
+    private static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
 
     /** Tracking mode: {@code off}, {@code metrics}, or {@code limit}. */
     @Param({ "off", "metrics", "limit" })
@@ -97,9 +106,8 @@ public class PainlessAllocationTrackingBenchmark {
     @Setup
     public void setup() throws Exception {
         if ("metrics".equals(mode)) {
-            System.setProperty("es.painless.allocation.metrics.enabled", "true");
+            System.setProperty(ALLOCATION_METRICS_ENABLED_PROPERTY, "true");
         }
-        URLClassLoader loader;
         try {
             Settings settings;
             if ("limit".equals(mode)) {
@@ -112,8 +120,7 @@ public class PainlessAllocationTrackingBenchmark {
                 settings = Settings.EMPTY;
             }
 
-            EngineAndLoader result = loadPainlessEngine(settings);
-            loader = result.loader();
+            EngineAndPlugin result = loadPainlessEngine(settings);
             ScriptEngine engine = result.engine();
 
             if ("metrics".equals(mode)) {
@@ -121,7 +128,8 @@ public class PainlessAllocationTrackingBenchmark {
                 // $allocBytes tracking chain. With MeterRegistry.NOOP the record() call is an empty
                 // method, and the JIT inlines + eliminates the entire chain back to the $allocBytes
                 // field writes. The LongAdder.add() has real memory-ordering semantics, preventing that.
-                installRecordingMetrics(loader);
+                // Must run before the compile below, which is what reads the installed instance.
+                installRecordingMetrics(result.plugin());
             }
 
             String source = switch (script) {
@@ -182,7 +190,7 @@ public class PainlessAllocationTrackingBenchmark {
 
             compiledScript = factory.newInstance(params, ctxMap);
         } finally {
-            System.clearProperty("es.painless.allocation.metrics.enabled");
+            System.clearProperty(ALLOCATION_METRICS_ENABLED_PROPERTY);
         }
     }
 
@@ -192,14 +200,17 @@ public class PainlessAllocationTrackingBenchmark {
     }
 
     /**
-     * Installs a {@link LongAdder}-backed {@code AllocationMetrics} into the plugin classloader's
-     * static {@code AllocationMetrics.instance} field. Called only in {@code metrics} mode.
+     * Installs a {@link LongAdder}-backed {@code AllocationMetrics} by driving the plugin's real wiring:
+     * {@code createComponents} is the hook that hands it a {@link MeterRegistry}, so this feeds it one that records.
+     * Called only in {@code metrics} mode, and only after the engine exists — the engine reads the installed instance once
+     * per compile, so this must land before the script is compiled.
      *
-     * <p>{@code MeterRegistry} and {@code LongHistogram} are interfaces in the parent classloader
-     * (server module), visible to the plugin classloader via normal parent-delegation. The proxy
-     * classes created here are therefore assignable to the types expected by {@code AllocationMetrics}.
+     * <p>{@code MeterRegistry}, {@code LongHistogram}, {@code TelemetryProvider} and {@code PluginServices} are all
+     * interfaces in the parent classloader (server module), visible to the plugin classloader via normal parent-delegation.
+     * The proxy classes created here are therefore assignable to the types the plugin expects. {@code PainlessPlugin}
+     * touches only {@code telemetryProvider()}, so the rest of {@code PluginServices} can answer null.
      */
-    private static void installRecordingMetrics(URLClassLoader loader) throws Exception {
+    private static void installRecordingMetrics(Plugin plugin) {
         LongAdder adder = new LongAdder();
 
         // A LongHistogram that accumulates into a LongAdder — real memory-ordering side effects.
@@ -227,12 +238,25 @@ public class PainlessAllocationTrackingBenchmark {
             }
         );
 
-        Class<?> allocMetricsClass = loader.loadClass("org.elasticsearch.painless.AllocationMetrics");
-        Object metricsInstance = allocMetricsClass.getDeclaredConstructor(MeterRegistry.class).newInstance(recordingRegistry);
-        allocMetricsClass.getMethod("setInstance", allocMetricsClass).invoke(null, metricsInstance);
+        // A TelemetryProvider handing out that registry, and the PluginServices that carries it into createComponents.
+        TelemetryProvider recordingTelemetry = (TelemetryProvider) Proxy.newProxyInstance(
+            TelemetryProvider.class.getClassLoader(),
+            new Class<?>[] { TelemetryProvider.class },
+            (proxy, method, args) -> "getMeterRegistry".equals(method.getName())
+                ? recordingRegistry
+                : method.invoke(TelemetryProvider.NOOP, args)
+        );
+
+        Plugin.PluginServices services = (Plugin.PluginServices) Proxy.newProxyInstance(
+            Plugin.PluginServices.class.getClassLoader(),
+            new Class<?>[] { Plugin.PluginServices.class },
+            (proxy, method, args) -> "telemetryProvider".equals(method.getName()) ? recordingTelemetry : null
+        );
+
+        plugin.createComponents(services);
     }
 
-    private static EngineAndLoader loadPainlessEngine(Settings settings) throws Exception {
+    private static EngineAndPlugin loadPainlessEngine(Settings settings) throws Exception {
         Path pluginDir = Path.of(System.getProperty("plugins.dir"), "painless");
         URL[] jarUrls;
         try (var stream = Files.walk(pluginDir)) {
@@ -255,8 +279,9 @@ public class PainlessAllocationTrackingBenchmark {
         });
         ScriptPlugin scriptPlugin = (ScriptPlugin) plugin;
         ScriptModule scriptModule = new ScriptModule(settings, List.of(scriptPlugin));
-        return new EngineAndLoader(scriptModule.engines.get("painless"), loader);
+        return new EngineAndPlugin(scriptModule.engines.get("painless"), (Plugin) plugin);
     }
 
-    private record EngineAndLoader(ScriptEngine engine, URLClassLoader loader) {}
+    /** The plugin is kept because {@code metrics} mode installs its recording metrics through it after the engine exists. */
+    private record EngineAndPlugin(ScriptEngine engine, Plugin plugin) {}
 }

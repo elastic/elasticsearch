@@ -176,6 +176,7 @@ import org.objectweb.asm.util.Printer;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
@@ -354,16 +355,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         }
 
         // Write the constructor. When metrics are enabled, an extra AllocationMetrics arg is appended after the base
-        // class args so the factory can inject the per-node instance without a global static.
+        // class args so the factory can inject the per-node instance without a global static. Both shapes derive from
+        // `init`, which already carries the base class's constructor signature.
+        Type[] baseArgs = init.getArgumentTypes();
         Method genInit;
         if (allocationMetricsEnabled) {
-            Class<?>[] baseParams = scriptClassInfo.getBaseClass().getConstructors().length == 0
-                ? new Class<?>[0]
-                : scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes();
-            Class<?>[] genParams = new Class<?>[baseParams.length + 1];
-            System.arraycopy(baseParams, 0, genParams, 0, baseParams.length);
-            genParams[baseParams.length] = org.elasticsearch.painless.AllocationMetrics.class;
-            genInit = new Method("<init>", MethodType.methodType(void.class, genParams).toMethodDescriptorString());
+            Type[] genArgs = Arrays.copyOf(baseArgs, baseArgs.length + 1);
+            genArgs[baseArgs.length] = WriterConstants.ALLOC_METRICS_TYPE;
+            genInit = new Method("<init>", Type.getMethodDescriptor(Type.VOID_TYPE, genArgs));
         } else {
             genInit = init;
         }
@@ -371,9 +370,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         constructor.visitCode();
         constructor.loadThis();
         // Load only the base-class args (exclude the trailing AllocationMetrics arg when present).
-        int baseArgCount = scriptClassInfo.getBaseClass().getConstructors().length == 0
-            ? 0
-            : scriptClassInfo.getBaseClass().getConstructors()[0].getParameterTypes().length;
+        int baseArgCount = baseArgs.length;
         for (int i = 0; i < baseArgCount; i++) {
             constructor.loadArg(i);
         }

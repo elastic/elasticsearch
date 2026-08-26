@@ -261,11 +261,6 @@ public final class CompilerSettings {
         return maxAllocationBytes > 0L || allocationMetricsEnabled;
     }
 
-    /** Whether the limit is enforced, i.e. an execution that exceeds it fails. Independent of {@link #isAllocationMetricsEnabled}. */
-    public boolean isAllocationLimitEnabled() {
-        return maxAllocationBytes > 0L;
-    }
-
     /** @see #allocationMetricsEnabled */
     public boolean isAllocationMetricsEnabled() {
         return allocationMetricsEnabled;

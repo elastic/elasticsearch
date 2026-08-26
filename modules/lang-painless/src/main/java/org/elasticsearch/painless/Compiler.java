@@ -184,6 +184,8 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
+     * @param allocationMetrics The metrics to record each execution's allocation total into, or {@code null} to record none.
+     *                          Non-null is what makes the generated class carry the recording bytecode.
      * @return The ScriptScope used to compile
      */
     ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings, AllocationMetrics allocationMetrics) {

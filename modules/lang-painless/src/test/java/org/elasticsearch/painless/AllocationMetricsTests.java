@@ -10,6 +10,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.PainlessTestScript;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -96,20 +97,24 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testNothingRecordedWhenMetricsAreOff() {
-        // Compiled through the limit path instead, which leaves the metrics property unset.
+        // Both compiles run the same script against the same registry, so the second half is only meaningful because the
+        // first proves the registry does receive samples. A metrics-off compile must add nothing to it.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        PainlessTestScript script = compile(ALLOCATING, "1mb");
-        script.execute();
+        compileWithMetrics(ALLOCATING, recordingMetrics(registry)).execute();
+        assertEquals(1, samples(registry).size());
 
-        assertTrue(samples(registry).isEmpty());
+        compile(ALLOCATING, "1mb").execute();
+        assertEquals(1, samples(registry).size());
     }
 
     public void testFailedExecutionIsNotRecorded() {
         // Documented gap: recording rides the normal return path, so an execution that throws contributes no sample. A
-        // partial total from an aborted execution would skew the distribution the histogram is meant to describe.
+        // partial total from an aborted execution would skew the distribution the histogram is meant to describe. Needs
+        // metrics and the limit on together, so that the execution both records and can be failed.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        assertTripsLimit("int[] a = new int[100000]; return 1;", "1b");
+        PainlessTestScript script = compileWithMetricsAndLimit("int[] a = new int[100000]; return 1;", "1b", recordingMetrics(registry));
 
+        expectThrows(ScriptException.class, script::execute);
         assertTrue(samples(registry).isEmpty());
     }
 }

@@ -26,6 +26,9 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     /** Affix-setting key carrying the allocation byte limit for the test context. */
     protected static final String LIMIT_KEY = "script.painless.max_allocation_bytes.context." + PainlessTestScript.CONTEXT.name + ".limit";
 
+    /** The {@code -1b} sentinel: compile without enforcing a limit. */
+    protected static final String MAX_ALLOCATION_BYTES_DISABLED = CompilerSettings.MAX_ALLOCATION_BYTES_DISABLED.getStringRep();
+
     @Override
     protected PainlessScriptEngine buildScriptEngine() {
         // Each test builds its own engine via compile(source, limit) to set a per-test limit, so the shared engine is unused.
@@ -41,20 +44,22 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     }
 
     /**
-     * Compiles {@code source} with allocation metrics enabled and the limit left off, which is the metrics-only mode: the
-     * counter runs and each execution is recorded, but nothing enforces a threshold. Supplying an instance is what enables
-     * recording, so no test has to set the system property, which tests sharing a JVM must treat as immutable.
+     * Compiles {@code source} recording into {@code metrics}, with the limit left off — the metrics-only mode: the counter
+     * runs and each execution is recorded, but nothing enforces a threshold. Supplying an instance is what enables recording,
+     * so no test has to set the system property, which tests sharing a JVM must treat as immutable.
      */
-    protected PainlessTestScript compileWithMetrics(String source) {
-        return compileWithMetrics(source, AllocationMetrics.NOOP);
+    protected PainlessTestScript compileWithMetrics(String source, AllocationMetrics metrics) {
+        return compileWithMetricsAndLimit(source, MAX_ALLOCATION_BYTES_DISABLED, metrics);
     }
 
     /**
-     * Compiles {@code source} with metrics enabled and the provided {@link AllocationMetrics} instance installed.
-     * Use this overload when you need to assert on recorded samples.
+     * Compiles {@code source} recording into {@code metrics} <em>and</em> enforcing {@code limit}, the mode where an
+     * execution can be failed by the limit while metrics are being recorded. Pass {@link #MAX_ALLOCATION_BYTES_DISABLED} as
+     * the limit for metrics-only.
      */
-    protected PainlessTestScript compileWithMetrics(String source, AllocationMetrics metrics) {
-        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), () -> metrics);
+    protected PainlessTestScript compileWithMetricsAndLimit(String source, String limit, AllocationMetrics metrics) {
+        Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> metrics);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }

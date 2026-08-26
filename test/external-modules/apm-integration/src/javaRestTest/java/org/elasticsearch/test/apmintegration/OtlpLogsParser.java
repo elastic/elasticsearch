@@ -20,8 +20,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Parses OTLP protobuf log records into the protocol-neutral {@link ReceivedTelemetry.ReceivedLog}.
- * Used by the gRPC {@code LogsServiceImpl} in {@link RecordingApmServer}.
+ * Parses OTLP protobuf log records into protocol-neutral {@link ReceivedTelemetry}.
+ * Each {@code ResourceLogs} becomes a {@link ReceivedTelemetry.ReceivedResource} followed by
+ * one {@link ReceivedTelemetry.ReceivedLog} per record. Used by the gRPC {@code LogsServiceImpl}
+ * in {@link RecordingApmServer}.
  */
 public final class OtlpLogsParser extends OtlpParser {
 
@@ -30,6 +32,7 @@ public final class OtlpLogsParser extends OtlpParser {
     static List<ReceivedTelemetry> parse(ExportLogsServiceRequest request) {
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
+            result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceLogs.getResource().getAttributesList())));
             for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
                 String scopeName = scopeLogs.getScope().getName();
                 for (LogRecord record : scopeLogs.getLogRecordsList()) {

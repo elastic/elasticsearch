@@ -1492,8 +1492,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || fieldType().nullValue != null);
     }
 
     @Override
@@ -2126,6 +2126,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public CompositeSyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
-        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, syntheticFieldLoaderLayers());
+        var layers = syntheticFieldLoaderLayers();
+        if (onFailureColumnEnabled()) {
+            layers.add(CompositeSyntheticFieldLoader.onFailureValuesLayer(fullPath(), indexCreatedVersion));
+        }
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
     }
 }

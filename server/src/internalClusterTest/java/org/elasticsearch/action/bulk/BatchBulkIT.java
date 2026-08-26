@@ -23,8 +23,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -223,6 +225,57 @@ public class BatchBulkIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
         });
+
+        // the batch listener hooks must feed the indexing stats exactly like the sequential path
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo(0L));
+        // replicas take the batch path too: 1 replica per shard doubles the total
+        assertThat(statsResponse.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(numDocs * 2L));
+    }
+
+    public void testBatchModeWithVersionConflicts() throws IOException {
+        String index = "test-batch-version-conflict";
+        createBatchIndex(index, 1, 0);
+        String coordinatingNode = findCoordinatingNode();
+
+        int numDocs = randomIntBetween(5, 20);
+        BulkRequest firstBulk = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            firstBulk.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+            );
+        }
+        assertNoFailures(client(coordinatingNode).bulk(firstBulk).actionGet());
+
+        // re-creating the same ids fails every item with a version conflict, through the batch path
+        BulkRequest conflictingBulk = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            conflictingBulk.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "doc-" + i, "value", i, "message", "hello again " + i))
+            );
+        }
+        BulkResponse conflictingResponse = client(coordinatingNode).bulk(conflictingBulk).actionGet();
+        assertTrue(conflictingResponse.hasFailures());
+        for (BulkItemResponse item : conflictingResponse.getItems()) {
+            assertTrue(item.isFailed());
+            assertThat(item.getFailure().getStatus(), equalTo(RestStatus.CONFLICT));
+        }
+
+        // failures must be recorded by the batch listener hooks: failed and version-conflict
+        // counts match the conflicting docs, and index_current returns to zero
+        var statsResponse = indicesAdmin().prepareStats(index).clear().setIndexing(true).get();
+        var primaryStats = statsResponse.getPrimaries().getIndexing().getTotal();
+        assertThat(primaryStats.getIndexCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexFailedCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexFailedDueToVersionConflictCount(), equalTo((long) numDocs));
+        assertThat(primaryStats.getIndexCurrent(), equalTo(0L));
     }
 
     public void testSyntheticSourceReconstruction() throws IOException {
@@ -1792,6 +1845,7 @@ public class BatchBulkIT extends ESIntegTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         String index = "test-batch-mvf";
 
         XContentBuilder mapping = JsonXContent.contentBuilder();
@@ -1867,9 +1921,13 @@ public class BatchBulkIT extends ESIntegTestCase {
             );
         });
 
-        // Document must exist and its source must contain the first value.
+        // Document must exist and its source must contain both values: val1 (the primary column) and val2 (._on_failure sidecar).
         var getResponse = client().get(new GetRequest(index).id("doc-1")).actionGet();
         assertTrue(getResponse.isExists());
-        assertThat("first value must appear in source", getResponse.getSourceAsMap().get("field"), equalTo("val1"));
+        assertThat(
+            "both values must appear in source after ._on_failure read-side wiring",
+            getResponse.getSourceAsMap().get("field"),
+            equalTo(List.of("val1", "val2"))
+        );
     }
 }

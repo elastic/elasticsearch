@@ -304,26 +304,17 @@ public final class WriterConstants {
         long.class
     );
 
-    /** Name of the {@code AllocationMetrics} instance field injected into every metrics-enabled generated script class. */
+    /** The static constant holding a metrics-enabled script class's recorder, set at compile time like {@code $DEFINITION}. */
     public static final String ALLOC_METRICS_FIELD = "$allocMetrics";
 
-    /**
-     * ASM {@link Type} for {@link AllocationMetrics}; used to emit the {@link #ALLOC_METRICS_FIELD} field, the factory's
-     * injection of it, and the {@code INVOKEVIRTUAL} that records through it.
-     */
-    public static final Type ALLOC_METRICS_TYPE = Type.getType(AllocationMetrics.class);
+    /** ASM {@link Type} for {@link AllocationMetrics.ContextRecorder}. */
+    public static final Type ALLOC_METRICS_TYPE = Type.getType(AllocationMetrics.ContextRecorder.class);
 
     /**
-     * {@link AllocationMetrics#recordExecutionAllocation(String, long)} — called via {@code INVOKEVIRTUAL} on
-     * {@code this.$allocMetrics} from the generated {@code execute} method's return path when metrics are enabled.
-     * The context name is a baked-in constant at the call site.
+     * {@link AllocationMetrics.ContextRecorder#recordExecutionAllocation(long)}, invoked on {@code $allocMetrics} from the
+     * {@code execute} return path.
      */
-    public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(
-        void.class,
-        "recordExecutionAllocation",
-        String.class,
-        long.class
-    );
+    public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(void.class, "recordExecutionAllocation", long.class);
 
     /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
     public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);

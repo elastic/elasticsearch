@@ -44,8 +44,7 @@ public class AllocationDisabledBytecodeTests extends ScriptTestCase {
     }
 
     public void testMetricsAloneEnableTheCounterWithoutTheLimitPath() {
-        // Metrics-only: the counter and the per-execution record are emitted, but nothing can fail the script, so the
-        // limit breach helper must not appear.
+        // Metrics-only emits the counter and the record, but nothing can fail the script, so no breach helper.
         String asm = bytecode("int[] a = new int[] {1, 2, 3}; return 1;", -1L, true);
         assertThat(asm, containsString("$allocBytes"));
         assertThat(asm, containsString("$checkAllocBytes"));

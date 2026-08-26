@@ -58,27 +58,19 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
-     * Supplies the node-level allocation metrics, or {@code null} to record none. A supplier rather than the instance itself
-     * because {@code PainlessPlugin} builds the engine in {@code getScriptEngine}, which runs before {@code createComponents}
-     * hands it a {@code MeterRegistry}; the plugin owns a {@code SetOnce} and passes a read-only view of it, standing in
-     * {@link AllocationMetrics#NOOP} until that holder is set.
-     * <p>
-     * Read twice per engine: once at construction to decide whether to compile the recording path at all, and once per compile
-     * for the instance to inject. Those two reads must agree on nullness — see the constructor.
+     * Supplies the metrics to record into, or {@code null} to record none. A supplier because {@code PainlessPlugin} builds
+     * the engine before {@code createComponents} hands it a {@code MeterRegistry}. Read at construction to decide whether to
+     * compile the recording path, and again per compile for the instance to inject.
      */
     private final Supplier<AllocationMetrics> allocationMetrics;
 
     /**
-     * Whether metrics are recorded is taken from {@code allocationMetrics} rather than resolved here, so the engine reads no
-     * global state of its own: {@code PainlessPlugin} is the sole place
-     * {@link CompilerSettings#ALLOCATION_METRICS_ENABLED_PROPERTY} is read, and a test can exercise the recording path just by
-     * supplying an instance.
+     * Enablement comes from {@code allocationMetrics} rather than the system property, so the engine reads no global state
+     * and a test can turn recording on just by supplying an instance.
      * @param settings The settings to initialize the engine with.
-     * @param allocationMetrics Supplies the metrics to record into, or {@code null} to record none. Must answer consistently
-     *                          for the life of the engine — always {@code null} or never — since the first answer decides
-     *                          whether generated classes carry the recording bytecode at all. A supplier that starts non-null
-     *                          and later returns {@code null} would produce a class that reads a field it never declared;
-     *                          {@link #compile} asserts against it.
+     * @param allocationMetrics Supplies the metrics to record into, or {@code null} to record none. Must always answer
+     *                          {@code null} or never: the first answer decides whether generated classes carry the recording
+     *                          bytecode, so one that changed would read a field it never declared. {@link #compile} asserts.
      */
     public PainlessScriptEngine(
         Settings settings,
@@ -107,7 +99,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 CompilerSettings.MAX_ALLOCATION_BYTES.getConcreteSettingForNamespace(context.name).get(settings).getBytes()
             );
             contextDefaults.setAllocationMetricsEnabled(allocationMetricsEnabled);
-            contextDefaults.setScriptContextName(context.name);
 
             mutableContextsToCompilers.put(
                 context,
@@ -147,8 +138,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
         AllocationMetrics metrics = allocationMetrics.get();
-        // The construction-time read decided whether these classes carry the recording bytecode, so a supplier that changed
-        // its answer since would emit a read of the undeclared $allocMetrics field. See the constructor.
+        // A supplier that changed its answer since construction would read an undeclared $allocMetrics field.
         assert (metrics != null) == contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled()
             : "allocation metrics supplier changed nullness after construction";
 
@@ -159,7 +149,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             scriptName,
             scriptSource,
             params,
-            metrics
+            metrics == null ? null : metrics.forContext(context.name)
         );
 
         if (context.statefulFactoryClazz != null) {
@@ -186,7 +176,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @return A factory class that will return script instances.
      */
     private static <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, ScriptScope scriptScope) {
-        AllocationMetrics metrics = scriptScope.getAllocationMetrics();
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
@@ -216,28 +205,13 @@ public final class PainlessScriptEngine implements ScriptEngine {
             ).visitEnd();
         }
 
-        if (metrics != null) {
-            writer.visitField(
-                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                WriterConstants.ALLOC_METRICS_FIELD,
-                WriterConstants.ALLOC_METRICS_TYPE.getDescriptor(),
-                null,
-                null
-            ).visitEnd();
-        }
-
         org.objectweb.asm.commons.Method base = new org.objectweb.asm.commons.Method(
             "<init>",
             MethodType.methodType(void.class).toMethodDescriptorString()
         );
-
-        List<Class<?>> initParams = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
-        if (metrics != null) {
-            initParams.add(AllocationMetrics.class);
-        }
         org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, initParams.toArray(new Class<?>[0])).toMethodDescriptorString()
+            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString()
         );
 
         GeneratorAdapter constructor = new GeneratorAdapter(
@@ -253,16 +227,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
             constructor.loadThis();
             constructor.loadArg(count);
             constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
-        }
-
-        if (metrics != null) {
-            constructor.loadThis();
-            constructor.loadArg(newFactory.getParameterTypes().length);
-            constructor.putField(
-                Type.getType("L" + className + ";"),
-                WriterConstants.ALLOC_METRICS_FIELD,
-                WriterConstants.ALLOC_METRICS_TYPE
-            );
         }
 
         constructor.returnValue();
@@ -285,9 +249,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
         parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
-        if (metrics != null) {
-            parameters.add(AllocationMetrics.class);
-        }
 
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
             "<init>",
@@ -309,12 +270,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
 
         adapter.loadArgs();
-
-        if (metrics != null) {
-            adapter.loadThis();
-            adapter.getField(Type.getType("L" + className + ";"), WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
-        }
-
         adapter.invokeConstructor(WriterConstants.CLASS_TYPE, constru);
         adapter.returnValue();
         adapter.endMethod();
@@ -341,8 +296,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @return A factory class that will return script instances.
      */
     private static <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType, ScriptScope scriptScope) {
-        AllocationMetrics metrics = scriptScope.getAllocationMetrics();
-
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
@@ -352,26 +305,10 @@ public final class PainlessScriptEngine implements ScriptEngine {
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
-        if (metrics != null) {
-            writer.visitField(
-                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                WriterConstants.ALLOC_METRICS_FIELD,
-                WriterConstants.ALLOC_METRICS_TYPE.getDescriptor(),
-                null,
-                null
-            ).visitEnd();
-        }
-
-        org.objectweb.asm.commons.Method noArgInit = new org.objectweb.asm.commons.Method(
+        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
             "<init>",
             MethodType.methodType(void.class).toMethodDescriptorString()
         );
-        org.objectweb.asm.commons.Method init = metrics != null
-            ? new org.objectweb.asm.commons.Method(
-                "<init>",
-                MethodType.methodType(void.class, AllocationMetrics.class).toMethodDescriptorString()
-            )
-            : noArgInit;
 
         GeneratorAdapter constructor = new GeneratorAdapter(
             Opcodes.ASM5,
@@ -380,16 +317,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         );
         constructor.visitCode();
         constructor.loadThis();
-        constructor.invokeConstructor(OBJECT_TYPE, noArgInit);
-        if (metrics != null) {
-            constructor.loadThis();
-            constructor.loadArg(0);
-            constructor.putField(
-                Type.getType("L" + className + ";"),
-                WriterConstants.ALLOC_METRICS_FIELD,
-                WriterConstants.ALLOC_METRICS_TYPE
-            );
-        }
+        constructor.invokeConstructor(OBJECT_TYPE, init);
         constructor.returnValue();
         constructor.endMethod();
 
@@ -407,14 +335,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
             reflect.getName(),
             MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString()
         );
-
-        List<Class<?>> construParams = new ArrayList<>(Arrays.asList(reflect.getParameterTypes()));
-        if (metrics != null) {
-            construParams.add(AllocationMetrics.class);
-        }
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, construParams.toArray(new Class<?>[0])).toMethodDescriptorString()
+            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
         );
 
         GeneratorAdapter adapter = new GeneratorAdapter(
@@ -426,10 +349,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.newInstance(classType);
         adapter.dup();
         adapter.loadArgs();
-        if (metrics != null) {
-            adapter.loadThis();
-            adapter.getField(Type.getType("L" + className + ";"), WriterConstants.ALLOC_METRICS_FIELD, WriterConstants.ALLOC_METRICS_TYPE);
-        }
         adapter.invokeConstructor(classType, constru);
         adapter.returnValue();
         adapter.endMethod();
@@ -456,11 +375,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
 
         try {
-            if (metrics != null) {
-                return context.factoryClazz.cast(factory.getConstructor(AllocationMetrics.class).newInstance(metrics));
-            } else {
-                return context.factoryClazz.cast(factory.getConstructor().newInstance());
-            }
+            return context.factoryClazz.cast(factory.getConstructor().newInstance());
         } catch (Exception exception) {
             // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException(
@@ -504,14 +419,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
         String scriptName,
         String source,
         Map<String, String> params,
-        AllocationMetrics allocationMetrics
+        AllocationMetrics.ContextRecorder allocationRecorder
     ) {
         final CompilerSettings compilerSettings = buildCompilerSettings(contextDefaults, params);
 
         try {
             // Drop all permissions to actually compile the code itself.
             String name = scriptName == null ? source : scriptName;
-            return compiler.compile(loader, name, source, compilerSettings, allocationMetrics);
+            return compiler.compile(loader, name, source, compilerSettings, allocationRecorder);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
@@ -532,7 +447,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
             compilerSettings.setRegexLimitFactor(contextDefaults.getAppliedRegexLimitFactor());
             compilerSettings.setMaxAllocationBytes(contextDefaults.getMaxAllocationBytes());
             compilerSettings.setAllocationMetricsEnabled(contextDefaults.isAllocationMetricsEnabled());
-            compilerSettings.setScriptContextName(contextDefaults.getScriptContextName());
 
             Map<String, String> copy = new HashMap<>(params);
 

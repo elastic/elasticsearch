@@ -206,6 +206,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCRecordAllocationMetrics;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
@@ -213,7 +214,6 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticScriptCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDAllocationEstimator;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDAllocationMetricsContext;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDBinaryType;
@@ -296,9 +296,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         CompilerSettings compilerSettings = scriptScope.getCompilerSettings();
         irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(compilerSettings.getMaxAllocationBytes()));
 
-        // Attached only when metrics are on, so the writer can treat its presence as "record this execution's total".
         if (compilerSettings.isAllocationMetricsEnabled()) {
-            irFunctionNode.attachDecoration(new IRDAllocationMetricsContext(compilerSettings.getScriptContextName()));
+            irFunctionNode.attachCondition(IRCRecordAllocationMetrics.class);
         }
     }
 

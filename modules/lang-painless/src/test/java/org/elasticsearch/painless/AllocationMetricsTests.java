@@ -19,9 +19,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Per-execution allocation metrics. The interesting properties are that a sample is recorded once per execution carrying
- * that execution's total, that enabling metrics does not enforce anything, and that nothing is recorded when the feature is
- * off. Each test creates its own engine and {@link AllocationMetrics} instance; there is no shared state.
+ * Per-execution allocation metrics: one sample per execution carrying that execution's total, no enforcement, and nothing
+ * recorded when off. Each test builds its own engine and {@link AllocationMetrics}; no shared state.
  */
 public class AllocationMetricsTests extends AllocationTestCase {
 
@@ -47,8 +46,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testRecordedValueIsTheExecutionTotal() {
-        // The sample must be the same number the counter holds, i.e. recorded before the value is read back and while it
-        // still describes this execution.
+        // The sample must be the number the counter holds, i.e. recorded while it still describes this execution.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PainlessTestScript script = compileWithMetrics(ALLOCATING, recordingMetrics(registry));
         script.execute();
@@ -70,8 +68,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testCounterResetsBetweenExecutions() {
-        // Each sample describes its own execution, so repeated runs of the same script report the same total rather than a
-        // number that climbs with the instance's lifetime.
+        // Repeated runs report the same total, not one climbing with the instance's lifetime.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PainlessTestScript script = compileWithMetrics(ALLOCATING, recordingMetrics(registry));
         script.execute();
@@ -83,7 +80,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testMetricsEnableTrackingWithoutEnforcing() {
-        // The whole point of the mode: the counter runs and reports, and a script that allocates heavily still completes.
+        // The point of the mode: the counter reports and a heavily allocating script still completes.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PainlessTestScript script = compileWithMetrics(
             "String s = ''; for (int i = 0; i < 2000; ++i) { s = 'abcdefghij' + i; } return s;",
@@ -97,8 +94,7 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testNothingRecordedWhenMetricsAreOff() {
-        // Both compiles run the same script against the same registry, so the second half is only meaningful because the
-        // first proves the registry does receive samples. A metrics-off compile must add nothing to it.
+        // The first compile proves the registry receives samples; the metrics-off one must then add nothing.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         compileWithMetrics(ALLOCATING, recordingMetrics(registry)).execute();
         assertEquals(1, samples(registry).size());
@@ -108,9 +104,8 @@ public class AllocationMetricsTests extends AllocationTestCase {
     }
 
     public void testFailedExecutionIsNotRecorded() {
-        // Documented gap: recording rides the normal return path, so an execution that throws contributes no sample. A
-        // partial total from an aborted execution would skew the distribution the histogram is meant to describe. Needs
-        // metrics and the limit on together, so that the execution both records and can be failed.
+        // Documented gap: recording rides the return path, so an execution that throws contributes no sample. Needs
+        // metrics and the limit together, so the execution both records and can be failed.
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PainlessTestScript script = compileWithMetricsAndLimit("int[] a = new int[100000]; return 1;", "1b", recordingMetrics(registry));
 

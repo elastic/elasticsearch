@@ -9,12 +9,14 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.painless.AllocationMetrics;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
 import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
+import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
@@ -145,12 +147,11 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
-            // Carry the per-context allocation limit and, when metrics are on, the context to attribute them to, on the
-            // execute entry: its prologue resets $allocBytes and its return path records the execution's total. The limit is
-            // -1 when not enforcing; with neither the limit nor metrics on, no counter bytecode is emitted at all.
+            // The execute entry needs both: its prologue resets $allocBytes and its return path records the total.
             attachAllocationLimit(irFunctionNode, scriptScope);
 
             injectStaticFieldsAndGetters();
+            injectAllocationMetricsField(scriptScope);
             injectGetsDeclarations(irBlockNode, scriptScope);
             injectNeedsMethods(scriptScope);
             injectSandboxExceptions(irFunctionNode);
@@ -159,6 +160,23 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } else {
             super.visitFunction(userFunctionNode, scriptScope);
         }
+    }
+
+    /**
+     * Declares the static field holding this script's allocation recorder, which {@code Compiler} sets after defining the
+     * class. Only when metrics are enabled; the field is what the {@code execute} return path records through.
+     */
+    protected void injectAllocationMetricsField(ScriptScope scriptScope) {
+        if (scriptScope.getCompilerSettings().isAllocationMetricsEnabled() == false) {
+            return;
+        }
+
+        FieldNode irFieldNode = new FieldNode(new Location("$internal$injectAllocationMetricsField", 0));
+        irFieldNode.attachDecoration(new IRDModifiers(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC));
+        irFieldNode.attachDecoration(new IRDFieldType(AllocationMetrics.ContextRecorder.class));
+        irFieldNode.attachDecoration(new IRDName(WriterConstants.ALLOC_METRICS_FIELD));
+
+        irClassNode.addFieldNode(irFieldNode);
     }
 
     // adds static fields and getter methods required by PainlessScript for exception handling

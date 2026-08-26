@@ -51,14 +51,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
 
     /**
-     * Populated in {@link #createComponents}, which is the first hook handed a {@code MeterRegistry}. The engine is built
-     * earlier, in {@link #getScriptEngine}, so it receives {@link #allocationMetrics()} — a read-only view that reads through
-     * to this holder on every compile and stands in {@link AllocationMetrics#NOOP} until it is set.
+     * Populated in {@link #createComponents}, the first hook handed a {@code MeterRegistry}. The engine is built earlier,
+     * in {@link #getScriptEngine}, so it gets {@link #allocationMetrics()}, which reads through on every compile.
      */
     private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
 
-    /** Read once in {@link #getScriptEngine}, before the engine that depends on it is built. */
-    private boolean allocationMetricsEnabled;
+    private final boolean allocationMetricsEnabled = CompilerSettings.readAllocationMetricsEnabledProperty();
 
     public static List<Whitelist> baseWhiteList() {
         return List.of(
@@ -103,16 +101,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        allocationMetricsEnabled = CompilerSettings.readAllocationMetricsEnabledProperty();
         painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists, this::allocationMetrics));
         return painlessScriptEngine.get();
     }
 
     /**
-     * The node-level allocation metrics, or {@code null} when recording is switched off — the engine takes that as "compile no
-     * recording bytecode", so it must stay stable for the life of the engine, which it does: enablement is read once in
-     * {@link #getScriptEngine}. While recording is on but telemetry has yet to arrive this is {@link AllocationMetrics#NOOP},
-     * so scripts compiled before {@link #createComponents} record nothing and every later compile gets the real instance.
+     * The node's metrics, or {@code null} when recording is off — which the engine reads as "compile no recording
+     * bytecode", so the answer must never change. {@link AllocationMetrics#NOOP} until telemetry arrives, so scripts
+     * compiled before {@link #createComponents} record nothing.
      */
     private AllocationMetrics allocationMetrics() {
         if (allocationMetricsEnabled == false) {

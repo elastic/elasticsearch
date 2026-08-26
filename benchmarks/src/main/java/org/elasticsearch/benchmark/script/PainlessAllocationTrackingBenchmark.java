@@ -52,11 +52,10 @@ import java.util.concurrent.atomic.LongAdder;
  *   <li>{@code limit} – per-site pre-checks + limit enforcement at 512 mb (never trips on these scripts)</li>
  * </ul>
  *
- * <p>The {@code metrics} mode installs a {@link LongHistogram} backed by a {@link LongAdder}, by calling the plugin's
- * {@code createComponents} with a {@link MeterRegistry} that hands one out — the same path a node takes. This prevents the
- * JIT from dead-code-eliminating the {@code $allocBytes} tracking chain (which it would do with the NOOP backend, since a
- * NOOP {@code record()} has no observable side effects). The {@link LongAdder} is a realistic stand-in for the production
- * OTEL histogram backend, which also does atomic counter operations.
+ * <p>{@code metrics} mode installs a {@link LongAdder}-backed {@link LongHistogram} through the plugin's
+ * {@code createComponents}, the same path a node takes. A NOOP {@code record()} has no observable side effects, so the JIT
+ * would eliminate the whole {@code $allocBytes} chain; {@link LongAdder} is a fair stand-in for the OTEL backend, which
+ * also does atomic counter work.
  *
  * <p>Run with:
  * <pre>
@@ -76,9 +75,8 @@ public class PainlessAllocationTrackingBenchmark {
     }
 
     /**
-     * Mirrors {@code CompilerSettings.ALLOCATION_METRICS_ENABLED_PROPERTY}, which lives in the plugin classloader and so
-     * cannot be referenced directly from here. Keep the two in step: a mismatch silently turns {@code metrics} mode into a
-     * second copy of {@code off} rather than failing.
+     * Mirrors {@code CompilerSettings.ALLOCATION_METRICS_ENABLED_PROPERTY}, unreachable from here in the plugin
+     * classloader. Keep them in step: a mismatch silently makes {@code metrics} a second copy of {@code off}.
      */
     private static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
 
@@ -111,8 +109,7 @@ public class PainlessAllocationTrackingBenchmark {
         try {
             Settings settings;
             if ("limit".equals(mode)) {
-                // 512 mb — far above anything these scripts allocate; enforces the per-site bytecode
-                // path without ever throwing PainlessAllocationLimitError during the benchmark.
+                // Far above anything these scripts allocate: emits the per-site checks without ever tripping.
                 settings = Settings.builder()
                     .put("script.painless.max_allocation_bytes.context.processor_conditional.limit", "512mb")
                     .build();
@@ -124,16 +121,12 @@ public class PainlessAllocationTrackingBenchmark {
             ScriptEngine engine = result.engine();
 
             if ("metrics".equals(mode)) {
-                // Install a LongAdder-backed histogram so the JIT cannot dead-code-eliminate the
-                // $allocBytes tracking chain. With MeterRegistry.NOOP the record() call is an empty
-                // method, and the JIT inlines + eliminates the entire chain back to the $allocBytes
-                // field writes. The LongAdder.add() has real memory-ordering semantics, preventing that.
-                // Must run before the compile below, which is what reads the installed instance.
+                // Before the compile below, which is what reads the installed instance.
                 installRecordingMetrics(result.plugin());
             }
 
             String source = switch (script) {
-                // Zero allocation sites. Measures: counter reset at entry + histogram record at return.
+                // Zero allocation sites: measures the counter reset at entry and the record at return.
                 case "trivial" -> "return true";
                 // Ten string-concat iterations, each emitting a $checkAllocBytes pre-check.
                 case "allocating" -> """
@@ -144,8 +137,7 @@ public class PainlessAllocationTrackingBenchmark {
                     return s.length() > 0""";
                 // List.of(5 elems) + iterator allocation on every execute. Realistic ingest pattern.
                 case "contains" -> "return ['alfa', 'bravo', 'charlie', 'delta', 'echo'].contains(params.word)";
-                // Mixed: new HashMap + new ArrayList×5 + String+int concat×5 + entrySet iterator
-                // + String+String concat×5. Exercises annotated ctors and multiple concat sites.
+                // Annotated ctors, an entrySet iterator, and several concat sites in one script.
                 case "complex" -> """
                     Map m = new HashMap();
                     for (int i = 0; i < 5; i++) {
@@ -156,8 +148,7 @@ public class PainlessAllocationTrackingBenchmark {
                         result += entry.getKey() + ' ';
                     }
                     return result.length() > 0""";
-                // def+def string concat (PR 7.5 MIC bootstrap) + def method dispatch to annotated
-                // targets (PR 7 PIC path). Exercises runtime-resolved tracking paths.
+                // The runtime-resolved paths: def+def concat and def dispatch to annotated targets.
                 case "def_alloc" -> """
                     def s = '';
                     for (int i = 0; i < 5; i++) {
@@ -200,33 +191,16 @@ public class PainlessAllocationTrackingBenchmark {
     }
 
     /**
-     * Installs a {@link LongAdder}-backed {@code AllocationMetrics} by driving the plugin's real wiring:
-     * {@code createComponents} is the hook that hands it a {@link MeterRegistry}, so this feeds it one that records.
-     * Called only in {@code metrics} mode, and only after the engine exists — the engine reads the installed instance once
-     * per compile, so this must land before the script is compiled.
+     * Installs a {@link LongAdder}-backed {@code AllocationMetrics} through {@code createComponents}, the hook that hands
+     * the plugin a {@link MeterRegistry}. Must run before the script is compiled, which is when the instance is read.
      *
-     * <p>{@code MeterRegistry}, {@code LongHistogram}, {@code TelemetryProvider} and {@code PluginServices} are all
-     * interfaces in the parent classloader (server module), visible to the plugin classloader via normal parent-delegation.
-     * The proxy classes created here are therefore assignable to the types the plugin expects. {@code PainlessPlugin}
-     * touches only {@code telemetryProvider()}, so the rest of {@code PluginServices} can answer null.
+     * <p>All four interfaces proxied here live in the parent (server) classloader, so the proxies are assignable to what
+     * the plugin expects. {@code PainlessPlugin} touches only {@code telemetryProvider()}, so the rest can answer null.
      */
     private static void installRecordingMetrics(Plugin plugin) {
-        LongAdder adder = new LongAdder();
+        LongHistogram recordingHistogram = new RecordingHistogram();
 
-        // A LongHistogram that accumulates into a LongAdder — real memory-ordering side effects.
-        LongHistogram recordingHistogram = (LongHistogram) Proxy.newProxyInstance(
-            LongHistogram.class.getClassLoader(),
-            new Class<?>[] { LongHistogram.class },
-            (proxy, method, args) -> {
-                if ("record".equals(method.getName())) {
-                    adder.add((long) args[0]);
-                }
-                return null;
-            }
-        );
-
-        // A MeterRegistry that returns the recording histogram for registerLongHistogram,
-        // and delegates everything else to NOOP.
+        // A registry handing out that histogram, delegating everything else to NOOP.
         MeterRegistry recordingRegistry = (MeterRegistry) Proxy.newProxyInstance(
             MeterRegistry.class.getClassLoader(),
             new Class<?>[] { MeterRegistry.class },
@@ -238,7 +212,7 @@ public class PainlessAllocationTrackingBenchmark {
             }
         );
 
-        // A TelemetryProvider handing out that registry, and the PluginServices that carries it into createComponents.
+        // And the two layers that carry it into createComponents.
         TelemetryProvider recordingTelemetry = (TelemetryProvider) Proxy.newProxyInstance(
             TelemetryProvider.class.getClassLoader(),
             new Class<?>[] { TelemetryProvider.class },
@@ -284,4 +258,28 @@ public class PainlessAllocationTrackingBenchmark {
 
     /** The plugin is kept because {@code metrics} mode installs its recording metrics through it after the engine exists. */
     private record EngineAndPlugin(ScriptEngine engine, Plugin plugin) {}
+
+    /**
+     * Accumulates into a {@link LongAdder} so the record call has real side effects and cannot be optimized away. A direct
+     * implementation rather than a {@link Proxy}: proxy dispatch costs more than the call being measured, and this sits on
+     * the hot path once per execution.
+     */
+    private static class RecordingHistogram implements LongHistogram {
+        private final LongAdder adder = new LongAdder();
+
+        @Override
+        public String getName() {
+            return "benchmark";
+        }
+
+        @Override
+        public void record(long value) {
+            adder.add(value);
+        }
+
+        @Override
+        public void record(long value, Map<String, Object> attributes) {
+            adder.add(value);
+        }
+    }
 }

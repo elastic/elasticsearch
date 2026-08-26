@@ -17,34 +17,21 @@ import java.util.Map;
 import java.util.stream.LongStream;
 
 /**
- * Records how much each Painless script execution allocated, so an operator can see the real distribution of script
- * allocation before deciding whether to enforce a limit. Per node; per-cluster (and in serverless, per-project) aggregation
- * comes from the reporting pipeline.
- * <p>
- * A histogram rather than a counter, because the useful question is the shape of the distribution — the tail is what
- * matters, and a mean over all executions hides it. Attributed by script context only: the script <i>name</i> is
- * deliberately not an attribute, since inline scripts are named per source and cardinality would be unbounded.
- * <p>
- * Instances are held as a {@code final} field on each compiled script class, injected by the factory at instantiation time.
- * {@code PainlessPlugin} owns the instance and passes the engine a {@code Supplier} view of it, since the engine is built
- * before {@code createComponents} provides a {@code MeterRegistry}; a node without telemetry keeps {@link #NOOP}.
+ * Records how much each script execution allocated, so an operator can see the real distribution before committing to a
+ * limit. A histogram because the tail is what matters and a mean hides it. Attributed by script context only: inline
+ * scripts are named per source, so the script name would be unbounded cardinality.
  */
 public final class AllocationMetrics {
 
-    public static final String METRIC_EXECUTION_ALLOCATION = "es.script.painless.allocation.execution.histogram";
+    static final String METRIC_EXECUTION_ALLOCATION = "es.script.painless.allocation.execution.histogram";
 
-    /** Attribute naming the script context an execution ran in. */
+    /** The script context an execution ran in. */
     static final String CONTEXT_ATTRIBUTE = "context";
 
-    /**
-     * Explicit bucket boundaries: powers of two from 1kb (2^10) through 16gb (2^34), with the implicit under- and overflow
-     * buckets covering the ends. Doubling steps keep the ladder readable across the five orders of magnitude that separate a
-     * trivial script from one large enough to threaten a heap, without the resolution a default ladder would spend on sizes
-     * nobody acts on.
-     */
+    /** Powers of two from 1kb to 16gb, with implicit under- and overflow buckets at the ends. */
     static final List<Long> BUCKET_BOUNDARIES = LongStream.rangeClosed(10, 34).mapToObj(power -> 1L << power).toList();
 
-    /** Used until real telemetry is installed, and by tests that do not care about metrics. */
+    /** Stands in until real telemetry is installed. */
     public static final AllocationMetrics NOOP = new AllocationMetrics(MeterRegistry.NOOP);
 
     private final LongHistogram executionAllocationHistogram;
@@ -58,8 +45,28 @@ public final class AllocationMetrics {
         );
     }
 
-    /** Records one execution's total. Called once per execution, from the generated {@code execute} method's return path. */
-    public void recordExecutionAllocation(String scriptContextName, long totalBytes) {
-        executionAllocationHistogram.record(totalBytes, Map.of(CONTEXT_ATTRIBUTE, scriptContextName));
+    /** A recorder for scripts of one context, built once per compile. */
+    public ContextRecorder forContext(String scriptContextName) {
+        return new ContextRecorder(executionAllocationHistogram, Map.of(CONTEXT_ATTRIBUTE, scriptContextName));
+    }
+
+    /**
+     * Records executions of one script context. A script's context is fixed when it compiles, so the recorder is built
+     * then and injected into the generated class as a static constant: recording an execution needs no attribute work.
+     */
+    public static final class ContextRecorder {
+
+        private final LongHistogram executionAllocationHistogram;
+        private final Map<String, Object> attributes;
+
+        private ContextRecorder(LongHistogram executionAllocationHistogram, Map<String, Object> attributes) {
+            this.executionAllocationHistogram = executionAllocationHistogram;
+            this.attributes = attributes;
+        }
+
+        /** Records one execution's total, from the generated {@code execute} method's return path. */
+        public void recordExecutionAllocation(long totalBytes) {
+            executionAllocationHistogram.record(totalBytes, attributes);
+        }
     }
 }

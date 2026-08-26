@@ -62,18 +62,13 @@ public final class CompilerSettings {
     );
 
     /**
-     * System property enabling per-execution allocation metrics, {@code -Des.painless.allocation_metrics.enabled=true}.
-     * Defaults to off.
-     * <p>
-     * Deliberately a system property rather than a registered {@link Setting}: a {@code NodeScope} setting cannot be
-     * withdrawn once released, because a node whose version no longer registers the key refuses to start if it is present
-     * in {@code elasticsearch.yml}. Nothing validates unknown {@code es.*} system properties, so this can be removed in a
-     * single follow-up and a stale {@code -D} left on an upgraded node is simply ignored. Serverless sets it in its
-     * deployment configuration; stateful leaves it off. Same approach {@code modules/apm} uses to gate its own metrics.
+     * Enables per-execution allocation metrics, off by default. A system property rather than a {@link Setting} so it can
+     * be withdrawn later: a released {@code NodeScope} setting cannot be, since a node that no longer registers the key
+     * refuses to start with it in {@code elasticsearch.yml}. Serverless sets it; stateful leaves it off.
      */
     public static final String ALLOCATION_METRICS_ENABLED_PROPERTY = "es.painless.allocation_metrics.enabled";
 
-    /** Reads {@link #ALLOCATION_METRICS_ENABLED_PROPERTY}; a value that is neither {@code true} nor {@code false} is an error. */
+    /** Anything but {@code true} or {@code false} is an error. */
     public static boolean readAllocationMetricsEnabledProperty() {
         return Booleans.parseBoolean(System.getProperty(ALLOCATION_METRICS_ENABLED_PROPERTY), false);
     }
@@ -151,15 +146,8 @@ public final class CompilerSettings {
     /** Per-context limit in bytes from {@link #MAX_ALLOCATION_BYTES}; {@code -1} disables tracking, bytecode emitted only when positive. */
     private long maxAllocationBytes = MAX_ALLOCATION_BYTES_DISABLED.getBytes();
 
-    /**
-     * Whether to record how much each script execution allocated, as a histogram attributed by script context. Enables the
-     * allocation counter on its own, with nothing enforcing a limit — the mode that lets an operator see the real
-     * distribution before committing to a limit that might fail their scripts.
-     */
+    /** Record each execution's allocation total. Enables the counter on its own, with no limit enforced. */
     private boolean allocationMetricsEnabled = false;
-
-    /** The script context being compiled for, used as the attribute on allocation metrics. */
-    private String scriptContextName = "unknown";
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
@@ -253,10 +241,7 @@ public final class CompilerSettings {
         this.maxAllocationBytes = maxAllocationBytes;
     }
 
-    /**
-     * Whether the allocation counter is emitted at all. Either enforcing a limit or recording metrics needs it, and metrics
-     * alone is a supported mode: the counter runs with nothing comparing it against a threshold.
-     */
+    /** Whether the counter is emitted at all: enforcing a limit or recording metrics, either one alone. */
     public boolean isAllocationTrackingEnabled() {
         return maxAllocationBytes > 0L || allocationMetricsEnabled;
     }
@@ -269,16 +254,6 @@ public final class CompilerSettings {
     /** @see #allocationMetricsEnabled */
     public void setAllocationMetricsEnabled(boolean allocationMetricsEnabled) {
         this.allocationMetricsEnabled = allocationMetricsEnabled;
-    }
-
-    /** @see #scriptContextName */
-    public String getScriptContextName() {
-        return scriptContextName;
-    }
-
-    /** @see #scriptContextName */
-    public void setScriptContextName(String scriptContextName) {
-        this.scriptContextName = scriptContextName;
     }
 
     /**

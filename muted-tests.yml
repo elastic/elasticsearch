@@ -483,12 +483,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testSingleValuedFieldPartiallyUnmapped
   issue: https://github.com/elastic/elasticsearch/issues/156864
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
-  issue: https://github.com/elastic/elasticsearch/issues/157345
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexTaskFinishesBeforeNodeShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/157346
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/157223
@@ -501,9 +495,6 @@ tests:
 - class: org.elasticsearch.index.IndexingSlowLogTests
   method: testMultipleSlowLoggersUseSingleLog4jLogger
   issue: https://github.com/elastic/elasticsearch/issues/157531
-- class: org.elasticsearch.search.SearchWithRejectionsIT
-  method: testScrollContextSurvivesQueueRejection
-  issue: https://github.com/elastic/elasticsearch/issues/157416
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/bucket_count_ks_test_agg/Test bucket count ks test with empty alternatives}
   issue: https://github.com/elastic/elasticsearch/issues/157577

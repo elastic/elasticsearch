@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -70,16 +71,19 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  * The goal is to exercise the {@code field_extract} function in every place where a keyword field
  * appears in the existing csv-spec corpus, so that we can inventory which ES|QL surfaces are (and
  * are not) compatible with replacing a keyword field with {@code flattened + field_extract}. Tests
- * whose query references no keyword field are skipped, because re-running them with the same query
- * and the same expected results would only re-test unmodified behavior.
+ * whose query references no in-scope keyword field for the rewriter to wrap are <em>not generated
+ * at all</em> (see {@link #readScriptSpec()}): re-running them with the same query and the same
+ * expected results would only re-test unmodified behavior, and generating-then-skipping them
+ * produced a {@code <skipped>} element indistinguishable from a genuine known-limitation skip,
+ * which misleadingly suggested {@code field_extract} had a gap where in fact the test was simply
+ * not applicable to this variant.
  * <p>
  * This class is part of the normal {@code internalClusterTest} suite and runs whenever
  * {@code CsvFlattenedKeywordIT} is invoked (for example
  * {@code ./gradlew :x-pack:plugin:esql:internalClusterTest --tests org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT}).
  * At the end of the run {@link #logKeywordToFlattenedSummary()} emits a single
  * {@code keyword→flattened summary:} line (grep-able from the JUnit XML {@code <system-out>})
- * breaking down how many tests were launched, silenced, or skipped because the query had
- * nothing for the rewriter to wrap. Tests that exercise a known limitation of
+ * breaking down how many tests were launched or silenced. Tests that exercise a known limitation of
  * {@code field_extract()} or of an upstream grammar/engine constraint carry a
  * {@code skip_flattened_rewrite: <reason>} preamble line in the csv-spec entry itself; this
  * variant reads that directive and skips the test with the verbatim reason. To re-enable a
@@ -115,7 +119,7 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       once per distinct {@code (site, field)} pair the rewriter's
  *       {@link AstKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
  *       grammar slots that accept only an attribute ({@code MV_EXPAND}, {@code ENRICH ON / WITH},
- *       {@code LOOKUP JOIN ... ON ...}) and the LHS of the match operator {@code :}. These
+ *       {@code LOOKUP JOIN ... ON ...}). These
  *       positions are still exercised at the runtime layer (the bare attribute reaches the
  *       engine), but {@code field_extract} itself is not tested there. Tests whose
  *       <em>only</em> in-scope field references are inside {@code LOOKUP JOIN ... ON ...} are
@@ -134,9 +138,10 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       arbitrary expression (e.g. {@code DISSECT &lt;field&gt;}) will fail when the field is wrapped
  *       in a function call. Those failures are the intended output of this test &mdash; the
  *       attribute-only positions the rewriter explicitly carves out
- *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}, match
- *       operator {@code :} LHS) emit {@code skip-wrap} log lines instead so the inventory remains
- *       complete. See {@link AstKeywordFieldRewriter} for the full list.</li>
+ *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}) emit
+ *       {@code skip-wrap} log lines instead so the inventory remains
+ *       complete. The match operator {@code :} LHS is a {@code primaryExpression}, so it is
+ *       wrapped in place rather than carved out. See {@link AstKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
  *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes
@@ -173,6 +178,65 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         String instructions
     ) {
         super(fileName, groupName, testName, lineNumber, testCase, instructions);
+    }
+
+    /**
+     * Filters the csv-spec corpus down to the tests this variant can actually exercise, so that
+     * tests which are simply not applicable to {@code field_extract} are never generated.
+     * <p>
+     * This hides {@link CsvIT#readScriptSpec()} (same signature, so the randomized runner treats
+     * this override as the single {@code @ParametersFactory} for the class) and drops every test
+     * whose query, after per-query scope resolution, references no in-scope keyword field for the
+     * rewriter to wrap. Those tests have nothing for {@code field_extract} to do; previously they
+     * were generated and then skipped via an {@link AssumptionViolatedException}, which surfaced in
+     * the JUnit XML as a {@code <skipped>} element that a reader could not tell apart from a
+     * genuine known-limitation skip. Not generating them keeps the {@code <skipped>} set limited to
+     * real limitations that still warrant an audit.
+     * <p>
+     * Tests carrying a {@code skip_flattened_rewrite:} directive are intentionally <em>kept</em>:
+     * they represent documented known limitations whose skip &mdash; with its verbatim reason
+     * &mdash; should remain visible in the report.
+     * <p>
+     * On a release build the flattened datatype and {@code field_extract} are unavailable and the
+     * whole class is skipped by {@link #installKeywordToFlattenedStrategy()}, so the full,
+     * unfiltered set is returned rather than paying to build the rewrite strategy for tests that
+     * will not run.
+     */
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s", shuffle = false)
+    public static List<Object[]> readScriptSpec() throws Exception {
+        List<Object[]> all = CsvIT.readScriptSpec();
+        if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
+            return all;
+        }
+        KeywordToFlattenedStrategy.PathModel model = sharedPathModel();
+        List<Object[]> generated = new ArrayList<>(all.size());
+        for (Object[] row : all) {
+            if (row[4] instanceof CsvSpecReader.CsvTestCase testCase
+                && KeywordToFlattenedStrategy.shouldGenerate(testCase, model) == false) {
+                continue;
+            }
+            generated.add(row);
+        }
+        return generated;
+    }
+
+    /**
+     * Lazily builds and caches the randomness-free {@link KeywordToFlattenedStrategy.PathModel} for
+     * this JVM, shared between the {@link #readScriptSpec() parameters factory} (which needs it to
+     * decide which tests to generate) and {@link #installKeywordToFlattenedStrategy() @BeforeClass}
+     * (which layers the random junk configuration on top when constructing the strategy). Building
+     * it walks every dataset mapping and scans the corpus for {@code LOOKUP JOIN} / enrich
+     * exclusions, so it is built once and reused rather than reconstructed on each entry point.
+     * Unlike the strategy itself it draws no random state, so it is safe to build from the
+     * factory's static context.
+     */
+    private static KeywordToFlattenedStrategy.PathModel sharedPathModel;
+
+    private static synchronized KeywordToFlattenedStrategy.PathModel sharedPathModel() {
+        if (sharedPathModel == null) {
+            sharedPathModel = KeywordToFlattenedStrategy.buildPathModel();
+        }
+        return sharedPathModel;
     }
 
     /**
@@ -224,7 +288,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 + "which are under construction (snapshot-only) and unavailable in release builds",
             DataType.FLATTENED.supportedVersion().supportedLocally()
         );
-        indexLoadStrategy = new KeywordToFlattenedStrategy();
+        indexLoadStrategy = new KeywordToFlattenedStrategy(sharedPathModel());
     }
 
     @AfterClass
@@ -323,16 +387,53 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         private final Map<String, Set<String>> nonKeywordPathsByDatasetIndexName;
         private final Map<String, FlattenedJunkConfig> junkConfigByDatasetIndexName;
 
-        KeywordToFlattenedStrategy() {
+        /**
+         * The randomness-free portion of the strategy's state: the three per-dataset path maps plus
+         * the exclusion inventories used only for startup logging. It is computed by scanning every
+         * dataset mapping and the whole csv-spec corpus and involves no random draws, so it can be
+         * built &mdash; and cached &mdash; from the {@link #readScriptSpec() parameters factory},
+         * which runs outside the runner context. The strategy layers the random per-dataset junk
+         * configuration on top of this in its constructor, which only runs inside
+         * {@code @BeforeClass}.
+         */
+        record PathModel(
+            Map<String, Set<String>> protectedKeywordPathsByDatasetIndexName,
+            Map<String, Set<String>> keywordPathsByDatasetIndexName,
+            Map<String, Set<String>> nonKeywordPathsByDatasetIndexName,
+            List<EnrichMatchFieldExclusion> enrichExclusions,
+            List<LookupJoinFieldExclusion> lookupExclusions,
+            Map<String, List<KeywordToFlattenedTransformer.SkippedField>> skippedFieldsByDataset
+        ) {}
+
+        /**
+         * Builds the {@link PathModel} by resolving enrich-policy and {@code LOOKUP JOIN}
+         * exclusions and walking every dataset mapping. Contains no random draws, so it is safe to
+         * call from the parameters factory's static context.
+         */
+        static PathModel buildPathModel() {
             EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
             LookupJoinExclusionResult lookupResult = computeLookupJoinFieldExclusions();
-            this.protectedKeywordPathsByDatasetIndexName = unionExclusionsByIndex(enrichResult.byIndex(), lookupResult.byIndex());
+            Map<String, Set<String>> protectedPaths = unionExclusionsByIndex(enrichResult.byIndex(), lookupResult.byIndex());
+            DatasetPathsResult datasetPaths = computeDatasetPaths(protectedPaths);
+            return new PathModel(
+                protectedPaths,
+                datasetPaths.keywordPathsByDatasetIndexName(),
+                datasetPaths.nonKeywordPathsByDatasetIndexName(),
+                enrichResult.exclusions(),
+                lookupResult.exclusions(),
+                datasetPaths.skippedFieldsByDataset()
+            );
+        }
 
-            DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByDatasetIndexName);
-            this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
-            this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
+        KeywordToFlattenedStrategy(PathModel model) {
+            this.protectedKeywordPathsByDatasetIndexName = model.protectedKeywordPathsByDatasetIndexName();
+            this.keywordPathsByDatasetIndexName = model.keywordPathsByDatasetIndexName();
+            this.nonKeywordPathsByDatasetIndexName = model.nonKeywordPathsByDatasetIndexName();
 
-            // Compute per-dataset junk configuration: flip one coin per dataset.
+            // Compute per-dataset junk configuration: flip one coin per dataset. This is the only
+            // random draw in the strategy, which is why it lives in the constructor (invoked from
+            // @BeforeClass) rather than in buildPathModel() (invoked from the parameters factory,
+            // where accessing random state is illegal).
             // selectJunkFields already returns EMPTY for an empty input set, and
             // datasets without a mapping file have no converted paths so they also get EMPTY.
             Map<String, FlattenedJunkConfig> junkMap = new HashMap<>();
@@ -352,9 +453,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // for JOIN on flattened.
             // * mapping-denylist hits: keyword fields declaring TSDB / multi-fields / copy_to /
             // runtime-script parameters that are incompatible with flattened.
-            logEnrichMatchFieldExclusions(enrichResult.exclusions());
-            logLookupJoinFieldExclusions(lookupResult.exclusions());
-            logMappingDenylistHits(datasetPaths.skippedFieldsByDataset());
+            logEnrichMatchFieldExclusions(model.enrichExclusions());
+            logLookupJoinFieldExclusions(model.lookupExclusions());
+            logMappingDenylistHits(model.skippedFieldsByDataset());
             logJunkConfig(this.junkConfigByDatasetIndexName);
         }
 
@@ -725,11 +826,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 expectedColumnOrder
             );
             if (result.modified() == false) {
+                // Defensive fallback: tests whose query references no in-scope keyword field are
+                // filtered out at generation time by shouldGenerate()/readScriptSpec(), so this
+                // branch is not expected to be reached. It remains as a safety net in case the
+                // scope resolution here ever diverges from the generation-time check, so such a
+                // test is skipped rather than launched as if it exercised field_extract.
                 NO_KEYWORD_REFS_COUNT.incrementAndGet();
                 // Logged at INFO so the launched/skipped split is visible in the test JVM stdout, alongside the
                 // assumption-violation message that surfaces in the JUnit XML <skipped> element.
                 logger.info("keyword→flattened: skipping; no keyword field references in query");
-                // TODO this should probably not skip the test - just not build a test at all
                 throw new StacklessAssumptionViolatedException("skipping: no keyword fields");
             }
             // Even when the query was modified (typically by tail-end EVAL/KEEP recovery
@@ -1056,7 +1161,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * rewriter's iteration order is otherwise dependent on the in-scope set's iteration
          * order). Each line carries the site, the field name, and a reason string short enough
          * that a {@code grep "site=MV_EXPAND_ARG"} or
-         * {@code grep "site=MATCH_OPERATOR_LHS"} produces a usable inventory.
+         * {@code grep "site=LOOKUP_JOIN_ON"} produces a usable inventory.
          */
         private static void logRewriterSkipEvents(List<AstKeywordFieldRewriter.SkipEvent> events) {
             if (events.isEmpty()) {
@@ -1084,7 +1189,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             return switch (site) {
                 case MV_EXPAND_ARG -> "MV_EXPAND grammar slot accepts only an attribute, not an expression";
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
-                case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
@@ -1253,6 +1357,41 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
+         * Decides whether the keyword&rarr;flattened variant should generate a test method for
+         * {@code testCase}. Called once per csv-spec entry by {@link #readScriptSpec()}.
+         * <p>
+         * Returns {@code false} only for tests whose query &mdash; after per-query scope resolution
+         * &mdash; the rewriter would leave unchanged, i.e. it references no in-scope keyword field
+         * for {@code field_extract} to wrap (and so is not applicable to this variant). Tests
+         * carrying a {@code skip_flattened_rewrite:} directive are always kept so their
+         * documented known-limitation skip stays visible in the report; the actual skip still
+         * happens at run time in {@link #transformQuery}. Degenerate entries with no query are also
+         * kept so the base harness's own handling is unchanged.
+         * <p>
+         * Static, and driven by a {@link PathModel} rather than a constructed strategy, because the
+         * parameters factory runs outside the runner context and must not touch random state (which
+         * the strategy constructor does when drawing junk configuration).
+         */
+        static boolean shouldGenerate(CsvSpecReader.CsvTestCase testCase, PathModel model) {
+            String skipReason = testCase.skipFlattenedRewrite;
+            if (skipReason != null && skipReason.isBlank() == false) {
+                return true;
+            }
+            String query = testCase.query;
+            if (query == null || query.isBlank()) {
+                return true;
+            }
+            List<String> expectedColumnOrder = parseExpectedColumnOrder(testCase.expectedResults);
+            AstKeywordFieldRewriter.RewriteResult result = AstKeywordFieldRewriter.rewrite(
+                query,
+                q -> resolveKeywordPaths(q, model.keywordPathsByDatasetIndexName(), model.nonKeywordPathsByDatasetIndexName(), false),
+                KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
+                expectedColumnOrder
+            );
+            return result.modified();
+        }
+
+        /**
          * Returns the per-query rewrite scope: every keyword path that
          * {@link KeywordToFlattenedTransformer} converted to {@code flattened} in at least one
          * dataset the query touches via {@code FROM}, {@code TS}, or {@code LOOKUP JOIN},
@@ -1277,6 +1416,25 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * {@code field_extract} on a particular field for that one query, which is preferable.
          */
         Set<String> resolveKeywordPathsForQuery(String query) {
+            return resolveKeywordPaths(query, keywordPathsByDatasetIndexName, nonKeywordPathsByDatasetIndexName, true);
+        }
+
+        /**
+         * Static core of {@link #resolveKeywordPathsForQuery(String)}, parameterised by the
+         * per-dataset path maps so it can also be driven from the randomness-free
+         * {@link #readScriptSpec() parameters factory} &mdash; which holds only a {@link PathModel}
+         * and cannot construct a full strategy (the constructor draws random junk configuration,
+         * which is illegal outside the runner's {@code @BeforeClass}/{@code @AfterClass} context).
+         * When {@code logExclusions} is {@code false} the {@code scope-excluded} inventory lines are
+         * suppressed: the generation-time filter pass would otherwise duplicate the lines the
+         * runtime pass emits.
+         */
+        private static Set<String> resolveKeywordPaths(
+            String query,
+            Map<String, Set<String>> keywordPathsByDatasetIndexName,
+            Map<String, Set<String>> nonKeywordPathsByDatasetIndexName,
+            boolean logExclusions
+        ) {
             Set<CsvTestsDataLoader.TestDataset> datasets = EsqlQueryDatasetResolver.resolveDatasetsForQuery(
                 query,
                 CsvTestsDataLoader.CSV_DATASET
@@ -1313,7 +1471,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 }
             }
             keywordCandidates.removeAll(nonKeywordExclusions);
-            logScopeExclusions(excluded, keywordContributorsByField, nonKeywordContributorsByField);
+            if (logExclusions) {
+                logScopeExclusions(excluded, keywordContributorsByField, nonKeywordContributorsByField);
+            }
             return keywordCandidates;
         }
 

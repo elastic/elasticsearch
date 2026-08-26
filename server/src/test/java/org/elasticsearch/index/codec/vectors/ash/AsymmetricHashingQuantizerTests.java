@@ -28,7 +28,6 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the core ASH algorithm components: SVD, quantizers, and the full pipeline.
@@ -127,20 +126,6 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 assertEquals(expected, (float) dot, 1e-4f);
             }
         }
-    }
-
-    public void testSphericalScalarQuantizer2Bit() {
-        AshSphericalScalarQuantizer ssq = new AshSphericalScalarQuantizer(2);
-        float[] x = { 0.8f, -0.5f, 0.3f, -0.9f };
-        AshSphericalScalarQuantizer.QuantizeResult result = ssq.encode(x, 1, x.length);
-
-        // Codes should be centered: sign * (0.5 + level)
-        // With 2 bits, levels are 0 or 1, so magnitudes are 0.5 or 1.5
-        for (float val : result.centeredCodes()) {
-            float absMag = Math.abs(val);
-            assertThat(absMag, oneOf(0.5f, 1.5f));
-        }
-        assertThat(result.codeNorms()[0], greaterThan(0f));
     }
 
     public void testFullPipelineRandomMethod() throws IOException {

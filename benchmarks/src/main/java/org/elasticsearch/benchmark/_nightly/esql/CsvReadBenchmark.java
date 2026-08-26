@@ -47,8 +47,8 @@ import java.util.concurrent.TimeUnit;
  * {@link OrcReadBenchmark} / {@link NdJsonReadBenchmark}.
  */
 @Fork(1)
-@Warmup(iterations = 3)
-@Measurement(iterations = 5)
+@Warmup(iterations = 3, time = 5, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 5, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Thread)
@@ -75,6 +75,16 @@ public class CsvReadBenchmark {
      */
     @Param({ "true", "false" })
     public boolean directBlock;
+
+    /**
+     * When {@code true} (and {@code delimiter=csv}), roughly 20% of name cells embed a comma,
+     * forcing those rows through {@code splitAndConvertQuoted}. When {@code false} every CSV row
+     * contains no quote or escape byte and is eligible for the plain-split fast path, which is
+     * the common real-world case and the scenario whose performance this benchmark is intended to
+     * measure against the pre-fast-path baseline.
+     */
+    @Param({ "false", "true" })
+    public boolean embeddedQuotes;
 
     private BlockFactory blockFactory;
     private StorageObject storageObject;
@@ -104,7 +114,7 @@ public class CsvReadBenchmark {
             case "tsv" -> List.of(".tsv");
             default -> throw new IllegalArgumentException("unknown delimiter: " + delimiter);
         };
-        byte[] textBytes = generateFixture(rowCount, separator);
+        byte[] textBytes = generateFixture(rowCount, separator, delimiter.equals("csv") && embeddedQuotes);
         fixtureBytes = textBytes.length;
         storageObject = DatasourceBenchmarks.inMemoryStorageObject(textBytes, "memory://bench." + delimiter);
         projectedColumns = switch (projection) {
@@ -134,22 +144,25 @@ public class CsvReadBenchmark {
         for (String delimiter : Utils.possibleValues(CsvReadBenchmark.class, "delimiter")) {
             for (String projection : Utils.possibleValues(CsvReadBenchmark.class, "projection")) {
                 for (String directBlock : Utils.possibleValues(CsvReadBenchmark.class, "directBlock")) {
-                    CsvReadBenchmark bench = new CsvReadBenchmark();
-                    bench.rowCount = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
-                    bench.delimiter = delimiter;
-                    bench.projection = projection;
-                    bench.directBlock = Boolean.parseBoolean(directBlock);
-                    String variant = delimiter + "/" + projection + "/directBlock=" + directBlock;
-                    try {
-                        bench.setup();
-                        int actual = bench.readAll(new ReadMetrics());
-                        if (actual != bench.rowCount) {
-                            throw new AssertionError(
-                                "CsvReadBenchmark[" + variant + "] read " + actual + " rows, expected " + bench.rowCount
-                            );
+                    for (String embeddedQuotes : Utils.possibleValues(CsvReadBenchmark.class, "embeddedQuotes")) {
+                        CsvReadBenchmark bench = new CsvReadBenchmark();
+                        bench.rowCount = DatasourceBenchmarks.SELF_TEST_ROW_COUNT;
+                        bench.delimiter = delimiter;
+                        bench.projection = projection;
+                        bench.directBlock = Boolean.parseBoolean(directBlock);
+                        bench.embeddedQuotes = Boolean.parseBoolean(embeddedQuotes);
+                        String variant = delimiter + "/" + projection + "/directBlock=" + directBlock + "/embeddedQuotes=" + embeddedQuotes;
+                        try {
+                            bench.setup();
+                            int actual = bench.readAll(new ReadMetrics());
+                            if (actual != bench.rowCount) {
+                                throw new AssertionError(
+                                    "CsvReadBenchmark[" + variant + "] read " + actual + " rows, expected " + bench.rowCount
+                                );
+                            }
+                        } catch (IOException e) {
+                            throw new AssertionError("CsvReadBenchmark[" + variant + "] failed", e);
                         }
-                    } catch (IOException e) {
-                        throw new AssertionError("CsvReadBenchmark[" + variant + "] failed", e);
                     }
                 }
             }
@@ -165,9 +178,14 @@ public class CsvReadBenchmark {
      * degenerate "every column is the row index" fixture: multi-digit ids, signed integers over a wide
      * range, variable-length ASCII {@code name} values, real decimals, and a sprinkling of nulls (empty
      * fields). This keeps the min/max accumulator, the UTF-8 keyword encoder, and the null classifier on
-     * realistic input. All fields are plain (no quoting, no non-ASCII).
+     * realistic input.
+     * <p>
+     * When {@code withEmbeddedQuotes} is {@code false} all name fields are plain (no quoting needed),
+     * so every CSV row is eligible for the plain-split fast path in the quoted dialect.
+     * When {@code true}, roughly 20% of name cells embed a comma and are therefore RFC 4180-quoted,
+     * exercising {@code splitAndConvertQuoted} on those rows.
      */
-    static byte[] generateFixture(int rowCount, char separator) {
+    static byte[] generateFixture(int rowCount, char separator, boolean withEmbeddedQuotes) {
         StringBuilder sb = new StringBuilder(rowCount * 48);
         sb.append("id:long").append(separator).append("value:integer").append(separator);
         sb.append("name:keyword").append(separator).append("score:double\n");
@@ -197,15 +215,24 @@ public class CsvReadBenchmark {
             "Martinez",
             "Anderson",
             "Thompson" };
+        String[] titles = { "Jr.", "Sr.", "PhD", "MD", "Esq." };
         for (int i = 0; i < rowCount; i++) {
             // id: increasing primary-key-ish with small gaps (realistic auto-increment with deletions).
             long id = 1_000_000L + (long) i * 3 + rnd.nextInt(3);
             // value: ~6% null, else a signed integer over a wide range (multi-digit, both signs).
             String value = rnd.nextInt(100) < 6 ? "" : Integer.toString(rnd.nextInt(2_000_000) - 1_000_000);
-            // name: usually "First Last" (space-separated, never quoted), sometimes a single token.
-            String name = rnd.nextInt(100) < 70
-                ? firstNames[rnd.nextInt(firstNames.length)] + " " + lastNames[rnd.nextInt(lastNames.length)]
-                : firstNames[rnd.nextInt(firstNames.length)];
+            // name: usually "First Last" (space-separated), sometimes a single token.
+            // When withEmbeddedQuotes, ~20% of rows add a comma-separated title that requires quoting.
+            String firstName = firstNames[rnd.nextInt(firstNames.length)];
+            String lastName = lastNames[rnd.nextInt(lastNames.length)];
+            String baseName = rnd.nextInt(100) < 70 ? firstName + " " + lastName : firstName;
+            String name;
+            if (withEmbeddedQuotes && separator == ',' && rnd.nextInt(100) < 20) {
+                // Embed a comma so the cell must be RFC 4180-quoted.
+                name = "\"" + baseName + ", " + titles[rnd.nextInt(titles.length)] + "\"";
+            } else {
+                name = baseName;
+            }
             // score: ~3% null, else a real decimal in [-10000.00, 10000.00].
             String score = rnd.nextInt(100) < 3 ? "" : Double.toString((rnd.nextInt(2_000_001) - 1_000_000) / 100.0);
             sb.append(id).append(separator).append(value).append(separator);

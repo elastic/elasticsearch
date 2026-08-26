@@ -500,8 +500,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             );
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
         }
-        if (testCase.expectedApproximationApplied != null
-            && clusterHasCapability(EsqlCapabilities.Cap.APPROXIMATION_APPLIED_RESPONSE)) {
+        if (testCase.expectedApproximationApplied != null && clusterHasCapability(EsqlCapabilities.Cap.APPROXIMATION_APPLIED_RESPONSE)) {
             CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, (Boolean) answer.get("approximation_applied"));
         }
 

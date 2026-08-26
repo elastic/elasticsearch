@@ -782,3 +782,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-43605}
   issue: https://github.com/elastic/elasticsearch/issues/157747
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/157521

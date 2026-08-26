@@ -26,13 +26,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
-<<<<<<< HEAD
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
-=======
->>>>>>> aef9d77e9938 (Cache computed write load proportions in RoutingAllocation (#156635))
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
  * pool usage stats and any candidate shard's write load estimate.
@@ -200,7 +193,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 ? Double.NaN
                 : allocation.maxShardWriteLoadProportionForNode(node);
             if (maxShardWriteLoadThreshold == 0.0
-                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportion.get(), maxShardWriteLoadThreshold) == false) {
+                || maxShardWriteLoadProportionIsHigh(maxShardWriteLoadProportionCalculated, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     final String explain = Strings.format(
@@ -231,7 +224,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         the single shard write load threshold ([%.2f]), moving shards away from this node is not expected to resolve \
                         the hot-spot.""",
                     node.getShortNodeDescription(),
-                    maxShardWriteLoadProportion.get() * 100,
+                    maxShardWriteLoadProportionCalculated * 100,
                     maxShardWriteLoadThreshold * 100
                 );
             }

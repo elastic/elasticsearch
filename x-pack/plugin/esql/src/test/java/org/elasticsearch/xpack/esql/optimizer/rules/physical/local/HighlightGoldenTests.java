@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
 
@@ -19,7 +20,7 @@ import java.util.EnumSet;
  * Golden tests for the HIGHLIGHT command, asserting the logical and local physical plan shape,
  * including the generated {@code highlight_<field>} output column.
  */
-public class HighlightGoldenTests extends GoldenTestCase {
+public class HighlightGoldenTests extends UnmappedGoldenTestCase {
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() {
@@ -82,5 +83,17 @@ public class HighlightGoldenTests extends GoldenTestCase {
             | LIMIT 10
             """;
         runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+    }
+
+    /** HIGHLIGHT keeps the nullification projection in place, so it must retain {@code _doc} for {@code SCORE}. */
+    public void testHighlightWithScoreUnderNullify() {
+        assumeTrue("requires HIGHLIGHT_V6 capability", EsqlCapabilities.Cap.HIGHLIGHT_V6.isEnabled());
+        String query = Strings.format("""
+            FROM employees
+            | EVAL x = %s
+            | HIGHLIGHT "elasticsearch" ON first_name
+            | EVAL s = SCORE(MATCH(first_name, "elasticsearch"))
+            """, FIELD_ABSENT_EVERYWHERE);
+        runTestsNullifyOnly(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
 }

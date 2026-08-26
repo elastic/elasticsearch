@@ -23,6 +23,8 @@ import java.util.List;
 import static org.elasticsearch.common.collect.Iterators.toList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
@@ -516,6 +518,36 @@ public class ScoreFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of(6, 0.0, 0.21347221732139587)
                 )
             );
+        }
+    }
+
+    /** Keeps the doc channel through a nullification projection and {@code MV_EXPAND}. */
+    public void testScoreAfterNullifiedFieldAndMvExpand() {
+        var query = """
+            SET unmapped_fields="nullify";
+            FROM test
+            | EVAL x = does_not_exist
+            | MV_EXPAND id
+            | EVAL first_score = score(match(content, "fox"))
+            | KEEP id, first_score
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "first_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            var results = resp.values();
+            while (results.hasNext()) {
+                var row = toList(results.next());
+                assertEquals(2, row.size());
+                int id = (int) row.get(0);
+                double score = (double) row.get(1);
+                if (id == 1 || id == 6) {
+                    assertThat("doc [" + id + "] should match", score, greaterThan(0.0));
+                } else {
+                    assertThat("doc [" + id + "] should not match", score, equalTo(0.0));
+                }
+            }
         }
     }
 

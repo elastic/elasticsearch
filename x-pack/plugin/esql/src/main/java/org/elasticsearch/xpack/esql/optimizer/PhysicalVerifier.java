@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.DocVectorConsumers;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -44,6 +46,18 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 }
             }
 
+            // `_doc` is created only in local plans. Reject a remaining broken plan here rather
+            // than letting its Lucene evaluator fail while it is executing.
+            if (isLocal && missingDocAttributeForScoring(p)) {
+                failures.add(
+                    fail(
+                        p,
+                        "Need a doc attribute to evaluate a scoring or full-text expression, but none is available for node [{}]",
+                        p.nodeName()
+                    )
+                );
+            }
+
             // This check applies only for coordinator physical plans (isLocal == false)
             if (isLocal == false && p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
                 failures.add(
@@ -69,5 +83,13 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 });
             }
         });
+    }
+
+    /** Returns {@code true} when {@code p} needs {@code _doc} but none of its children supplies it. */
+    private static boolean missingDocAttributeForScoring(PhysicalPlan p) {
+        if (DocVectorConsumers.consumesDocVector(p) == false) {
+            return false;
+        }
+        return p.children().stream().noneMatch(child -> child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute));
     }
 }

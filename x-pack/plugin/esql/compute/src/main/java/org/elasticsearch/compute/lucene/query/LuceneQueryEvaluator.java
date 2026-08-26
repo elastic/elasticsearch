@@ -70,7 +70,9 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
                 break;
             }
         }
-        assert docBlock != null : "LuceneQueryExpressionEvaluator expects a DocBlock";
+        if (docBlock == null) {
+            throw new IllegalStateException(getClass().getSimpleName() + " requires a _doc block but the page has none");
+        }
         DocVector docs = (DocVector) docBlock.asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {
@@ -120,7 +122,8 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
         int max = docs.docs().getInt(docs.getPositionCount() - 1);
         int length = max - min + 1;
         try (T scoreBuilder = createBlockBuilder(blockFactory, docs.getPositionCount())) {
-            if (length == docs.getPositionCount() && length > 1) {
+            // The dense path requires each position to map to a distinct doc.
+            if (docs.mayContainDuplicates() == false && length == docs.getPositionCount() && length > 1) {
                 return segmentState.scoreDense(scoreBuilder, min, max, docs.getPositionCount());
             }
             return segmentState.scoreSparse(scoreBuilder, docs.docs());

@@ -29,9 +29,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -190,6 +193,67 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
      * Checks that the result at the given position corresponds to a term match or no match
      */
     protected abstract void assertTermResultMatch(T resultVector, int position, boolean isMatch);
+
+    /** Scores duplicated doc ids in a single-segment, non-decreasing {@link DocVector}. */
+    @SuppressWarnings("unchecked")
+    public void testDuplicateDocIdsAreScoredPerPosition() throws IOException {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<String> fieldValues = List.of("no", "match", "no", "match");
+        withSingleSegmentReader(fieldValues, reader -> {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            Query query = new TermQuery(new Term(FIELD, "match"));
+            var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
+            try (ExpressionEvaluator evaluator = createExpressionEvaluator(blockFactory, shardConfig)) {
+                // A duplicate fills the missing doc 2 slot.
+                DocVector docVector = new DocVector(
+                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                    blockFactory.newConstantIntVector(0, 4),
+                    blockFactory.newConstantIntVector(0, 4),
+                    blockFactory.newIntArrayVector(new int[] { 0, 1, 1, 3 }, 4),
+                    DocVector.config().mayContainDuplicates()
+                );
+                assertThat("test requires the single-segment path", docVector.singleSegmentNonDecreasing(), equalTo(true));
+                Page page = new Page(docVector.asBlock());
+                try {
+                    T result = (T) evaluator.eval(page);
+                    try {
+                        assertEvalResultMatch(result, 0, false);
+                        assertEvalResultMatch(result, 1, true);
+                        assertEvalResultMatch(result, 2, true);
+                        assertEvalResultMatch(result, 3, true);
+                    } finally {
+                        result.close();
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            return null;
+        });
+    }
+
+    /** Builds the evaluator under test for a hand-crafted {@link Page}. */
+    protected abstract ExpressionEvaluator createExpressionEvaluator(
+        BlockFactory blockFactory,
+        IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards
+    );
+
+    /** Checks whether the raw evaluator output at a position matches. */
+    protected abstract void assertEvalResultMatch(T resultVector, int position, boolean isMatch);
+
+    private <R> R withSingleSegmentReader(List<String> values, CheckedFunction<DirectoryReader, R, IOException> run) throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            for (String value : values) {
+                writer.addDocument(List.of(new KeywordField(FIELD, value, Field.Store.NO)));
+            }
+            // Keep doc ids in insertion order.
+            writer.forceMerge(1);
+            try (DirectoryReader reader = writer.getReader()) {
+                return run.apply(reader);
+            }
+        }
+    }
 
     private List<Page> runQuery(Set<String> values, Query query, boolean shuffleDocs) throws IOException {
         DriverContext driverContext = driverContext();

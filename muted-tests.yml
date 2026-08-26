@@ -782,3 +782,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut
   issue: https://github.com/elastic/elasticsearch/issues/157680
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testDeleteAndRecreateIndexDuringReshard
+  issue: https://github.com/elastic/elasticsearch/issues/157725

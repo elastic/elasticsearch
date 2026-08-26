@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 157792
-summary: Add per-index snapshot completeness evaluation
-type: enhancement

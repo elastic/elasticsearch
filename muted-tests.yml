@@ -734,9 +734,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testRefreshOnBulkWithNewShardAllocation
   issue: https://github.com/elastic/elasticsearch/issues/157260
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=termvectors/30_realtime/Realtime Term Vectors}
-  issue: https://github.com/elastic/elasticsearch/issues/157310
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/395_binary_doc_values_search/Test keyword range uses indexed byte ordering for binary doc values}
   issue: https://github.com/elastic/elasticsearch/issues/157314
@@ -767,15 +764,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.CorruptionIT
   method: testConcurrentOperations
   issue: https://github.com/elastic/elasticsearch/issues/157629
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testPendingUploadSizeCalculation
-  issue: https://github.com/elastic/elasticsearch/issues/157641
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
-  method: testSkipCommitNotificationAndFetchCommitsInUseForDeletedIndex
-  issue: https://github.com/elastic/elasticsearch/issues/157674
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testCloseIdempotentlyChangesStateAndCompletesListeners
-  issue: https://github.com/elastic/elasticsearch/issues/157677
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTargetWillTransitionToSplitIfSearchShardsActiveTimesOut
   issue: https://github.com/elastic/elasticsearch/issues/157680

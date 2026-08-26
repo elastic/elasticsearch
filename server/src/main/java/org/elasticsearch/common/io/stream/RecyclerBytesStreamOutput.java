@@ -395,6 +395,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             assert end == currentOffset + Integer.BYTES + byteLength : end + " vs " + currentOffset + " plus " + byteLength;
             this.currentOffset = end;
         } else {
+            // TODO: encode onto the pages with bounds checks instead, so that long values don't need the scratch buffer
             writeInt(byteLength);
             final int written = StreamOutputHelper.writeUtf8Chars(str, this);
             assert written == byteLength : written + " bytes written but expected " + byteLength;

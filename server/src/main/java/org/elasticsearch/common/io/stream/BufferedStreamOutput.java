@@ -447,6 +447,7 @@ public class BufferedStreamOutput extends StreamOutput {
             assert end == position + Integer.BYTES + byteLength : end + " vs " + position + " plus " + byteLength;
             this.position = end;
         } else {
+            // TODO: encode into the buffer with bounds checks instead, so that long values don't need the scratch buffer
             writeInt(byteLength);
             final int written = StreamOutputHelper.writeUtf8Chars(str, this);
             assert written == byteLength : written + " bytes written but expected " + byteLength;

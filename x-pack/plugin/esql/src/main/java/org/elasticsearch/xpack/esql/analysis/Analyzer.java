@@ -2563,7 +2563,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
                 String nameCandidate = a.name();
-                if (DataType.isPrimitive(a.dataType())) {
+                if (a instanceof UnresolvedAttribute == false && DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }

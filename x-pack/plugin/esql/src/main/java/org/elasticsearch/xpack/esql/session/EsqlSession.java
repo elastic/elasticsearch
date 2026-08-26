@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -45,6 +46,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -396,7 +398,7 @@ public class EsqlSession {
         ResolvedSettings resolved = QuerySettings.resolve(
             request.requestSettings(),
             statement,
-            SettingsValidationContext.from(remoteClusterService)
+            SettingsValidationContext.from(crossProjectModeDecider)
         );
         if (explainContext == null) {
             gatherSettingsMetrics(request, statement);
@@ -417,7 +419,7 @@ public class EsqlSession {
             (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
-                SettingsValidationContext.from(remoteClusterService),
+                SettingsValidationContext.from(crossProjectModeDecider),
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
@@ -511,7 +513,8 @@ public class EsqlSession {
 
                     // Apply the out-of-band request filter to external-source (dataset) leaves, translated
                     // against each source's schema. Index leaves keep their existing filter path. Version-gated:
-                    // the translated predicate can contain mv_in_range, which older nodes cannot deserialize.
+                    // the translated predicate can contain mv_in_range / mv_greater / mv_less, which older
+                    // nodes cannot deserialize.
                     // Fail-closed by default: an unsupported construct throws VerificationException (a 400).
                     // With allow_partial_dsl_filter=true: applies only the translatable subset, emits a warning.
                     // This callback runs outside the SubscribableListener chain below, so a synchronous throw here
@@ -1264,7 +1267,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return request.parse(parser, SettingsValidationContext.from(remoteClusterService), inferenceService.inferenceSettings());
+        return request.parse(parser, SettingsValidationContext.from(crossProjectModeDecider), inferenceService.inferenceSettings());
     }
 
     /**
@@ -2131,6 +2134,7 @@ public class EsqlSession {
             // cross-cluster state. After it completes we run the lenient pass over any
             // ViewShadowRelation patterns (CPS-only) so their results land in
             // result.optionalLinkedResolution() — empty iterator → no-op when there are no shadows.
+            Consumer<TargetProjects> routingInfoCapture = getRoutingInfoCapture(executionInfo);
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
@@ -2143,6 +2147,7 @@ public class EsqlSession {
                     trackUnmappedFieldIndices,
                     r,
                     requestFilter,
+                    routingInfoCapture,
                     l
                 ),
                 listener.delegateFailureAndWrap(
@@ -2164,6 +2169,19 @@ public class EsqlSession {
                 )
             );
         }
+    }
+
+    private static Consumer<TargetProjects> getRoutingInfoCapture(EsqlExecutionInfo executionInfo) {
+        // Capture routing info from the first successful field-caps round only. Multiple index patterns
+        // in the FROM clause each trigger a separate resolveFlatIndicesVersioned call; all share the
+        // same project_routing expression so only the first result is needed.
+        Holder<Boolean> routingCaptured = new Holder<>(false);
+        return tp -> {
+            if (routingCaptured.get() == false) {
+                routingCaptured.set(true);
+                executionInfo.setProjectRoutingInfo(tp.projectRoutingRequestInfo(), tp.hasLinkedProjects());
+            }
+        };
     }
 
     private void preAnalyzeMainIndices(
@@ -2252,6 +2270,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
+            null,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2272,6 +2291,7 @@ public class EsqlSession {
         boolean trackUnmappedFieldIndices,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
+        @Nullable Consumer<TargetProjects> routingInfoCapture,
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
@@ -2288,6 +2308,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
+            routingInfoCapture,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2308,6 +2329,7 @@ public class EsqlSession {
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
                         trackUnmappedFieldIndices,
+                        null,
                         retryListener
                     );
                 });

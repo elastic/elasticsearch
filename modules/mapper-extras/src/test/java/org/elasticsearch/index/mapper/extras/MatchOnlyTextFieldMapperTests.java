@@ -138,7 +138,9 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                     new ShardId(mapperService.index(), 0)
                 )
             ) {
-                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                // Pass false to avoid random reader re-wrapping (e.g. SlowCompositeReaderWrapper) that would break
+                // the ElasticsearchLeafReader chain needed by BitsetFilterCache to resolve the shard ID.
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader, false));
                 NestedQueryBuilder query = new NestedQueryBuilder(
                     "children",
                     new MatchPhraseQueryBuilder("children.text", "quick brown"),
@@ -758,6 +760,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsOnFailureParameter() {
         return true;
     }
 

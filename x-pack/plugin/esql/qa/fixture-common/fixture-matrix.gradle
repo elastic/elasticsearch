@@ -26,8 +26,13 @@ def datasetsByFormat = allFormats.collectEntries { [(it): []] }
 // reduced set asks for these by name rather than repeating them.
 def baselineDatasets = []
 
+// A dataset key is dataset.<name> and nothing more. Attribute keys carry a further dot segment
+// (.reason, .write_dialect, ...), and treating one as a dataset name mis-parses its value as a format
+// list -- adding write_dialect broke exactly that way, reporting a dataset called
+// 'apps.write_dialect' restricted to a format called 'none'. Both parsers of this file must agree on
+// the key grammar; this side now filters on shape rather than on a list of known suffixes.
 props.stringPropertyNames()
-  .findAll { it.startsWith('dataset.') && it.endsWith('.reason') == false }
+  .findAll { it.startsWith('dataset.') && it.substring('dataset.'.length()).contains('.') == false }
   .sort()
   .each { key ->
     def name = key.substring('dataset.'.length())

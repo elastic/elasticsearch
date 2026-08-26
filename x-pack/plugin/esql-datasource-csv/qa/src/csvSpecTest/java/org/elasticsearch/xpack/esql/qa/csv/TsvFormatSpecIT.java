@@ -51,6 +51,7 @@ public class TsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
             "/external-heavy-aggregates.csv-spec",
             "/external-multifile.csv-spec",
             "/external-hive-partitioned.csv-spec",
+            "/external-hive-partitioned-shadow.csv-spec",
             "/external-hive-partitioned-payload.csv-spec",
             "/external-multifile-perm.csv-spec",
             "/external-multifile-ubn.csv-spec",

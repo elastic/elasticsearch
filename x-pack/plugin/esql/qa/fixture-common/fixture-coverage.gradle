@@ -1,0 +1,182 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Fails when a layout cell the matrix declares has no spec that reads it.
+ *
+ * The defect class: a cell that is declared, generated on every build, and read by nobody. Nothing fails
+ * and nothing reports it -- the fixtures are simply written and ignored. Generalising partitioned-layout
+ * generation produced exactly that, with hive_shadow generating for four more formats and no spec
+ * referencing it.
+ *
+ * This is the static half: declaration versus spec corpus, no test execution. That is deliberate. Anything
+ * keyed on what actually RAN varies with LOCAL backend availability, snapshotBuild, OS/arch and FIPS, so as
+ * a gate it would be flaky by construction and muted within a week. This check is deterministic, so it can
+ * be enforcing -- and because it hangs off precommit rather than the test tasks, it runs even in release
+ * builds where csvSpecTests is disabled.
+ *
+ * Hooked to precommit following the goldenTestingConventions precedent (x-pack/plugin/esql/build.gradle);
+ * check depends on precommit, so CI reaches it and `./gradlew precommit` catches it locally too.
+ *
+ * Required ext properties, read at SCRIPT level (inside a task closure `ext` resolves to the task's own
+ * property bag, not the project's -- which is how the first version of this file crashed at realization):
+ *   fixtureCoverageFormats   list of format tokens this module owns. A LIST because one module can host
+ *                            more than one format's suites: esql-datasource-csv/qa hosts both Csv and Tsv,
+ *                            so a single-format gate leaves the tsv column structurally unowned.
+ *   fixtureCoverageSpecDirs  directories holding the spec files this module's suites can load.
+ *
+ * KNOWN LIMITATION, deliberately recorded rather than hidden: directory granularity over-approximates.
+ * A suite selects specs by filename list or by glob, so a spec sitting in a scanned directory that no
+ * suite actually loads still counts as a consumer here. That produces one live false green today --
+ * ndjson x multifile_temporal, declared and generated and read by neither NDJSON suite, because the shared
+ * directory holds the spec. Closing it needs the per-format spec list single-sourced and read by both
+ * readScriptSpec and this gate; until then this gate is a floor, not a ceiling.
+ */
+
+def declarationFile = project(xpackModule('esql:qa:fixture-common'))
+    .file('src/main/resources/org/elasticsearch/xpack/esql/datasources/fixtures/fixture-matrix.properties')
+
+// Read ext and resolve Files at script level, not inside the task closure.
+def coverageFormats = ext.fixtureCoverageFormats
+def coverageSpecDirs = ext.fixtureCoverageSpecDirs.collect { file(it) }
+
+tasks.register('checkFixtureCoverage') {
+  description = 'Fails when a declared layout cell has no spec that reads it.'
+  group = 'verification'
+
+  doLast {
+    // Fold continuation lines before parsing; reasons wrap. [ \t]* rather than \s* on purpose: \s* eats
+    // newlines, so a value ending in a backslash followed by a blank line would swallow the next key.
+    def text = declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')
+    def props = new Properties()
+    props.load(new StringReader(text))
+
+    def layouts = props.stringPropertyNames()
+        .findAll { it.startsWith('layout.') && it.endsWith('.dir') }
+        .collect { it.substring('layout.'.length(), it.length() - '.dir'.length()) }
+        .findAll { it != 'standalone' }
+        .sort()
+
+    // Which templates does the visible spec corpus read? Comments are stripped first: a {{template}}
+    // mentioned in a `//` line documents a cell, it does not consume it.
+    def referenced = [] as Set
+    coverageSpecDirs.each { dir ->
+      if (dir.directory) {
+        dir.listFiles({ f -> f.name.endsWith('.csv-spec') } as FileFilter).each { specFile ->
+          def body = specFile.readLines().findAll { it.trim().startsWith('//') == false }.join('\n')
+          (body =~ /\{\{([a-z0-9_]+)\}\}/).each { m -> referenced.add(m[1]) }
+        }
+      }
+    }
+    // Longest suffix wins so a future _hive_shadow-style name is not read as its shorter sibling.
+    def layoutOf = { String template ->
+      def best = null
+      layouts.each { l ->
+        if (template.endsWith('_' + l) && (best == null || l.length() > best.length())) {
+          best = l
+        }
+      }
+      best
+    }
+    def consumed = referenced.collect { layoutOf(it) }.findAll { it != null } as Set
+
+    def problems = []
+    coverageFormats.each { format ->
+      def declaredCells = []
+      def declaredGaps = [:]
+      layouts.each { layout ->
+        def override = props.getProperty("layout.${layout}.sources.${format}")
+        def base = props.getProperty("layout.${layout}.sources")
+        def derived = props.getProperty("layout.${layout}.derived_from")
+        if (override != null && override.trim().isEmpty()) {
+          def reason = props.getProperty("layout.${layout}.sources.${format}.reason")
+          if (reason == null || reason.trim().isEmpty()) {
+            problems.add("[${format}] layout [${layout}] is declared empty with no reason; " +
+                         "an undeclared gap is indistinguishable from an oversight")
+          } else {
+            declaredGaps[layout] = reason.trim()
+          }
+        } else if (override != null || base != null || derived != null) {
+          declaredCells.add(layout)
+        }
+      }
+      def uncovered = declaredCells.findAll { consumed.contains(it) == false }
+      if (uncovered.isEmpty() == false) {
+        problems.add("[${format}] no spec reads layout(s) ${uncovered.sort()}; the fixtures are generated " +
+                     "on every build and nothing reads them. Either add a spec that reads the cell, or " +
+                     "declare it empty for this format with a reason in fixture-matrix.properties")
+      }
+      logger.lifecycle("fixture coverage [${format}]: ${declaredCells.size()} declared cell(s), " +
+                       "${declaredGaps.size()} declared gap(s) ${declaredGaps.keySet().sort()}")
+    }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("fixture coverage failed:\n  " + problems.join("\n  "))
+    }
+  }
+}
+
+/*
+ * Lints the declared write dialect against the authored data. A dialect declaration that nobody checks is
+ * prose: it would drift from the CSV the moment someone adds or removes a multi-value column, and the
+ * dialect injection that reads it would then configure the wrong reader silently.
+ */
+def dataDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources/data')
+
+tasks.register('checkFixtureDialect') {
+  description = 'Fails when a dataset\'s declared write dialect disagrees with its canonical CSV.'
+  group = 'verification'
+
+  doLast {
+    def text = declarationFile.text.replaceAll(/\\\r?\n[ \t]*/, ' ')
+    def props = new Properties()
+    props.load(new StringReader(text))
+
+    def datasets = props.stringPropertyNames()
+        .findAll { it.startsWith('dataset.') && it.endsWith('.write_dialect') }
+        .collect { it.substring('dataset.'.length(), it.length() - '.write_dialect'.length()) }
+        .sort()
+
+    def problems = []
+    datasets.each { ds ->
+      def declared = props.getProperty("dataset.${ds}.write_dialect").trim()
+      if (declared in ['brackets', 'none'] == false) {
+        problems.add("dataset [${ds}] declares write_dialect [${declared}]; expected brackets or none")
+        return
+      }
+      def csv = new File(dataDir, "${ds}.csv")
+      if (csv.exists() == false) {
+        problems.add("dataset [${ds}] declares a write dialect but ${csv.name} does not exist")
+        return
+      }
+      def lines = csv.readLines()
+      def bracketed = lines.size() > 1 ? lines[1..-1].count { it.contains('[') } : 0
+      def actual = bracketed > 0 ? 'brackets' : 'none'
+      if (actual != declared) {
+        problems.add("dataset [${ds}] declares write_dialect [${declared}] but ${csv.name} has " +
+                     "${bracketed} bracketed row(s), i.e. [${actual}]")
+      }
+    }
+
+    // Every declared dataset must state a dialect: an unstated one would default silently.
+    props.stringPropertyNames()
+        .findAll { it.startsWith('dataset.') && it.count('.') == 1 }
+        .collect { it.substring('dataset.'.length()) }
+        .each { ds ->
+          if (props.getProperty("dataset.${ds}.write_dialect") == null) {
+            problems.add("dataset [${ds}] declares no write_dialect; a text reader would be configured by default rather than by declaration")
+          }
+        }
+
+    if (problems.isEmpty() == false) {
+      throw new GradleException("fixture dialect declaration is wrong:\n  " + problems.join("\n  "))
+    }
+    logger.lifecycle("fixture dialect: ${datasets.size()} dataset(s) linted against their canonical CSV")
+  }
+}
+
+tasks.named('precommit').configure { dependsOn 'checkFixtureCoverage', 'checkFixtureDialect' }

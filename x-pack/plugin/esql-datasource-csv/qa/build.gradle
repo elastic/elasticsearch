@@ -254,6 +254,14 @@ ext.fixtureLayoutSkip = ['multifile', 'multifile_ubn', 'multifile_type_drift', '
 ext.fixtureLayoutTasks = generateCsvHiveTasks
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-layouts.gradle')
 
+// This module hosts BOTH the Csv and Tsv suites, so it owns two columns of the matrix.
+ext.fixtureCoverageFormats = ['csv', 'tsv']
+ext.fixtureCoverageSpecDirs = [
+  project(xpackModule('esql:qa:testFixtures')).file('src/main/resources'),
+  file('src/javaRestTest/resources')
+]
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
+
 // Everything that has to run before a suite can read the fixtures. Named once: it was written
 // out in full in four places, so a newly added layout reached some consumers and not others.
 def csvFixtureTasks = [

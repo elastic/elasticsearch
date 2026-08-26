@@ -14,22 +14,142 @@ FROM tdigest_standard_index
 
 // -------------------------------------------------------------------------------
 
-bucket in eval
+count_star with bucket
 required_capability: fn_bucket_histogram_types
 
 FROM tdigest_standard_index
  | WHERE STARTS_WITH(instance, "hand-rolled")
- | EVAL bucket = BUCKET(responseTime, 0.25)
- | MV_EXPAND bucket
- | SORT instance, RANGE_MIN(bucket)
- | KEEP instance, bucket
+ | STATS count = COUNT(*) BY bucket = BUCKET(responseTime, 0.25)
+ | SORT RANGE_MIN(bucket)
 ;
 
-instance:keyword  | bucket:double_range
-hand-rolled       | 0.0..0.25
-hand-rolled       | 0.25..0.5
-hand-rolled       | 0.5..0.75
-hand-rolled-empty | null
+count:long | bucket:double_range
+1          | 0.0..0.25
+1          | 0.25..0.5
+1          | 0.5..0.75
+1          | null
+;
+
+// -------------------------------------------------------------------------------
+
+count with bucket only in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1)
+ | INLINE STATS total = SUM(count)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range | total:long
+15350      | 0.0..1.0            | 15471
+111        | 1.0..2.0            | 15471
+5          | 2.0..3.0            | 15471
+3          | 3.0..4.0            | 15471
+0          | 4.0..5.0            | 15471
+0          | 5.0..6.0            | 15471
+2          | 6.0..7.0            | 15471
+;
+
+count with bucket and time in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h)
+ | INLINE STATS total = SUM(count)
+ | SORT time, RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range | time:datetime            | total:long
+9247       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | 15471
+71         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | 15471
+2          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | 15471
+1          | 3.0..4.0            | 2025-09-25T00:00:00.000Z | 15471
+6103       | 0.0..1.0            | 2025-09-25T01:00:00.000Z | 15471
+40         | 1.0..2.0            | 2025-09-25T01:00:00.000Z | 15471
+3          | 2.0..3.0            | 2025-09-25T01:00:00.000Z | 15471
+2          | 3.0..4.0            | 2025-09-25T01:00:00.000Z | 15471
+0          | 4.0..5.0            | 2025-09-25T01:00:00.000Z | 15471
+0          | 5.0..6.0            | 2025-09-25T01:00:00.000Z | 15471
+2          | 6.0..7.0            | 2025-09-25T01:00:00.000Z | 15471
+;
+
+count with bucket and instance in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), instance
+ | INLINE STATS total = SUM(count)
+ | SORT instance, RANGE_MIN(bucket)
+ | LIMIT 10
+;
+
+count:long | bucket:double_range | instance:keyword | total:long
+8733       | 0.0..1.0            | instance-0       | 15471
+100        | 1.0..2.0            | instance-0       | 15471
+4          | 2.0..3.0            | instance-0       | 15471
+2          | 3.0..4.0            | instance-0       | 15471
+0          | 4.0..5.0            | instance-0       | 15471
+0          | 5.0..6.0            | instance-0       | 15471
+2          | 6.0..7.0            | instance-0       | 15471
+3241       | 0.0..1.0            | instance-1       | 15471
+8          | 1.0..2.0            | instance-1       | 15471
+0          | 2.0..3.0            | instance-1       | 15471
+;
+
+count with bucket, time, and instance in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h), instance
+ | INLINE STATS total = SUM(count)
+ | SORT time, instance, RANGE_MIN(bucket)
+ | LIMIT 10
+;
+
+count:long | bucket:double_range | time:datetime            | instance:keyword | total:long
+5119       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+63         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15471
+1978       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+7          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+0          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+1          | 3.0..4.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15471
+2149       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+2          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15471
+;
+
+count with bucket, time, and instance in FROM
+required_capability: fn_bucket_histogram_types
+
+FROM tdigest_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS count = COUNT(responseTime, bucket) BY bucket = BUCKET(responseTime, 1), time = BUCKET(@timestamp, 1h), instance
+ | INLINE STATS total = SUM(count)
+ | SORT time, instance, RANGE_MIN(bucket)
+ | LIMIT 10
+;
+
+count:long | bucket:double_range | time:datetime            | instance:keyword | total:long
+5120       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15470
+61         | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15470
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-0       | 15470
+1978       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15470
+7          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15470
+0          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15470
+1          | 3.0..4.0            | 2025-09-25T00:00:00.000Z | instance-1       | 15470
+2149       | 0.0..1.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15470
+2          | 1.0..2.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15470
+1          | 2.0..3.0            | 2025-09-25T00:00:00.000Z | instance-2       | 15470
 ;
 
 // -------------------------------------------------------------------------------
@@ -37,14 +157,14 @@ hand-rolled-empty | null
 bucket limit
 required_capability: fn_bucket_histogram_types
 
-FROM tdigest_standard_index | WHERE instance == "hand-rolled" | EVAL bucket = BUCKET(responseTime, 0.00001) | KEEP bucket
+FROM tdigest_standard_index | WHERE instance == "hand-rolled" | STATS count = COUNT(*) BY bucket = BUCKET(responseTime, 0.00001)
 ;
 
-warning:Line 1:79: evaluation of [BUCKET(responseTime, 0.00001)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:79: java.lang.ArithmeticException: T-Digest is too large to create buckets of size 1.0E-5, would yield 39999 buckets
+warning:Line 1:100: evaluation of [BUCKET(responseTime, 0.00001)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:100: java.lang.ArithmeticException: T-Digest is too large to create buckets of size 1.0E-5, would yield 39999 buckets
 
-bucket:double_range
-null
+count:long | bucket:double_range
+1          | null
 ;
 
 // -------------------------------------------------------------------------------

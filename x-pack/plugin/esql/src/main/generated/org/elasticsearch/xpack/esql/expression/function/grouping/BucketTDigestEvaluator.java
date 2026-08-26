@@ -63,10 +63,11 @@ public final class BucketTDigestEvaluator implements ExpressionEvaluator {
     try(DoubleRangeBlock.Builder result = driverContext.blockFactory().newDoubleRangeBlockBuilder(positionCount)) {
       TDigestHolder histogramScratch = new TDigestHolder();
       position: for (int p = 0; p < positionCount; p++) {
+        if (histogramBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (histogramBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

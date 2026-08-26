@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -70,7 +69,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
 import static org.elasticsearch.common.Rounding.RoundingConvention.UP;
@@ -643,14 +641,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     @Override
     public boolean foldable() {
         return field.foldable() && buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
-    }
-
-    @Override
-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
-        if (isSupportedHistogramType(field.dataType())) {
-            return (plan, failures) -> {};
-        }
-        return super.postAnalysisPlanVerification();
     }
 
     @Override

@@ -471,10 +471,18 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     partitionValues = fileSplit.partitionValues();
                 }
 
+                boolean skipRowWithCoercions = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
+                    && physicalDeclaredTypeColumns(context.declaredReadSpec()).isEmpty() == false;
+
                 List<Expression> pushedExpressions = context.pushedExpressions();
-                FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
-                    ? format.filterPushdownSupport()
-                    : null;
+                // Withhold pushdown under skip_row + declared coercions: the optimized iterator arms
+                // filterBlocks only for row groups where stats prove the filter trivially passes, so
+                // groups that actually evaluate the predicate silently null-fill failures instead of
+                // dropping the row. Disabling pushdown keeps all batches on the standard path where
+                // filterBlocks is always called.
+                FilterPushdownSupport pushdownSupport = (pushedExpressions != null
+                    && pushedExpressions.isEmpty() == false
+                    && skipRowWithCoercions == false) ? format.filterPushdownSupport() : null;
 
                 // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
@@ -506,8 +514,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // Additionally, deferred extraction is disabled when skip_row is active with declared-type
                 // coercion columns: the extractor runs after the page shape is fixed and cannot drop rows
                 // that fail coercion; the columnar iterator must do the filtering at emit time instead.
-                boolean skipRowWithCoercions = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    && physicalDeclaredTypeColumns(context.declaredReadSpec()).isEmpty() == false;
                 boolean deferredExtraction = format instanceof ColumnExtractorAware
                     && context.deferredExtraction()
                     && skipRowWithCoercions == false;

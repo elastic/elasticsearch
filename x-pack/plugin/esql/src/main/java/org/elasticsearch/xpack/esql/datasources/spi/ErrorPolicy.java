@@ -112,9 +112,8 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
      * reader inherits the base {@link FormatReader#defaultErrorPolicy()} == {@link #STRICT}.
      * <p>
      * {@link Mode#NULL_FIELD} degrades to a row drop where a row-oriented reader cannot null-fill a failure
-     * it cannot attribute to one value (a whole-line JSON failure, a structural CSV row error); a columnar
-     * batch honors {@link Mode#SKIP_ROW} exactly by accumulating per-column failure positions across the
-     * batch and dropping the whole row at the page emit point via {@code Block.filter}.
+     * it cannot attribute to one value (a whole-line JSON failure, a structural CSV row error). Columnar
+     * readers null-fill individual cells and keep the row.
      */
     public static final ErrorPolicy PERMISSIVE = new ErrorPolicy(Mode.NULL_FIELD, Long.MAX_VALUE, 1.0, false);
 

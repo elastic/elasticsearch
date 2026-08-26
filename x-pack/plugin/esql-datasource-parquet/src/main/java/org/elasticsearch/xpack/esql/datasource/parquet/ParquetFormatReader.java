@@ -3224,7 +3224,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 pageBatchIndexInRowGroup++;
                 rowsRemainingInGroup -= rowsToRead;
                 if (rowBudget != FormatReader.NO_LIMIT) {
-                    rowBudget -= rowsToRead;
+                    rowBudget -= producedRows;
                 }
                 counters.addRowsEmitted(producedRows);
                 // Emit only after the page is fully built: if any column read above threw, we

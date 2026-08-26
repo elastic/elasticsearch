@@ -171,9 +171,12 @@ public final class ColumnarRowDropHelper {
                 }
             }
         } catch (RuntimeException e) {
-            // Close any blocks we successfully filtered (the partially-replaced ones)
-            for (Block b : blocks) {
+            // Null slots before closing so any re-close by the caller (e.g. Releasables.closeExpectNoException)
+            // sees null and skips them, keeping "already released" off the suppressed list of the real error.
+            for (int i = 0; i < blocks.length; i++) {
+                Block b = blocks[i];
                 if (b != null) {
+                    blocks[i] = null;
                     try {
                         b.close();
                     } catch (RuntimeException closeEx) {

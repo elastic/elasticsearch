@@ -70,8 +70,6 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return true;
     }
 
-
-
     @Override
     protected String exclusionSuiteToken() {
         // This suite's format is not its declaration token, so the default would resolve to

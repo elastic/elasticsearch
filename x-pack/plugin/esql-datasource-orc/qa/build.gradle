@@ -216,3 +216,4 @@ ext.fixtureCoverageSpecDirs = [
   file('src/javaRestTest/resources')
 ]
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

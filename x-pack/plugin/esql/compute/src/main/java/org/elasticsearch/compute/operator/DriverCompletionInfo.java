@@ -103,6 +103,26 @@ public record DriverCompletionInfo(
         warnings = warnings == null ? Set.of() : warnings;
     }
 
+    public DriverCompletionInfo withoutApproximationApplied() {
+        if (approximationApplied == false) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            cpuNanos,
+            driverProfiles,
+            planProfiles,
+            capturedSourceMetadata,
+            partial,
+            false,
+            warnings
+        );
+    }
+
     /**
      * Build a {@link DriverCompletionInfo} for many drivers including their profile output.
      *

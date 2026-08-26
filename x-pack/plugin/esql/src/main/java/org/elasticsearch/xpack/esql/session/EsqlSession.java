@@ -1020,7 +1020,8 @@ public class EsqlSession {
         LogicalPlan subPlan,
         java.util.function.Function<Result, LogicalPlan> newMainPlan,
         Runnable cleanup,
-        boolean isSubqueryJoinSubPlan
+        boolean isSubqueryJoinSubPlan,
+        boolean isApproximationCalibration
     ) {};
 
     private SubPlanAndCallback firstSubPlan(
@@ -1055,7 +1056,7 @@ public class EsqlSession {
                         blockFactory,
                         localRelationPage
                     );
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
             }
         } else if (firstJoin instanceof InnerJoin) {
             InnerJoin.LogicalPlanTuple subPlans = InnerJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1066,7 +1067,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InnerJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), true);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), true, false);
             }
         } else if (firstJoin instanceof InlineJoin) {
             InlineJoin.LogicalPlanTuple subPlans = InlineJoin.firstSubPlan(mainPlan, subPlansResults);
@@ -1077,7 +1078,7 @@ public class EsqlSession {
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
                     return InlineJoin.newMainPlan(mainPlan, subPlans, resultWrapper);
-                }, () -> releaseLocalRelationBlocks(localRelationPage), false);
+                }, () -> releaseLocalRelationBlocks(localRelationPage), false, false);
             }
         }
 
@@ -1092,7 +1093,8 @@ public class EsqlSession {
                     subPlan,
                     result -> approximation.get().newMainPlan(mainPlan, result),
                     () -> {},
-                    false
+                    false,
+                    true
                 );
             }
         }
@@ -1171,7 +1173,12 @@ public class EsqlSession {
         executionInfo.startSubPlans(subPlan.isSubqueryJoinSubPlan());
 
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
-            completionInfoAccumulator.accumulate(result.completionInfo());
+            // Approximation subplans (to get the sample probability) may approximate internally to estimate
+            // the result count. This does not affect whether the final result is approximate or not.
+            DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
+                ? result.completionInfo().withoutApproximationApplied()
+                : result.completionInfo();
+            completionInfoAccumulator.accumulate(subPlanCompletionInfo);
             try {
                 var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);

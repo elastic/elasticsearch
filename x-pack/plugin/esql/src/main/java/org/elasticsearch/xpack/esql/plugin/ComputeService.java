@@ -1443,8 +1443,7 @@ public class ComputeService {
                     );
                     localPlan = localPlanResult.physicalPlan();
                     logicalPlanString = localPlanResult.logicalPlanString();
-                    // TODO: detect whether approximation was applied.
-                    approximationApplied = false;
+                    approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
                 localPlan = plan;

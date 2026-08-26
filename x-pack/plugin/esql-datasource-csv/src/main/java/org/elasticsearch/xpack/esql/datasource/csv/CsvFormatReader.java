@@ -3508,12 +3508,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         );
                     }
                     // A DROPPED row (SKIP_ROW, or a structural malformed row -- e.g. an unescaped-delimiter
-                    // extra column -- even under NULL_FIELD) does NOT make the cached stats wrong: which rows
-                    // survive is a deterministic function of the file bytes and the error policy (pinned by the
-                    // cache fingerprint -- error_mode/max_errors/max_error_ratio are all format-affecting; chunk
-                    // boundaries are quote-aware, so re-execution drops the identical rows), so every statistic
-                    // (row count AND extrema) over the survivors equals what re-running this query computes. So
-                    // commit normally. NULL_FIELD field null-fill likewise preserves the row and caches fully.
+                    // extra column -- even under NULL_FIELD) does NOT make these stats wrong FOR THIS READ: which
+                    // rows survive is a deterministic function of the file bytes, the error policy (pinned by the
+                    // cache fingerprint) AND the read shape -- a declared type or date pattern decides which values
+                    // coerce, so it decides which rows drop. The shape is stamped alongside the fingerprint and the
+                    // cache refuses to serve these numbers to a read of a different shape, so committing them is
+                    // safe: they are published as this shape's measurement, not as the file's. So commit normally. NULL_FIELD field
+                    // null-fill likewise preserves the row and caches fully.
                     // FAIL_FAST aborts before EOF, so naturallyExhausted gates it out. NONE scope suppresses all
                     // publishing. (A scan cut short mid-way -- LIMIT, cancellation, a chunk exceeding its error
                     // budget -- leaves naturallyExhausted false or an uncovered stripe, so it safe-misses rather

@@ -2481,15 +2481,18 @@ public class ExternalSourceResolver {
      * declared width under {@code FAIL_FAST}); once a wider — or inferred — dataset over the same file+config has warmed
      * the shared entry, that dataset's {@code COUNT(*)} folds to the physical row-count instead of erroring. That is a
      * masked abort, not a wrong count (every materializing query on such a mis-bound dataset still fails loudly), and it
-     * flaps with cache state. Weaving the declared schema into the cross-node stats fingerprint (see the follow-up) is the
-     * complete closure; a width-equality serve gate would close only the strict-vs-strict half (the entry does not record
-     * who harvested it, so it cannot gate the inferred-vs-strict half).
+     * flaps with cache state. The read-shape fingerprint now in the stats identity ({@link ReadShapeFingerprint}) closes
+     * the strict-vs-strict half by construction — two declarations of different widths are different shapes, so neither
+     * enriches nor serves the other. The inferred-vs-strict half is NOT closed: under {@code FAIL_FAST} the row count is
+     * licensed to cross read shapes (the count is the physical record count for any declaration), which is exactly the
+     * licence this masked abort rides. Closing it would mean withdrawing that licence and making every strict dataset
+     * re-scan, so the residual stands, deliberately, and is disclosed here rather than in a follow-up.
      * <p>
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
      * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the
-     * multi-file glob correctly needs the declared schema woven into the cross-node stats fingerprint (a larger change);
-     * tracked separately.
+     * multi-file glob correctly needs the declared schema woven into the cross-node stats fingerprint — which is what the
+     * read-shape component now does; the remaining limit here is the columnar exclusion above, not the identity.
      */
     private ExternalSourceMetadata strictSingleFileMetadata(
         String path,

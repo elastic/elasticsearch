@@ -137,11 +137,13 @@ public record SchemaCacheKey(
      * marker-suffixed {@code formatType} keeps these entries out of the per-file contribution-matching
      * paths.
      * <p>
-     * Known residual, inherited from the per-file rail: under a lenient error policy
-     * ({@code skip_row}/{@code null_field}) a harvested row count can be declaration-dependent (see the
-     * {@code warmsRowCountSafely} discussion on the strict single-file rail). The dataset aggregate
-     * memoizes exactly what the per-file rail serves, so it neither narrows nor widens that residual -
-     * both must be closed together by the declared-schema fingerprint follow-up.
+     * Under a lenient error policy ({@code skip_row}/{@code null_field}) a harvested row count IS
+     * declaration-dependent, which is why the read shape now participates in the stats identity
+     * ({@link ReadShapeFingerprint}): a harvest may only enrich, and an entry may only serve, a read of the
+     * same shape. The dataset aggregate memoizes exactly what the per-file rail serves, so it inherits that
+     * gate rather than needing one of its own. What still crosses shapes is the physical record count under
+     * {@code FAIL_FAST}, licensed by the producer because there the count is the same number for every
+     * declaration.
      */
     public static SchemaCacheKey forDatasetAggregate(
         String pattern,

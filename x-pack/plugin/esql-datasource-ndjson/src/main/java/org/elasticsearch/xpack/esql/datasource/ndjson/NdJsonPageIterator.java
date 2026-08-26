@@ -673,11 +673,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // Close the decoder even if a stats publish throws — the publish is best-effort caching, the close is not.
         try {
             // Cache on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
-            // A DROPPED line (NDJSON drops the whole line on any parse error) does NOT make the cached stats
-            // wrong: which lines survive is a deterministic function of the file bytes and the error policy
-            // (pinned by the cache fingerprint -- error_mode/max_errors are format-affecting), so every statistic
-            // (row count AND extrema) over the survivors equals what re-running this query computes. So commit
-            // normally. NONE scope suppresses all publishing. A scan cut short mid-way (LIMIT, cancellation, a
+            // A DROPPED line (NDJSON drops the whole line on any parse error) does NOT make these stats wrong FOR
+            // THIS READ: which lines survive is a deterministic function of the file bytes, the error policy
+            // (pinned by the cache fingerprint) AND the read shape -- a declared type or date pattern decides
+            // which values coerce, so it decides which lines drop. The shape is stamped alongside the fingerprint
+            // and the cache refuses to serve these numbers to a read of a different shape, so committing them is
+            // safe: they are this shape's measurement, not the file's. So commit normally. NONE scope suppresses all publishing. A scan cut
+            // short mid-way (LIMIT, cancellation, a
             // chunk exceeding its error budget) leaves naturallyExhausted false or an uncovered stripe, so it
             // safe-misses rather than serving; the coordinator's whole-file poison covers the non-clean-close case.
             if (cacheableObject != null

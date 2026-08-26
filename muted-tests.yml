@@ -453,9 +453,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
   method: testMultiValuedField
   issue: https://github.com/elastic/elasticsearch/issues/157040
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.resolve_cluster/20_resolve_system_index/Resolve system index via resolve/cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/157048
 - class: org.elasticsearch.compute.aggregation.PromqlHistogramQuantileGroupingAggregatorFunctionTests
   method: testNullGroups
   issue: https://github.com/elastic/elasticsearch/issues/157104

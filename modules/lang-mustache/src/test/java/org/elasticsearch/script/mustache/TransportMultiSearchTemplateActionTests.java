@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -158,6 +159,42 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
 
         public long getPeakNetBytes() {
             return peakNetBytes;
+        }
+    }
+
+    /**
+     * Tracks charges per label and records the net balance at the moment the first {@code [response]}
+     * charge is added. This lets a test verify that render bytes are still in the breaker when response
+     * bytes are charged — the transient 2× peak documented in the {@code onResponse} NOTE comment.
+     */
+    private static final class PeakCapturingBreaker extends NoopCircuitBreaker {
+        private long netBytes = 0;
+        private long netAtFirstResponseCharge = Long.MIN_VALUE;
+
+        PeakCapturingBreaker() {
+            super("test");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            netBytes += bytes;
+            if (label != null && label.contains("[response]") && netAtFirstResponseCharge == Long.MIN_VALUE) {
+                netAtFirstResponseCharge = netBytes;
+            }
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            netBytes += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return netBytes;
+        }
+
+        long getNetAtFirstResponseCharge() {
+            return netAtFirstResponseCharge;
         }
     }
 
@@ -821,6 +858,65 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             assertNotNull("inner multiSearch must have a parent task set", parentTask);
             assertThat("parent task node ID must match getLocalNodeId()", parentTask.getNodeId(), equalTo("local-node"));
             assertThat("parent task ID must match the outer task", parentTask.getId(), equalTo(taskId));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    /**
+     * Documents the transient 2× peak described in the {@code onResponse} NOTE comment: during the
+     * inner-msearch response callback the inner {@code _msearch} still holds its own REQUEST-breaker
+     * reservation, and we add our own charge for the same bytes before incRef-ing them. The
+     * {@link PeakCapturingBreaker} records the net balance at the moment the first {@code [response]}
+     * charge fires; that balance must already be positive (from render bytes), proving the two
+     * reservations overlap.
+     */
+    public void testTwoTimesTransientPeakDuringResponseCallback() throws Exception {
+        ClusterService clusterService = clusterServiceWithDataNodes(1);
+        PeakCapturingBreaker breaker = new PeakCapturingBreaker();
+
+        Settings settings = Settings.builder().put("node.name", getTestName()).build();
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        try {
+            NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
+                @Override
+                public void multiSearch(MultiSearchRequest request, ActionListener<MultiSearchResponse> listener) {
+                    MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.requests().size()];
+                    for (int i = 0; i < items.length; i++) {
+                        items[i] = new MultiSearchResponse.Item(SearchResponseUtils.response().build(), null);
+                    }
+                    MultiSearchResponse response = new MultiSearchResponse(items, 1L);
+                    try {
+                        listener.onResponse(response);
+                    } finally {
+                        response.decRef();
+                    }
+                }
+
+                @Override
+                public String getLocalNodeId() {
+                    return "local";
+                }
+            };
+
+            MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+            request.add(templateRequest());
+
+            TransportMultiSearchTemplateAction action = buildAction(threadPool, client, clusterService, breaker);
+            Task task = request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            action.execute(task, request, future.delegateFailure((l, r) -> l.onResponse(null)));
+            future.get();
+
+            // When the first [response] charge fired, render bytes were already in the breaker.
+            // A positive net proves the two reservations overlapped (the 2× transient peak).
+            assertThat(
+                "render bytes must already be charged when response bytes are added (2× transient peak)",
+                breaker.getNetAtFirstResponseCharge(),
+                greaterThan(0L)
+            );
+            // After runAfter cleanup all charges are released.
+            assertThat("breaker must be fully released after a successful request", breaker.getUsed(), equalTo(0L));
         } finally {
             assertTrue(terminate(threadPool));
         }

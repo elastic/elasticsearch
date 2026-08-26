@@ -260,7 +260,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * that shard of the indices the search requests go to are more or less evenly distributed across all nodes in the cluster. But I think
      * it is a good enough default for most cases, if not then the default should be overwritten in the request itself.
      */
-    static int defaultMaxConcurrentSearches(final int allocatedProcessors, final ClusterState state) {
+    public static int defaultMaxConcurrentSearches(final int allocatedProcessors, final ClusterState state) {
         int numDateNodes = state.getNodes().getDataNodes().size();
         // we bound the default concurrency to preserve some search thread pool capacity for other searches
         final int defaultSearchThreadPoolSize = Math.min(ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors), 10);

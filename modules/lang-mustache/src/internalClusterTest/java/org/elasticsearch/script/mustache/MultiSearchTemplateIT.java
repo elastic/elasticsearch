@@ -10,28 +10,39 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.FailBeforeCurrentVersionQueryBuilder;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -40,6 +51,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
@@ -47,7 +59,12 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class, AbstractSearchCancellationTestCase.ScriptedBlockPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable real HTTP for REST-level header and channel-close tests
     }
 
     @Override
@@ -243,6 +260,110 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
             updateClusterSettings(
                 Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
             );
+        }
+    }
+
+    /**
+     * Verifies that the {@code X-Elasticsearch-Search-Metrics} header is absent for a simulate-only
+     * {@code _msearch/template} request (no disk reads occur, so {@link MultiSearchTemplateResponse#mergeDirectoryMetrics()}
+     * returns empty metrics and the header must not be emitted).
+     *
+     * <p>When directory metrics are enabled (via {@link Store#DIRECTORY_METRICS_FEATURE_FLAG}), the header
+     * is also asserted present for a real search, confirming end-to-end wiring of
+     * {@code mergeDirectoryMetrics} through {@code wrapWithSearchMetricsHeader} in the REST action.
+     */
+    public void testSearchMetricsResponseHeader() throws Exception {
+        createIndex("hdr-test");
+        prepareIndex("hdr-test").setId("1").setSource("field", "value").get();
+        refresh("hdr-test");
+
+        // Simulate-only: no disk reads occur, so the header must always be absent.
+        Request simulateReq = new Request("POST", "/_msearch/template");
+        simulateReq.setJsonEntity(
+            "{\"index\":\"hdr-test\"}\n" + "{\"source\":\"{\\\"query\\\":{\\\"match_all\\\":{}}}\",\"params\":{},\"simulate\":true}\n"
+        );
+        Response simulateResp = getRestClient().performRequest(simulateReq);
+        long simulateHeaderCount = Arrays.stream(simulateResp.getHeaders())
+            .filter(h -> h.getName().equalsIgnoreCase(RestActions.SEARCH_METRICS_RESPONSE_HEADER))
+            .count();
+        assertThat("simulate-only request must not emit the search-metrics header", simulateHeaderCount, equalTo(0L));
+
+        // Real search: header present only when the feature flag is enabled and file reads occur.
+        assumeTrue("directory metrics feature flag must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        Request realReq = new Request("POST", "/_msearch/template");
+        realReq.setJsonEntity("{\"index\":\"hdr-test\"}\n" + "{\"source\":\"{\\\"query\\\":{\\\"match_all\\\":{}}}\",\"params\":{}}\n");
+        Response realResp = getRestClient().performRequest(realReq);
+        long realHeaderCount = Arrays.stream(realResp.getHeaders())
+            .filter(h -> h.getName().equalsIgnoreCase(RestActions.SEARCH_METRICS_RESPONSE_HEADER))
+            .count();
+        assertThat("real msearch/template must emit exactly one consolidated search-metrics header", realHeaderCount, equalTo(1L));
+    }
+
+    /**
+     * Verifies that cancelling the outer {@code _msearch/template} task propagates to the inner
+     * {@code _msearch} searches: after cancellation all slots are failures rather than leaving the
+     * outer listener hanging indefinitely.
+     *
+     * <p>A blocking script holds each shard search open until the outer task is cancelled and the
+     * block is released. The response must be a {@link MultiSearchTemplateResponse} (not a top-level
+     * exception), and every item must be a failure.
+     */
+    public void testCancellationPropagatesFromParentToInnerSearches() throws Exception {
+        createIndex("cancel-test");
+        for (int i = 0; i < 5; i++) {
+            prepareIndex("cancel-test").setId(Integer.toString(i)).setSource("field", "value").get();
+        }
+        refresh("cancel-test");
+
+        List<AbstractSearchCancellationTestCase.ScriptedBlockPlugin> plugins = new ArrayList<>();
+        for (PluginsService ps : internalCluster().getInstances(PluginsService.class)) {
+            ps.filterPlugins(AbstractSearchCancellationTestCase.ScriptedBlockPlugin.class).forEach(p -> {
+                p.reset();
+                p.enableBlock();
+                plugins.add(p);
+            });
+        }
+
+        String blockingTemplate = "{\"query\":{\"script\":{\"script\":{\"source\":\""
+            + AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME
+            + "\",\"lang\":\"mockscript\"}}}}";
+
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        SearchTemplateRequest str = new SearchTemplateRequest();
+        str.setRequest(new SearchRequest("cancel-test"));
+        str.setScriptType(ScriptType.INLINE);
+        str.setScript(blockingTemplate);
+        request.add(str);
+
+        ActionFuture<MultiSearchTemplateResponse> future = client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, request);
+
+        // Use setBeforeExecution to latch on the first shard hit, since hits is package-private.
+        java.util.concurrent.CountDownLatch hitLatch = new java.util.concurrent.CountDownLatch(1);
+        for (AbstractSearchCancellationTestCase.ScriptedBlockPlugin plugin : plugins) {
+            plugin.setBeforeExecution(hitLatch::countDown);
+        }
+
+        // Wait until at least one shard has entered the blocking script.
+        assertTrue("timed out waiting for shard to be blocked", hitLatch.await(10, TimeUnit.SECONDS));
+
+        // Cancel the outer _msearch/template task — propagates to inner searches via parent-task linkage.
+        ListTasksResponse listResp = clusterAdmin().prepareListTasks().setActions(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION.name()).get();
+        assertThat("outer msearch/template task must be present", listResp.getTasks(), hasSize(1));
+        TaskInfo outerTask = listResp.getTasks().get(0);
+        clusterAdmin().prepareCancelTasks().setTargetTaskId(outerTask.taskId()).get();
+
+        // Unblock the shard-level scripts so the search threads can complete.
+        for (AbstractSearchCancellationTestCase.ScriptedBlockPlugin plugin : plugins) {
+            plugin.disableBlock();
+        }
+
+        // The outer response must complete (not hang) and all items must be failures.
+        MultiSearchTemplateResponse response = future.actionGet();
+        try {
+            assertThat(response.getResponses().length, equalTo(1));
+            assertTrue("cancelled item must be a failure", response.getResponses()[0].isFailure());
+        } finally {
+            response.decRef();
         }
     }
 

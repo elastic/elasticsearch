@@ -36,7 +36,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
@@ -122,7 +121,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     protected void doExecute(Task task, MultiSearchTemplateRequest request, ActionListener<MultiSearchTemplateResponse> listener) {
         int maxConcurrent = request.maxConcurrentSearchRequests() != MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT
             ? request.maxConcurrentSearchRequests()
-            : defaultMaxConcurrentSearches();
+            : TransportMultiSearchAction.defaultMaxConcurrentSearches(allocatedProcessors, clusterService.state());
 
         int n = request.requests().size();
         MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[n];
@@ -251,61 +250,66 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 // release drops the duplicate, leaving only our charge until the outer listener
                 // completes. The alternative (handing off the inner reservation) would require
                 // coupling to TransportMultiSearchAction internals.
-                for (int i = 0; i < multiSearchResp.getResponses().length; i++) {
-                    MultiSearchResponse.Item item = multiSearchResp.getResponses()[i];
-                    int slot = searchSlots.get(i);
-                    if (item.isFailure()) {
-                        if (items[slot].getResponse() != null) {
-                            items[slot].getResponse().decRef();
-                        }
-                        circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
-                        renderBytesCharged[0] -= renderBytesPerItem[slot];
-                        items[slot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
-                        long failureBytes = TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
-                        try {
-                            circuitBreaker.addEstimateBytesAndMaybeBreak(failureBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
-                            failureBytesCharged[0] += failureBytes;
-                        } catch (CircuitBreakingException cbe) {
-                            items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
-                            abortResponsePhase(
-                                items,
-                                searchSlots,
-                                i + 1,
-                                multiSearchResp.getResponses().length,
-                                renderBytesPerItem,
-                                renderBytesCharged,
-                                failureBytesCharged,
-                                cbe
-                            );
-                            break;
-                        }
-                    } else {
-                        // Charge breaker BEFORE incRef/setResponse so cleanup is safe if breaker throws.
-                        long responseBytes = TransportMultiSearchAction.estimateActualBytes(item.getResponse());
-                        try {
-                            circuitBreaker.addEstimateBytesAndMaybeBreak(responseBytes, MSEARCH_TEMPLATE_RESPONSE_BREAKER_LABEL);
-                        } catch (CircuitBreakingException cbe) {
-                            items[slot].getResponse().decRef();
-                            items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
+                try {
+                    for (int i = 0; i < multiSearchResp.getResponses().length; i++) {
+                        MultiSearchResponse.Item item = multiSearchResp.getResponses()[i];
+                        int slot = searchSlots.get(i);
+                        if (item.isFailure()) {
+                            if (items[slot].getResponse() != null) {
+                                items[slot].getResponse().decRef();
+                            }
                             circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
                             renderBytesCharged[0] -= renderBytesPerItem[slot];
-                            abortResponsePhase(
-                                items,
-                                searchSlots,
-                                i + 1,
-                                multiSearchResp.getResponses().length,
-                                renderBytesPerItem,
-                                renderBytesCharged,
-                                failureBytesCharged,
-                                cbe
-                            );
-                            break;
+                            items[slot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
+                            long failureBytes = TransportMultiSearchAction.estimateFailureBytes(item.getFailure());
+                            try {
+                                circuitBreaker.addEstimateBytesAndMaybeBreak(failureBytes, MSEARCH_TEMPLATE_FAILURE_BREAKER_LABEL);
+                                failureBytesCharged[0] += failureBytes;
+                            } catch (CircuitBreakingException cbe) {
+                                items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
+                                abortResponsePhase(
+                                    items,
+                                    searchSlots,
+                                    i + 1,
+                                    multiSearchResp.getResponses().length,
+                                    renderBytesPerItem,
+                                    renderBytesCharged,
+                                    failureBytesCharged,
+                                    cbe
+                                );
+                                break;
+                            }
+                        } else {
+                            // Charge breaker BEFORE incRef/setResponse so cleanup is safe if breaker throws.
+                            long responseBytes = TransportMultiSearchAction.estimateActualBytes(item.getResponse());
+                            try {
+                                circuitBreaker.addEstimateBytesAndMaybeBreak(responseBytes, MSEARCH_TEMPLATE_RESPONSE_BREAKER_LABEL);
+                            } catch (CircuitBreakingException cbe) {
+                                items[slot].getResponse().decRef();
+                                items[slot] = new MultiSearchTemplateResponse.Item(null, cbe);
+                                circuitBreaker.addWithoutBreaking(-renderBytesPerItem[slot], MSEARCH_TEMPLATE_RENDER_BREAKER_LABEL);
+                                renderBytesCharged[0] -= renderBytesPerItem[slot];
+                                abortResponsePhase(
+                                    items,
+                                    searchSlots,
+                                    i + 1,
+                                    multiSearchResp.getResponses().length,
+                                    renderBytesPerItem,
+                                    renderBytesCharged,
+                                    failureBytesCharged,
+                                    cbe
+                                );
+                                break;
+                            }
+                            responseBytesCharged[0] += responseBytes;
+                            item.getResponse().incRef(); // incRef before storing so the reference is always reachable
+                            items[slot].getResponse().setResponse(item.getResponse());
+                            // render bytes released by runAfter when the outer response is decRefed
                         }
-                        responseBytesCharged[0] += responseBytes;
-                        item.getResponse().incRef(); // incRef before storing so the reference is always reachable
-                        items[slot].getResponse().setResponse(item.getResponse());
-                        // render bytes released by runAfter when the outer response is decRefed
                     }
+                } catch (Exception e) {
+                    safeListener.onFailure(e);
+                    return;
                 }
                 finishResponse(items, startTimeNanos, safeListener);
             }
@@ -427,13 +431,4 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         ActionListener.respondAndRelease(safeListener, new MultiSearchTemplateResponse(items, tookMillis));
     }
 
-    /**
-     * Default search concurrency: mirrors the {@code defaultMaxConcurrentSearches} formula from
-     * {@link TransportMultiSearchAction}.
-     */
-    private int defaultMaxConcurrentSearches() {
-        int numDataNodes = clusterService.state().getNodes().getDataNodes().size();
-        int defaultSearchThreadPoolSize = Math.min(ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors), 10);
-        return Math.max(1, numDataNodes * defaultSearchThreadPoolSize);
-    }
 }

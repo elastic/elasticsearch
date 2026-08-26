@@ -16,8 +16,10 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -30,7 +32,7 @@ import java.util.List;
 import java.util.Objects;
 
 /** Specialization for LongSwissHash, for LongLong. */
-public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
+public class LongLongSwissHash extends SwissHash implements LongLongHashTable, PartitionedHashTable {
 
     static final VectorSpecies<Byte> BS = ByteVector.SPECIES_128;
 
@@ -80,6 +82,10 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     private BigCore bigCore;
     private long usedBytesByKeyPages = 0;
     private final int bulkThreshold;
+    final int numPartitions;
+    final int partitionMask;
+    final int splitWriteBatchSize;
+    final int[] partitionCounts;
     private final List<Releasable> toClose = new ArrayList<>();
 
     LongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker) {
@@ -87,8 +93,20 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     }
 
     LongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, int bulkThreshold) {
+        this(recycler, breaker, bulkThreshold, NUM_PARTITIONS);
+    }
+
+    LongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, int bulkThreshold, int numPartitions) {
+        this(recycler, breaker, bulkThreshold, numPartitions, SPLIT_WRITE_BATCH_SIZE);
+    }
+
+    LongLongSwissHash(PageCacheRecycler recycler, CircuitBreaker breaker, int bulkThreshold, int numPartitions, int splitWriteBatchSize) {
         super(recycler, breaker, INITIAL_CAPACITY, LongSwissHash.SmallCore.FILL_FACTOR);
         this.bulkThreshold = bulkThreshold;
+        this.numPartitions = numPartitions;
+        this.partitionMask = numPartitions - 1;
+        this.splitWriteBatchSize = splitWriteBatchSize;
+        this.partitionCounts = new int[numPartitions];
         boolean success = false;
         try {
             smallCore = new SmallCore();
@@ -130,13 +148,21 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     @Override
     public long add(final long key1, final long key2) {
         final long hash = hash(key1, key2);
+        final long id;
         if (smallCore != null) {
             if (size < nextGrowSize) {
-                return smallCore.add(key1, key2, hash);
+                id = smallCore.add(key1, key2, hash);
+            } else {
+                smallCore.transitionToBigCore();
+                id = bigCore.add(key1, key2, hash);
             }
-            smallCore.transitionToBigCore();
+        } else {
+            id = bigCore.add(key1, key2, hash);
         }
-        return bigCore.add(key1, key2, hash);
+        if (id >= 0) {
+            partitionCounts[(int) (hash >>> 32) & partitionMask]++;
+        }
+        return id;
     }
 
     @Override
@@ -353,6 +379,10 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
         @Override
         public long ramBytesUsed() {
             return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(idPage);
+        }
+
+        void clear() {
+            Arrays.fill(idPage, (byte) 0xff);
         }
     }
 
@@ -636,6 +666,21 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
         public long ramBytesUsed() {
             return BASE_RAM_BYTES_USED + controlData.length + (long) idPages.length * PageCacheRecycler.PAGE_SIZE_IN_BYTES;
         }
+
+        void mergeKeys(long[] keys, int[] ids, int len) {
+            for (int i = 0; i < len; i++) {
+                long k1 = keys[i * 2];
+                long k2 = keys[i * 2 + 1];
+                long hash = hash(k1, k2);
+                int id = addImpl(k1, k2, hash);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+        }
+
+        void clear() {
+            Arrays.fill(controlData, EMPTY);
+            insertProbes = 0;
+        }
     }
 
     @Override
@@ -658,7 +703,7 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
         return (long) id * KEY_SIZE;
     }
 
-    private static long hash(long key1, long key2) {
+    public static long hash(long key1, long key2) {
         long h = key1 * 0x9E3779B97F4A7C15L ^ key2;
         h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
         h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
@@ -672,5 +717,159 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + (smallCore != null ? smallCore.ramBytesUsed() : bigCore.ramBytesUsed());
+    }
+
+    static class LongLongPartitionedKeys implements PartitionedHashTable.PartitionedKeys {
+        final long[][] subs;
+        final int[] lengths;
+        final CircuitBreaker breaker;
+        final int numPartitions;
+        private long usedBytes;
+
+        LongLongPartitionedKeys(CircuitBreaker breaker, int[] partitionCounts, int numPartitions) {
+            this.breaker = breaker;
+            this.numPartitions = numPartitions;
+            this.subs = new long[numPartitions][];
+            this.lengths = new int[numPartitions];
+            long total = 0;
+            for (int p = 0; p < numPartitions; p++) {
+                total += partitionCounts[p];
+            }
+            usedBytes = total * 2 * Long.BYTES;
+            breaker.addEstimateBytesAndMaybeBreak(usedBytes + (long) numPartitions * Integer.BYTES, "LongLongPartitionedKeys");
+            for (int p = 0; p < numPartitions; p++) {
+                subs[p] = new long[partitionCounts[p] * 2];
+            }
+        }
+
+        void splitKeys(LongLongSwissHash src, int idOffset, short[] positions, int[] fills) {
+            final byte[][] keyPages = src.keyPages;
+            for (int p = 0; p < numPartitions; p++) {
+                final int c = fills[p];
+                if (c == 0) {
+                    continue;
+                }
+                int writeOffset = lengths[p] * 2;
+                var sub = subs[p];
+                final int base = p * src.splitWriteBatchSize;
+                for (int i = 0; i < c; i++) {
+                    final int id = idOffset + (positions[base + i] & 0xFFFF);
+                    final long keyOffset = (long) id * KEY_SIZE;
+                    final int pageIndex = (int) (keyOffset >> PAGE_SHIFT);
+                    final int indexInPage = (int) (keyOffset & PAGE_MASK);
+                    byte[] keyPage = keyPages[pageIndex];
+                    sub[writeOffset] = (long) LONG_HANDLE.get(keyPage, indexInPage);
+                    sub[writeOffset + 1] = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
+                    writeOffset += 2;
+                }
+                lengths[p] += c;
+            }
+        }
+
+        @Override
+        public void releasePartition(int partition) {
+            if (subs[partition] != null) {
+                final long freed = (long) subs[partition].length * Long.BYTES;
+                breaker.addWithoutBreaking(-freed);
+                usedBytes -= freed;
+                subs[partition] = null;
+            }
+        }
+
+        @Override
+        public int partitionSize(int partition) {
+            return lengths[partition];
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-usedBytes);
+            usedBytes = 0;
+            Arrays.fill(subs, null);
+        }
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedKeys partition(
+        BigArrays bigArrays,
+        CircuitBreaker breaker,
+        PartitionedHashTable.AggSplitter aggSplitter
+    ) {
+        aggSplitter.preAllocate(partitionCounts);
+        final int[] fills = new int[numPartitions];
+        final short[] positions = new short[splitWriteBatchSize * numPartitions];
+        int id = 0;
+        int batchStart = 0;
+        final LongLongPartitionedKeys partitionedKeys = new LongLongPartitionedKeys(breaker, partitionCounts, numPartitions);
+        int pageIndex = 0;
+        byte[] keyPage = keyPages[0];
+        int indexInPage = 0;
+        boolean success = false;
+        var scratch = new PartitionedHashTable.ScratchBuffer();
+        scratch.splitWriteBatchSize = splitWriteBatchSize;
+        try {
+            while (id < size) {
+                if (indexInPage >= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+                    keyPage = keyPages[++pageIndex];
+                    indexInPage = 0;
+                }
+                final long key1 = (long) LONG_HANDLE.get(keyPage, indexInPage);
+                final long key2 = (long) LONG_HANDLE.get(keyPage, indexInPage + Long.BYTES);
+                indexInPage += KEY_SIZE;
+                final long hash64 = hash(key1, key2);
+                final int p = (int) (hash64 >>> 32) & partitionMask;
+                final int c = fills[p]++;
+                positions[p * splitWriteBatchSize + c] = (short) (id - batchStart);
+                ++id;
+                if (fills[p] == splitWriteBatchSize) {
+                    partitionedKeys.splitKeys(this, batchStart, positions, fills);
+                    aggSplitter.split(scratch, batchStart, id - batchStart, positions, fills);
+                    batchStart = id;
+                    Arrays.fill(fills, 0);
+                }
+            }
+            if (batchStart < id) {
+                partitionedKeys.splitKeys(this, batchStart, positions, fills);
+                aggSplitter.split(scratch, batchStart, id - batchStart, positions, fills);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                partitionedKeys.close();
+            }
+        }
+        return partitionedKeys;
+    }
+
+    @Override
+    public PartitionedHashTable.MergedKeys mergeKeys(
+        PartitionedHashTable.PartitionedKeys keys,
+        int partition,
+        int estimateTotalPartitionSize,
+        PartitionedHashTable.MergedKeys reused
+    ) {
+        final LongLongPartitionedKeys llKeys = (LongLongPartitionedKeys) keys;
+        final int count = llKeys.partitionSize(partition);
+        final PartitionedHashTable.MergedKeys result = reused != null ? reused : new PartitionedHashTable.MergedKeys();
+        result.length = count;
+        result.ensureCapacity(count);
+        if (smallCore != null) {
+            smallCore.transitionToBigCore();
+        }
+        while (nextGrowSize <= estimateTotalPartitionSize) {
+            bigCore.grow();
+        }
+        bigCore.mergeKeys(llKeys.subs[partition], result.ids, count);
+        return result;
+    }
+
+    public void clear() {
+        if (smallCore != null) {
+            smallCore.clear();
+        } else {
+            bigCore.clear();
+        }
+        size = 0;
+        Arrays.fill(partitionCounts, 0);
     }
 }

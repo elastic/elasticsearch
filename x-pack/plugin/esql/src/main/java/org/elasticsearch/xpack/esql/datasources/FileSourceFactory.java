@@ -72,7 +72,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     /**
      * Coordinator keys deliberately NOT exposed as dataset settings: the
-     * {@link FormatNameResolver#CONFIG_READER} override remains an EXTERNAL-only development knob
+     * {@link FormatNameResolver#CONFIG_READER} override is intentionally not a dataset setting
      * (a reader alias selects between interchangeable readers for one format). {@link #CONFIG_FORMAT}
      * is a first-class dataset setting and is therefore part of the dataset vocabulary, not listed
      * here. Pinned against {@link #COORDINATOR_KEYS} and the dataset key set by
@@ -463,7 +463,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .withDeclaredTypeColumns(physicalDeclaredTypeColumns(context.declaredReadSpec()))
                     // Keyed on provenance, not renames: a DECLARED schema binds by name even with no `path`, and an
                     // INFERRED (dynamic) schema must never re-bind at the reader (its positions already came from the file).
-                    .withDeclaredPathBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
+                    .withDeclaredProvenanceBinding(context.declaredReadSpec().provenance() == SchemaProvenance.DECLARED);
                 ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
                 Map<String, Object> partitionValues = Map.of();
@@ -550,7 +550,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .deferredExtraction(deferredExtraction)
                     // datasetName drives the per-file _index synthesizer in
                     // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
-                    // came from inline EXTERNAL (no dataset mapping), populated when it came from
+                    // came from a direct-file query (no dataset name), populated when it came from
                     // FROM <dataset>.
                     .datasetName(context.datasetName())
                     // Declared `path` renames, applied to reader-facing names (projection + read schema) at the last mile.

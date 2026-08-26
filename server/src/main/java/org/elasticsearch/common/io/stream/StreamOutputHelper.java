@@ -89,6 +89,7 @@ public enum StreamOutputHelper {
 
     /**
      * Write the UTF-8 encoding of the given character, starting at the given position in the buffer, and return the updated position.
+     * Performs no bounds checks: callers must verify that there is enough space in {@code buffer} first.
      */
     static int putCharUtf8(byte[] buffer, int c, int position) {
         if (c <= 0x7F) {

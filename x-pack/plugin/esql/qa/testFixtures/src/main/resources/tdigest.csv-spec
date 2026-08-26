@@ -53,6 +53,24 @@ count:long | bucket:double_range | total:long
 2          | 6.0..7.0            | 15471
 ;
 
+count last_over_time with bucket in TS
+required_capability: fn_bucket_histogram_types
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") AND instance != "multi-row-td"
+ | STATS count = COUNT(LAST_OVER_TIME(responseTime), bucket) BY bucket = BUCKET(responseTime, 1)
+ | INLINE STATS total = SUM(count)
+ | SORT RANGE_MIN(bucket)
+;
+
+count:long | bucket:double_range | total:long
+138        | 0.0..1.0            | 142
+2          | 1.0..2.0            | 142
+1          | 2.0..3.0            | 142
+1          | 3.0..4.0            | 142
+;
+
 count with bucket and time in TS
 required_capability: fn_bucket_histogram_types
 required_capability: ts_command_v0

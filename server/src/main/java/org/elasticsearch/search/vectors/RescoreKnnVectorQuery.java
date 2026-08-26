@@ -230,7 +230,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         queryProfiler.addVectorOpsCount(vectorOperations);
 
         Map<String, Object> rescore = new LinkedHashMap<>();
-        rescore.put("type", getClass().getSimpleName());
+        rescore.put("type", rescoreStrategyName());
         rescore.put("time_ns", rescoreTimeNs);
         if (innerQueryTimeNs > 0) {
             rescore.put("inner_query_time_ns", innerQueryTimeNs);
@@ -250,6 +250,17 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             merged.put("rescore", rescore);
             queryProfiler.setLastKnnProfileBreakdown(merged);
         }
+    }
+
+    /** Stable name for {@code knn_profile.rescore.type}: {@code inline} or {@code late}. */
+    private String rescoreStrategyName() {
+        if (this instanceof InlineRescoreQuery) {
+            return "inline";
+        }
+        if (this instanceof LateRescoreQuery) {
+            return "late";
+        }
+        throw new AssertionError("unexpected rescore strategy " + getClass().getName());
     }
 
     @Override
@@ -296,7 +307,15 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
         @Override
         public Query rewrite(IndexSearcher searcher) throws IOException {
-            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, target, innerQuery);
+            // Rewrite the inner query first so its self-publish (and HNSW/IVF search) is not charged
+            // to rescore.time_ns. search(DirectRescore wrapping the original inner) would rewrite
+            // the inner again inside the timed window.
+            Query rewrittenInner = innerQuery.rewrite(searcher);
+            if (rewrittenInner.getClass() == MatchNoDocsQuery.class) {
+                pushRescoreProfile(searcher);
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, target, rewrittenInner);
             long rescoreStart = System.nanoTime();
             var topDocs = searcher.search(rescoreQuery, k);
             rescoreTimeNs = System.nanoTime() - rescoreStart;

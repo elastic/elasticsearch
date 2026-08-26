@@ -65,11 +65,22 @@ public class ESKnnVectorQueryProfileTests extends ESTestCase {
                 assertThat(hnsw.get("num_candidates"), equalTo(10));
                 assertThat(hnsw.get("has_filter"), equalTo(false));
                 assertThat((int) hnsw.get("leaf_searches"), greaterThan(0));
+                assertThat(breakdown.get("field"), equalTo("vector"));
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> timings = (Map<String, Object>) hnsw.get("timings");
                 assertThat(timings, notNullValue());
                 assertThat((long) timings.get("avg_leaf_search_ns"), greaterThan(0L));
+                assertThat(timings, hasKey("overhead_ns"));
+
+                @SuppressWarnings("unchecked")
+                java.util.List<Map<String, Object>> segments = (java.util.List<Map<String, Object>>) breakdown.get("segments");
+                assertThat(segments, notNullValue());
+                assertThat(segments.size(), greaterThan(0));
+                assertThat(segments.get(0).get("name"), notNullValue());
+                assertThat((int) segments.get(0).get("doc_count"), greaterThan(0));
+                assertThat((int) segments.get(0).get("vector_count"), greaterThan(0));
+                assertThat((long) segments.get(0).get("search_time_ns"), greaterThan(0L));
 
                 assertThat(breakdown, not(hasKey("ivf")));
             }
@@ -91,6 +102,7 @@ public class ESKnnVectorQueryProfileTests extends ESTestCase {
                 Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
                 assertThat(breakdown, notNullValue());
                 assertThat(breakdown.get("algorithm"), equalTo("hnsw"));
+                assertThat(breakdown.get("field"), equalTo("vector"));
                 assertThat((long) breakdown.get("total_time_ns"), greaterThan(0L));
 
                 @SuppressWarnings("unchecked")

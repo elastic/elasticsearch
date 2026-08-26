@@ -9,11 +9,13 @@
 
 package org.elasticsearch.search.profile.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -103,6 +105,25 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return ProfileResultTests.RANDOM_FIELDS_EXCLUDE_FILTER;
+    }
+
+    public void testKnnProfileOmittedOnOldTransportVersion() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("knn_profile_breakdown");
+        QueryProfileShardResult original = createTestItem();
+        // The BWC contract only matters when the new field is actually present.
+        while (original.getKnnProfileBreakdown() == null) {
+            original = createTestItem();
+        }
+
+        QueryProfileShardResult oldCopy = copyInstance(original, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertThat(oldCopy.getKnnProfileBreakdown(), nullValue());
+        assertThat(oldCopy.getQueryResults(), equalTo(original.getQueryResults()));
+        assertThat(oldCopy.getRewriteTime(), equalTo(original.getRewriteTime()));
+        assertThat(oldCopy.getCollectorResult(), equalTo(original.getCollectorResult()));
+        assertThat(oldCopy.getVectorOperationsCount(), equalTo(original.getVectorOperationsCount()));
+
+        QueryProfileShardResult newCopy = copyInstance(original, TransportVersionUtils.randomVersionSupporting(gate));
+        assertThat(newCopy, equalTo(original));
     }
 
     public void testCollapseKnnProfileBreakdownsEmptyOrNull() {

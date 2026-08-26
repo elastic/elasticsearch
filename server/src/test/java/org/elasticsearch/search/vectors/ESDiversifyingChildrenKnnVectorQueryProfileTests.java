@@ -102,6 +102,7 @@ public class ESDiversifyingChildrenKnnVectorQueryProfileTests extends ESTestCase
         Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
         assertThat(breakdown, notNullValue());
         assertThat(breakdown.get("algorithm"), equalTo("hnsw"));
+        assertThat(breakdown.get("field"), equalTo("vector"));
         if (expectedQuantization != null) {
             assertThat(breakdown.get("quantization"), equalTo(expectedQuantization));
         }

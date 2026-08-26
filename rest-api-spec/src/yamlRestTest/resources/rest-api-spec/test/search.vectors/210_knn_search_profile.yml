@@ -172,11 +172,17 @@ setup:
 
   # The detailed knn_profile breakdown is present alongside vector_operations_count
   - match: { profile.shards.0.dfs.knn.0.knn_profile.algorithm: hnsw }
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.field: vector }
   - match: { profile.shards.0.dfs.knn.0.knn_profile.quantization: bbq_hnsw }
   - exists: profile.shards.0.dfs.knn.0.knn_profile.hnsw
   - exists: profile.shards.0.dfs.knn.0.knn_profile.rescore
+  - match: { profile.shards.0.dfs.knn.0.knn_profile.rescore.type: inline }
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.hnsw.timings.overhead_ns
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.total_time_ns: 0 }
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments_searched: 1 }
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.segments
+  - exists: profile.shards.0.dfs.knn.0.knn_profile.segments.0.name
+  - gte: { profile.shards.0.dfs.knn.0.knn_profile.segments.0.doc_count: 1 }
   # Assert the hnsw sub-block internals, not just its presence
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.k: 1 }
   - gte: { profile.shards.0.dfs.knn.0.knn_profile.hnsw.num_candidates: 1 }
@@ -216,6 +222,7 @@ setup:
               num_candidates: 3
 
   - match: { profile.shards.0.searches.0.knn_profile.algorithm: hnsw }
+  - match: { profile.shards.0.searches.0.knn_profile.field: vector }
   - match: { profile.shards.0.searches.0.knn_profile.quantization: bbq_hnsw }
   - exists: profile.shards.0.searches.0.knn_profile.hnsw
   - gte: { profile.shards.0.searches.0.knn_profile.total_time_ns: 0 }
@@ -273,4 +280,6 @@ setup:
   - exists: profile.shards.0.searches.0.knn_profile.knn_queries
   - length: { profile.shards.0.searches.0.knn_profile.knn_queries: 2 }
   - match: { profile.shards.0.searches.0.knn_profile.knn_queries.0.algorithm: hnsw }
+  - match: { profile.shards.0.searches.0.knn_profile.knn_queries.0.field: vector }
   - match: { profile.shards.0.searches.0.knn_profile.knn_queries.1.algorithm: hnsw }
+  - match: { profile.shards.0.searches.0.knn_profile.knn_queries.1.field: vector }

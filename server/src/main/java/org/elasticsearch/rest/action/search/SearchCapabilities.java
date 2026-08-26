@@ -70,7 +70,7 @@ public final class SearchCapabilities {
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
-    /** Detailed kNN search profiling breakdown ({@code dfs.knn[].knn_profile}) in the profile output. */
+    /** Detailed kNN search profiling breakdown ({@code dfs.knn[].knn_profile} and {@code searches[].knn_profile}). */
     private static final String KNN_SEARCH_PROFILE = "knn_search_profile";
 
     public static final Set<String> CAPABILITIES;

@@ -15,10 +15,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.junit.Before;
 
@@ -107,8 +110,10 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             assertNotNull("profileData should be set after rewrite", query.profileData);
             java.util.Map<String, Object> map = query.profileData.toMap();
             assertEquals("ivf", map.get("algorithm"));
+            assertEquals("field", map.get("field"));
             assertTrue("total_time_ns should be > 0", (long) map.get("total_time_ns") > 0);
             assertTrue("segments_searched should be > 0", (int) map.get("segments_searched") > 0);
+            assertNotNull("per-segment breakdown should be present", map.get("segments"));
 
             @SuppressWarnings("unchecked")
             java.util.Map<String, Object> ivf = (java.util.Map<String, Object>) map.get("ivf");
@@ -120,6 +125,31 @@ public class IVFKnnByteVectorQueryTests extends AbstractIVFKnnVectorQueryTestCas
             java.util.Map<String, Object> timings = (java.util.Map<String, Object>) ivf.get("timings");
             assertNotNull("timings should be present", timings);
             assertTrue("posting_visit_ns should be > 0", (long) timings.get("posting_visit_ns") > 0);
+            assertTrue("scoring_ns should be > 0", (long) timings.get("scoring_ns") > 0);
+        }
+    }
+
+    public void testProfilePublishedWhenFilterMatchesNothing() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                TrivialQueryCachingPolicy.ALWAYS,
+                true
+            );
+            QueryProfiler profiler = new QueryProfiler();
+            searcher.setProfiler(profiler);
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new byte[] { 0, 0 }, 3, new MatchNoDocsQuery());
+            searcher.rewrite(query);
+
+            java.util.Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+            assertNotNull("knn_profile must be published even when the filter matches nothing", breakdown);
+            assertEquals("ivf", breakdown.get("algorithm"));
+            assertEquals("field", breakdown.get("field"));
         }
     }
 

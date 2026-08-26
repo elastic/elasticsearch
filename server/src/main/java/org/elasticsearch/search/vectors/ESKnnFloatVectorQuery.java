@@ -77,6 +77,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         profileData = new KnnSearchProfileData();
         profileData.setAlgorithmType("hnsw");
         profileData.setQuantization(quantization);
+        profileData.setField(field);
     }
 
     @Override
@@ -121,7 +122,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         TopDocs result = super.searchLeaf(ctx, filterWeight, cm);
         if (profileData != null) {
             // totalHits.value() is KnnCollector.visitedCount() — the number of HNSW graph nodes visited
-            profileData.addHnswLeafSearch(System.nanoTime() - start, result.totalHits.value(), result.scoreDocs.length);
+            profileData.addHnswLeafSearch(ctx, field, System.nanoTime() - start, result.totalHits.value(), result.scoreDocs.length);
         }
         return result;
     }

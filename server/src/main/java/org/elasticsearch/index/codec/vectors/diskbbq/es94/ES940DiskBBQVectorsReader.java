@@ -37,6 +37,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.KnnSearchProfileData;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -781,6 +782,13 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         final VectorSimilarityFunction similarityFunction;
         final long quantizedVectorByteSize;
 
+        // Profiling: enabled once before any visit() call, keeping System.nanoTime() off the hot path otherwise.
+        private boolean collectProfile = false;
+        private long profileDocIdReadTimeNs;
+        private long profileScoringTimeNs;
+        private long profileQueryQuantizationTimeNs;
+        private long profileCentroidReadTimeNs;
+
         MemorySegmentPostingsVisitor(
             QueryQuantizer queryQuantizer,
             ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding,
@@ -812,6 +820,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
 
         @Override
         public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
+            long startNs = collectProfile ? System.nanoTime() : 0;
             float score = metadata.documentCentroidScore();
             indexInput.seek(metadata.offset());
             centroidToParentSqDist = Float.intBitsToFloat(indexInput.readInt());
@@ -827,6 +836,9 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 case COSINE, DOT_PRODUCT -> 2 * score - 1;
                 case MAXIMUM_INNER_PRODUCT -> score - 1;
             };
+            if (collectProfile) {
+                profileCentroidReadTimeNs += System.nanoTime() - startNs;
+            }
             queryQuantizer.reset(metadata.queryCentroidOrdinal());
             return vectors;
         }
@@ -916,8 +928,11 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             int i = 0;
             // read Docs
             for (; i < limit; i += BULK_SIZE) {
-                // read the doc ids
+                long docIdStartNs = collectProfile ? System.nanoTime() : 0;
                 readDocIds(BULK_SIZE);
+                if (collectProfile) {
+                    profileDocIdReadTimeNs += System.nanoTime() - docIdStartNs;
+                }
                 final int docsToBulkScore = acceptDocs == null
                     ? BULK_SIZE
                     : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
@@ -925,7 +940,12 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
                 }
+                long quantStartNs = collectProfile ? System.nanoTime() : 0;
                 queryQuantizer.quantizeQueryIfNecessary();
+                if (collectProfile) {
+                    profileQueryQuantizationTimeNs += System.nanoTime() - quantStartNs;
+                }
+                long scoreStartNs = collectProfile ? System.nanoTime() : 0;
                 final float maxScore;
                 if (docsToBulkScore == 1) {
                     maxScore = scoreIndividually(BULK_SIZE);
@@ -955,6 +975,9 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                         scores
                     );
                 }
+                if (collectProfile) {
+                    profileScoringTimeNs += System.nanoTime() - scoreStartNs;
+                }
                 if (knnCollector.minCompetitiveSimilarity() < maxScore) {
                     collectBulk(knnCollector, scores, BULK_SIZE);
                 }
@@ -963,14 +986,23 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             // bulk process tail
             if (i < vectors) {
                 int tailSize = vectors - i;
+                long docIdStartNs = collectProfile ? System.nanoTime() : 0;
                 readDocIds(tailSize);
+                if (collectProfile) {
+                    profileDocIdReadTimeNs += System.nanoTime() - docIdStartNs;
+                }
                 final int docsToBulkScore = acceptDocs == null
                     ? tailSize
                     : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * tailSize);
                 } else {
+                    long quantStartNs = collectProfile ? System.nanoTime() : 0;
                     queryQuantizer.quantizeQueryIfNecessary();
+                    if (collectProfile) {
+                        profileQueryQuantizationTimeNs += System.nanoTime() - quantStartNs;
+                    }
+                    long scoreStartNs = collectProfile ? System.nanoTime() : 0;
                     final float maxScore;
                     if (docsToBulkScore == 1) {
                         maxScore = scoreIndividually(tailSize);
@@ -1001,6 +1033,9 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                             tailSize
                         );
                     }
+                    if (collectProfile) {
+                        profileScoringTimeNs += System.nanoTime() - scoreStartNs;
+                    }
                     if (knnCollector.minCompetitiveSimilarity() < maxScore) {
                         collectBulk(knnCollector, scores, tailSize);
                     }
@@ -1011,6 +1046,36 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 knnCollector.incVisitedCount(scoredDocs);
             }
             return scoredDocs;
+        }
+
+        @Override
+        public void enableProfiling() {
+            this.collectProfile = true;
+        }
+
+        @Override
+        public long getDocIdReadTimeNs() {
+            return profileDocIdReadTimeNs;
+        }
+
+        @Override
+        public long getScoringTimeNs() {
+            return profileScoringTimeNs;
+        }
+
+        @Override
+        public long getQueryQuantizationTimeNs() {
+            return profileQueryQuantizationTimeNs;
+        }
+
+        @Override
+        public long getCentroidReadTimeNs() {
+            return profileCentroidReadTimeNs;
+        }
+
+        @Override
+        public String getScorerImplementation() {
+            return KnnSearchProfileData.scorerImplementation(osqVectorsScorer);
         }
     }
 

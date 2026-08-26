@@ -39,10 +39,12 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
@@ -61,6 +64,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class RescoreKnnVectorQueryTests extends ESTestCase {
 
@@ -321,8 +325,61 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> rescore = (Map<String, Object>) profiler.getKnnProfileBreakdown().get("rescore");
-                assertThat(rescore.get("type"), equalTo("InlineRescoreQuery"));
+                assertThat(rescore.get("type"), equalTo("inline"));
                 assertFalse("inline rescore should not have inner_query_time_ns", rescore.containsKey("inner_query_time_ns"));
+            }
+        }
+    }
+
+    /**
+     * Inline rescore must time only the exact pass. {@code search(DirectRescore wrapping the raw inner
+     * kNN query)} would rewrite the inner query (the HNSW/IVF search) inside {@code rescore.time_ns}.
+     * A delayed inner rewrite makes that mis-attribution unambiguous.
+     */
+    public void testInlineRescoreTimeExcludesInnerSearch() throws Exception {
+        int numDocs = 80;
+        int numDims = 8;
+        int k = 5;
+        final long innerRewriteDelayMs = 25L;
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+            try (IndexReader reader = DirectoryReader.open(d)) {
+                float[] queryVector = randomFloatVector(numDims);
+                ESKnnFloatVectorQuery inner = new ESKnnFloatVectorQuery(FIELD_NAME, queryVector, k, k, null, null) {
+                    @Override
+                    public Query rewrite(IndexSearcher searcher) throws IOException {
+                        try {
+                            Thread.sleep(innerRewriteDelayMs);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(e);
+                        }
+                        return super.rewrite(searcher);
+                    }
+                };
+                var rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, inner);
+
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    TrivialQueryCachingPolicy.ALWAYS,
+                    true
+                );
+                QueryProfiler profiler = new QueryProfiler();
+                searcher.setProfiler(profiler);
+                searcher.rewrite(rescoreQuery);
+
+                Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+                assertNotNull(breakdown);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> rescore = (Map<String, Object>) breakdown.get("rescore");
+                assertThat(rescore.get("type"), equalTo("inline"));
+                long rescoreTimeNs = (long) rescore.get("time_ns");
+                assertThat(rescoreTimeNs, greaterThan(0L));
+                // Inner rewrite sleeps first; if that sleep were inside the rescore timer this would fail.
+                assertThat(rescoreTimeNs, lessThan(TimeUnit.MILLISECONDS.toNanos(innerRewriteDelayMs)));
             }
         }
     }
@@ -345,7 +402,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
                 @SuppressWarnings("unchecked")
                 Map<String, Object> rescore = (Map<String, Object>) profiler.getKnnProfileBreakdown().get("rescore");
-                assertThat(rescore.get("type"), equalTo("LateRescoreQuery"));
+                assertThat(rescore.get("type"), equalTo("late"));
                 assertThat((long) rescore.get("inner_query_time_ns"), greaterThan(0L));
             }
         }

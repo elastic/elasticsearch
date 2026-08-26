@@ -119,6 +119,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         profileData = new KnnSearchProfileData();
         profileData.setAlgorithmType("ivf");
         profileData.setQuantization(quantization);
+        profileData.setField(field);
     }
 
     @Override
@@ -151,6 +152,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 .build();
             Query rewritten = indexSearcher.rewrite(booleanQuery);
             if (rewritten.getClass() == MatchNoDocsQuery.class) {
+                if (profileData != null) {
+                    profileData.setFilterTimeNs(System.nanoTime() - filterStartNs);
+                    profileData.setTotalSearchTimeNs(System.nanoTime() - rewriteStartNs);
+                }
+                if (profiler != null && profilingSuppressed == false) {
+                    profile(profiler);
+                }
                 return rewritten;
             }
             filterWeight = indexSearcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);

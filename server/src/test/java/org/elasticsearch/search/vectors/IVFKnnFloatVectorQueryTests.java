@@ -15,13 +15,17 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 
@@ -117,9 +121,19 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
 
             assertNotNull("profileData should be set after rewrite", query.profileData);
             assertEquals("ivf", query.profileData.toMap().get("algorithm"));
+            assertEquals("field", query.profileData.toMap().get("field"));
             assertTrue("total_time_ns should be > 0", (long) query.profileData.toMap().get("total_time_ns") > 0);
             assertTrue("segments_searched should be > 0", (int) query.profileData.toMap().get("segments_searched") > 0);
             assertNotNull("ivf section should be present", query.profileData.toMap().get("ivf"));
+
+            @SuppressWarnings("unchecked")
+            java.util.List<java.util.Map<String, Object>> segments = (java.util.List<java.util.Map<String, Object>>) query.profileData
+                .toMap()
+                .get("segments");
+            assertNotNull("per-segment breakdown should be present", segments);
+            assertFalse("at least one segment should be recorded", segments.isEmpty());
+            assertNotNull("segment name should be present", segments.get(0).get("name"));
+            assertTrue("doc_count should be > 0", (int) segments.get(0).get("doc_count") > 0);
 
             @SuppressWarnings("unchecked")
             java.util.Map<String, Object> ivf = (java.util.Map<String, Object>) query.profileData.toMap().get("ivf");
@@ -158,6 +172,30 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
         }
     }
 
+    public void testProfilePublishedWhenFilterMatchesNothing() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            ContextIndexSearcher searcher = new ContextIndexSearcher(
+                reader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                TrivialQueryCachingPolicy.ALWAYS,
+                true
+            );
+            QueryProfiler profiler = new QueryProfiler();
+            searcher.setProfiler(profiler);
+            AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", new float[] { 0, 0 }, 3, new MatchNoDocsQuery());
+            searcher.rewrite(query);
+
+            java.util.Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+            assertNotNull("knn_profile must be published even when the filter matches nothing", breakdown);
+            assertEquals("ivf", breakdown.get("algorithm"));
+            assertEquals("field", breakdown.get("field"));
+        }
+    }
+
     public void testProfileDataTransferredToProfiler() throws IOException {
         try (
             Directory indexStore = getIndexStore("field", new float[] { 0, 1 }, new float[] { 1, 2 }, new float[] { 0, 0 });
@@ -168,7 +206,7 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
             query.enableProfiling();
             searcher.rewrite(query);
 
-            org.elasticsearch.search.profile.query.QueryProfiler profiler = new org.elasticsearch.search.profile.query.QueryProfiler();
+            QueryProfiler profiler = new QueryProfiler();
             query.profile(profiler);
 
             assertNotNull("knnProfileBreakdown should be set on profiler", profiler.getKnnProfileBreakdown());

@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -75,6 +76,7 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
                 Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
                 assertThat(breakdown, notNullValue());
                 assertThat(breakdown.get("algorithm"), equalTo("hnsw"));
+                assertThat(breakdown.get("field"), equalTo("vector"));
                 assertThat(breakdown, hasKey("post_filter"));
 
                 @SuppressWarnings("unchecked")
@@ -97,6 +99,34 @@ public class PostFilterKnnQueryProfileTests extends ESTestCase {
                 assertThat(inner0, notNullValue());
                 assertThat(inner0.get("algorithm"), equalTo("hnsw"));
                 assertThat(inner0.get("quantization"), equalTo("bbq_hnsw"));
+            }
+        }
+    }
+
+    public void testMatchNoDocsFilterStillPublishesProfile() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { 0f }, VectorSimilarityFunction.EUCLIDEAN));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+                writer.commit();
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = contextSearcher(reader);
+                QueryProfiler profiler = new QueryProfiler();
+                searcher.setProfiler(profiler);
+
+                ESKnnFloatVectorQuery inner = new ESKnnFloatVectorQuery("vector", new float[] { 0f }, 1, 4, new MatchNoDocsQuery(), null);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(inner, new MatchNoDocsQuery(), 1, "vector", null, 0f);
+                searcher.rewrite(pfq);
+
+                Map<String, Object> breakdown = profiler.getKnnProfileBreakdown();
+                assertThat(breakdown, notNullValue());
+                assertThat(breakdown.get("field"), equalTo("vector"));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> postFilter = (Map<String, Object>) breakdown.get("post_filter");
+                assertThat(postFilter.get("match_no_docs"), equalTo(true));
             }
         }
     }

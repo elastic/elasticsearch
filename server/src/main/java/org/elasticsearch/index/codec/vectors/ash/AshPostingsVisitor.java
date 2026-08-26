@@ -20,6 +20,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
+import org.elasticsearch.search.vectors.KnnSearchProfileData;
 import org.elasticsearch.simdvec.AsymmetricHashingScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -108,6 +109,12 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     // EUCLIDEAN per-posting-list state (Appendix A, Eq. A.2)
     private float currentQueryCentroidSqDist;
     private float currentCentroidNormSq;
+
+    // Profiling: enabled once before any visit() call, keeping System.nanoTime() off the hot path otherwise.
+    private boolean collectProfile = false;
+    private long profileDocIdReadTimeNs;
+    private long profileScoringTimeNs;
+    private long profileCentroidReadTimeNs;
 
     /**
      * @param wT transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
@@ -231,6 +238,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
     @Override
     public int resetPostingsScorer(PostingMetadata metadata) throws IOException {
+        long startNs = collectProfile ? System.nanoTime() : 0;
         indexInput.seek(metadata.offset());
         vectors = indexInput.readVInt();
         int centroidOrd = indexInput.readVInt();
@@ -250,6 +258,9 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
 
         queryConstants[AsymmetricHashingScorer.QC_QUERY_DOT_CENTROID] = currentQueryDotCentroid;
 
+        if (collectProfile) {
+            profileCentroidReadTimeNs += System.nanoTime() - startNs;
+        }
         return vectors;
     }
 
@@ -274,7 +285,11 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
     }
 
     private int processBlock(KnnCollector knnCollector, int blockSize) throws IOException {
+        long docIdStartNs = collectProfile ? System.nanoTime() : 0;
         readDocIds(blockSize);
+        if (collectProfile) {
+            profileDocIdReadTimeNs += System.nanoTime() - docIdStartNs;
+        }
         int docsToScore = filterAcceptedDocs(blockSize);
         if (docsToScore == 0) {
             // Skip the entire block: codes + corrections
@@ -288,6 +303,7 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
         indexInput.readBytes(bulkCorrectionsBuf, 0, blockSize * AsymmetricHashingScorer.CORRECTION_BYTES);
 
         // Score each vector
+        long scoreStartNs = collectProfile ? System.nanoTime() : 0;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (int j = 0; j < blockSize; j++) {
             if (docIdsScratch[j] != -1) {
@@ -298,6 +314,9 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                     maxScore = scores[j];
                 }
             }
+        }
+        if (collectProfile) {
+            profileScoringTimeNs += System.nanoTime() - scoreStartNs;
         }
 
         if (knnCollector.minCompetitiveSimilarity() < maxScore) {
@@ -350,5 +369,30 @@ public class AshPostingsVisitor implements IVFVectorsReader.PostingVisitor {
                 knnCollector.collect(doc, scores[ii]);
             }
         }
+    }
+
+    @Override
+    public void enableProfiling() {
+        this.collectProfile = true;
+    }
+
+    @Override
+    public long getDocIdReadTimeNs() {
+        return profileDocIdReadTimeNs;
+    }
+
+    @Override
+    public long getScoringTimeNs() {
+        return profileScoringTimeNs;
+    }
+
+    @Override
+    public long getCentroidReadTimeNs() {
+        return profileCentroidReadTimeNs;
+    }
+
+    @Override
+    public String getScorerImplementation() {
+        return KnnSearchProfileData.scorerImplementation(dotProductScorer);
     }
 }

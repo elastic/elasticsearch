@@ -11,6 +11,8 @@ package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -33,6 +35,13 @@ public class KnnSearchProfileDataTests extends ESTestCase {
         data.addSegmentSearched();
         data.addSegmentSearched();
         data.addApproximateSearchTimeNs(9_000_000);
+        Map<String, Object> segment = new LinkedHashMap<>();
+        segment.put("name", "_0");
+        segment.put("doc_count", 100);
+        segment.put("size_in_bytes", 2048L);
+        segment.put("vector_count", 80);
+        segment.put("search_time_ns", 9_000_000L);
+        data.addSegment(segment);
 
         data.addCentroidsEvaluated(12);
         data.addCentroidIteratorCreateTimeNs(200_000);
@@ -54,6 +63,16 @@ public class KnnSearchProfileDataTests extends ESTestCase {
         assertThat(map.get("filter_time_ns"), equalTo(500_000L));
         assertThat(map.get("approximate_search_time_ns"), equalTo(9_000_000L));
         assertThat(map.get("merge_time_ns"), equalTo(100_000L));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> segments = (List<Map<String, Object>>) map.get("segments");
+        assertThat(segments, notNullValue());
+        assertThat(segments.size(), equalTo(1));
+        assertThat(segments.get(0).get("name"), equalTo("_0"));
+        assertThat(segments.get(0).get("doc_count"), equalTo(100));
+        assertThat(segments.get(0).get("size_in_bytes"), equalTo(2048L));
+        assertThat(segments.get(0).get("vector_count"), equalTo(80));
+        assertThat(segments.get(0).get("search_time_ns"), equalTo(9_000_000L));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> ivf = (Map<String, Object>) map.get("ivf");
@@ -116,7 +135,7 @@ public class KnnSearchProfileDataTests extends ESTestCase {
         assertThat(timings.get("max_leaf_search_ns"), equalTo(2_000_000L));
         assertThat(timings.get("min_leaf_search_ns"), equalTo(500_000L));
         assertThat(timings, not(hasKey("merge_ns")));
-        assertThat((long) timings.get("filter_and_overhead_ns"), greaterThan(0L));
+        assertThat((long) timings.get("overhead_ns"), greaterThan(0L));
 
         assertThat(map, not(hasKey("ivf")));
         assertThat(map, not(hasKey("rescore")));
@@ -223,6 +242,7 @@ public class KnnSearchProfileDataTests extends ESTestCase {
         Map<String, Object> map = data.toMap();
         assertThat(map.get("segments_searched"), equalTo(0));
         assertThat(map.get("approximate_search_time_ns"), equalTo(0L));
+        assertThat(map, not(hasKey("segments")));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> hnsw = (Map<String, Object>) map.get("hnsw");
@@ -242,6 +262,49 @@ public class KnnSearchProfileDataTests extends ESTestCase {
         Map<String, Object> map = data.toMap();
         assertThat(map.get("quantization"), equalTo("bbq_disk"));
         assertThat(map.get("scorer"), equalTo("panama"));
+    }
+
+    public void testIvfOmitsZeroInnerTimings() {
+        KnnSearchProfileData data = new KnnSearchProfileData();
+        data.setAlgorithmType("ivf");
+        data.setVisitRatioUsed(0.1f);
+        data.addPostingVisitTimeNs(1_000_000);
+        // Inner visitor timings left at 0 — must not appear as if scoring was free.
+        Map<String, Object> map = data.toMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> timings = (Map<String, Object>) ((Map<String, Object>) map.get("ivf")).get("timings");
+        assertThat(timings.get("posting_visit_ns"), equalTo(1_000_000L));
+        assertThat(timings, not(hasKey("scoring_ns")));
+        assertThat(timings, not(hasKey("doc_id_read_ns")));
+        assertThat(timings, not(hasKey("query_quantization_ns")));
+        assertThat(timings, not(hasKey("centroid_read_ns")));
+    }
+
+    public void testVisitRatioMinWhenLeavesDisagree() {
+        KnnSearchProfileData data = new KnnSearchProfileData();
+        data.setAlgorithmType("ivf");
+        data.setVisitRatioUsed(0.04f);
+        data.setVisitRatioUsed(0.10f);
+        data.setVisitRatioUsed(0.04f);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> ivf = (Map<String, Object>) data.toMap().get("ivf");
+        assertThat(ivf.get("visit_ratio_used"), equalTo(0.10f));
+        assertThat(ivf.get("visit_ratio_min"), equalTo(0.04f));
+    }
+
+    public void testFieldSurfaced() {
+        KnnSearchProfileData data = new KnnSearchProfileData();
+        data.setAlgorithmType("hnsw");
+        data.setField("vector");
+        assertThat(data.toMap().get("field"), equalTo("vector"));
+    }
+
+    public void testScorerFirstNonNullWins() {
+        KnnSearchProfileData data = new KnnSearchProfileData();
+        data.setAlgorithmType("ivf");
+        data.setScorer("panama");
+        data.setScorer("scalar");
+        assertThat(data.toMap().get("scorer"), equalTo("panama"));
     }
 
     public void testNoQuantizationOrScorerWhenNotSet() {

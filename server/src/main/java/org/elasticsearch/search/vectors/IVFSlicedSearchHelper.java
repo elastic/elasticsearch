@@ -91,9 +91,6 @@ final class IVFSlicedSearchHelper {
             return AbstractIVFKnnVectorQuery.NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
-        if (profileData != null) {
-            profileData.addSegmentSearched();
-        }
 
         final SortedDocValues sortedDocValues = ctx.reader().getSortedDocValues(sliceField);
         if (sortedDocValues == null) {
@@ -180,7 +177,9 @@ final class IVFSlicedSearchHelper {
             }
         }
         if (profileData != null) {
-            profileData.addApproximateSearchTimeNs(System.nanoTime() - leafSearchStart);
+            long elapsed = System.nanoTime() - leafSearchStart;
+            profileData.addApproximateSearchTimeNs(elapsed);
+            profileData.addSegmentSearched(ctx, field, elapsed);
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

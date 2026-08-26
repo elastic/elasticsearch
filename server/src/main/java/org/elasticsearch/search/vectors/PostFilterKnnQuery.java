@@ -101,6 +101,12 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
         var filterResult = createFilterWeight(searcher, filter, field);
         if (filterResult == KnnQueryUtils.FilterWeight.MATCH_NO_DOCS) {
+            if (postFilterProfiler != null) {
+                postFilterProfiler.matchNoDocs = true;
+                Map<String, Object> breakdown = postFilterProfiler.toBreakdown(0);
+                breakdown.put("field", field);
+                profiler.addKnnProfileBreakdown(breakdown);
+            }
             return MatchNoDocsQuery.INSTANCE;
         }
         Weight filterWeight = filterResult == null ? null : filterResult.weight();
@@ -151,7 +157,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     private void pushPostFilterProfile(QueryProfiler profiler, PostFilterProfiler postFilterProfiler) {
         profiler.addVectorOpsCount(totalVectorOps);
-        profiler.addKnnProfileBreakdown(postFilterProfiler.toBreakdown(totalVectorOps));
+        Map<String, Object> breakdown = postFilterProfiler.toBreakdown(totalVectorOps);
+        breakdown.put("field", field);
+        profiler.addKnnProfileBreakdown(breakdown);
     }
 
     private Query postFilterRewrite(
@@ -271,6 +279,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
         private float selectivity;
         private float threshold;
         private boolean earlyExit;
+        private boolean matchNoDocs;
 
         /** Let a round's inner query collect its own breakdown without publishing it to the shared profiler. */
         static void prepare(Query roundQuery) {
@@ -307,6 +316,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             postFilter.put("selectivity", selectivity);
             postFilter.put("threshold", threshold);
             postFilter.put("early_exit", earlyExit);
+            if (matchNoDocs) {
+                postFilter.put("match_no_docs", true);
+            }
             postFilter.put("rounds", rounds);
             postFilter.put("total_vector_ops", totalVectorOps);
             Map<String, Object> breakdown = new LinkedHashMap<>();

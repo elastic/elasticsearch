@@ -50,7 +50,7 @@ public interface QueryProfilerProvider {
      * When {@code true}, this query must not auto-publish its breakdown to the profiler attached to the
      * searcher during {@code rewrite()}. Used by {@link PostFilterKnnQuery}, which drives its inner
      * per-round searches (initial / retry / fallback) itself and captures each round's breakdown
-     * explicitly, so those inner searches must not overwrite the shared {@code knn_profile} slot. No-op
+     * explicitly, so those inner searches must not append a separate {@code knn_profile} entry. No-op
      * by default.
      */
     default void setProfilingSuppressed(boolean suppressed) {}

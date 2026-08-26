@@ -59,7 +59,7 @@ public final class KnnQueryUtils {
             .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
             .build();
         Query rewritten = searcher.rewrite(booleanQuery);
-        if (rewritten == MatchNoDocsQuery.INSTANCE) {
+        if (rewritten.getClass() == MatchNoDocsQuery.class) {
             return FilterWeight.MATCH_NO_DOCS;
         }
         return new FilterWeight(searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f));

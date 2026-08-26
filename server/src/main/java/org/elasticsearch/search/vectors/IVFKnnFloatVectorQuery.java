@@ -184,13 +184,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
-        if (profileData != null) {
-            profileData.addSegmentSearched();
-        }
         long leafSearchStart = profileData != null ? System.nanoTime() : 0;
         reader.searchNearestVectors(field, leafQuery, knnCollector, acceptDocs);
         if (profileData != null) {
-            profileData.addApproximateSearchTimeNs(System.nanoTime() - leafSearchStart);
+            long elapsed = System.nanoTime() - leafSearchStart;
+            profileData.addApproximateSearchTimeNs(elapsed);
+            profileData.addSegmentSearched(context, field, elapsed);
         }
         TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
             ? bulkKnnCollector.unsortedTopK()

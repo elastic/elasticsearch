@@ -673,16 +673,15 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         // Close the decoder even if a stats publish throws — the publish is best-effort caching, the close is not.
         try {
             // Cache on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
-            // A DROPPED line (NDJSON drops the whole line on any parse error) does NOT make these stats wrong FOR
-            // THIS READ: which lines survive is a deterministic function of the file bytes, the error policy
-            // (pinned by the cache fingerprint) AND the resolved read configuration -- a declared type or date pattern decides
-            // which values coerce, so it decides which lines drop. The read configuration is stamped beside the fingerprint
-            // and the cache refuses to serve these numbers to a read of a different read configuration, so committing them is
-            // safe: they are this read configuration's measurement, not the file's. So commit normally. NONE scope suppresses all
-            // publishing. A scan cut
-            // short mid-way (LIMIT, cancellation, a
-            // chunk exceeding its error budget) leaves naturallyExhausted false or an uncovered stripe, so it
-            // safe-misses rather than serving; the coordinator's whole-file poison covers the non-clean-close case.
+            // Which lines survive is a function of the file bytes, the error policy (pinned by the cache
+            // fingerprint), the resolved read configuration (stamped beside it -- a declared type or date pattern
+            // decides which values coerce), and the PROJECTION, since only projected columns are coerced. The
+            // first three are in the identity, so a dropped line does not make these stats wrong for this read.
+            // The fourth cannot be -- it is per-query -- leaving the residual the CSV twin documents: no serve path
+            // has been shown to hand such a count back, so it is disclosed rather than guarded. NONE scope
+            // suppresses all publishing. A scan cut short mid-way (LIMIT, cancellation, a chunk exceeding its error
+            // budget) leaves naturallyExhausted false or an uncovered stripe, so it safe-misses rather than
+            // serving; the coordinator's whole-file poison covers the non-clean-close case.
             if (cacheableObject != null
                 && naturallyExhausted
                 && pinnedMtimeMillis >= 0

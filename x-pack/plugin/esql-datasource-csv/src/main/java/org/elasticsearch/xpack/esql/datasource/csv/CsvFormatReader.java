@@ -3508,15 +3508,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             errorPolicy.mode()
                         );
                     }
-                    // A DROPPED row (SKIP_ROW, or a structural malformed row -- e.g. an unescaped-delimiter
-                    // extra column -- even under NULL_FIELD) does NOT make these stats wrong FOR THIS READ: which
-                    // rows survive is a deterministic function of the file bytes, the error policy (pinned by the
-                    // cache fingerprint) AND the resolved read configuration -- a declared type or date pattern decides which values
-                    // coerce, so it decides which rows drop. The read configuration is stamped beside the fingerprint and the
-                    // cache refuses to serve these numbers to a read configured differently, so committing them is
-                    // safe: they are published as this read configuration's measurement, not as the file's. So commit normally. NULL_FIELD
-                    // field
-                    // null-fill likewise preserves the row and caches fully.
+                    // Which rows survive is a function of four things: the file bytes, the error policy (pinned by
+                    // the cache fingerprint), the resolved read configuration (stamped beside it -- a declared type
+                    // or date pattern decides which values coerce, so it decides which rows drop), and the
+                    // PROJECTION, because only projected columns are coerced at all.
+                    //
+                    // The first three are in the identity, so a dropped row does not make these stats wrong for this
+                    // read: they are committed as this configuration's measurement and the cache refuses to serve
+                    // them to a read configured differently. The fourth is not, and cannot be -- projection is
+                    // per-query, and the coordinator and a data node see different ones. That leaves a residual: a
+                    // lenient read that drops on a projection-limited scan commits a count a plain COUNT(*) over the
+                    // same dataset would not produce. No serve path has been shown to hand that count back (the
+                    // declared shapes it needs do not warm under a lenient policy), so it is disclosed here rather
+                    // than guarded — a guard was tried and no test could redden it.
+                    //
                     // FAIL_FAST aborts before EOF, so naturallyExhausted gates it out. NONE scope suppresses all
                     // publishing. (A scan cut short mid-way -- LIMIT, cancellation, a chunk exceeding its error
                     // budget -- leaves naturallyExhausted false or an uncovered stripe, so it safe-misses rather

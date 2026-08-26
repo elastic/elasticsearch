@@ -25,7 +25,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.kibana.ElasticAiIndexImplicitPrivilegesProvider.ELASTIC_AI_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -62,6 +61,7 @@ public class ElasticAiIndexImplicitPrivilegesIT extends ESRestTestCase {
     private static final String ELASTIC_AI_INDEX_WORKFLOW_READ_ACTION = "ai_index:workflow/read";
     // Registered alongside the ai_index: action to prove non-ai_index: actions are filtered out of the DLS query.
     private static final String SAVED_OBJECT_GET_ACTION = "saved_object:dashboard/get";
+    private static final String ELASTIC_AI_INDEX = "ai-index-idx-sml-data";
 
     // The SML storage adapter creates a CONCRETE index "<name>-000001" and fronts it with an ALIAS
     // named exactly ELASTIC_AI_INDEX. So "ai-index-idx-sml-data" is never a concrete index in production.

@@ -23,10 +23,6 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  // Lets the REST tests compile against the provider's constants (e.g. the Elastic AI index name)
-  // instead of duplicating them. Core is needed to resolve the provider's supertypes.
-  javaRestTestImplementation project(xpackModule('kibana'))
-  javaRestTestImplementation project(path: xpackModule('core'))
 }
 
 tasks.named("javaRestTest").configure {

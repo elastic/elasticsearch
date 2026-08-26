@@ -146,7 +146,8 @@ public final class StringColumnWriter {
             StringColumnValues values = cursors.get();
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 for (int i = 0, count = values.valueCount(); i < count; i++) {
-                    stream.add(values.nextValue());
+                    values.nextValue();
+                    stream.add(values.value());
                 }
             }
             written = stream.finish();
@@ -290,15 +291,16 @@ public final class StringColumnWriter {
                             if (index % ESCAPE_RANK_BLOCK == 0) {
                                 ranks.add(escapes);
                             }
+                            values.nextValue();
                             // A cursor that already knows the ordinal saves resolving the value's bytes
                             // only to look them up again, which is most of what merging such a column costs.
-                            final int mapped = values.nextOrdinal();
+                            final int mapped = values.ordinal();
                             if (mapped >= 0) {
                                 ordinalTemp.writeVInt(mapped);
                                 index++;
                                 continue;
                             }
-                            final BytesRef value = values.nextValue();
+                            final BytesRef value = values.value();
                             final int ordinal;
                             if (hasPrevious && previous.get().bytesEquals(value)) {
                                 ordinal = previousOrdinal;

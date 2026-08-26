@@ -191,7 +191,10 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
             }
 
             @Override
-            public BytesRef nextValue() {
+            public void nextValue() {}
+
+            @Override
+            public BytesRef value() {
                 return docValues[doc];
             }
 

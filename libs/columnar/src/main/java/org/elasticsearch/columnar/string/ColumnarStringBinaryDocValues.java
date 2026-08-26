@@ -104,6 +104,7 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             private long first;
             private long count;
             private int upto;
+            private long at = -1;
 
             @Override
             public int valueCount() {
@@ -111,22 +112,26 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public int nextOrdinal() throws IOException {
+            public void nextValue() {
+                at = first + upto++;
+            }
+
+            @Override
+            public int ordinal() throws IOException {
                 if (ordinalMap == null) {
                     return -1;
                 }
-                final int ordinal = reader.ordinalAt(first + upto);
+                final int ordinal = reader.ordinalAt(at);
                 if (ordinal >= ordinalMap.length) {
                     // Escaped this column's dictionary, so only its bytes say what it is.
                     return -1;
                 }
-                upto++;
                 return ordinalMap[ordinal];
             }
 
             @Override
-            public BytesRef nextValue() throws IOException {
-                return reader.valueAt(first + upto++);
+            public BytesRef value() throws IOException {
+                return reader.valueAt(at);
             }
 
             @Override
@@ -175,7 +180,10 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues {
             }
 
             @Override
-            public BytesRef nextValue() throws IOException {
+            public void nextValue() {}
+
+            @Override
+            public BytesRef value() throws IOException {
                 return binary.binaryValue();
             }
 

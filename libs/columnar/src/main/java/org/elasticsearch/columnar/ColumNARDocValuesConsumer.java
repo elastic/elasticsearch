@@ -483,8 +483,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
 
             @Override
-            public int nextOrdinal() throws IOException {
-                return current.values.nextOrdinal();
+            public int ordinal() throws IOException {
+                return current.values.ordinal();
             }
 
             @Override
@@ -493,8 +493,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             }
 
             @Override
-            public BytesRef nextValue() throws IOException {
-                return current.values.nextValue();
+            public void nextValue() throws IOException {
+                current.values.nextValue();
+            }
+
+            @Override
+            public BytesRef value() throws IOException {
+                return current.values.value();
             }
 
             @Override

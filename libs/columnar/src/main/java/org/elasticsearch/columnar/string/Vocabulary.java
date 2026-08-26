@@ -127,7 +127,8 @@ public final class Vocabulary {
         boolean hasPrevious = false;
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             for (int i = 0, count = values.valueCount(); i < count; i++) {
-                final BytesRef value = values.nextValue();
+                values.nextValue();
+                final BytesRef value = values.value();
                 columnBytes += value.length;
                 if (hasPrevious && previous.get().bytesEquals(value)) {
                     if (previousId != ABSENT) {

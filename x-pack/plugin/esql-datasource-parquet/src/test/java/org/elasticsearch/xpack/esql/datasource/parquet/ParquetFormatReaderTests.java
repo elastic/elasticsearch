@@ -4370,6 +4370,65 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A pushed {@code LIMIT} must return N <em>surviving</em> rows, not N source rows minus whatever {@code skip_row}
+     * dropped along the way. The unfiltered-LIMIT optimisation lets source row counts stand in for survivor counts —
+     * it prefix-clips the row group to {@code [0, remainingBudget)} via the OffsetIndex and stops opening later
+     * groups once their source rows cover the budget. Row-dropping breaks that substitution exactly the way a pushed
+     * filter does, which is why {@code ParquetFormatReader#unfilteredLimit} already refuses the late-materialisation
+     * and record-filter cases.
+     * <p>
+     * Fixture: {@code bad, good, good} with {@code LIMIT 2}. Clipped to the first two source rows, the bad one drops
+     * and the third row is never read — one row out instead of two. The rows are ordered bad-first so the clip
+     * window is the thing that decides the answer.
+     */
+    public void testSkipRowUnderRowLimitStillReturnsLimitRows() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group bad = factory.newGroup();
+            bad.add("x", "nope");
+            Group ok1 = factory.newGroup();
+            ok1.add("x", "42");
+            Group ok2 = factory.newGroup();
+            ok2.add("x", "43");
+            return List.of(bad, ok1, ok2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            List<Long> got = new ArrayList<>();
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(
+                        List.of("x"),
+                        10,
+                        0,
+                        parquetData.length,
+                        plannerTypes,
+                        ErrorPolicy.LENIENT,
+                        null,
+                        /* rowLimit = */ 2
+                    )
+                )
+            ) {
+                while (it.hasNext()) {
+                    Page p = it.next();
+                    LongBlock longs = (LongBlock) p.getBlock(0);
+                    for (int i = 0; i < p.getPositionCount(); i++) {
+                        got.add(longs.getLong(longs.getFirstValueIndex(i)));
+                    }
+                    p.releaseBlocks();
+                }
+            }
+            assertEquals("LIMIT 2 must yield 2 surviving rows, not 2 source rows minus the dropped one", List.of(42L, 43L), got);
+            drainWarnings();
+        }
+    }
+
     public void testSkipRowListColumnDropsRow() throws Exception {
         // error_mode: skip_row on a LIST column must DROP the entire row when any element fails declared-type
         // coercion — not null-fill the cell. Three rows: good/bad/good → 2 survivor rows. Previously the optimized

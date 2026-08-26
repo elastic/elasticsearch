@@ -1913,7 +1913,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             FilterCompat.isFilteringRequired(recordFilter),
             filterPredicate != null,
             lateMaterializationEnabled && pushedExpressions != null,
-            dynamicThreshold != null
+            dynamicThreshold != null,
+            // Keyed on the mode alone, matching ColumnarRowDropHelper#forPolicy, so this decision and the
+            // iterator's own cannot disagree about whether the read drops rows.
+            errorPolicy != null && errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
         );
         IndexColumnPaths indexColumnPaths = computeIndexColumnPaths(
             FilterCompat.isFilteringRequired(recordFilter),
@@ -2103,21 +2106,32 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Unfiltered {@code LIMIT}: a remaining row budget with no record filter, no FilterPredicate
-     * page ranges, no late materialization, and no dynamic-threshold TopN. Only then may source
-     * row counts stand in for survivor counts (stop later groups, prefix-clip the first window).
+     * page ranges, no late materialization, no dynamic-threshold TopN, and no row dropping. Only
+     * then may source row counts stand in for survivor counts (stop later groups, prefix-clip the
+     * first window).
+     * <p>
+     * {@code rowDropping} is the {@code error_mode: skip_row} arm of that same condition: a batch
+     * whose declared-type coercion fails emits fewer rows than it decoded, so a window clipped to
+     * the first {@code LIMIT} <em>source</em> rows can come up short and the rows that would have
+     * made up the difference are never read — {@code LIMIT 2} over {@code bad, good, good} returns
+     * one row. It differs from the other four in that it shrinks the batch after decode rather than
+     * before it, but the consequence for this substitution is identical, so it disqualifies the
+     * optimisation the same way.
      */
     static boolean unfilteredLimit(
         int rowLimit,
         boolean filteringRequired,
         boolean pageRangeFilterActive,
         boolean lateMaterializationActive,
-        boolean dynamicThresholdActive
+        boolean dynamicThresholdActive,
+        boolean rowDropping
     ) {
         return rowLimit != NO_LIMIT
             && filteringRequired == false
             && pageRangeFilterActive == false
             && lateMaterializationActive == false
-            && dynamicThresholdActive == false;
+            && dynamicThresholdActive == false
+            && rowDropping == false;
     }
 
     /**

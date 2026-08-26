@@ -270,9 +270,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private final boolean lateMaterialization;
     /**
      * Cached at construction: remaining row budget with no record filter, no ColumnIndex
-     * {@link RowRanges}, no late-materialization, and no dynamic-threshold TopN. The other
-     * inputs are final; {@link #rowBudget} only walks down toward 0 and never back to
-     * {@link FormatReader#NO_LIMIT}, so this never flips for the iterator's lifetime.
+     * {@link RowRanges}, no late-materialization, no dynamic-threshold TopN, and no
+     * {@link #rowDropHelper}. The other inputs are final; {@link #rowBudget} only walks down toward 0
+     * and never back to {@link FormatReader#NO_LIMIT}, so this never flips for the iterator's lifetime.
+     * <p>
+     * The {@link #rowDropHelper} term is what keeps a {@code skip_row} read off the prefix clip: the clip
+     * sizes its window in source rows, and a dropped row makes the batch emit fewer than it decoded, so a
+     * window sized to the exact budget can come up short with the make-up rows never read.
      */
     private final boolean unfilteredLimit;
     /**
@@ -436,12 +440,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         this.pushedExpressions = pushedExpressions;
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
+        // Built before unfilteredLimit below, which has to know whether this read can drop rows.
+        this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
         this.unfilteredLimit = ParquetFormatReader.unfilteredLimit(
             rowBudget,
             survivingRowGroups != null,
             allRowRanges != null,
             lateMaterialization,
-            dynamicThreshold != null
+            dynamicThreshold != null,
+            rowDropHelper != null
         );
         this.survivorMask = lateMaterialization ? new WordMask() : null;
         this.dictionaryBitmaps = lateMaterialization ? new IdentityHashMap<>() : null;
@@ -464,7 +471,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         );
         this.prefetchDepthFloor = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
         this.prefetchDepth = this.prefetchDepthFloor;
-        this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
 
         reader.setRequestedSchema(projectedSchema);
 

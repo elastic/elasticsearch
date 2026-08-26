@@ -196,7 +196,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> SNAPSHOT_MONOTONIC_END_TIME_SETTING = Setting.boolSetting(
+        "snapshot.monotonic_end_time",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private volatile int maxConcurrentOperations;
+    private volatile boolean monotonicEndTime;
 
     public SnapshotsService(
         Settings settings,
@@ -222,6 +230,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
+            monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -915,7 +926,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         private final Snapshot snapshot;
         private final Metadata metadata;
         private final RepositoryData repositoryData;
-
         SnapshotFinalization(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
             this.snapshot = snapshot;
             this.metadata = metadata;
@@ -928,25 +938,30 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert currentlyFinalizing.contains(new ProjectRepo(snapshot.getProjectId(), snapshot.getRepository()));
             assert repositoryOperations.assertNotQueued(snapshot);
 
-            // Compute a monotonically increasing end time: strictly greater than every previously recorded snapshot end time in
-            // the repository while staying as close to wall-clock time as possible. If the required end time is in the future
-            // (i.e. a previous snapshot ended during the same millisecond), reschedule so the clock has a chance to catch up
-            // rather than recording a future timestamp.
+            // Compute the snapshot end time. When SNAPSHOT_MONOTONIC_END_TIME_SETTING is enabled, the end time is guaranteed
+            // to be strictly greater than every previously recorded snapshot end time in the repository, while staying as close
+            // to wall-clock time as possible. If the required end time is in the future (i.e. a previous snapshot ended during
+            // the same millisecond), this task reschedules itself until the clock catches up.
             final long wallClock = threadPool.absoluteTimeInMillis();
-            final long prevMaxEndTime = repositoryData.getSnapshotIds()
-                .stream()
-                .map(repositoryData::getSnapshotDetails)
-                .filter(d -> d != null)
-                .mapToLong(RepositoryData.SnapshotDetails::getEndTimeMillis)
-                .filter(t -> t >= 0)
-                .max()
-                .orElse(-1L);
-            final long endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
-            final long waitMillis = endTimeMillis - wallClock;
-            if (waitMillis > 0) {
-                logger.trace("[{}] delaying snapshot finalization by [{}ms] for monotonic end time", snapshot, waitMillis);
-                threadPool.schedule(this, TimeValue.timeValueMillis(waitMillis), threadPool.executor(ThreadPool.Names.SNAPSHOT));
-                return;
+            final long endTimeMillis;
+            if (monotonicEndTime) {
+                final long prevMaxEndTime = repositoryData.getSnapshotIds()
+                    .stream()
+                    .map(repositoryData::getSnapshotDetails)
+                    .filter(d -> d != null)
+                    .mapToLong(RepositoryData.SnapshotDetails::getEndTimeMillis)
+                    .filter(t -> t >= 0)
+                    .max()
+                    .orElse(-1L);
+                endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
+                final long waitMillis = endTimeMillis - wallClock;
+                if (waitMillis > 0) {
+                    logger.trace("[{}] delaying snapshot finalization by [{}ms] for monotonic end time", snapshot, waitMillis);
+                    threadPool.schedule(this, TimeValue.timeValueMillis(waitMillis), threadPool.executor(ThreadPool.Names.SNAPSHOT));
+                    return;
+                }
+            } else {
+                endTimeMillis = wallClock;
             }
 
             SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);

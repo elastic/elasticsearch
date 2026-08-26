@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.VersionCatalogsExtension;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.TaskProvider;
@@ -38,7 +39,13 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
-        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.9");
+        // Source the forbidden-apis coordinate from the buildLibs catalog so the CLI jar scanned here stays in
+        // lockstep with the compile-time forbidden-apis plugin (build-tools-internal depends on buildLibs.forbiddenApis).
+        // Resolve lazily via a provider: the version catalog extension is not yet registered when this plugin applies.
+        project.getDependencies().addProvider("forbiddenApisCliJar", project.provider(() -> {
+            var versionCatalog = project.getExtensions().getByType(VersionCatalogsExtension.class).named("buildLibs");
+            return versionCatalog.findLibrary("forbiddenApis").get().get();
+        }));
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
 
         if (project.getPath().equals(LIBS_ELASTICSEARCH_CORE_PROJECT_PATH) == false) {

@@ -40,8 +40,6 @@ public class ParquetFormatSpecIT extends AbstractParquetExternalSpecTestCase {
     // maps a .parquet resource to the Java reader with no reader key), so FROM-on-S3 still uses the Java reader;
     // the explicit reader injection stays exercised on the rebuilt-EXTERNAL backends.
 
-
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTestsForSuite("parquet");

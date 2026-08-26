@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 
 import java.util.List;
 
@@ -24,7 +25,7 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedMultifileSpecIT extends AbstractParquetExternalSpecTestCase {
 
-    private static final List<String> CODECS = List.of("gzip", "zstd");
+    private static final List<String> CODECS = FixtureMatrix.get().parquetCodecs("parquet-compressed-multifile");
 
     private final String codecName;
 

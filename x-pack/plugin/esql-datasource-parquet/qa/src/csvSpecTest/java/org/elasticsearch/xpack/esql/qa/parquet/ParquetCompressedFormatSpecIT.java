@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 
 import java.util.List;
 
@@ -28,7 +29,7 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedFormatSpecIT extends AbstractParquetExternalSpecTestCase {
 
-    private static final List<String> CODECS = List.of("snappy", "gzip", "zstd", "lz4raw");
+    private static final List<String> CODECS = FixtureMatrix.get().parquetCodecs("parquet-compressed");
 
     private final String codecName;
 

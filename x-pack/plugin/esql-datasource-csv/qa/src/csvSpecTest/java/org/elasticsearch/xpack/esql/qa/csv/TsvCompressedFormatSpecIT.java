@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 
 import java.util.List;
 
@@ -24,11 +25,9 @@ import java.util.List;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class TsvCompressedFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
 
-    // bzip2 is outside the GA text-format codec surface (uncompressed/gzip/zstd) and is rejected on release
-    // builds, so .tsv.bz2/.tsv.bz are exercised on snapshot builds only. See elastic/esql-planning#938.
-    private static final List<String> COMPRESSED_FORMATS = Build.current().isSnapshot()
-        ? List.of("tsv.gz", "tsv.zst", "tsv.zstd", "tsv.bz2", "tsv.bz")
-        : List.of("tsv.gz", "tsv.zst", "tsv.zstd");
+    // Codecs come from the declaration, which also records that bzip2 is outside the GA text-format
+    // codec surface and is therefore snapshot-only. See elastic/esql-planning#938.
+    private static final List<String> COMPRESSED_FORMATS = FixtureMatrix.get().textCodecFormats("tsv", Build.current().isSnapshot());
 
     public TsvCompressedFormatSpecIT(
         String fileName,

@@ -277,6 +277,41 @@ public final class FixtureMatrix {
      * three suites and calling assumeFalse on every one, a skip that no gate could see and no report could
      * count.
      */
+    /**
+     * Text codecs as FILE EXTENSIONS, optionally dropping the ones only valid on snapshot builds.
+     *
+     * <p>Kept apart from {@link #parquetCodecs}: a text codec is a suffix the reader dispatches on, a
+     * parquet codec is block compression recorded in the footer. Same word, different axis.
+     */
+    public List<String> textCodecs(boolean snapshotBuild) {
+        String textCodecs = declaration.getProperty("codec.text");
+        if (textCodecs == null || textCodecs.isBlank()) {
+            throw new IllegalStateException("the declaration must declare [codec.text]");
+        }
+        List<String> all = splitList(textCodecs);
+        if (snapshotBuild) {
+            return all;
+        }
+        String snapshotOnlyValue = declaration.getProperty("codec.text.snapshot_only");
+        Set<String> snapshotOnly = snapshotOnlyValue == null ? Set.of() : Set.copyOf(splitList(snapshotOnlyValue));
+        return all.stream().filter(c -> snapshotOnly.contains(c) == false).toList();
+    }
+
+    /** Text codecs rendered as the format tokens a suite parameterises on, e.g. {@code csv.gz}. */
+    public List<String> textCodecFormats(String format, boolean snapshotBuild) {
+        return textCodecs(snapshotBuild).stream().map(c -> format + "." + c).toList();
+    }
+
+    /** Parquet internal codecs, optionally narrowed for a suite that declares a subset. */
+    public List<String> parquetCodecs(String suiteToken) {
+        String subset = declaration.getProperty("codec.parquet.suite." + suiteToken);
+        String value = subset != null ? subset : declaration.getProperty("codec.parquet");
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException("the declaration must declare [codec.parquet]");
+        }
+        return splitList(value);
+    }
+
     public Set<String> excludedSpecs(String suiteToken) {
         String value = declaration.getProperty("suite." + suiteToken + ".specs.exclude");
         if (value == null || value.isBlank()) {

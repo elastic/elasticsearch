@@ -16,12 +16,14 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.Aggregate.checkUnsupportedGroupingType;
 
 /**
@@ -115,6 +117,20 @@ public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware,
     @Override
     public void postAnalysisVerification(Failures failures) {
         groupings.forEach(e -> checkUnsupportedGroupingType(e, failures));
+        if (groupings.size() > 1) {
+            groupings.subList(1, groupings.size()).forEach(g -> {
+                g.forEachDown(
+                    Categorize.class,
+                    categorize -> failures.add(
+                        fail(
+                            categorize,
+                            "CATEGORIZE grouping function [{}] can only be in the first grouping expression",
+                            categorize.sourceText()
+                        )
+                    )
+                );
+            });
+        }
     }
 
     @Override

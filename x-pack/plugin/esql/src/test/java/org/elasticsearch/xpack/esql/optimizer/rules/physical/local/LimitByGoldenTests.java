@@ -126,7 +126,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
     public void testLimitByCategorizeMixedGroupings() {
         runGoldenTest("""
             FROM sample_data
-            | LIMIT 1 BY CONCAT(message, " "), CATEGORIZE(message), client_ip, CATEGORIZE(CONCAT(message, " "))
+            | LIMIT 1 BY CATEGORIZE(CONCAT(message, " ")), client_ip, event_duration > 2000000
             """, STAGES_WITH_NODE_REDUCE);
     }
 

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.MappedSegment;
 
 import java.io.IOException;
@@ -17,10 +16,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 
 public interface JavaLibrary {
-    CloseableByteBuffer newSharedBuffer(int len);
-
-    CloseableByteBuffer newConfinedBuffer(int len);
-
     MappedSegment map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException;
 
 }

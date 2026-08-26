@@ -128,6 +128,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.doc_values.extended_form_only_in_columnar"
     );
     public static final NodeFeature DOC_VALUES_NULLABILITY = new NodeFeature("mapper.doc_values.nullability");
+    public static final NodeFeature DOC_VALUES_ON_FAILURE = new NodeFeature("mapper.doc_values.on_failure");
     public static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -264,7 +265,8 @@ public class MapperFeatures implements FeatureSpecification {
             DOC_VALUES_NULLABILITY,
             DUPLICATE_DYNAMIC_TEMPLATE_NAMES_WARNING,
             BBQ_DISK_BYTE_SUPPORT,
-            ASH_QUANTIZATION_TYPE_SUPPORT
+            ASH_QUANTIZATION_TYPE_SUPPORT,
+            DOC_VALUES_ON_FAILURE
         );
     }
 }

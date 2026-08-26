@@ -139,7 +139,11 @@ public class DatafeedJobBuilder {
         }
 
         // Apply cross-project search mode to IndicesOptions before creating the factory
-        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider);
+        DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+            datafeedConfig,
+            crossProjectModeDecider,
+            datafeedConfig.getCloudInternalCredential() != null
+        );
         PersistedCloudCredential cloudCredential = effectiveDatafeedConfig.getCloudInternalCredential();
         String cloudCredentialId = cloudCredential != null ? cloudCredential.id() : null;
 

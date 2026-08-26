@@ -61,6 +61,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final IOContext context;
     private final IndexOutput data;
     private final IndexOutput meta;
+    private final IndexOutput skipIndex;
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
     private final int blockSize;
@@ -88,6 +89,20 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ColumnarCodecUtil.writeHeader(
                 data,
                 ColumNARDocValuesFormat.DATA_CODEC,
+                FormatVersion.CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
+
+            String skipName = IndexFileNames.segmentFileName(
+                state.segmentInfo.name,
+                state.segmentSuffix,
+                ColumNARDocValuesFormat.SKIP_EXTENSION
+            );
+            skipIndex = state.directory.createOutput(skipName, state.context);
+            ColumnarCodecUtil.writeHeader(
+                skipIndex,
+                ColumNARDocValuesFormat.SKIP_CODEC,
                 FormatVersion.CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
@@ -324,7 +339,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
             directory,
             context,
-            data
+            data,
+            skipIndex
         );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
@@ -340,7 +356,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         for (int doc = counter.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = counter.nextDoc()) {
             numDocsWithField++;
             // One value per document: that is what this surface carries, and what lets the reader take a
-            // document's rank as its value's index rather than keeping an address for every document.
+            // document's rank as its value's address rather than keeping one for every document.
             assert counter.valueCount() == 1 : "document [" + doc + "] of field [" + field.name + "] has " + counter.valueCount();
             numValues++;
         }
@@ -406,12 +422,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             meta.writeInt(-1);
             CodecUtil.writeFooter(meta);
             CodecUtil.writeFooter(data);
+            CodecUtil.writeFooter(skipIndex);
             success = true;
         } finally {
             if (success) {
-                IOUtils.close(data, meta);
+                IOUtils.close(data, skipIndex, meta);
             } else {
-                IOUtils.closeWhileHandlingException(data, meta);
+                IOUtils.closeWhileHandlingException(data, skipIndex, meta);
             }
         }
     }

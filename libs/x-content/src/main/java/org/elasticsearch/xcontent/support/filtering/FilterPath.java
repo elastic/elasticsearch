@@ -170,41 +170,22 @@ public class FilterPath {
                 if (c == '.') {
                     splitPosition = i;
                     break;
-                } else if ((c == '\\') && (i + 1 < end)) {
-                    char escaped = filter.charAt(i + 1);
-                    if (escaped == '.' || escaped == '\\') {
-                        ++i;
-                        findEscapes = true;
-                    }
+                } else if ((c == '\\') && (i + 1 < end) && (filter.charAt(i + 1) == '.')) {
+                    ++i;
+                    findEscapes = true;
                 }
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes ? unescapeField(filter.substring(0, splitPosition)) : filter.substring(0, splitPosition);
+                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
                 BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
                     insertNode(filter.substring(splitPosition + 1), child, depth + 1);
                 }
             } else {
-                String field = findEscapes ? unescapeField(filter) : filter;
+                String field = findEscapes ? filter.replace("\\.", ".") : filter;
                 node.children.put(field, new BuildNode(true));
             }
-        }
-
-        private static String unescapeField(String field) {
-            StringBuilder unescaped = new StringBuilder(field.length());
-            for (int i = 0; i < field.length(); i++) {
-                char c = field.charAt(i);
-                if (c == '\\' && i + 1 < field.length()) {
-                    char escaped = field.charAt(i + 1);
-                    if (escaped == '.' || escaped == '\\') {
-                        c = escaped;
-                        ++i;
-                    }
-                }
-                unescaped.append(c);
-            }
-            return unescaped.toString();
         }
 
         static FilterPath buildPath(String segment, BuildNode node) {

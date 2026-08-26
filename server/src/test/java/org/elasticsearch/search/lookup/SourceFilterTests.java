@@ -45,6 +45,45 @@ public class SourceFilterTests extends ESTestCase {
         assertEquals(expected, fromBytes.filter(filter).source());
     }
 
+    public void testExcludeNestedFieldUnderBackslashNamedParent() {
+        SourceFilter filter = new SourceFilter(new String[] {}, new String[] { "\\.excluded" });
+        Map<String, Object> expected = Map.of("\\", Map.of("included", "value"), "other", "value");
+
+        Source fromMap = Source.fromMap(
+            Map.of("\\", Map.of("included", "value", "excluded", "value"), "other", "value"),
+            XContentType.JSON
+        );
+        assertEquals(expected, fromMap.filter(filter).source());
+
+        Source fromBytes = Source.fromBytes(
+            new BytesArray("{\"\\\\\": { \"included\": \"value\", \"excluded\": \"value\" }, \"other\": \"value\"}")
+        );
+        assertEquals(expected, fromBytes.filter(filter).source());
+    }
+
+    public void testEscapedDotsStillMatchFlatField() {
+        SourceFilter filter = new SourceFilter(new String[] { "w\\.0.0\\.t" }, new String[] {});
+        Source source = Source.fromBytes(new BytesArray("{\"w.0.0.t\": \"flat\", \"other\": \"ignored\"}"));
+
+        assertEquals(Map.of("w.0.0.t", "flat"), filter.filterBytes(source).source());
+    }
+
+    public void testIncludeBackslashBeforeWildcard() {
+        SourceFilter filter = new SourceFilter(new String[] { "foo\\*bar" }, new String[] {});
+        Source source = Source.fromBytes(
+            new BytesArray("{\"foo\\\\middlebar\": \"match\", \"foomiddlebar\": \"ignored\", \"other\": \"ignored\"}")
+        );
+
+        assertEquals(Map.of("foo\\middlebar", "match"), filter.filterBytes(source).source());
+    }
+
+    public void testIncludePlainBackslash() {
+        SourceFilter filter = new SourceFilter(new String[] { "foo\\bar" }, new String[] {});
+        Source source = Source.fromBytes(new BytesArray("{\"foo\\\\bar\": \"match\", \"foobar\": \"ignored\"}"));
+
+        assertEquals(Map.of("foo\\bar", "match"), filter.filterBytes(source).source());
+    }
+
     public void testSimpleExclude() {
         Source s = Source.fromBytes(new BytesArray("""
             { "field1" : "value1", "field2" : "value2" }"""));

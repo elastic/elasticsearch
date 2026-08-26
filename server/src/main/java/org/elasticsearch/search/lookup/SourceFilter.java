@@ -57,7 +57,9 @@ public final class SourceFilter {
         // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
         // in exclude filtering if one of the excludes contains a wildcard '*'.
         // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
+        this.canFilterBytes = (CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*")))
+            && Arrays.stream(this.includes).noneMatch(SourceFilter::hasStandaloneBackslashPathSegment)
+            && Arrays.stream(this.excludes).noneMatch(SourceFilter::hasStandaloneBackslashPathSegment);
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 
@@ -163,8 +165,8 @@ public final class SourceFilter {
         }
         final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
             null,
-            escapeBackslashes(includes),
-            escapeBackslashes(excludes),
+            normalizeFiltersForByteFiltering(includes),
+            normalizeFiltersForByteFiltering(excludes),
             true
         );
         return in -> {
@@ -187,12 +189,23 @@ public final class SourceFilter {
         };
     }
 
+    private static Set<String> normalizeFiltersForByteFiltering(String[] filters) {
+        return Arrays.stream(filters).map(filter -> filter.replace("\\.", ".")).collect(Collectors.toUnmodifiableSet());
+    }
+
     /**
-     * Source field patterns treat backslashes as literals, while {@link org.elasticsearch.xcontent.support.filtering.FilterPath}
-     * uses them as escape characters.
+     * {@link org.elasticsearch.xcontent.support.filtering.FilterPath} interprets {@code \.} as an escaped dot, so it cannot
+     * distinguish that from a path separator after a field named {@code \}. Use map filtering for this ambiguous case.
      */
-    private static Set<String> escapeBackslashes(String[] filters) {
-        return Arrays.stream(filters).map(filter -> filter.replace("\\", "\\\\")).collect(Collectors.toUnmodifiableSet());
+    private static boolean hasStandaloneBackslashPathSegment(String filter) {
+        for (int i = 0; i < filter.length(); i++) {
+            if (filter.charAt(i) == '\\'
+                && (i == 0 || filter.charAt(i - 1) == '.')
+                && (i == filter.length() - 1 || filter.charAt(i + 1) == '.')) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean excludesAll() {

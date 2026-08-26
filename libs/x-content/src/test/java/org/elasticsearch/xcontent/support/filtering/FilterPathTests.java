@@ -155,17 +155,6 @@ public class FilterPathTests extends ESTestCase {
         assertEquals(nextFilters.size(), 0);
     }
 
-    public void testFilterPathWithEscapedBackslash() {
-        FilterPath[] filterPaths = FilterPath.compile(singleton("\\\\.nested_value"));
-        assertNotNull(filterPaths);
-        assertThat(filterPaths, arrayWithSize(1));
-
-        List<FilterPath> nextFilters = new ArrayList<>();
-        assertFalse(filterPaths[0].matches("\\", nextFilters, false));
-        assertEquals(nextFilters.size(), 1);
-        assertTrue(nextFilters.get(0).matches("nested_value", new ArrayList<>(), false));
-    }
-
     public void testSimpleWildcardFilterPath() {
         FilterPath[] filterPaths = FilterPath.compile(singleton("*"));
         assertNotNull(filterPaths);

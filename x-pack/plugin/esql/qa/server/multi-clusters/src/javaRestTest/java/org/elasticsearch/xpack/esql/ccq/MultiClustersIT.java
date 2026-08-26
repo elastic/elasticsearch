@@ -772,8 +772,10 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testRemoteViewFailsQuery() throws IOException {
-        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of(
-            "views_crud_as_index_actions", "views_not_discoverable_on_remotes")));
+        assumeTrue(
+            "views not supported on remote cluster",
+            capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions", "views_not_discoverable_on_remotes"))
+        );
         try (RestClient remoteClient = remoteClusterClient()) {
             Request putView = new Request("PUT", "/_query/view/test-remote-view");
             putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");

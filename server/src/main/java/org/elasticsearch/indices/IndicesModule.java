@@ -67,6 +67,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.record.RecordFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -217,6 +218,7 @@ public class IndicesModule extends AbstractModule {
 
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(FlattenedFieldMapper.CONTENT_TYPE, FlattenedFieldMapper.PARSER);
+        mappers.put(RecordFieldMapper.CONTENT_TYPE, RecordFieldMapper.PARSER);
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointFieldMapper.PARSER);
         mappers.put(IpFieldMapper.CONTENT_TYPE, IpFieldMapper.PARSER);
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordFieldMapper.PARSER);

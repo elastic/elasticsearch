@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -19,6 +21,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -55,9 +58,11 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     private final Semaphore permits;
 
     /**
-     * Source location used for per-row failure warnings when {@link #tolerateFailures} is {@code true}.
+     * Collects the per-row failure warnings emitted when {@link #tolerateFailures} is {@code true}. Built up front rather
+     * than on first failure because {@link #onInferenceRequestFailure} runs concurrently on search threads: a lazily created
+     * collector could be built more than once, and each copy would carry its own {@code MAX_ADDED_WARNINGS} budget.
      */
-    private final WarningSourceLocation source;
+    private final Warnings warnings;
 
     /**
      * When {@code true}, an inference request that fails does not fail the whole query: a warning is emitted, the
@@ -65,8 +70,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * COMPLETION/RERANK and the fold-based inference functions), the first failure fails the query.
      */
     private final boolean tolerateFailures;
-
-    private Warnings warnings;
 
     /**
      * Constructs a new {@code InferenceOperator}.
@@ -94,7 +97,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         this.permits = new Semaphore(maxOutstandingInferenceRequests);
         this.outputBuilder = outputBuilder;
         this.ongoingBulkOperations = ConcurrentCollections.newQueue();
-        this.source = source;
+        this.warnings = driverContext.createWarnings(source);
         this.tolerateFailures = tolerateFailures;
     }
 
@@ -127,13 +130,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             DEFAULT_MAX_OUTSTANDING_PAGES,
             DEFAULT_MAX_OUTSTANDING_REQUESTS
         );
-    }
-
-    private Warnings warnings() {
-        if (warnings == null) {
-            warnings = driverContext().createWarnings(source);
-        }
-        return warnings;
     }
 
     @Override
@@ -267,12 +263,23 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * When {@code false}, the failure fails the whole bulk operation, preserving the historical fail-fast behavior.
      */
     private void onInferenceRequestFailure(BulkInferenceOperation bulkOperation, BulkInferenceRequestItem request, Exception e) {
-        if (tolerateFailures) {
-            warnings().registerException(e);
+        if (tolerateFailures && isFatal(e) == false) {
+            warnings.registerException(e);
             bulkOperation.onInferenceResponse(request.createResponse(null));
         } else {
             bulkOperation.onException(e);
         }
+    }
+
+    /**
+     * Whether a failure means the query as a whole is in trouble rather than that one row's inference failed. Such a failure
+     * is never swallowed, even when failures are tolerated: continuing would hide a cancellation or memory pressure behind a
+     * column of nulls, and would keep issuing inference requests for a query that should stop. The two types listed here are
+     * the ones ES|QL already treats as fatal elsewhere, see {@code DataNodeRequestSender#trackShardLevelFailure}.
+     */
+    private static boolean isFatal(Exception e) {
+        return ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null
+            || ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null;
     }
 
     public interface OutputBuilder {

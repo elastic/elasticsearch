@@ -44,7 +44,7 @@ public class EmbeddingOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, timeout),
-            new EmbeddingOutputBuilder(driverContext.blockFactory()),
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), false),
             Source.EMPTY,
             false
         );

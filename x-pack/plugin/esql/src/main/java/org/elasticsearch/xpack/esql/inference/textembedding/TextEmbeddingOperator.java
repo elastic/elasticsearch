@@ -37,7 +37,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator, timeout),
-            new EmbeddingOutputBuilder(driverContext.blockFactory()),
+            new EmbeddingOutputBuilder(driverContext.blockFactory(), tolerateFailures),
             source,
             tolerateFailures
         );

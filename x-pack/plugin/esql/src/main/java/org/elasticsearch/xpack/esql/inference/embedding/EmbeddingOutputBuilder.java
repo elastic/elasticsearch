@@ -36,8 +36,16 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
 
     private final BlockFactory blockFactory;
 
-    public EmbeddingOutputBuilder(BlockFactory blockFactory) {
+    /**
+     * Whether a missing embedding for a position that had input is acceptable. It is when the operator tolerates per-row
+     * inference failures, since a tolerated failure completes the request with a null response on purpose. When failures are
+     * not tolerated the same situation can only be a bug, so it is reported rather than silently turned into a null.
+     */
+    private final boolean tolerateFailures;
+
+    public EmbeddingOutputBuilder(BlockFactory blockFactory, boolean tolerateFailures) {
         this.blockFactory = blockFactory;
+        this.tolerateFailures = tolerateFailures;
     }
 
     /**
@@ -100,7 +108,8 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
      *
      * @param builder  The block builder to append to
      * @param response The inference response item containing the embedding results
-     * @throws IllegalStateException if a non-null response's embedding count doesn't match the sum of position value counts
+     * @throws IllegalStateException if a non-null response's embedding count doesn't match the sum of position value counts, or
+     *                               if the response is null for a position that had input while failures are not tolerated
      */
     private void appendResponseToBlock(FloatBlock.Builder builder, BulkInferenceResponseItem response) {
         // Handle null responses or null position value counts
@@ -137,8 +146,12 @@ public class EmbeddingOutputBuilder implements OutputBuilder {
                 // No embedding for this position (e.g. a null input), append a null value to the block
                 builder.appendNull();
             } else if (embeddings == null) {
-                // The request failed and was tolerated: the response is null even though the input had a value. Emit a null
-                // embedding for this position so the operator can warn and continue instead of failing the whole query.
+                // The response is null even though the input had a value. Under tolerated failures that is the expected shape
+                // of a failed request: emit a null embedding so the operator can warn and continue. Otherwise it means a
+                // response went missing without anyone deciding to swallow it, which is a bug worth surfacing.
+                if (tolerateFailures == false) {
+                    throw new IllegalStateException("Expected embeddings but response was null");
+                }
                 builder.appendNull();
             } else {
                 // Append the embedding vector as a multi-valued position

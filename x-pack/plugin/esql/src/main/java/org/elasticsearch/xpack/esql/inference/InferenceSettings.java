@@ -74,10 +74,18 @@ public record InferenceSettings(
      * The default inference endpoint id used by the {@code DENSE_VECTOR} command when the query does not provide one via
      * {@code WITH { "inference_id": ... }}. An empty value means "not set": resolution falls through to the built-in default
      * ({@code DenseVector.DEFAULT_INFERENCE_ID}).
+     * <p>
+     * A blank but non-empty value is rejected here rather than at query time, where it would otherwise be taken for an endpoint
+     * id and surface as a confusing "unknown inference endpoint" failure. Empty stays valid because it is the "not set" marker.
      */
     public static final Setting<String> DENSE_VECTOR_DEFAULT_INFERENCE_ID_SETTING = Setting.simpleString(
         "esql.command.dense_vector.default_inference_id",
         "",
+        value -> {
+            if (value.isEmpty() == false && value.isBlank()) {
+                throw new IllegalArgumentException("[esql.command.dense_vector.default_inference_id] must not be blank");
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

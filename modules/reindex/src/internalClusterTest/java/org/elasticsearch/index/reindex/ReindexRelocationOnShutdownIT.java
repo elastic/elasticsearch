@@ -267,7 +267,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO)
         ).get();
 
-        final int numDocs = randomIntBetween(100, 120);
+        final int numDocs = randomIntBetween(120, 200);
         indexRandom(
             true,
             false,

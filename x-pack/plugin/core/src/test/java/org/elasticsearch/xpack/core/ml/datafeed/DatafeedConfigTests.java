@@ -1241,7 +1241,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     /** Mirrors the combined CPS gate used at runtime: {@code project_routing} is inert when cluster CPS is on but the ML flag is off. */
-    public void testIsCPSAllowed_rejectsProjectRoutingGapUsedByDatafeedManager() {
+    public void testIsCPSAllowedShouldLeaveProjectRoutingInertWhenMlFlagOff() {
         org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
             new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
                 Settings.builder().put("serverless.cross_project.enabled", true).build()

@@ -150,9 +150,10 @@ public class DatafeedJobBuilder {
         ActionListener<DataExtractorFactory> dataExtractorFactoryHandler = ActionListener.wrap(dataExtractorFactory -> {
             TimeValue frequency = getFrequencyOrDefault(datafeedConfig, job, xContentRegistry);
             TimeValue queryDelay = datafeedConfig.getQueryDelay();
+            // Delayed-data searches must use the same execution copy as the extractor.
             DelayedDataDetector delayedDataDetector = DelayedDataDetectorFactory.buildDetector(
                 job,
-                datafeedConfig,
+                effectiveDatafeedConfig,
                 parentTaskAssigningClient,
                 xContentRegistry
             );

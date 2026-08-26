@@ -1,5 +1,6 @@
 ```plaintext
-FROM docker.elastic.co/elasticsearch/elasticsearch:9.3.0
+ARG ELASTICSEARCH_VERSION=9.5.2
+FROM docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION}
 
 USER root
 
@@ -7,7 +8,7 @@ USER root
 # and https://gitlab.com/nvidia/container-images/cuda/-/blob/master/dist/12.9.1/ubi9/devel/Dockerfile?ref_type=heads
 # We are installing nvidia/cuda drivers/libraries the same way that nvidia does in their images
 
-ENV CUVS_VERSION=25.12.0
+ENV CUVS_VERSION=26.04.00.194111
 
 ENV NVARCH=x86_64
 ENV NVIDIA_REQUIRE_CUDA="cuda>=12.9 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=560,driver<561 brand=grid,driver>=560,driver<561 brand=tesla,driver>=560,driver<561 brand=nvidia,driver>=560,driver<561 brand=quadro,driver>=560,driver<561 brand=quadrortx,driver>=560,driver<561 brand=nvidiartx,driver>=560,driver<561 brand=vapps,driver>=560,driver<561 brand=vpc,driver>=560,driver<561 brand=vcs,driver>=560,driver<561 brand=vws,driver>=560,driver<561 brand=cloudgaming,driver>=560,driver<561 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566 brand=unknown,driver>=570,driver<571 brand=grid,driver>=570,driver<571 brand=tesla,driver>=570,driver<571 brand=nvidia,driver>=570,driver<571 brand=quadro,driver>=570,driver<571 brand=quadrortx,driver>=570,driver<571 brand=nvidiartx,driver>=570,driver<571 brand=vapps,driver>=570,driver<571 brand=vpc,driver>=570,driver<571 brand=vcs,driver>=570,driver<571 brand=vws,driver>=570,driver<571 brand=cloudgaming,driver>=570,driver<571"
@@ -58,30 +59,28 @@ RUN dnf upgrade -y && dnf install -y \
 RUN echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf
 ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
 ENV LIBCUVS_DIR="/opt/cuvs"
-ENV LD_LIBRARY_PATH=${LIBCUVS_DIR}:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64
+ENV LIBCUVS_ARCHIVE_DIR="libcuvs-linux-x86_64-${CUVS_VERSION}_cuda12-archive"
+ENV LD_LIBRARY_PATH=${LIBCUVS_DIR}/${LIBCUVS_ARCHIVE_DIR}/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64
 
-# Install other required nvidia and cuda libraries, as well as tar and gzip
+# Install other required nvidia and cuda libraries, as well as tar and xz
 RUN dnf install -y \
     cuda-libraries-12-9-${NV_CUDA_LIB_VERSION} \
     cuda-nvtx-12-9-${NV_NVTX_VERSION} \
     ${NV_LIBNPP_PACKAGE} \
     libcublas-12-9-${NV_LIBCUBLAS_VERSION} \
     ${NV_LIBNCCL_PACKAGE} \
-    tar gzip \
+    tar xz \
     && dnf clean all \
     && rm -rf /var/cache/yum/*
 
-# Grab the libcuvs library from Elastic's gcs archive
-# These are tarballs that contain only the libraries necessary from nvidia's libcuvs builds in conda
-# Note: this is temporary until nvidia begins publishing minimal libcuvs tarballs along with their releases
+# Install the libcuvs runtime from NVIDIA's distribution archive
 RUN mkdir -p "$LIBCUVS_DIR" && \
     chmod 775 "$LIBCUVS_DIR" && \
     cd "$LIBCUVS_DIR" && \
-    CUVS_ARCHIVE="libcuvs-$CUVS_VERSION.tar.gz" && \
-    curl -fO "https://storage.googleapis.com/elasticsearch-cuvs-snapshots/libcuvs/$CUVS_ARCHIVE" && \
-    tar -xzf "$CUVS_ARCHIVE" && \
-    rm -f "$CUVS_ARCHIVE" && \
-    if [[ -d "$CUVS_VERSION" ]]; then mv "$CUVS_VERSION/*" ./; fi
+    CUVS_ARCHIVE="${LIBCUVS_ARCHIVE_DIR}.tar.xz" && \
+    curl -fO "https://developer.download.nvidia.com/compute/cuvs/redist/libcuvs/linux-x86_64/$CUVS_ARCHIVE" && \
+    tar -xJf "$CUVS_ARCHIVE" && \
+    rm -f "$CUVS_ARCHIVE"
 
 # Reset the user back to elasticsearch
 USER 1000:0

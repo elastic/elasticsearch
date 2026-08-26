@@ -49,7 +49,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        return inner.read(new DecompressingStorageObject(object, codec), context);
+        return inner.read(new DecompressingStorageObject(object, codec, context.breaker()), context);
     }
 
     @Override
@@ -108,11 +108,11 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
-    public FormatReader withDeclaredPathBinding(boolean declaredPathBinding) {
-        // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared paths exactly like the plain
+    public FormatReader withDeclaredProvenanceBinding(boolean declaredProvenanceBinding) {
+        // Delegate to the wrapped text reader: a compressed .csv.gz binds its declared columns exactly like the plain
         // file. Without this the interface default would return the wrapper and every compressed read would silently
         // fall back to positional binding — the very bug this flag exists to fix.
-        FormatReader configured = inner.withDeclaredPathBinding(declaredPathBinding);
+        FormatReader configured = inner.withDeclaredProvenanceBinding(declaredProvenanceBinding);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 

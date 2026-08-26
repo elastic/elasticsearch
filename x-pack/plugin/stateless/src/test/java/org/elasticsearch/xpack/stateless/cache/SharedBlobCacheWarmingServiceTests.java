@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.IndexingShardCacheBlobRead
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -116,6 +117,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING_EARLY;
@@ -180,7 +182,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 vbcc.getTotalSizeInBytes(),
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(vbcc.getTotalSizeInBytes()));
@@ -229,7 +232,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // Verify all regions are warmed
@@ -296,7 +300,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // Regions within the prewarm limit should be warmed with correct data
@@ -359,7 +364,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = sharedCacheService.getCacheFile(
                 new FileCacheKey(vbcc.getShardId(), vbcc.getPrimaryTermAndGeneration().primaryTerm(), vbcc.getBlobName()),
                 totalSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // ALL regions should be warmed with correct data
@@ -826,7 +832,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             public SharedBlobCacheService.CacheMissHandler copy() {
                                 return this;
                             }
-                        }
+                        },
+                        randomRegionTimestampMillis()
                     );
                     // this read should be served up from the warmed cache
                     var read = cacheFile.populateAndRead(
@@ -1382,7 +1389,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             SharedBlobCacheService<FileCacheKey>.CacheFile cacheFile = fakeNode.sharedCacheService.getCacheFile(
                 cacheKey,
                 vbcc.getTotalSizeInBytes(),
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             var writeBuffer = ByteBuffer.allocate(8192);
@@ -1573,7 +1581,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final var cacheFile = node.sharedCacheService.getCacheFile(
                     new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                     minimizedEnd,
-                    SharedBlobCacheService.CacheMissHandler.NOOP
+                    SharedBlobCacheService.CacheMissHandler.NOOP,
+                    randomRegionTimestampMillis()
                 );
                 assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(minimizedEnd - rangeStart)), rangeStart));
             }
@@ -1636,7 +1645,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobLocation.primaryTerm(), blobLocation.blobName()),
                 rangeSize,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
             assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(rangeSize)), 0));
         }
@@ -1692,7 +1702,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final var cacheFile = node.sharedCacheService.getCacheFile(
                 new FileCacheKey(node.shardId, blobFile.primaryTerm(), blobFile.blobName()),
                 currentOffset,
-                SharedBlobCacheService.CacheMissHandler.NOOP
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                randomRegionTimestampMillis()
             );
 
             // For each file, verify the expected caching behavior based on shouldPreWarmForIdLookup and ratio.
@@ -2206,8 +2217,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         .filter(
                             measurement -> Double.compare(measurement.getDouble(), blobSpec.ratio()) == 0
                                 && measurement.attributes()
-                                    .get(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY)
-                                    .equals(StatelessCommitService.bccSizeBucket(blobSpec.blobSize()))
+                                    .get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY)
+                                    .equals(BccUploadMetrics.bccSizeBucket(blobSpec.blobSize()))
                         )
                         .count(),
                     is(1L)
@@ -2225,12 +2236,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 .thenComparing(Map.Entry::getValue);
             assertThat(
                 requestedBytesMeasurements.stream()
-                    .map(m -> Map.entry(m.getLong(), m.attributes().get(StatelessCommitService.BCC_SIZE_ATTRIBUTE_KEY).toString()))
+                    .map(m -> Map.entry(m.getLong(), m.attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY).toString()))
                     .sorted(byValueThenBucket)
                     .toList(),
                 equalTo(
                     blobSpecs.stream()
-                        .map(spec -> Map.entry(spec.endOffset(), StatelessCommitService.bccSizeBucket(spec.blobSize())))
+                        .map(spec -> Map.entry(spec.endOffset(), BccUploadMetrics.bccSizeBucket(spec.blobSize())))
                         .sorted(byValueThenBucket)
                         .toList()
                 )
@@ -2497,14 +2508,16 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.sharedCacheService.getRegionSize(),
                 randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
-            appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+            // Mirror recovery: build the BCC first, then a single updateCommit with file ranges.
+            for (StatelessCommitRef statelessCommitRef : indexCommits) {
+                assertTrue(vbcc.appendCommit(statelessCommitRef, randomBoolean(), null));
+            }
             vbcc.freeze();
 
-            // Force a single, known timestamp for every file in the recovered commit so the ShardWarmer's per-file resolution is
-            // deterministic regardless of which segment/region ends up being warmed.
             final StatelessCompoundCommit lastCommit = vbcc.getFrozenBatchedCompoundCommit().lastCompoundCommit();
             final var timestampRange = new StatelessCompoundCommit.TimestampFieldValueRange(knownTimestamp, knownTimestamp);
             final Map<String, BlobFileRanges> timestampOverride = new HashMap<>();
+            // Artificially stamp every file in the recovered commit with the same known timestamp so we can assert deterministically.
             for (var entry : lastCommit.commitFiles().entrySet()) {
                 timestampOverride.put(entry.getKey(), new BlobFileRanges(entry.getValue(), timestampRange));
             }

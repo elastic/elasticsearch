@@ -4874,7 +4874,7 @@ public class VerifierTests extends ESTestCase {
         // A non-string analyzer value is reported by option validation, and the query is still validated against the
         // default analyzer so its error surfaces alongside it. Contrast with the unknown-but-valid-string analyzer case
         // above, which returns early and suppresses the query error.
-        defaultAnalyzer().error(
+        supportsHighlight(defaultAnalyzer()).error(
             "FROM test | HIGHLIGHT \"fox AND\" ON first_name WITH { \"analyzer\": 123 }",
             allOf(containsString("Option [analyzer] must be a string"), containsString("Invalid query [fox AND]"))
         );

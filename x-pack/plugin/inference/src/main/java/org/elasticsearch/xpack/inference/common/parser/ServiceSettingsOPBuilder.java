@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -50,11 +49,7 @@ public class ServiceSettingsOPBuilder<Value> extends AbstractSettingsOPBuilder<V
     private BiConsumer<Value, RateLimitSettings> rateLimitSettingsSetter;
 
     public ServiceSettingsOPBuilder(boolean ignoreUnknownFields, Supplier<Value> valueSupplier) {
-        this(SERVICE_SETTINGS, ignoreUnknownFields, valueSupplier);
-    }
-
-    public ServiceSettingsOPBuilder(SettingsScope scope, boolean ignoreUnknownFields, Supplier<Value> valueSupplier) {
-        super(scope, valueSupplier);
+        super(SERVICE_SETTINGS, valueSupplier);
         this.ignoreUnknownFields = ignoreUnknownFields;
     }
 

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.common.parser;
 
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xpack.inference.services.SettingsScope;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
@@ -40,11 +39,7 @@ public class UpdateServiceSettingsOPBuilder<Value> extends AbstractSettingsOPBui
     private BiConsumer<Value, StatefulValue<RateLimitSettings>> rateLimitSettingsSetter;
 
     public UpdateServiceSettingsOPBuilder(Supplier<Value> valueSupplier) {
-        this(SERVICE_SETTINGS, valueSupplier);
-    }
-
-    public UpdateServiceSettingsOPBuilder(SettingsScope scope, Supplier<Value> valueSupplier) {
-        super(scope, valueSupplier);
+        super(SERVICE_SETTINGS, valueSupplier);
     }
 
     public UpdateServiceSettingsOPBuilder<Value> enableRateLimitSettings(

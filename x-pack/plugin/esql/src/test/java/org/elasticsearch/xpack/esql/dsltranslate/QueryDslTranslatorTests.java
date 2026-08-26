@@ -23,19 +23,15 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 
@@ -172,24 +168,20 @@ public class QueryDslTranslatorTests extends ESTestCase {
     }
 
     public void testRangeTranslation() {
-        // A one-sided range on a NON-integral field is a two-valued (Coalesce-to-false) comparison against the field's
-        // extreme value (any-value on multivalue fields; the Coalesce keeps a missing field two-valued so
-        // must_not-over-missing matches all). Integral one-sided ranges take the mv_in_range path (tested below).
+        // A one-sided range on a NON-integral field is mv_greater / mv_less — two-valued any-value predicates that keep
+        // a missing field false so must_not-over-missing matches all, and that push as bare one-sided ranges. Integral
+        // one-sided ranges take the mv_in_range path (tested below).
         Expression lower = translate(QueryBuilders.rangeQuery("score").gte(1));
-        assertThat(lower, instanceOf(Coalesce.class));
-        Expression lowerCmp = ((Coalesce) lower).children().get(0);
-        assertThat(lowerCmp, instanceOf(GreaterThanOrEqual.class));
-        assertThat(((GreaterThanOrEqual) lowerCmp).left(), instanceOf(MvMax.class));
-        // single upper bound -> two-valued comparison against the field's min value
+        assertThat(lower, instanceOf(MvGreater.class));
+        assertNotNull(((MvGreater) lower).options()); // inclusive → include_bound: true
+        // single upper bound -> inclusive mv_less
         Expression upper = translate(QueryBuilders.rangeQuery("score").lte(10));
-        assertThat(upper, instanceOf(Coalesce.class));
-        Expression upperCmp = ((Coalesce) upper).children().get(0);
-        assertThat(upperCmp, instanceOf(LessThanOrEqual.class));
-        assertThat(((LessThanOrEqual) upperCmp).left(), instanceOf(MvMin.class));
-        // exclusive single bound -> strict comparison, still two-valued and over the extreme value
+        assertThat(upper, instanceOf(MvLess.class));
+        assertNotNull(((MvLess) upper).options());
+        // exclusive single bound -> bare (strict) mv_greater
         Expression exclusive = translate(QueryBuilders.rangeQuery("score").gt(1));
-        assertThat(exclusive, instanceOf(Coalesce.class));
-        assertThat(((Coalesce) exclusive).children().get(0), instanceOf(GreaterThan.class));
+        assertThat(exclusive, instanceOf(MvGreater.class));
+        assertNull(((MvGreater) exclusive).options());
         // closed range -> the two-valued any-value range intrinsic
         assertThat(translate(QueryBuilders.rangeQuery("score").gte(1).lte(10)), instanceOf(MvInRange.class));
     }
@@ -558,20 +550,16 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testDateRangeCoarseUpperBoundRoundsUp() {
         Expression e = translate(QueryBuilders.rangeQuery("@timestamp").lte("2020-06-15"));
-        assertThat(e, instanceOf(Coalesce.class));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        assertThat(cmp, instanceOf(LessThanOrEqual.class));
-        Literal bound = (Literal) ((LessThanOrEqual) cmp).right();
+        assertThat(e, instanceOf(MvLess.class));
+        Literal bound = (Literal) ((MvLess) e).bound();
         assertEquals(millis("2020-06-15T23:59:59.999Z"), bound.value());
     }
 
     /** A coarse lower bound rounds DOWN to the first millis of its unit — {@code gte "2020-06-15"} starts at midnight. */
     public void testDateRangeCoarseLowerBoundRoundsDown() {
         Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("2020-06-15"));
-        assertThat(e, instanceOf(Coalesce.class));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        assertThat(cmp, instanceOf(GreaterThanOrEqual.class));
-        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertThat(e, instanceOf(MvGreater.class));
+        Literal bound = (Literal) ((MvGreater) e).bound();
         assertEquals(millis("2020-06-15T00:00:00.000Z"), bound.value());
     }
 
@@ -582,9 +570,8 @@ public class QueryDslTranslatorTests extends ESTestCase {
      */
     public void testDateRangeNowMathResolvesAgainstQueryNow() {
         Expression e = translate(QueryBuilders.rangeQuery("@timestamp").gte("now-1d"));
-        assertThat(e, instanceOf(Coalesce.class));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        assertThat(e, instanceOf(MvGreater.class));
+        Literal bound = (Literal) ((MvGreater) e).bound();
         assertEquals(millis("2020-06-14T12:00:00.000Z"), bound.value());
     }
 
@@ -667,8 +654,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testNumericBoundOnDateNanosIsMillisScaledToNanos() {
         long millis = millis("2020-06-15T00:00:00.000Z");
         Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").gte(millis));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        Literal bound = (Literal) ((GreaterThanOrEqual) cmp).right();
+        Literal bound = (Literal) ((MvGreater) e).bound();
         assertEquals(millis * 1_000_000L, bound.value());
     }
 
@@ -685,8 +671,7 @@ public class QueryDslTranslatorTests extends ESTestCase {
     public void testNumericUpperBoundOnDateNanosRoundsUpToLastNano() {
         long millis = millis("2020-06-15T00:00:00.000Z");
         Expression e = translate(QueryBuilders.rangeQuery("ts_nanos").lte(millis));
-        Expression cmp = ((Coalesce) e).children().get(0);
-        Literal bound = (Literal) ((LessThanOrEqual) cmp).right();
+        Literal bound = (Literal) ((MvLess) e).bound();
         assertEquals(millis * 1_000_000L + 999_999L, bound.value());
     }
 

@@ -22,7 +22,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.BytesRefRecycler;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,22 +37,23 @@ import java.util.Map;
  * supported in a follow-up.
  *
  * <p>Items carry no source, so routing must be resolvable without one; {@link #prepareRouting}
- * fails hard otherwise. Callers must not close the scattered batches: they are read asynchronously
- * and, being backed by {@link BytesRefRecycler#NON_RECYCLING_INSTANCE}, are GC-reclaimed.
+ * fails hard otherwise. All rows must route successfully — if any item is dropped before
+ * {@link #recordRoutedShard} is called for it, {@link #shardBatches} throws. Discard-bucket
+ * support for dropped rows will be added in a follow-up.
+ *
+ * <p>Callers must not close the scattered batches: they are read asynchronously and, being backed
+ * by {@link BytesRefRecycler#NON_RECYCLING_INSTANCE}, are GC-reclaimed.
  *
  * <p>TODO: pooled recycler requires ref-counting each per-shard batch against shard-request
  * completion.
  */
 final class SourceBatchSharder implements Releasable {
 
-    /** A row that never reached routing; becomes the discard partition at scatter time. */
-    private static final int UNROUTED = -1;
-
     private final String batchName;
     private final EscfBatch source;
-    /** row -> shardId, or {@link #UNROUTED}. */
+    /** row -> shardId; set by {@link #recordRoutedShard}, read by {@link #shardBatches}. */
     private final int[] partitionIds;
-    /** The request holding each routed row; null for rows that never reached routing. */
+    /** The request holding each routed row. */
     private final IndexRequest[] items;
 
     /**
@@ -77,7 +77,6 @@ final class SourceBatchSharder implements Releasable {
         this.source = source;
         this.partitionIds = new int[source.docCount()];
         this.items = new IndexRequest[source.docCount()];
-        Arrays.fill(partitionIds, UNROUTED);
     }
 
     /**
@@ -247,9 +246,11 @@ final class SourceBatchSharder implements Releasable {
 
     /**
      * Scatters the batch per shard and re-points every recorded item at its shard-local row.
-     * Unrouted rows — items dropped by validation — go to a discard bucket, closed here. A batch
-     * whose rows all landed on a single shard skips the scatter entirely. Returned batches must not
-     * be closed by the caller.
+     * A batch whose rows all landed on a single shard skips the scatter entirely. Returned batches
+     * must not be closed by the caller.
+     *
+     * <p>Throws if any rows were dropped before routing (0 &lt; routedCount &lt; docCount). Discard-
+     * bucket support for partially-dropped batches will be added in a follow-up.
      *
      * <p>Empty on any call after the first: the failure-store redirect pass re-enters
      * {@code executeBulkRequestsByShard} and must not re-scatter batches already in flight.
@@ -260,66 +261,41 @@ final class SourceBatchSharder implements Releasable {
         }
         scattered = true;
         if (routedCount == 0) {
-            // No item reached routing; nothing to scatter.
+            // Every item failed before routing; nothing to scatter.
             return Map.of();
         }
-        // Passthrough fast path: all rows routed to the same single shard — hand the source batch
-        // straight through without copying any column data.
-        if (shardCount == 1 && routedCount == source.docCount()) {
+        if (routedCount != source.docCount()) {
+            throw new IllegalStateException(
+                "pre-built batch ["
+                    + batchName
+                    + "] had "
+                    + source.docCount()
+                    + " rows but only "
+                    + routedCount
+                    + " were routed; dropped rows in pre-built batches are not yet supported and will be added in a follow-up"
+            );
+        }
+        // Passthrough fast path: single shard, no scatter needed.
+        if (shardCount == 1) {
             return Map.of(new ShardId(boundIndex, 0), source);
         }
         return scatter();
     }
 
     private Map<ShardId, SourceBatch> scatter() {
-        final boolean hasUnrouted = routedCount != partitionIds.length;
-        final int discardPartition = hasUnrouted ? shardCount : -1;
-        final int partitionCount;
-        if (hasUnrouted) {
-            for (int row = 0; row < partitionIds.length; row++) {
-                if (partitionIds[row] == UNROUTED) {
-                    partitionIds[row] = discardPartition;
-                }
-            }
-            partitionCount = discardPartition + 1;
-        } else {
-            partitionCount = shardCount;
-        }
-
         EscfBatch[] parts;
         try (EscfBatchScatterer scatterer = new EscfBatchScatterer(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-            parts = scatterer.scatter(source, partitionIds, partitionCount);
+            parts = scatterer.scatter(source, partitionIds, shardCount);
         }
-
-        if (hasUnrouted) {
-            // Dropped rows are not indexed, and nothing reads them out of here: an item that needs
-            // its source for the failure store has already materialized it from the source batch,
-            // because the pre-routing redirect in BulkOperation#addDocumentToRedirectRequests runs
-            // before we ever scatter.
-            // TODO: keep this bucket instead of closing it once the source batch is released here to
-            // avoid holding both copies. It then becomes the only place the dropped rows still exist,
-            // so it must stay alive for the failure store.
-            EscfBatch discardBucket = parts[discardPartition];
-            if (discardBucket != null) {
-                discardBucket.close();
-                parts[discardPartition] = null;
-            }
-        }
-
-        // Build the result map and re-point each surviving item at its shard-local row.
+        // Build the result map and re-point each item at its shard-local row.
         Map<ShardId, SourceBatch> result = new HashMap<>();
         int[] nextRow = new int[shardCount];
         for (int row = 0; row < partitionIds.length; row++) {
-            IndexRequest item = items[row];
-            if (item == null) {
-                // Dropped before routing; went to the discard bucket.
-                continue;
-            }
             int partition = partitionIds[row];
             EscfBatch part = parts[partition];
             assert part != null : "null partition " + partition + " for row " + row;
             result.putIfAbsent(new ShardId(boundIndex, partition), part);
-            item.indexSource().setSourceRow(part, nextRow[partition]++, item.indexSource().contentType());
+            items[row].indexSource().setSourceRow(part, nextRow[partition]++, items[row].indexSource().contentType());
         }
         return result;
     }

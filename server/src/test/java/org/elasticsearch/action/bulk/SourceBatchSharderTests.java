@@ -351,26 +351,28 @@ public class SourceBatchSharderTests extends ESTestCase {
         sharder.close();
     }
 
-    public void testDroppedRowsGoToDiscardBucket() throws IOException {
-        int numDocs = randomIntBetween(6, 20);
+    /**
+     * If some (but not all) rows are dropped before routing, {@code shardBatches()} must fail
+     * rather than silently produce a misaligned batch. Discard-bucket support will be added in a
+     * follow-up.
+     */
+    public void testThrowsWhenSomeRowsDropped() throws IOException {
+        int numDocs = randomIntBetween(3, 20);
         int numShards = randomIntBetween(1, 4);
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         ProjectMetadata project = project(plainMetadata("myindex", numShards));
 
+        // Drop between 1 and numDocs-1 rows so that routedCount > 0 and < docCount.
+        int dropCount = randomIntBetween(1, numDocs - 1);
         Set<Integer> dropped = new HashSet<>();
-        for (int i = 0; i < numDocs; i++) {
-            if (randomBoolean()) {
-                dropped.add(i);
-            }
+        while (dropped.size() < dropCount) {
+            dropped.add(randomIntBetween(0, numDocs - 1));
         }
         SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
-        var requestsByShard = routeAll(sharder, bulkRequest, project, dropped);
-        Map<ShardId, SourceBatch> result = sharder.shardBatches();
-
-        int totalRows = result.values().stream().mapToInt(SourceBatch::docCount).sum();
-        assertThat(totalRows, equalTo(numDocs - dropped.size()));
-        assertShardsAligned(requestsByShard, result);
+        routeAll(sharder, bulkRequest, project, dropped);
+        var e = expectThrows(IllegalStateException.class, sharder::shardBatches);
+        assertThat(e.getMessage(), containsString("not yet supported"));
         sharder.close();
     }
 
@@ -615,22 +617,21 @@ public class SourceBatchSharderTests extends ESTestCase {
         sharder.close();
     }
 
-    /** A dropped row has to be filtered out of the batch, so a single shard is not enough to pass through. */
-    public void testSingleShardWithDroppedRowsStillScatters() throws IOException {
-        int numDocs = randomIntBetween(3, 20);
+    /**
+     * Even a single-shard index throws when a row is dropped, because the passthrough fast path
+     * requires all rows to be present.
+     */
+    public void testSingleShardWithDroppedRowThrows() throws IOException {
+        int numDocs = randomIntBetween(2, 20);
         EscfBatch batch = buildBatch(numDocs);
         BulkRequest bulkRequest = buildBulkRequest("myindex", batch, numDocs);
         IndexMetadata md = plainMetadata("myindex", 1);
         ProjectMetadata project = project(md);
 
         SourceBatchSharder sharder = SourceBatchSharder.create(bulkRequest);
-        var requestsByShard = routeAll(sharder, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)));
-        Map<ShardId, SourceBatch> result = sharder.shardBatches();
-
-        SourceBatch shardBatch = result.get(new ShardId(md.getIndex(), 0));
-        assertNotSame(batch, shardBatch);
-        assertThat(shardBatch.docCount(), equalTo(numDocs - 1));
-        assertShardsAligned(requestsByShard, result);
+        routeAll(sharder, bulkRequest, project, Set.of(randomIntBetween(0, numDocs - 1)));
+        var e = expectThrows(IllegalStateException.class, sharder::shardBatches);
+        assertThat(e.getMessage(), containsString("not yet supported"));
         sharder.close();
     }
 

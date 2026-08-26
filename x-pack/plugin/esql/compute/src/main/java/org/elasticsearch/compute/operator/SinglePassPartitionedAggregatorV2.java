@@ -18,6 +18,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -62,6 +64,8 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
     // ---- Construction parameters ----
     private final int groupKeyChannel0;
     private final int groupKeyChannel1;
+    /** True when the original second key type was INT (widened to LONG for hashing; narrowed on output). */
+    private final boolean secondKeyIsInt;
     private final List<? extends AggregatorFunctionSupplier> aggregatorSuppliers;
     private final List<List<Integer>> aggregatorChannels;
     private final int workerCount;
@@ -119,6 +123,7 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
     public SinglePassPartitionedAggregatorV2(
         int groupKeyChannel0,
         int groupKeyChannel1,
+        boolean secondKeyIsInt,
         List<? extends AggregatorFunctionSupplier> aggregatorSuppliers,
         List<List<Integer>> aggregatorChannels,
         int workerCount,
@@ -148,6 +153,7 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         }
         this.groupKeyChannel0 = groupKeyChannel0;
         this.groupKeyChannel1 = groupKeyChannel1;
+        this.secondKeyIsInt = secondKeyIsInt;
         this.aggregatorSuppliers = aggregatorSuppliers;
         this.aggregatorChannels = aggregatorChannels;
         this.workerCount = workerCount;
@@ -369,11 +375,23 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         void processPage(Page page) {
             try {
                 LongVector k1Vec = page.<LongBlock>getBlock(groupKeyChannel0).asVector();
-                LongVector k2Vec = page.<LongBlock>getBlock(groupKeyChannel1).asVector();
-                if (k1Vec == null || k2Vec == null) {
+                if (k1Vec == null) {
                     // Multi-valued grouping keys not supported; skip this page.
                     // TODO: route multi-valued rows to a fallback HashAggregationOperator.
                     return;
+                }
+                LongVector k2LongVec = null;
+                IntVector k2IntVec = null;
+                if (secondKeyIsInt) {
+                    k2IntVec = page.<IntBlock>getBlock(groupKeyChannel1).asVector();
+                    if (k2IntVec == null) {
+                        return;
+                    }
+                } else {
+                    k2LongVec = page.<LongBlock>getBlock(groupKeyChannel1).asVector();
+                    if (k2LongVec == null) {
+                        return;
+                    }
                 }
                 int posCount = page.getPositionCount();
                 int offset = 0;
@@ -383,9 +401,16 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
                     if (hash.size() + len > SCATTER_THRESHOLD) {
                         doScatter();
                     }
-                    for (int i = 0; i < len; i++) {
-                        batchKey1s[i] = k1Vec.getLong(offset + i);
-                        batchKey2s[i] = k2Vec.getLong(offset + i);
+                    if (secondKeyIsInt) {
+                        for (int i = 0; i < len; i++) {
+                            batchKey1s[i] = k1Vec.getLong(offset + i);
+                            batchKey2s[i] = k2IntVec.getInt(offset + i);
+                        }
+                    } else {
+                        for (int i = 0; i < len; i++) {
+                            batchKey1s[i] = k1Vec.getLong(offset + i);
+                            batchKey2s[i] = k2LongVec.getLong(offset + i);
+                        }
                     }
                     if (hash.supportBulkAdd()) {
                         hash.bulkAdd(batchKey1s, batchKey2s, batchIds, len);
@@ -554,7 +579,15 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
             boolean success = false;
             try {
                 blocks[0] = driverContext.blockFactory().newLongArrayVector(key1s, size).asBlock();
-                blocks[1] = driverContext.blockFactory().newLongArrayVector(key2s, size).asBlock();
+                if (secondKeyIsInt) {
+                    int[] intKey2s = new int[size];
+                    for (int i = 0; i < size; i++) {
+                        intKey2s[i] = (int) key2s[i];
+                    }
+                    blocks[1] = driverContext.blockFactory().newIntArrayVector(intKey2s, size).asBlock();
+                } else {
+                    blocks[1] = driverContext.blockFactory().newLongArrayVector(key2s, size).asBlock();
+                }
                 try (IntVector selected = buildRangeVector(size)) {
                     try (GroupingAggregatorEvaluationContext evalCtx = new GroupingAggregatorEvaluationContext(driverContext)) {
                         for (int a = 0; a < numAggs; a++) {
@@ -684,6 +717,8 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
     public record Factory(
         int groupKeyChannel0,
         int groupKeyChannel1,
+        ElementType keyType0,
+        ElementType keyType1,
         List<? extends AggregatorFunctionSupplier> aggregatorSuppliers,
         List<List<Integer>> aggregatorChannels,
         int workerCount,
@@ -695,6 +730,7 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
             return new SinglePassPartitionedAggregatorV2(
                 groupKeyChannel0,
                 groupKeyChannel1,
+                keyType1 == ElementType.INT,
                 aggregatorSuppliers,
                 aggregatorChannels,
                 workerCount,

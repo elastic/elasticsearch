@@ -112,6 +112,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -215,7 +216,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings
     ) {
-        super(foldContext, analysisRegistry);
+        this(foldContext, shardContexts, analysisRegistry, plannerSettings, directoryBytesRead, singleValueQueryWarnings, null);
+    }
+
+    public EsPhysicalOperationProviders(
+        FoldContext foldContext,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        AnalysisRegistry analysisRegistry,
+        PlannerSettings plannerSettings,
+        LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings,
+        @Nullable Executor parallelWorkerExecutor
+    ) {
+        super(foldContext, analysisRegistry, parallelWorkerExecutor);
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;

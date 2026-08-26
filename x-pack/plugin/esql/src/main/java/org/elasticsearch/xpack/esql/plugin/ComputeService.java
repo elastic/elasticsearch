@@ -1369,18 +1369,19 @@ public class ComputeService {
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
         long bytesBefore = directoryBytesRead.getAsLong();
+        var workerThreadPool = transportService.getThreadPool();
+        var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
             plannerSettings,
             directoryBytesRead,
-            singleValueQueryWarnings
+            singleValueQueryWarnings,
+            parallelWorkerExecutor
         );
 
         try {
-            var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
             LocalExecutionPlanner planner = new LocalExecutionPlanner(

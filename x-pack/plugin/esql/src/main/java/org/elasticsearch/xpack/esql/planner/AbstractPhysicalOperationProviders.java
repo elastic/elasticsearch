@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.SinglePassPartitionedAggregatorV2;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -60,6 +61,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -69,10 +71,17 @@ public abstract class AbstractPhysicalOperationProviders {
 
     private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
+    @Nullable
+    private final Executor parallelWorkerExecutor;
 
-    AbstractPhysicalOperationProviders(FoldContext foldContext, AnalysisRegistry analysisRegistry) {
+    AbstractPhysicalOperationProviders(
+        FoldContext foldContext,
+        AnalysisRegistry analysisRegistry,
+        @Nullable Executor parallelWorkerExecutor
+    ) {
         this.foldContext = foldContext;
         this.analysisRegistry = analysisRegistry;
+        this.parallelWorkerExecutor = parallelWorkerExecutor;
     }
 
     public abstract PhysicalOperation sourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
@@ -193,14 +202,20 @@ public abstract class AbstractPhysicalOperationProviders {
                     }
                 }
             }
-            // create the agg factories
+            // create the agg factories; also collect raw suppliers for SPPA v2 eligibility check
+            List<AggregatorFunctionSupplier> sppaSuppliers = new ArrayList<>();
+            List<List<Integer>> sppaChannels = new ArrayList<>();
             aggregatesToFactory(
                 aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
+                s -> {
+                    aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels));
+                    sppaSuppliers.add(s.supplier);
+                    sppaChannels.add(s.channels);
+                },
                 context
             );
             int maxPageSize = context.pageSize(aggregateExec, aggregateExec.estimatedRowSize());
@@ -214,6 +229,17 @@ public abstract class AbstractPhysicalOperationProviders {
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     context,
                     aggregationBatchSize
+                );
+            } else if (isSppaEligible(aggregatorMode, groupSpecs, sppaSuppliers)) {
+                operatorFactory = new SinglePassPartitionedAggregatorV2.Factory(
+                    groupSpecs.get(0).toHashGroupSpec().channel(),
+                    groupSpecs.get(1).toHashGroupSpec().channel(),
+                    groupSpecs.get(0).elementType(),
+                    groupSpecs.get(1).elementType(),
+                    sppaSuppliers,
+                    sppaChannels,
+                    8,
+                    parallelWorkerExecutor
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
@@ -238,6 +264,32 @@ public abstract class AbstractPhysicalOperationProviders {
             return source.with(operatorFactory, layout.build());
         }
         throw new EsqlIllegalArgumentException("no operator factory");
+    }
+
+    private boolean isSppaEligible(AggregatorMode aggregatorMode, List<GroupSpec> groupSpecs, List<AggregatorFunctionSupplier> suppliers) {
+        if (parallelWorkerExecutor == null) {
+            return false;
+        }
+        if (aggregatorMode != AggregatorMode.SINGLE) {
+            return false;
+        }
+        if (groupSpecs.size() != 2) {
+            return false;
+        }
+        ElementType key0Type = groupSpecs.get(0).elementType();
+        ElementType key1Type = groupSpecs.get(1).elementType();
+        if (key0Type != ElementType.LONG) {
+            return false;
+        }
+        if (key1Type != ElementType.LONG && key1Type != ElementType.INT) {
+            return false;
+        }
+        for (AggregatorFunctionSupplier s : suppliers) {
+            if (s.supportsPartitionedSplit() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /***

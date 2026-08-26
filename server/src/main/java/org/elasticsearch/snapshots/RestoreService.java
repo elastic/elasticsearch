@@ -1959,8 +1959,13 @@ public final class RestoreService implements ClusterStateApplier {
                     Set.copyOf(expected.getFailureIndices())
                 );
                 // Preserve the existing close/delete safety rule: a data stream already being restored cannot be restored over again in
-                // place either. MetadataDataStreamsService.deleteDataStreams (called below) already preserves the equivalent rule for an
-                // active snapshot of the destination, both by data-stream name and by exact backing/failure index.
+                // place either. This is the one conflict we have to reject explicitly, because of an asymmetry in the delete path called
+                // below: MetadataDataStreamsService.deleteDataStreams rejects a destination that's being snapshotted, both by data-stream
+                // name (snapshottingDataStreams) and, via its MetadataDeleteIndexService.deleteIndices call, by exact backing/failure index
+                // (snapshottingIndicesBySnapshot). But deleteIndices does not reject an index that's being restored. It silently aborts
+                // that in-flight restore instead (updateRestoreStateWithDeletedIndices). There is no data-stream-name equivalent to check
+                // for restore, since RestoreInProgress is keyed by shard/index rather than by data-stream name, so this index-level check
+                // is the complete one.
                 if (restoringIndices(projectState, backingAndFailureIndices).isEmpty() == false) {
                     throw new SnapshotRestoreException(
                         snapshot,

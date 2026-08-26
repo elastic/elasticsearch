@@ -360,6 +360,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return valuesLoaded;
     }
 
+    /**
+     * Whether query approximation was actually applied, or {@code null} when approximation was not requested (in which
+     * case the {@code approximation_applied} response field is omitted).
+     */
+    @Nullable
+    public Boolean approximationApplied() {
+        return approximationApplied;
+    }
+
     public Profile profile() {
         return profile;
     }

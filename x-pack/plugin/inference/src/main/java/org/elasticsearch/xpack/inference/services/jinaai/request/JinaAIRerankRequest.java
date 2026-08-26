@@ -55,7 +55,7 @@ public class JinaAIRerankRequest implements OutboundRerankRequest {
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithAuthHeader(httpPost, model.getSecretSettings().apiKey());
+        decorateWithAuthHeader(httpPost, model.apiKey());
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }

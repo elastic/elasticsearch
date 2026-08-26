@@ -447,15 +447,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_createsEmbeddingsModel_textEmbedding() throws IOException {
-        testParsePersistedConfig_withSecrets_createsEmbeddingModel(TEXT_EMBEDDING);
+    public void testParsePersistedConfig_WithSecrets_CreatesEmbeddingsModel_TextEmbedding() throws IOException {
+        testParsePersistedConfig_WithSecrets_CreatesEmbeddingModel(TEXT_EMBEDDING);
     }
 
-    public void testParsePersistedConfig_withSecrets_createsEmbeddingsModel_embedding() throws IOException {
-        testParsePersistedConfig_withSecrets_createsEmbeddingModel(TaskType.EMBEDDING);
+    public void testParsePersistedConfig_WithSecrets_CreatesEmbeddingsModel_Embedding() throws IOException {
+        testParsePersistedConfig_WithSecrets_CreatesEmbeddingModel(TaskType.EMBEDDING);
     }
 
-    private void testParsePersistedConfig_withSecrets_createsEmbeddingModel(TaskType taskType) throws IOException {
+    private void testParsePersistedConfig_WithSecrets_CreatesEmbeddingModel(TaskType taskType) throws IOException {
         try (var service = createInferenceService()) {
             var modelName = randomAlphanumericOfLength(8);
             var requestsPerMinute = randomNonNegativeInt();
@@ -512,7 +512,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_createsRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_CreatesRerankModel() throws IOException {
         try (var service = createInferenceService()) {
             var modelName = randomAlphanumericOfLength(8);
             var requestsPerMinute = randomNonNegativeInt();
@@ -546,15 +546,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_onlyRequiredSettings_createsEmbeddingsModel_textEmbedding() throws IOException {
-        testParsePersistedConfig_withSecrets_onlyRequiredSettings_createsEmbeddingModel(TEXT_EMBEDDING);
+    public void testParsePersistedConfig_WithSecrets_OnlyRequiredSettings_CreatesEmbeddingsModel_TextEmbedding() throws IOException {
+        testParsePersistedConfig_WithSecrets_OnlyRequiredSettings_CreatesEmbeddingModel(TEXT_EMBEDDING);
     }
 
-    public void testParsePersistedConfig_withSecrets_onlyRequiredSettings_createsEmbeddingsModel_embedding() throws IOException {
-        testParsePersistedConfig_withSecrets_onlyRequiredSettings_createsEmbeddingModel(TaskType.EMBEDDING);
+    public void testParsePersistedConfig_WithSecrets_OnlyRequiredSettings_CreatesEmbeddingsModel_Embedding() throws IOException {
+        testParsePersistedConfig_WithSecrets_OnlyRequiredSettings_CreatesEmbeddingModel(TaskType.EMBEDDING);
     }
 
-    private void testParsePersistedConfig_withSecrets_onlyRequiredSettings_createsEmbeddingModel(TaskType taskType) throws IOException {
+    private void testParsePersistedConfig_WithSecrets_OnlyRequiredSettings_CreatesEmbeddingModel(TaskType taskType) throws IOException {
         try (var service = createInferenceService()) {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
@@ -588,7 +588,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_onlyRequiredSettings_createsRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_OnlyRequiredSettings_CreatesRerankModel() throws IOException {
         try (var service = createInferenceService()) {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
@@ -609,7 +609,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_throwsErrorWithUnsupportedTaskType() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_ThrowsErrorWithUnsupportedTaskType() throws IOException {
         try (var service = createInferenceService()) {
             var unsupportedTaskType = randomValueOtherThanMany(
                 t -> service.supportedTaskTypes().contains(t),
@@ -645,7 +645,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_doesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 buildServiceSettingsMap(MODEL_VALUE, null),
@@ -658,7 +658,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_doesNotThrowWhenAnExtraKeyExistsInSecretSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretSettings() throws IOException {
         try (var service = createInferenceService()) {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put(EXTRA_KEY, EXTRA_VALUE);
@@ -669,7 +669,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_doesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createInferenceService()) {
             var serviceSettingsMap = buildServiceSettingsMap(MODEL_VALUE, null);
             serviceSettingsMap.put(EXTRA_KEY, EXTRA_VALUE);
@@ -680,7 +680,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_doesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createInferenceService()) {
 
             var persistedConfig = getPersistedConfigMap(
@@ -693,7 +693,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfig_withSecrets_doesNotThrowWhenAnExtraKeyExistsInChunkingSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInChunkingSettings() throws IOException {
         try (var service = createInferenceService()) {
 
             var persistedConfig = getPersistedConfigMap(

@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.util.Map;
-import java.util.Objects;
 
 public abstract class JinaAIModel extends RateLimitGroupingModel {
     private final URI uri;
@@ -48,13 +49,17 @@ public abstract class JinaAIModel extends RateLimitGroupingModel {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
 
+    public SecureString apiKey() {
+        return ServiceUtils.apiKey(getSecretSettings());
+    }
+
     public URI uri() {
         return uri;
     }
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(getSecretSettings().apiKey());
+        return apiKey().hashCode();
     }
 
     @Override

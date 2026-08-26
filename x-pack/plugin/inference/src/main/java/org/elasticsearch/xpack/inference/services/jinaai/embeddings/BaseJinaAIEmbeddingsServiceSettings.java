@@ -314,7 +314,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends JinaAIServiceS
         protected final T build(String modelId, RateLimitSettings rateLimitSettings) {
             // In a request the flag is derived from whether dimensions were provided; in a persisted config it is read back from the
             // stored value, defaulting to false when absent.
-            boolean resolvedDimensionsSetByUser = context == ConfigurationParseContext.PERSISTENT
+            var resolvedDimensionsSetByUser = context == ConfigurationParseContext.PERSISTENT
                 ? Boolean.TRUE.equals(dimensionsSetByUser)
                 : dimensions != null;
             return construct(
@@ -345,7 +345,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends JinaAIServiceS
     public static void declareEmbeddingsUpdatableFields(AbstractObjectParser<? extends EmbeddingsUpdate, Void> parser) {
         JinaAIServiceSettings.declareCommonUpdatableFields(parser);
         StatefulValue.declareNullable(parser, (update, value) -> update.maxInputTokens = value, p -> {
-            Integer value = p.intValue();
+            var value = p.intValue();
             validatePositiveInteger(value, MAX_INPUT_TOKENS);
             return value;
         }, new ParseField(MAX_INPUT_TOKENS), ObjectParser.ValueType.INT_OR_NULL);

@@ -53,13 +53,7 @@ public abstract class JinaAIServiceSettings extends FilteredXContentObject imple
         AbstractObjectParser<B, ConfigurationParseContext> parser
     ) {
         parser.declareString(Builder::setModelId, new ParseField(MODEL_ID));
-        parser.declareObject(
-            Builder::setRateLimitSettings,
-            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
-            // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME)
-        );
+        RateLimitSettings.declareRateLimitSettings(parser, Builder::setRateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
         // Declare it here as a no-op so the strict REQUEST parser does not reject it as an unknown field.
         parser.declareString((b, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));
@@ -204,13 +198,7 @@ public abstract class JinaAIServiceSettings extends FilteredXContentObject imple
      * fields (such as {@code model_id}) are intentionally not declared so that a strict update parser rejects attempts to change them.
      */
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
-        StatefulValue.declareNullable(
-            parser,
-            (update, value) -> update.rateLimitSettings = value,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
-            new ParseField(RateLimitSettings.FIELD_NAME),
-            ObjectParser.ValueType.OBJECT_OR_NULL
-        );
+        RateLimitSettings.declareUpdatableRateLimitSettings(parser, (update, value) -> update.rateLimitSettings = value);
         // api_key appears in the same JSON block as service settings in update requests; DefaultSecretSettings extracts it separately.
         // Declare it here as a no-op so the strict update parser does not reject it as an unknown field.
         parser.declareString((u, v) -> {}, new ParseField(DefaultSecretSettings.API_KEY));

@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.ArrayList;
@@ -141,6 +142,15 @@ public abstract class AbstractJinaAIServiceSettingsTests<T extends ServiceSettin
             originalServiceSettings.updateServiceSettings(settingsMap),
             is(createServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
         );
+    }
+
+    public void testUpdateServiceSettings_ApiKey_IsIgnored() {
+        var originalServiceSettings = createServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT));
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "secret-key"))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

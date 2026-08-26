@@ -299,6 +299,27 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         runGoldenTest(query, STAGES, unindexedStats());
     }
 
+    // Late materialization not used with LIMIT BY and CATEGORIZE yet
+    public void testLimitByCategorizeLateMaterializationDisabled() {
+        checkLimitByLateMaterializationFeatureFlag();
+        String query = """
+            FROM sample_data
+            | LIMIT 2 BY CATEGORIZE(message)
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
+    // Late materialization not used with LIMIT BY and CATEGORIZE yet
+    public void testSortLimitByCategorizeLateMaterializationDisabled() {
+        checkLimitByLateMaterializationFeatureFlag();
+        String query = """
+            FROM sample_data
+            | SORT @timestamp DESC
+            | LIMIT 2 BY CATEGORIZE(message)
+            """;
+        runGoldenTest(query, STAGES, unindexedStats());
+    }
+
     // Prevents TopN pushdown.
     private static EsqlTestUtils.TestSearchStats unindexedStats() {
         return new EsqlTestUtils.TestSearchStats() {

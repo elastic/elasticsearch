@@ -25,6 +25,13 @@ base {
   archivesName = 'esql-datasource-gcs'
 }
 
+// google-cloud-storage signatures carry checker-framework @NonNull type annotations on Guava types, and JDK 25
+// javac requires those classes on the compile classpath to attach the annotations. This module still must not
+// use Guava directly.
+forbiddenDependencies {
+  allowedGroups = ['com.google.guava']
+}
+
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
@@ -45,8 +52,8 @@ dependencies {
   // google-cloud-storage exposes methods whose signatures carry checker-framework @NonNull type annotations on
   // Guava types (ImmutableMap/ImmutableSet). JDK 25 javac needs those classes on the compile classpath to attach
   // the annotations, so Guava is a normal compile+runtime dependency here rather than compileOnly. The Guava
-  // compile-classpath ban is relaxed for this module in elasticsearch.forbidden-dependencies; our own code must not
-  // use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
+  // compile-classpath ban is relaxed for this module via the forbiddenDependencies block below; our own code must
+  // not use Guava. Keeping it off the compileOnly configuration lets dependencyLicenses still account for its license.
   implementation 'com.google.guava:guava:33.6.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.3'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"

@@ -7,15 +7,28 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.gradle.api.provider.ListProperty
+
 // we do not want any of these dependencies on the compilation classpath
 // because they could then be used within Elasticsearch
 List<String> FORBIDDEN_DEPENDENCY_GROUPS = [
   'com.google.guava'
 ]
 
-Closure checkDeps = { Configuration configuration, List<String> forbiddenGroups ->
+// A project can relax the ban for specific groups via its own build.gradle:
+//   forbiddenDependencies {
+//     allowedGroups = ['com.google.guava']
+//   }
+// This is only needed in the rare case where a third-party API forces a forbidden
+// group onto the compile classpath (e.g. checker-framework @NonNull annotations on
+// Guava types in google-cloud-storage signatures under JDK 25 javac).
+abstract class ForbiddenDependenciesExtension {
+  abstract ListProperty<String> getAllowedGroups()
+}
+
+Closure checkDeps = { Configuration configuration, ListProperty<String> allowedGroups ->
   configuration.resolutionStrategy.eachDependency {
-    if (forbiddenGroups.contains(it.target.group)) {
+    if (FORBIDDEN_DEPENDENCY_GROUPS.contains(it.target.group) && allowedGroups.get().contains(it.target.group) == false) {
       throw new GradleException("Dependency '${it.target.group}:${it.target.name}' on configuration '${configuration.name}' is not allowed. " +
         "If it is needed as a transitive dependency, try adding it to the runtime classpath")
     }
@@ -28,16 +41,9 @@ subprojects {
     return
   }
   pluginManager.withPlugin('java') {
-    List<String> forbiddenGroups = FORBIDDEN_DEPENDENCY_GROUPS
-    if (project.path in [':x-pack:plugin:esql-datasource-gcs', ':qa:vector']) {
-      // google-cloud-storage signatures carry checker-framework @NonNull type annotations on Guava types.
-      // JDK 25 javac requires those classes on the compile classpath to attach the annotations, so Guava is
-      // allowed at compile time here. These modules still must not use Guava directly.
-      // repository-gcs instead adds Guava to the javac classpath via a detached configuration (see its
-      // build.gradle), keeping it off the compile-classpath configuration so the ban below still applies.
-      forbiddenGroups = forbiddenGroups - 'com.google.guava'
-    }
-    checkDeps(configurations.compileClasspath, forbiddenGroups)
-    checkDeps(configurations.testCompileClasspath, forbiddenGroups)
+    def extension = extensions.create('forbiddenDependencies', ForbiddenDependenciesExtension)
+    extension.allowedGroups.convention([])
+    checkDeps(configurations.compileClasspath, extension.allowedGroups)
+    checkDeps(configurations.testCompileClasspath, extension.allowedGroups)
   }
 }

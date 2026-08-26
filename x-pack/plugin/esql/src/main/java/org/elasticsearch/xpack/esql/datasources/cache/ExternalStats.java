@@ -43,6 +43,12 @@ public final class ExternalStats {
      * {@link ReadConfigFingerprint#UNKNOWN} (absent, or empty) means the producing path had no coordinator-minted read
      * schema to describe. That is a legitimate state, not an error, and it must never compare equal to a known read configuration:
      * an unknown read configuration safe-misses rather than sharing on the strength of not knowing.
+     * <p>
+     * That rule governs the CONTRIBUTION side. Two consumers deliberately relax it on the ENTRY side, each disclosed
+     * where it happens: the serve gate passes an entry that carries no configuration straight through (the columnar
+     * readers harvest without stamping and would otherwise go cold on an identity they never join), and the
+     * dataset-aggregate fold falls back to the config-level check for a path whose expected configuration the
+     * resolution did not record.
      */
     public static final String READ_CONFIG_FINGERPRINT_KEY = "_stats.read_config_fingerprint";
 

@@ -57,12 +57,6 @@ public record SourceOperatorContext(
     List<Expression> pushedExpressions,
     FileList fileList,
     Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
-    /**
-     * The pre-prune Unified schema, or {@code null} when the plan carried none. Distinct from {@code attributes},
-     * which the optimizer prunes to the query's projection: a projection-dependent schema cannot identify how a file
-     * is read, because a coordinator resolving the full schema and a data node reading a subset would derive
-     * different identities for the same read.
-     */
     @Nullable ExternalSchema unifiedSchema,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
@@ -461,17 +455,17 @@ public record SourceOperatorContext(
             return this;
         }
 
-        /**
-         * The declared mapping's read-instructions (renames, {@code _id.path}), or {@link DeclaredReadSpec#NONE}.
-         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, {@code _id.path} stamps
-         * {@code _id} from that column.
-         */
         /** The pre-prune Unified schema; see the record component. */
         public Builder unifiedSchema(@Nullable ExternalSchema unifiedSchema) {
             this.unifiedSchema = unifiedSchema;
             return this;
         }
 
+        /**
+         * The declared mapping's read-instructions (renames, {@code _id.path}), or {@link DeclaredReadSpec#NONE}.
+         * Consumed by {@code FileSourceFactory}: renames physicalize reader-facing names, {@code _id.path} stamps
+         * {@code _id} from that column.
+         */
         public Builder declaredReadSpec(DeclaredReadSpec declaredReadSpec) {
             this.declaredReadSpec = declaredReadSpec;
             return this;

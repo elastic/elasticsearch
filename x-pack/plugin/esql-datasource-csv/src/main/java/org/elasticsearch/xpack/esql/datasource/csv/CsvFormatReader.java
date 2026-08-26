@@ -1873,7 +1873,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema = resolvedSchema;
         }
         // mtime is pinned here at open-time so a mid-scan file replacement cannot pair a new
-        // mtime with old data. Two cacheable read configurations:
+        // mtime with old data. Two cacheable shapes:
         // - wholeFileRead: first + last split, no parallel slicing — iterator publishes a full
         // SourceStatistics for the file.
         // - parallel-parsing chunk (recordAligned=true): iterator publishes a partial keyed by
@@ -2338,7 +2338,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * a doubled quote inside a quoted field is a literal quote; an escape char before the delimiter
      * inside quotes keeps the delimiter literal. Fields are trimmed, matching
      * {@link #splitHeaderQuoteAware}; quotes are retained in the token exactly as that quote-aware
-     * sibling retains them, so the two paths agree on width and read configuration.
+     * sibling retains them, so the two paths agree on width and shape.
      */
     private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc) {
         List<String> entries = new ArrayList<>();
@@ -3050,7 +3050,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * requested. Not a CSV source column — filled from {@link #rowStartBytes}, the per-record
          * file-global byte offset (split start byte plus bytes consumed up to the record's first
          * character), so the value is identical for the same physical record across any split
-         * layout. Matches the NDJSON {@code recordFileOffset} read configuration.
+         * layout. Matches the NDJSON {@code recordFileOffset} shape.
          */
         private int rowPositionSlot = -1;
         /**
@@ -3463,6 +3463,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 pinnedMtimeMillis,
                 computeConfigFingerprint(),
                 readConfig,
+                errorPolicy.isStrict(),
                 schema
             );
         }
@@ -3511,8 +3512,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // extra column -- even under NULL_FIELD) does NOT make these stats wrong FOR THIS READ: which
                     // rows survive is a deterministic function of the file bytes, the error policy (pinned by the
                     // cache fingerprint) AND the resolved read configuration -- a declared type or date pattern decides which values
-                    // coerce, so it decides which rows drop. The shape is stamped alongside the fingerprint and the
-                    // cache refuses to serve these numbers to a read of a different read configuration, so committing them is
+                    // coerce, so it decides which rows drop. The read configuration is stamped beside the fingerprint and the
+                    // cache refuses to serve these numbers to a read configured differently, so committing them is
                     // safe: they are published as this read configuration's measurement, not as the file's. So commit normally. NULL_FIELD
                     // field
                     // null-fill likewise preserves the row and caches fully.

@@ -1291,7 +1291,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * the inner iterator already carries the {@code _rowPosition} column ({@link
      * org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy} — no-op), needs a
      * NULL splice ({@link org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy}),
-     * or some future read configuration. The dispatcher does not switch on reader type: it asks the reader for its
+     * or some future shape. The dispatcher does not switch on reader type: it asks the reader for its
      * strategy and invokes {@code apply} polymorphically.
      */
     private static CloseableIterator<Page> applyRowPositionStrategy(
@@ -1307,7 +1307,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * Translates the unified query projection (column names in unified-schema read configuration, identical for every
+     * Translates the unified query projection (column names in unified-schema shape, identical for every
      * file in the query) into a per-file query projection (the subset present in this file's schema,
      * ordered to match the file's natural layout).
      * <p>
@@ -1389,7 +1389,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable Consumer<String> informationalWarningSink
     ) {
         // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
-        // all data columns deferred to _rowPosition): nothing to reread configuration, and the full-width mapping
+        // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
         // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
         // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
         if (mapping == null || queryDataSchema.isEmpty()) {
@@ -2020,7 +2020,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Pin the reader to this file's physical projection/schema — mirroring the non-range
                 // branch below. The per-file ColumnMapping applied by adaptSchema is built against the
                 // file's physical column order and types, so the reader must deliver its page in that
-                // same read configuration. Feeding the query-unified projection/attributes here instead makes the
+                // same shape. Feeding the query-unified projection/attributes here instead makes the
                 // reader emit columns in unified order and at unified (widened) types, and ColumnMapping
                 // then re-permutes/re-casts an already-adapted page — silently swapping columns whose
                 // per-file order differs from the query, or failing with an "Unsupported block cast"

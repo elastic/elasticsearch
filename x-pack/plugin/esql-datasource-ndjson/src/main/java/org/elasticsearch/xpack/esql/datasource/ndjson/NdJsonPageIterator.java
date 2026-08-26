@@ -676,7 +676,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             // A DROPPED line (NDJSON drops the whole line on any parse error) does NOT make these stats wrong FOR
             // THIS READ: which lines survive is a deterministic function of the file bytes, the error policy
             // (pinned by the cache fingerprint) AND the resolved read configuration -- a declared type or date pattern decides
-            // which values coerce, so it decides which lines drop. The shape is stamped alongside the fingerprint
+            // which values coerce, so it decides which lines drop. The read configuration is stamped beside the fingerprint
             // and the cache refuses to serve these numbers to a read of a different read configuration, so committing them is
             // safe: they are this read configuration's measurement, not the file's. So commit normally. NONE scope suppresses all
             // publishing. A scan cut
@@ -710,6 +710,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                                 pinnedMtimeMillis,
                                 fingerprinter.apply(fullSchema),
                                 readConfig,
+                                rowCountReadConfigIndependent,
                                 fullSchema
                             );
                         }

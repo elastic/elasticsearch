@@ -186,6 +186,7 @@ public final class StripeStatsHarvester {
         long pinnedMtimeMillis,
         String fingerprint,
         String readConfig,
+        boolean rowCountReadConfigIndependent,
         List<Attribute> schema
     ) {
         if (chunkBytes <= 0) {
@@ -217,6 +218,11 @@ public final class StripeStatsHarvester {
             // as "shape unknown, do not share".
             if (readConfig != null && readConfig.isEmpty() == false) {
                 base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+            }
+            // The licence rides per fragment, exactly as on the whole-file publishes: without it a chunked FAIL_FAST
+            // read could never license the crossing an unchunked one can, purely because of how the file was split.
+            if (rowCountReadConfigIndependent) {
+                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             base.put(ExternalStats.STRIPE_SIZE_KEY, stripeSize);

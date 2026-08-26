@@ -95,11 +95,6 @@ public class ExternalSourceCacheService implements Closeable {
         SchemaCacheKey datasetKey,
         Map<String, Long> pathToMtimeMillis,
         String configFingerprint,
-        /**
-         * The resolved read configuration this resolution expects PER PATH, or empty when it could not say. Per path rather than one
-         * value for the glob: the files of a glob are not necessarily read alike, so a single shape taken from a
-         * reference file would refuse every honest contribution from its siblings.
-         */
         Map<String, String> pathToReadConfig,
         String sourceType,
         String location,
@@ -630,7 +625,7 @@ public class ExternalSourceCacheService implements Closeable {
                 whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             }
             // The merge keeps only recognised _stats.* keys, so the read configuration has to be re-attached here like the mtime
-            // and the fingerprint. Losing it turns a folded whole-file result into a read configurationless contribution, which
+            // and the fingerprint. Losing it turns a folded whole-file result into a configuration-less contribution, which
             // every identity gate downstream then treats as "unknown" — the stripe rail's counts stop matching the
             // very entry they came from.
             if (readConfig != null && readConfig.isEmpty() == false) {
@@ -771,14 +766,6 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * True when the entry is for {@code path}, observed at the contribution's mtime, under the same format
-     * config. Dataset-aggregate entries ({@link SchemaCacheKey#DATASET_AGGREGATE_MARKER}) are excluded
-     * explicitly: their canonicalPath is a multi-file glob pattern and their mtime is 0, so a per-file
-     * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
-     * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
-     * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
-     */
-    /**
      * The part of {@code contribution} that may legitimately enrich {@code entry}, or {@code null} when none of it
      * may — the second tier of contribution matching, after path/mtime/config identity.
      * <p>
@@ -790,7 +777,7 @@ public class ExternalSourceCacheService implements Closeable {
      * differently-declared datasets, which is correct and deliberate.
      * <p>
      * Two absent read configurations compare equal on purpose: a rail that stamps no read configuration enriches entries that carry none,
-     * exactly as it did before read configurations existed. A known shape never matches an absent one — "unknown" must not be
+     * exactly as it did before read configurations existed. A known configuration never matches an absent one — "unknown" must not be
      * license to share.
      * <p>
      * The count tier deliberately carries ONLY the row count across: writing the foreign read configuration or its column
@@ -810,6 +797,14 @@ public class ExternalSourceCacheService implements Closeable {
         return null;
     }
 
+    /**
+     * True when the entry is for {@code path}, observed at the contribution's mtime, under the same format
+     * config. Dataset-aggregate entries ({@link SchemaCacheKey#DATASET_AGGREGATE_MARKER}) are excluded
+     * explicitly: their canonicalPath is a multi-file glob pattern and their mtime is 0, so a per-file
+     * contribution can never match one structurally, but a per-file enrichment landing on a dataset entry
+     * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
+     * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
+     */
     private static boolean matchesContribution(
         SchemaCacheKey key,
         SchemaCacheEntry entry,
@@ -866,7 +861,6 @@ public class ExternalSourceCacheService implements Closeable {
         long lastStripeOrdinal,
         long mtimeMillis,
         String fingerprint,
-        /** The resolved read configuration every fragment in this delta agreed on; {@code null} when the rail stamped none. */
         String readConfig,
         long stripeSize
     ) {}
@@ -1019,9 +1013,11 @@ public class ExternalSourceCacheService implements Closeable {
     ) {
         List<Map<String, Object>> maps = new ArrayList<>(chain.size());
         for (SourceStatsContribution.StripeFragment f : chain) {
-            // Fragments in a chain are already required to agree on shape (foldStripeFragments), so any one of them
-            // carries the chain's. The licence is per-producer and rides the same way.
-            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readConfig(), false));
+            // Fragments in a chain are already required to agree on their read configuration (foldStripeFragments),
+            // so any one of them carries the chain's — and the licence rides the same way. Hardcoding it off here
+            // would leave a chunked FAIL_FAST read unable to license the crossing a whole-file FAIL_FAST read can,
+            // an asymmetry with no reason behind it.
+            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readConfig(), f.rowCountReadConfigIndependent()));
         }
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
         // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey

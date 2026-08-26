@@ -828,7 +828,7 @@ public class ExternalSourceResolver {
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
                 // to skip Phase 2 (split discovery) entirely for those queries.
                 //
-                // This eager all-file aggregation is gated on requiresStats: only query read configurations that can consume the
+                // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
                 // global stats — an ungrouped aggregate over the relation, detected by
                 // ExternalStatsRequirementExtractor#pathsRequiringEagerStats — pay the N footer reads. Every other
                 // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
@@ -1146,12 +1146,12 @@ public class ExternalSourceResolver {
 
     /**
      * Stamps an inferred entry with the read configuration of the read that produced it. Without this an inferred entry carries no
-     * shape at all, the serve gate's "entry has no read configuration" pass-through fires on every lookup, and the identity is
+     * configuration at all, the serve gate's "entry has no read configuration" pass-through fires on every lookup, and the identity is
      * inert on exactly the rail the reported defect lives on. The declaration is {@code NONE} by construction here:
      * these are the inferred rails, and a declared read reaches its own seed elsewhere.
      */
     private static SchemaCacheEntry stampInferredReadConfig(SchemaCacheEntry entry) {
-        // File-typed (columnar) formats do not participate in shape identity: they harvest without stamping, and
+        // File-typed (columnar) formats do not participate in this identity: they harvest without stamping, and
         // their rows never drop under a lenient policy, so a declared retype changes which VALUES a column yields
         // but not which rows exist. Stamping them would make the serve gate strip a row count that is genuinely
         // read-config-independent, taking COUNT(*) cold for every mapped columnar dataset. Their per-column stats are
@@ -1159,12 +1159,12 @@ public class ExternalSourceResolver {
         if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
             return entry;
         }
-        String shape = ReadConfigFingerprint.of(entry.toAttributes(), DeclaredReadSpec.NONE);
-        if (ReadConfigFingerprint.UNKNOWN.equals(shape)) {
+        String readConfig = ReadConfigFingerprint.of(entry.toAttributes(), DeclaredReadSpec.NONE);
+        if (ReadConfigFingerprint.UNKNOWN.equals(readConfig)) {
             return entry;
         }
         Map<String, Object> stamped = new HashMap<>(entry.safeMetadata());
-        stamped.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, shape);
+        stamped.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         return entry.withSafeMetadata(stamped);
     }
 
@@ -1876,13 +1876,6 @@ public class ExternalSourceResolver {
         return reader == null || reader.aggregatePushdownSupport().appliesImplicitNullsForAbsentColumn();
     }
 
-    /**
-     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
-     * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
-     * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
-     * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
-     * failure so the query aborts promptly instead of silently degrading.
-     */
     private void readAndAggregateAllFileStats(
         FileList listing,
         Map<String, Object> config,
@@ -1934,6 +1927,13 @@ public class ExternalSourceResolver {
         }
     }
 
+    /**
+     * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
+     * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
+     * lacks statistics (via {@link #aggregateFileStatistics}). A read failure is treated as "could not aggregate" and
+     * responds with {@code null} so the caller marks stats partial — except cancellation, which is surfaced as a
+     * failure so the query aborts promptly instead of silently degrading.
+     */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
         Map<String, Object> config,
@@ -2545,12 +2545,14 @@ public class ExternalSourceResolver {
      * declared width under {@code FAIL_FAST}); once a wider — or inferred — dataset over the same file+config has warmed
      * the shared entry, that dataset's {@code COUNT(*)} folds to the physical row-count instead of erroring. That is a
      * masked abort, not a wrong count (every materializing query on such a mis-bound dataset still fails loudly), and it
-     * flaps with cache state. The read-configuration fingerprint now in the stats identity ({@link ReadConfigFingerprint}) closes
-     * the strict-vs-strict half by construction — two declarations of different widths are different read configurations, so neither
-     * enriches nor serves the other. The inferred-vs-strict half is NOT closed: under {@code FAIL_FAST} the row count is
-     * licensed to cross resolved read configurations (the count is the physical record count for any declaration), which is exactly the
-     * licence this masked abort rides. Closing it would mean withdrawing that licence and making every strict dataset
-     * re-scan, so the residual stands, deliberately, and is disclosed here rather than in a follow-up.
+     * flaps with cache state. The read-configuration fingerprint ({@link ReadConfigFingerprint}) does NOT close this, in
+     * either direction, and an earlier revision of this javadoc wrongly claimed it closed the strict-vs-strict half.
+     * Two strict datasets over one file+config share a single {@code #strict-declared} entry — the declared mapping is
+     * not in the key — and the strict serve path reads that entry through {@link #rowCountOnlyStats} with no
+     * read-configuration gate. So a narrower declaration is still served a wider one's count, exactly as an inferred
+     * harvest still crosses to a strict reader. Both halves ride the same {@code FAIL_FAST} licence, which is what lets
+     * strict datasets warm at all; withdrawing it would make every one of them re-scan. The residual therefore stands
+     * deliberately, and is disclosed here rather than deferred.
      * <p>
      * File-typed (columnar) formats are excluded: they already warm via split-discovery per-split stats, and the strict
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
@@ -2571,7 +2573,8 @@ public class ExternalSourceResolver {
         if (isCacheable(provider) && FILE_TYPED_FORMATS.contains(sourceType) == false && warmsRowCountSafely(sourceType, config)) {
             String formatType = detectFormatType(storagePath) + STRICT_DECLARED_SCHEMA_MARKER;
             SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtimeMillis, formatType, config);
-            // Seed only mtime + config fingerprint; the row-count is absent until the first query's data node harvests
+            // Seed the identity — mtime, config fingerprint, read configuration; the row-count is absent until the
+            // first query's data node harvests
             // it (reconcileSourceStats matches on those two + the path, then overlays STATS_ROW_COUNT). Store no
             // connector config (Map.of()): the inferred text rail stores none either, and the schema cache is shared
             // across users, so the seed must not retain the dataset's credentials. buildMetadataFromCache re-merges the

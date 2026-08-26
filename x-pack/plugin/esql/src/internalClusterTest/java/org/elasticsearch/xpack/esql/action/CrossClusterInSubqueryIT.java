@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -523,12 +524,12 @@ public class CrossClusterInSubqueryIT extends AbstractCrossClusterTestCase imple
      */
     public void testRemoteViewRejectedWithInSubquery() {
         expectThrows(
-            Exception.class,
-            containsString("ES|QL queries with remote views are not supported. Matched [cluster-a:remote_events_view]."),
+            VerificationException.class,
+            containsString("Unknown index [cluster-a:remote_events_view]"),
             () -> runQuery("""
                 FROM events
                 | WHERE id IN (FROM cluster-a:remote_events_view | KEEP id)
-                """, null)
+                """, null).close()
         );
     }
 

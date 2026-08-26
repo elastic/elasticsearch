@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
@@ -29,26 +30,17 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         createViewOnCluster(REMOTE_CLUSTER_1, "logs-mobile", "FROM logs-2 | LIMIT 10");
     }
 
-    public void testRemoteViewWildcardMatchFailsQuery() {
-        expectThrows(
-            Exception.class,
-            containsString(
-                "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-mobile, cluster-a:logs-web]."
-                    + " Remove them from the query pattern or exclude them with"
-                    + " [cluster-a:-logs-mobile,cluster-a:-logs-web] if matched by a wildcard."
-            ),
-            () -> runQuery("FROM cluster-a:logs-*", null)
-        );
+    public void testRemoteViewIsIgnoredByWildcard() {
+        try (var result = runQuery("FROM cluster-a:logs-*", null)) {
+            assertOk(result);
+        }
     }
 
-    public void testRemoteViewConcreteMatchFailsQuery() {
+    public void testRemoteViewCanNotBeResolvedConcreteMatchFailsQuery() {
         expectThrows(
-            Exception.class,
-            containsString(
-                "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-web]."
-                    + " Remove them from the query pattern or exclude them with [cluster-a:-logs-web] if matched by a wildcard."
-            ),
-            () -> runQuery("FROM cluster-a:logs-web", null)
+            VerificationException.class,
+            containsString("Unknown index [cluster-a:logs-web]"),
+            () -> runQuery("FROM cluster-a:logs-web", null).close()
         );
     }
 
@@ -64,18 +56,6 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testRemoteViewFailsOnOneCluster() {
-        expectThrows(
-            Exception.class,
-            containsString(
-                "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-mobile, cluster-a:logs-web]."
-                    + " Remove them from the query pattern or exclude them with"
-                    + " [cluster-a:-logs-mobile,cluster-a:-logs-web] if matched by a wildcard."
-            ),
-            () -> runQuery("FROM cluster-a:logs-*,remote-b:logs-*", null)
-        );
-    }
-
     public void testNoRemoteViewsQuerySucceeds() {
         try (var resp = runQuery("FROM remote-b:logs-*", null)) {
             assertOk(resp);
@@ -86,7 +66,7 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         expectThrows(
             NoSuchRemoteClusterException.class,
             containsString("no such remote cluster: [no_such_remote]"),
-            () -> runQuery("FROM no_such_remote:logs-web", null)
+            () -> runQuery("FROM no_such_remote:logs-web", null).close()
         );
         try (var resp = runQuery("FROM no_such_*:logs-web", null)) {
             assertOk(resp);

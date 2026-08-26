@@ -50,7 +50,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -112,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -179,6 +185,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -2536,6 +2543,33 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testEvalResolvesForwardReferenceWithImplicitCasting() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 == "127.0.0.1", TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting2() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
+    public void testEvalResolvesForwardReferenceWithImplicitCasting3() {
+        analyzer().addIndex("hosts", "mapping-hosts.json").query("""
+            FROM hosts
+            | EVAL ip = CASE(CIDR_MATCH(ip0, "10.0.0.0/8") OR ip0 IN ("127.0.0.1", "192.168.1.1"::ip), TO_STRING(ip0), null),
+                   field = CASE(ip IS NOT NULL, "a", "b")
+            | STATS count = COUNT(*) BY field
+            """);
+    }
+
     public void testDenseVectorImplicitCastingKnn() {
         checkDenseVectorCastingHexKnn("float_vector");
         checkDenseVectorCastingKnn("float_vector");
@@ -4505,6 +4539,132 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
+    private static void assumeDenseVectorCommandEnabled() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorResolvesTextField() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title WITH {"inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.fields().get(0).name(), equalTo("title"));
+        assertThat(DataType.isString(denseVector.fields().get(0).dataType()), equalTo(true));
+
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        Attribute generated = getAttributeByName(denseVector.output(), "title_dense_vector");
+        assertThat(generated, notNullValue());
+        assertThat(generated.dataType(), equalTo(DataType.DENSE_VECTOR));
+
+        assertThat(denseVector.inferenceId(), equalTo(string(TEXT_EMBEDDING_INFERENCE_ID)));
+    }
+
+    public void testDenseVectorResolvesMultipleFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, description WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("title_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("description_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "description_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesQualifiedFieldNames() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR text.raw, text.english WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // One generated column per input field, keyed by the full dotted field name (no collision/shadowing).
+        assertThat(denseVector.generatedAttributes(), hasSize(2));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("text.raw_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("text.english_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "text.raw_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "text.english_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesNestedAndMixedFields() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-multi-field-variation.json").addAnalysisTestsInferenceResolution().query("""
+            FROM test
+            | DENSE_VECTOR keyword, some.dotted.field, some.string, some.string.typical
+                WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        // A plain root field, a deeply nested field, and a parent text field vs its keyword subfield all
+        // produce distinct full-path generated columns.
+        assertThat(denseVector.generatedAttributes(), hasSize(4));
+        assertThat(denseVector.generatedAttributes().get(0).name(), equalTo("keyword_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(1).name(), equalTo("some.dotted.field_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(2).name(), equalTo("some.string_dense_vector"));
+        assertThat(denseVector.generatedAttributes().get(3).name(), equalTo("some.string.typical_dense_vector"));
+        assertThat(getAttributeByName(denseVector.output(), "keyword_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.dotted.field_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string_dense_vector"), notNullValue());
+        assertThat(getAttributeByName(denseVector.output(), "some.string.typical_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorResolvesKeywordField() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR book_no WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "book_no_dense_vector"), notNullValue());
+    }
+
+    public void testDenseVectorNonTextFieldFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR year WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("DENSE_VECTOR field [year] must be [text] or [keyword], found [integer]")
+        );
+    }
+
+    public void testDenseVectorUnknownColumnFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR nonexistent WITH { \"inference_id\" : \"text-embedding-inference-id\" }",
+            containsString("Unknown column [nonexistent]")
+        );
+    }
+
+    public void testDenseVectorInvalidInferenceIdFails() {
+        assumeDenseVectorCommandEnabled();
+        books().error(
+            "FROM books | DENSE_VECTOR title WITH { \"inference_id\" : \"unknown-inference-id\" }",
+            containsString("unresolved inference [unknown-inference-id]")
+        );
+    }
+
+    public void testDenseVectorDuplicateFieldIsDeduped() {
+        assumeDenseVectorCommandEnabled();
+        LogicalPlan plan = books().query("""
+            FROM books
+            | DENSE_VECTOR title, title WITH { "inference_id" : "text-embedding-inference-id" }
+            """);
+
+        DenseVector denseVector = as(as(plan, Limit.class).child(), DenseVector.class);
+        assertThat(denseVector.fields(), hasSize(1));
+        assertThat(denseVector.generatedAttributes(), hasSize(1));
+        assertThat(getAttributeByName(denseVector.output(), "title_dense_vector"), notNullValue());
+    }
+
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
         var plan = defaultMapping().query("""
             FROM test
@@ -4715,6 +4875,203 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(fooAttr.dataType(), equalTo(KEYWORD));
         assertThat(idAttr.dataType(), equalTo(KEYWORD));
         assertThat(idAttr.name(), equalTo("id"));
+    }
+
+    /** Name of the conflicted sub-field under test; must match the key in the parent's properties map. */
+    private static final String CONFLICTED_SUBFIELD = "analyzed";
+
+    public void testTypeConflictedMultifieldIsCleanedAfterAnalysis() {
+        // A conflicted sub-field must be neutralized so its parent FieldAttribute is transportable.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("conflict-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("conflict-b"));
+        assertConflictedMultifieldIsCleaned(new InvalidMappedField(CONFLICTED_SUBFIELD, typesToIndices));
+    }
+
+    public void testTsRoleConflictedMultifieldIsCleanedAfterAnalysis() {
+        // InvalidMappedTsField is not a TypeConflictedField but also throws on transport, so it must be neutralized too.
+        EsField cleanedParent = assertConflictedMultifieldIsCleaned(new InvalidMappedTsField(CONFLICTED_SUBFIELD, "role conflict"));
+        // The rebuilt parent keeps its keyword type so exact-match/sort still work.
+        assertThat(cleanedParent, instanceOf(KeywordEsField.class));
+    }
+
+    private static EsField assertConflictedMultifieldIsCleaned(EsField conflictedMultifield) {
+        EsField parent = new KeywordEsField(
+            "my_field",
+            Map.of(CONFLICTED_SUBFIELD, conflictedMultifield),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsIndex index = new EsIndex(
+            "conflict-*",
+            Map.of("my_field", parent),
+            Map.of("conflict-a", new IndexProperties(IndexMode.STANDARD, 0), "conflict-b", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM conflict-* | SORT my_field | LIMIT 2");
+
+        List<FieldAttribute> parentAttributes = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals("my_field")) {
+                parentAttributes.add(fieldAttribute);
+            }
+        });
+        assertFalse(parentAttributes.isEmpty());
+        EsField cleanedParent = null;
+        for (FieldAttribute parentAttribute : parentAttributes) {
+            // The conflict is replaced by a transportable UnsupportedEsField, not dropped: the sub-field key stays.
+            assertThat(parentAttribute.field().getProperties(), hasKey(CONFLICTED_SUBFIELD));
+            assertThat(parentAttribute.field().getProperties().get(CONFLICTED_SUBFIELD), instanceOf(UnsupportedEsField.class));
+            cleanedParent = parentAttribute.field();
+        }
+        return cleanedParent;
+    }
+
+    /** Asserts no coordinator-only conflict field ({@link TypeConflictedField} or {@link InvalidMappedTsField}) survives anywhere. */
+    private static void assertNoConflicts(EsField field) {
+        assertThat(field, not(instanceOf(TypeConflictedField.class)));
+        assertThat(field, not(instanceOf(InvalidMappedTsField.class)));
+        if (field.getProperties() != null) {
+            field.getProperties().values().forEach(AnalyzerTests::assertNoConflicts);
+        }
+    }
+
+    public void testTextFieldKeepsHealthySubfields() {
+        // Healthy sub-fields are kept untouched - including a text field's exact keyword, which pushdown resolves on the data node.
+        EsField exact = new KeywordEsField("keyword", Map.of(), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+        EsField normalized = new KeywordEsField("norm", Map.of(), true, 256, true, false, EsField.TimeSeriesFieldType.NONE);
+        EsField message = new TextEsField(
+            "message",
+            new LinkedHashMap<>(Map.of("keyword", exact, "norm", normalized)),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+
+        EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | SORT message | LIMIT 2");
+        assertThat(parentField, instanceOf(TextEsField.class));
+        assertThat(parentField.getProperties(), hasKey("keyword"));
+        assertThat(parentField.getProperties(), hasKey("norm"));
+        assertThat(parentField.getExactInfo().hasExact(), is(true));
+    }
+
+    public void testTextFieldWithConflictedExactSubfieldIsNeutralized() {
+        // The only keyword sub-field is itself type-conflicted: neutralize it to a transportable UnsupportedEsField (no exact left).
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
+        EsField message = new TextEsField(
+            "message",
+            new LinkedHashMap<>(Map.of("keyword", new InvalidMappedField("keyword", typesToIndices))),
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+
+        EsField parentField = shippedFieldAfterAnalysis("message", message, "FROM idx | LIMIT 2");
+        assertThat(parentField, instanceOf(TextEsField.class));
+        assertThat(parentField.getProperties().get("keyword"), instanceOf(UnsupportedEsField.class));
+        assertThat(parentField.getExactInfo().hasExact(), is(false));
+    }
+
+    public void testPunkFallbackStripsNestedConflictedSubfield() {
+        // A potentially-unmapped field falls back to its mapped type; that mapped field's conflicted sub-field must be neutralized.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.LONG.typeName(), Set.of("idx-b"));
+        EsField mapped = new KeywordEsField(
+            "val",
+            new LinkedHashMap<>(Map.of("sub", new InvalidMappedField("sub", typesToIndices))),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField punk = new PotentiallyUnmappedSingleTypeEsField(mapped, Set.of("idx-a"));
+
+        EsField parentField = shippedFieldAfterAnalysis("val", punk, "FROM idx | LIMIT 2");
+        // The mapped keyword type is kept (not the PUNK marker) and its conflicted sub-field is neutralized to unsupported.
+        assertThat(parentField, instanceOf(KeywordEsField.class));
+        assertThat(parentField.getProperties().get("sub"), instanceOf(UnsupportedEsField.class));
+    }
+
+    public void testConflictedSubfieldNestedTwoLevelsDeepIsCleaned() {
+        // Not a reachable mapping shape today (https://github.com/elastic/elasticsearch/issues/144400 keeps multi-level sub-fields
+        // from resolving under a proper field attribute), but the cleaner already recurses, so guard the >1-level case.
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put(KEYWORD.typeName(), Set.of("idx-a"));
+        typesToIndices.put(DataType.TEXT.typeName(), Set.of("idx-b"));
+        EsField sub = new KeywordEsField(
+            "sub",
+            Map.of(CONFLICTED_SUBFIELD, new InvalidMappedField(CONFLICTED_SUBFIELD, typesToIndices)),
+            true,
+            256,
+            false,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField parent = new KeywordEsField("my_field", Map.of("sub", sub), true, 256, false, false, EsField.TimeSeriesFieldType.NONE);
+
+        EsField parentField = shippedFieldAfterAnalysis("my_field", parent, "FROM idx | SORT my_field | LIMIT 2");
+        EsField cleanedSub = parentField.getProperties().get("sub");
+        assertThat(cleanedSub, instanceOf(KeywordEsField.class));
+        assertThat(cleanedSub.getProperties().get(CONFLICTED_SUBFIELD), instanceOf(UnsupportedEsField.class));
+    }
+
+    public void testUnsupportedParentWithPropagatedSubfieldIsUntouched() {
+        // Regression (FieldExtractorIT): an unsupported parent with a healthy/inherited sub-field must not be downgraded - it must
+        // stay unsupported and keep its original types, otherwise it drops out of the Verifier and loses original_types.
+        EsField raw = new UnsupportedEsField("raw", List.of("ip_range"), "ip_range", Map.of());
+        EsField parent = new UnsupportedEsField("f", List.of("ip_range"), null, Map.of("raw", raw));
+        EsIndex index = new EsIndex(
+            "idx",
+            Map.of("f", parent),
+            Map.of("idx-a", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query("FROM idx | LIMIT 2");
+
+        List<UnsupportedAttribute> found = new ArrayList<>();
+        plan.forEachExpressionDown(UnsupportedAttribute.class, ua -> {
+            if (ua.name().equals("f")) {
+                found.add(ua);
+            }
+        });
+        assertFalse("expected [f] to remain an UnsupportedAttribute", found.isEmpty());
+        UnsupportedEsField cleaned = found.getLast().field();
+        assertThat(cleaned.getOriginalTypes(), contains("ip_range"));
+        assertThat(cleaned.getProperties(), hasKey("raw"));
+    }
+
+    /** Analyzes {@code query} over a single-field index and returns the last {@code fieldName} attribute's (cleaned) field. */
+    private static EsField shippedFieldAfterAnalysis(String fieldName, EsField field, String query) {
+        EsIndex index = new EsIndex(
+            "idx",
+            Map.of(fieldName, field),
+            Map.of("idx-a", new IndexProperties(IndexMode.STANDARD, 0), "idx-b", new IndexProperties(IndexMode.STANDARD, 0)),
+            Map.of(),
+            Map.of()
+        );
+        LogicalPlan plan = analyzer().addIndex(IndexResolution.valid(index)).query(query);
+
+        List<EsField> found = new ArrayList<>();
+        plan.forEachExpressionDown(FieldAttribute.class, fieldAttribute -> {
+            assertNoConflicts(fieldAttribute.field());
+            if (fieldAttribute.name().equals(fieldName)) {
+                found.add(fieldAttribute.field());
+            }
+        });
+        assertFalse("expected a [" + fieldName + "] field attribute", found.isEmpty());
+        return found.get(found.size() - 1);
     }
 
     public void testExplicitRetainOriginalFieldWithCast() {

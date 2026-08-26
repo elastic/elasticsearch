@@ -3106,6 +3106,7 @@ public class InternalEngine extends Engine {
             try {
                 if (onlyExpungeDeletes) {
                     indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
+                    this.forceMergeUUID = forceMergeUUID;
                 } else if (maxNumSegments <= 0) {
                     indexWriter.maybeMerge();
                 } else {

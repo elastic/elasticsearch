@@ -39,7 +39,7 @@ configurations.consumable('nativeLibs') {
 
 var zstdVersion = "1.5.7-1"
 var vecVersion = "1.0.139"
-var pqrsVersion = "0.2.0"
+var pqrsVersion = "0.3.0"
 var simdjsonVersion = "0.1.0"
 
 repositories {

@@ -40,8 +40,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-    private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
-
     private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
@@ -88,7 +86,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode == 422) {
             // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
             // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
-            return new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
+            return new RetryException(false, buildError(VALIDATION_ERROR, outboundRequest, result));
         } else if (statusCode == 400) {
             return new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode == 404) {

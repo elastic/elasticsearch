@@ -17,9 +17,8 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * Shared utilities for the inline binary array and key-value formats used by both
- * EIRF and ESCF batch encoders.
- * TODO: Delete EIRF from Javadoc once EIRF goes away
+ * Shared utilities for the inline binary array and key-value formats used by
+ * batch encoders.
  */
 public final class SourceBatchEncodeHelper {
 

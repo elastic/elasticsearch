@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.format.Util;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -18,6 +17,7 @@ import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -76,7 +76,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
     private final MessageType schema;
 
     /**
-     * Owns the allocator-backed direct memory holding {@link #preWarmedChunks} (and the
+     * Owns the breaker-accounted buffers holding {@link #preWarmedChunks} (and the
      * temporary buffers used by the coalesced index fetch). Closed when this metadata is no
      * longer needed — typically at the end of the iterator's lifecycle. Never null;
      * {@link #empty()} uses a no-op releasable.
@@ -111,11 +111,10 @@ final class PreloadedRowGroupMetadata implements Releasable {
     }
 
     /**
-     * Idempotent and safe to call from multiple threads. Necessary because the underlying
-     * releasable wraps refcounted {@link org.apache.arrow.memory.ArrowBuf}s whose
-     * {@code close()} throws when the reference count reaches zero a second time. The
-     * {@link AtomicBoolean} mirrors {@link PrefetchedPageReader#close()} so both
-     * direct-memory-owning components have identical close semantics.
+     * Idempotent and safe to call from multiple threads. The underlying releasable owns
+     * breaker-accounted heap buffers; {@code DirectReadBuffer.close()} is itself CAS-guarded,
+     * and this {@link AtomicBoolean} matches {@link PrefetchedPageReader#close()} so both
+     * components have identical close semantics.
      */
     @Override
     public void close() {
@@ -151,8 +150,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * <p>Falls back to {@link ParquetFileReader}'s sequential reading when no storage object
      * is provided (e.g., in-memory test files).
      */
-    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, BufferAllocator allocator) {
-        return preload(reader, storageObject, null, allocator);
+    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, CircuitBreaker breaker) {
+        return preload(reader, storageObject, null, breaker);
     }
 
     /**
@@ -168,9 +167,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
         ParquetFileReader reader,
         StorageObject storageObject,
         Set<String> predicateColumnPaths,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
-        return preload(reader, storageObject, predicateColumnPaths, null, null, allocator);
+        return preload(reader, storageObject, predicateColumnPaths, null, null, breaker);
     }
 
     /**
@@ -199,7 +198,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         Set<String> columnIndexPaths,
         Set<String> offsetIndexPaths,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
@@ -215,7 +214,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
                     predicateColumnPaths,
                     columnIndexPaths,
                     offsetIndexPaths,
-                    allocator
+                    breaker
                 );
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
@@ -247,7 +246,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         Set<String> columnIndexPaths,
         Set<String> offsetIndexPaths,
-        BufferAllocator allocator
+        CircuitBreaker breaker
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -290,7 +289,7 @@ final class PreloadedRowGroupMetadata implements Releasable {
             storageObject,
             ranges,
             CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
-            allocator,
+            breaker,
             Runnable::run,
             future
         );

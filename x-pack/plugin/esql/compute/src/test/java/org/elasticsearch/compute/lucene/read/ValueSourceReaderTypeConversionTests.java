@@ -1388,7 +1388,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         Boolean evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
-            return Booleans.parseBoolean(container.getBytesRef(index, scratchPad).utf8ToString());
+            final var ref = container.getBytesRef(index, scratchPad);
+            return Booleans.parseBoolean(ref.bytes, ref.offset, ref.length);
         }
     }
 

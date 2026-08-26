@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.bootstrap;
 
 import org.apache.lucene.tests.mockfile.FilterFileSystem;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 
 import java.nio.file.Path;
@@ -32,9 +33,9 @@ class TestPathLookup implements PathLookup {
     TestPathLookup(Path tempDir) {
         baseDirPaths = new ConcurrentHashMap<>();
         baseDirPaths.put(TEMP, List.of(tempDir));
-        String nativeLibsPath = System.getProperty("es.nativelibs.path");
-        if (nativeLibsPath != null) {
-            baseDirPaths.put(LIB, List.of(Path.of(nativeLibsPath)));
+        String nativeLibPath = System.getProperty("es.nativelibs.path");
+        if (nativeLibPath != null) {
+            baseDirPaths.put(LIB, List.of(PathUtils.get(nativeLibPath)));
         }
     }
 

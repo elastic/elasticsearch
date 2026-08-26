@@ -120,6 +120,7 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final TransportVersion DATAFEED_CLOUD_INTERNAL_CREDENTIAL = TransportVersion.fromName(
         "datafeed_cloud_internal_credential"
     );
+    static final TransportVersion DATAFEED_FORCE_REKEYING = TransportVersion.fromName("datafeed_force_rekeying");
 
     /**
      * Returns whether ML cross-project search (CPS) is allowed for datafeeds in the current environment.
@@ -151,6 +152,13 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
 
     public static ElasticsearchStatusException projectRoutingRequiresCpsException() {
         return new ElasticsearchStatusException(PROJECT_ROUTING_REQUIRES_CPS_MESSAGE, RestStatus.BAD_REQUEST);
+    }
+
+    public static final String FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE =
+        "_force_rekeying requires a cloud-authenticated caller and an environment that supports cross-project calls";
+
+    public static ElasticsearchStatusException forceRekeyingRequiresCpsAndCloudAuthException() {
+        return new ElasticsearchStatusException(FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE, RestStatus.BAD_REQUEST);
     }
 
     // Accessing `Job.ID` here causes an NPE in tests as a DatafeedConfig parser is referenced in the Job parser
@@ -388,8 +396,27 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         }
     }
 
-    public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
-        return withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider, CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+    /**
+     * Promotes the datafeed's {@link IndicesOptions} to cross-project mode only when CPS is allowed
+     * <em>and</em> {@code crossProjectAllowed} is {@code true}; otherwise the datafeed is returned unchanged
+     * (origin-only).
+     * <p>
+     * The caller supplies credential presence for {@code crossProjectAllowed}. A datafeed (or previewing
+     * caller) with no minted cloud credential runs under an identity that carries no cloud token, so
+     * issuing a CPS-shaped search would fail closed in the auth layer. Keeping such a datafeed origin-only
+     * mirrors the transform {@code SourceConfig.indicesOptions(boolean)} credential-scoping.
+     */
+    public static DatafeedConfig withCrossProjectModeIfEnabled(
+        DatafeedConfig datafeed,
+        CrossProjectModeDecider crossProjectModeDecider,
+        boolean crossProjectAllowed
+    ) {
+        return withCrossProjectModeIfEnabled(
+            datafeed,
+            crossProjectModeDecider,
+            crossProjectAllowed,
+            CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled()
+        );
     }
 
     // visible for testing
@@ -397,12 +424,14 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     static DatafeedConfig withCrossProjectModeIfEnabled(
         DatafeedConfig datafeed,
         CrossProjectModeDecider crossProjectModeDecider,
+        boolean crossProjectAllowed,
         boolean featureEnabled
     ) {
         Objects.requireNonNull(datafeed, "datafeed must not be null");
         Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
 
-        if (isCPSAllowed(crossProjectModeDecider, featureEnabled) == false) {
+        // Promote to CPS only when the environment allows it and the caller has a credential to fan out with.
+        if ((isCPSAllowed(crossProjectModeDecider, featureEnabled) && crossProjectAllowed) == false) {
             return datafeed;
         }
 

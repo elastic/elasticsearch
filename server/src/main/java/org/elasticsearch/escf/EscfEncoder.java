@@ -82,8 +82,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
             return;
         }
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            parser.allowDuplicateKeys(true);
-            flattenDocument(parser, sink);
+            if (xContentType == XContentType.JSON) {
+                parser.allowDuplicateKeys(true);
+            }
+            parser.nextToken(); // START_OBJECT
+            flattenObject(row, parser, parser.nextToken(), sink); // TODO: fix post merge
         }
     }
 

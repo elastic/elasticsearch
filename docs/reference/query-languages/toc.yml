@@ -72,6 +72,7 @@ toc:
           - file: query-dsl/query-dsl-rule-query.md
       - file: query-dsl/term-level-queries.md
         children:
+          - file: query-dsl/query-dsl-bitmap-terms-query.md
           - file: query-dsl/query-dsl-exists-query.md
           - file: query-dsl/query-dsl-fuzzy-query.md
           - file: query-dsl/query-dsl-ids-query.md
@@ -114,6 +115,7 @@ toc:
                 children:
                   - file: esql/commands/change-point.md
                   - file: esql/commands/completion.md
+                  - file: esql/commands/dedup.md
                   - file: esql/commands/dissect.md
                   - file: esql/commands/drop.md
                   - file: esql/commands/enrich.md
@@ -354,6 +356,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_degrees.md
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
+                  - file: esql/functions-operators/type-conversion-functions/to_double_range.md
                   - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
                   - file: esql/functions-operators/type-conversion-functions/to_gauge.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
@@ -435,6 +438,7 @@ toc:
         children:
           - file: esql/esql-implicit-casting.md
           - file: esql/esql-time-spans.md
+          - file: esql/esql-flattened-fields.md
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-null-values.md
           - file: esql/esql-multivalued-fields.md

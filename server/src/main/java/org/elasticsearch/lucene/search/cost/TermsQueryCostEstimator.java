@@ -28,8 +28,20 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
     /** Fixed per-leaf overhead for a sparse {@code DocIdSetBuilder}. */
     public static final long DOC_ID_SET_BUILDER_BASE_BYTES = 192L;
 
-    /** Bytes the sparse {@code DocIdSetBuilder} buffer holds per candidate document id. */
+    /** Bytes the sparse {@code DocIdSetBuilder} buffer holds per candidate document id, once retained. */
     public static final long BYTES_PER_DOC_ID = 4L;
+
+    /**
+     * Safety multiplier over {@link #BYTES_PER_DOC_ID} covering the transient peak {@code DocIdSetBuilder.build()}
+     * allocates while concatenating its exponentially-grown sparse buffers, which can reach ~3x their retained size.
+     */
+    public static final long SPARSE_PEAK_MULTIPLIER = 4L;
+
+    /**
+     * Approximates {@code DocIdSetBuilder}'s sparse-to-dense upgrade point; its doubling buffers can trigger it
+     * after half of its nominal {@code maxDoc >>> 7} threshold.
+     */
+    private static final int SPARSE_TO_DENSE_SHIFT = 8;
 
     private static final long BITS_PER_WORD = 64L;
     private static final long BYTES_PER_WORD = 8L;
@@ -59,8 +71,10 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
     }
 
     /**
-     * Ceiling on the RAM a single leaf's multi-term constant-score scorer allocates: the smaller of a
-     * dense {@code FixedBitSet(leafMaxDoc)} and a sparse {@code DocIdSetBuilder} sized to {@code cost}.
+     * Ceiling on the RAM a single leaf's multi-term constant-score scorer allocates: a dense
+     * {@code FixedBitSet(leafMaxDoc)} once {@code cost} exceeds {@code DocIdSetBuilder}'s own sparse-to-dense
+     * upgrade threshold, otherwise a sparse {@code DocIdSetBuilder} sized to {@code cost} (with headroom for its
+     * transient build-time peak, not just its retained size).
      *
      * @param cost       the {@code ScorerSupplier.cost()} estimate of matching documents for this leaf
      * @param leafMaxDoc {@code ctx.reader().maxDoc()} of the leaf; {@code <= 0} yields {@code 0} bytes
@@ -75,7 +89,13 @@ public final class TermsQueryCostEstimator implements QueryCostEstimator {
             long denseBytes = Math.addExact(Math.multiplyExact(words, BYTES_PER_WORD), FIXED_BITSET_BASE_BYTES);
 
             long boundedCost = Math.max(0L, cost);
-            long sparseBytes = Math.addExact(DOC_ID_SET_BUILDER_BASE_BYTES, Math.multiplyExact(boundedCost, BYTES_PER_DOC_ID));
+            long sparseToDenseThreshold = (long) leafMaxDoc >>> SPARSE_TO_DENSE_SHIFT;
+            if (boundedCost > sparseToDenseThreshold) {
+                return denseBytes;
+            }
+
+            long peakBytesPerDocId = Math.multiplyExact(BYTES_PER_DOC_ID, SPARSE_PEAK_MULTIPLIER);
+            long sparseBytes = Math.addExact(DOC_ID_SET_BUILDER_BASE_BYTES, Math.multiplyExact(boundedCost, peakBytesPerDocId));
 
             return Math.min(denseBytes, sparseBytes);
         } catch (ArithmeticException e) {

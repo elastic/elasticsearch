@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene.search.cost;
 
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
@@ -81,13 +82,33 @@ public class TermsQueryCostEstimatorTests extends ESTestCase {
         assertEquals(dense, hugeCost);
     }
 
-    public void testExecutionBytesSaturatesOnOverflow() {
-        assertEquals(Long.MAX_VALUE, TermsQueryCostEstimator.executionBytesForLeaf(Long.MAX_VALUE, Integer.MAX_VALUE));
+    public void testExecutionBytesForHugeCostReturnsDenseCeilingWithoutOverflow() {
+        int maxDoc = Integer.MAX_VALUE;
+        long dense = TermsQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc);
+        assertEquals(dense, TermsQueryCostEstimator.executionBytesForLeaf(Long.MAX_VALUE, maxDoc));
+    }
+
+    public void testExecutionBytesSwitchesToDenseAtBuilderThreshold() {
+        int maxDoc = 1000000;
+        long builderThreshold = maxDoc >>> 8;
+        long dense = TermsQueryCostEstimator.executionBytesForLeaf(maxDoc, maxDoc);
+        long justAboveThreshold = TermsQueryCostEstimator.executionBytesForLeaf(builderThreshold + 1, maxDoc);
+        assertEquals(
+            "cost just above DocIdSetBuilder's own sparse-to-dense threshold must be charged the dense ceiling",
+            dense,
+            justAboveThreshold
+        );
     }
 
     public void testExecutionBytesForLeafIsCeilingOnMeasuredRam() throws IOException {
         for (int maxDoc : new int[] { 1, 100, 10000, 1000000 }) {
-            for (int matches : new int[] { 1, Math.max(1, maxDoc / 1000), Math.max(1, maxDoc / 2), maxDoc }) {
+            long builderThreshold = maxDoc >>> 8;
+            for (int matches : new int[] {
+                1,
+                Math.max(1, maxDoc / 1000),
+                (int) Math.min(maxDoc, builderThreshold + 1),
+                Math.max(1, maxDoc / 2),
+                maxDoc }) {
                 long measured = docIdSetRamBytes(maxDoc, matches);
                 long estimated = TermsQueryCostEstimator.executionBytesForLeaf(matches, maxDoc);
                 assertThat(
@@ -107,6 +128,24 @@ public class TermsQueryCostEstimatorTests extends ESTestCase {
         }
     }
 
+    public void testExecutionBytesForLeafIsCeilingWithManySmallBuffers() throws IOException {
+        int maxDoc = 1000000;
+        int terms = 5000;
+        DocIdSetBuilder builder = new DocIdSetBuilder(maxDoc);
+        int step = Math.max(1, maxDoc / terms);
+        for (int i = 0; i < terms; i++) {
+            builder.add(singleDocIterator(i * step));
+        }
+        long measured = builder.build().ramBytesUsed();
+        long estimated = TermsQueryCostEstimator.executionBytesForLeaf(terms, maxDoc);
+        assertThat(
+            "per-leaf estimate must be a ceiling even when the builder accumulates via many small "
+                + "add(iterator) calls instead of one bulk grow()",
+            estimated,
+            greaterThanOrEqualTo(measured)
+        );
+    }
+
     private static long docIdSetRamBytes(int maxDoc, int matches) throws IOException {
         DocIdSetBuilder builder = new DocIdSetBuilder(maxDoc);
         DocIdSetBuilder.BulkAdder adder = builder.grow(matches);
@@ -118,5 +157,34 @@ public class TermsQueryCostEstimatorTests extends ESTestCase {
         }
         DocIdSet docIdSet = builder.build();
         return docIdSet.ramBytesUsed();
+    }
+
+    private static DocIdSetIterator singleDocIterator(int doc) {
+        return new DocIdSetIterator() {
+            private int current = -1;
+
+            @Override
+            public int docID() {
+                return current;
+            }
+
+            @Override
+            public int nextDoc() {
+                return current = (current < doc) ? doc : DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public int advance(int target) {
+                while (docID() < target) {
+                    nextDoc();
+                }
+                return docID();
+            }
+
+            @Override
+            public long cost() {
+                return 1;
+            }
+        };
     }
 }

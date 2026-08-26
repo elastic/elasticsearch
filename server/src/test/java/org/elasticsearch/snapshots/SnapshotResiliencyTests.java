@@ -129,6 +129,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     protected TestClusterNodes testClusterNodes;
 
+    private final boolean monotonicSnapshotEndTime = randomBoolean();
+
     protected Path tempDir;
 
     @Before
@@ -543,8 +545,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        // advance time to let all snapshots finalize with strictly monotonically increasing times
-        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 2);
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 2);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -609,8 +615,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .deleteSnapshot(new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "*"), deleteSnapshotStepListener)
         );
 
-        // advance time to let all snapshots finalize with strictly monotonically increasing times
-        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + inProgressSnapshots);
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + inProgressSnapshots);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -701,8 +711,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        // advance time to let all snapshots finalize with strictly monotonically increasing times
-        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 1);
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 1);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
 
         var response = safeResult(searchResponseListener);
         try {
@@ -1336,8 +1350,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
         }));
 
-        // advance time to let all snapshots finalize with strictly monotonically increasing times
-        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount);
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
                 + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
@@ -1561,8 +1579,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }));
             });
 
-        // advance time to let all snapshots finalize with strictly monotonically increasing times
-        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount + 1);
+        if (monotonicSnapshotEndTime) {
+            // advance time to let all snapshots finalize with strictly monotonically increasing times
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount + 1);
+        } else {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
                 + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
@@ -2017,7 +2039,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             deterministicTaskQueue,
             transportInterceptorFactory,
             expectedWarnings -> assertWarnings(expectedWarnings)
-        );
+        ) {
+            @Override
+            protected Settings nodeSettings(DiscoveryNode node) {
+                return Settings.builder()
+                    .put(super.nodeSettings(node))
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
+                    .build();
+            }
+        };
         startCluster();
     }
 

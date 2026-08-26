@@ -39,6 +39,17 @@ bytes:integer    |formatted:keyword
 2048             |2kb
 ;
 
+fmtBytesUnboundedSentinelWithUnit
+required_capability: fn_fmt_bytes
+
+ROW bytes = -1
+| EVAL formatted = FMT_BYTES(bytes, "kb")
+;
+
+bytes:integer    |formatted:keyword
+-1               |-1b
+;
+
 fmtBytesNegative
 required_capability: fn_fmt_bytes
 
@@ -97,6 +108,17 @@ bytes:integer    |formatted:keyword
 // end::fmt_bytes_si_with_unit-result[]
 ;
 
+fmtBytesSiUnboundedSentinelWithUnit
+required_capability: fn_fmt_bytes_si
+
+ROW bytes = -1
+| EVAL formatted = FMT_BYTES_SI(bytes, "KB")
+;
+
+bytes:integer    |formatted:keyword
+-1               |-1B
+;
+
 fmtBytesSiNegative
 required_capability: fn_fmt_bytes_si
 
@@ -139,6 +161,17 @@ ROW nanoseconds = 1500000000
 nanoseconds:long |duration:keyword
 1500000000       |1500ms
 // end::fmt_duration_with_unit-result[]
+;
+
+fmtDurationUnboundedSentinelWithUnit
+required_capability: fn_fmt_duration
+
+ROW nanoseconds = -1
+| EVAL duration = FMT_DURATION(nanoseconds, "s")
+;
+
+nanoseconds:integer|duration:keyword
+-1                 |-1
 ;
 
 fmtDurationNegative

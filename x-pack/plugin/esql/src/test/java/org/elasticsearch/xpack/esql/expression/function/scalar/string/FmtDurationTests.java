@@ -49,6 +49,7 @@ public class FmtDurationTests extends AbstractScalarFunctionTestCase {
         suppliers.add(unitSupplier(90_000_000_000L, "m", "1.5m"));
         suppliers.add(unitSupplier(7_200_000_000_000L, "h", "2h"));
         suppliers.add(unitSupplier(172_800_000_000_000L, "d", "2d"));
+        suppliers.add(unitSupplier(-1, "s", "-1"));
         suppliers.add(negativeSupplier(-2));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

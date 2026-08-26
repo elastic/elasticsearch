@@ -193,6 +193,8 @@ public class FmtDuration extends EsqlScalarFunction implements OptionalArgument,
     /**
      * Formats {@code nanoseconds} pinned to the given unit rather than auto-scaling. Mirrors
      * {@link TimeValue#toHumanReadableString} rejection of durations less than {@code -1}.
+     * {@code -1} is {@link TimeValue}'s "unbounded" sentinel; it is rendered the same way
+     * regardless of the requested unit, rather than being divided into a near-zero fraction.
      */
     static String formatWithUnit(long nanoseconds, String unit) {
         if (nanoseconds < -1) {
@@ -210,6 +212,9 @@ public class FmtDuration extends EsqlScalarFunction implements OptionalArgument,
                 "Unsupported unit [" + unit + "], expected one of [nanos, micros, ms, s, m, h, d]"
             );
         };
+        if (nanoseconds == -1) {
+            return TimeValue.timeValueNanos(nanoseconds).toHumanReadableString(1);
+        }
         return Strings.format1Decimals(nanoseconds / divisor, unit.toLowerCase(Locale.ROOT));
     }
 

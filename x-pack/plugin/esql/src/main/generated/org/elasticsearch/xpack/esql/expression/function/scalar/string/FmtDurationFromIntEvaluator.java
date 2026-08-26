@@ -62,10 +62,11 @@ public final class FmtDurationFromIntEvaluator implements ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, IntBlock nanosecondsBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (nanosecondsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (nanosecondsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

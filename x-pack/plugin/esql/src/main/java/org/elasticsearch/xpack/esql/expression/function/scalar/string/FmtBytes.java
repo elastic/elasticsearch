@@ -188,10 +188,12 @@ public class FmtBytes extends EsqlScalarFunction implements OptionalArgument, An
      * Formats {@code bytes} pinned to the given unit rather than auto-scaling. Mirrors
      * {@link ByteSizeValue#toString} formatting rules (at most one fractional digit, negative
      * values other than {@code -1} rejected), matching {@link #processLong}/{@link #processInt}.
+     * {@code -1} is {@link ByteSizeValue}'s "unbounded" sentinel; it is rendered the same way
+     * regardless of the requested unit, rather than being divided into a near-zero fraction.
      */
     static String formatWithUnit(long bytes, String unit) {
         if (bytes < -1) {
-            throw new IllegalArgumentException("Values less than [-1] bytes are not supported: [" + bytes + "]");
+            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + bytes + "b");
         }
         double divisor = switch (unit.toLowerCase(Locale.ROOT)) {
             case "b" -> 1;
@@ -202,6 +204,9 @@ public class FmtBytes extends EsqlScalarFunction implements OptionalArgument, An
             case "pb" -> PB;
             default -> throw new IllegalArgumentException("Unsupported unit [" + unit + "], expected one of [b, kb, mb, gb, tb, pb]");
         };
+        if (bytes == -1) {
+            return ByteSizeValue.ofBytes(bytes).toString();
+        }
         return Strings.format1Decimals(bytes / divisor, unit.toLowerCase(Locale.ROOT));
     }
 

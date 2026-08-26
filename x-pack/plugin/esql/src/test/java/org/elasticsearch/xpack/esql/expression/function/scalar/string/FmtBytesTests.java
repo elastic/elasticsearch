@@ -48,6 +48,7 @@ public class FmtBytesTests extends AbstractScalarFunctionTestCase {
         suppliers.add(unitSupplier(4 * 1024L * 1024 * 1024, "gb", "4gb"));
         suppliers.add(unitSupplier(5 * 1024L * 1024 * 1024 * 1024L, "tb", "5tb"));
         suppliers.add(unitSupplier(6 * 1024L * 1024 * 1024 * 1024L * 1024L, "pb", "6pb"));
+        suppliers.add(unitSupplier(-1, "kb", "-1b"));
         suppliers.add(negativeSupplier(-2));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

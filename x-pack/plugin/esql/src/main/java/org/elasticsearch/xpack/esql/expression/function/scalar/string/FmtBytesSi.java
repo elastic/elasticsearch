@@ -221,7 +221,9 @@ public class FmtBytesSi extends EsqlScalarFunction implements OptionalArgument, 
     }
 
     /**
-     * Formats {@code bytes} pinned to the given unit rather than auto-scaling.
+     * Formats {@code bytes} pinned to the given unit rather than auto-scaling. {@code -1} is
+     * mirrored from {@link #formatBytesSi} as the "unbounded" sentinel and rendered the same
+     * way regardless of the requested unit, rather than being divided into a near-zero fraction.
      */
     static String formatWithUnit(long bytes, String unit) {
         if (bytes < -1) {
@@ -255,6 +257,9 @@ public class FmtBytesSi extends EsqlScalarFunction implements OptionalArgument, 
                 divisor = PB;
             }
             default -> throw new IllegalArgumentException("Unsupported unit [" + unit + "], expected one of [B, KB, MB, GB, TB, PB]");
+        }
+        if (bytes == -1) {
+            return formatBytesSi(bytes);
         }
         return Strings.format1Decimals(bytes / divisor, canonicalUnit);
     }

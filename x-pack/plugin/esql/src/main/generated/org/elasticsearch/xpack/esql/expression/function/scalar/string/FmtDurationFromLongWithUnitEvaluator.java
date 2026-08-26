@@ -76,10 +76,11 @@ public final class FmtDurationFromLongWithUnitEvaluator implements ExpressionEva
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        if (nanosecondsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (nanosecondsBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:
@@ -87,10 +88,11 @@ public final class FmtDurationFromLongWithUnitEvaluator implements ExpressionEva
               result.appendNull();
               continue position;
         }
+        if (unitBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (unitBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

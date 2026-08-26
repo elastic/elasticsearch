@@ -63,10 +63,11 @@ public final class FmtPercentFromDoubleEvaluator implements ExpressionEvaluator 
   public BytesRefBlock eval(int positionCount, DoubleBlock valueBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (valueBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

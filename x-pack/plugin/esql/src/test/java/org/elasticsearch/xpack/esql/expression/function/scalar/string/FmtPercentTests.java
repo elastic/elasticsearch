@@ -36,10 +36,19 @@ public class FmtPercentTests extends AbstractScalarFunctionTestCase {
         for (var supplier : TestCaseSupplier.intCases(0, Integer.MAX_VALUE, true)) {
             suppliers.add(makeIntSupplier(supplier));
         }
+        for (var supplier : TestCaseSupplier.intCases(Integer.MIN_VALUE, -1, true)) {
+            suppliers.add(makeIntSupplier(supplier));
+        }
         for (var supplier : TestCaseSupplier.longCases(0, Long.MAX_VALUE, true)) {
             suppliers.add(makeLongSupplier(supplier));
         }
+        for (var supplier : TestCaseSupplier.longCases(Long.MIN_VALUE, -1, true)) {
+            suppliers.add(makeLongSupplier(supplier));
+        }
         for (var supplier : TestCaseSupplier.doubleCases(0.0, 1.0, true)) {
+            suppliers.add(makeDoubleSupplier(supplier));
+        }
+        for (var supplier : TestCaseSupplier.doubleCases(-1.0, -0.0001, true)) {
             suppliers.add(makeDoubleSupplier(supplier));
         }
 

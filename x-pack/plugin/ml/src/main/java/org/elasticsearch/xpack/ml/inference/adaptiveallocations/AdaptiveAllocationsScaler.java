@@ -176,14 +176,6 @@ public class AdaptiveAllocationsScaler {
 
         neededNumberOfAllocations = numberOfAllocations;
 
-        // Defense-in-depth: never demand more allocations than actually fit in the ML nodes' free memory given the
-        // observed per-allocation memory. neededNumberOfAllocations above retains the raw demand for telemetry, so the
-        // cap is visible as the gap between needed and the applied number of allocations. Floored at 1 so this cap can
-        // never itself scale a deployment to zero (that is reserved for the no-requests path below).
-        if (maxNumberOfAllocationsByMemory != null) {
-            numberOfAllocations = Math.min(numberOfAllocations, Math.max(1, maxNumberOfAllocationsByMemory));
-        }
-
         if (maxNumberOfAllocations == null) {
             numberOfAllocations = Math.min(numberOfAllocations, MAX_NUMBER_OF_ALLOCATIONS_SAFEGUARD);
         }
@@ -192,6 +184,15 @@ public class AdaptiveAllocationsScaler {
         }
         if (maxNumberOfAllocations != null) {
             numberOfAllocations = Math.min(numberOfAllocations, maxNumberOfAllocations);
+        }
+
+        // Applied after user-configured bounds: a hard OOM safety guard that must not be overridden by
+        // min_number_of_allocations when memory is genuinely exhausted. Floored at 1 so this cap can never
+        // itself scale a deployment to zero (that is reserved for the no-requests path below).
+        // neededNumberOfAllocations retains the raw demand for telemetry, visible as the gap between needed
+        // and the applied count.
+        if (maxNumberOfAllocationsByMemory != null) {
+            numberOfAllocations = Math.min(numberOfAllocations, Math.max(1, maxNumberOfAllocationsByMemory));
         }
 
         if ((minNumberOfAllocations == null || minNumberOfAllocations == 0)

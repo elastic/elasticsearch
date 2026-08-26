@@ -47,11 +47,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -241,6 +243,16 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private final AtomicLong scaleUpCooldownTimeMillis;
     private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
     private final Map<String, String> lastWarningMessages = new ConcurrentHashMap<>();
+    /**
+     * Optional callback invoked at the end of each stats cycle with the raw {@link GetDeploymentStatsAction.Response}.
+     * Used by {@code TrainedModelAssignmentClusterService} to update the observed-memory estimator from the 10-second
+     * scaler response, avoiding a separate 60-second scatter-gather for adaptive-allocations deployments.
+     */
+    private volatile Consumer<GetDeploymentStatsAction.Response> statsResponseConsumer;
+
+    public void setStatsResponseConsumer(Consumer<GetDeploymentStatsAction.Response> consumer) {
+        this.statsResponseConsumer = consumer;
+    }
 
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
@@ -521,6 +533,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         TrainedModelAssignmentMetadata assignmentMetadata = clusterState == null
             ? null
             : TrainedModelAssignmentMetadata.fromState(clusterState);
+        // Precompute total free ML memory once: detectNodeLoad is loop-invariant (it does not change per deployment).
+        OptionalLong totalFreeMlMemoryBytes = computeTotalFreeMlMemoryBytes(clusterState, assignmentMetadata);
 
         for (Map.Entry<String, Stats> deploymentAndStats : recentStatsByDeployment.entrySet()) {
             String deploymentId = deploymentAndStats.getKey();
@@ -529,7 +543,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             adaptiveAllocationsScaler.process(stats, statsTimeInterval, numberOfAllocations.get(deploymentId));
             if (nodeLoadDetector != null) {
                 adaptiveAllocationsScaler.setMaxAllocationsByMemory(
-                    computeMaxAllocationsByMemory(clusterState, assignmentMetadata, deploymentId, numberOfAllocations.get(deploymentId))
+                    computeMaxAllocationsByMemory(
+                        assignmentMetadata,
+                        deploymentId,
+                        numberOfAllocations.get(deploymentId),
+                        totalFreeMlMemoryBytes
+                    )
                 );
             }
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
@@ -573,6 +592,13 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 );
             }
         }
+
+        // Feed the observed-memory estimator from this response to avoid a separate scatter-gather for
+        // adaptive-allocations deployments in TrainedModelAssignmentClusterService's 60-second loop.
+        Consumer<GetDeploymentStatsAction.Response> consumer = statsResponseConsumer;
+        if (consumer != null) {
+            consumer.accept(statsResponse);
+        }
     }
 
     public boolean maybeStartAllocation(TrainedModelAssignment assignment) {
@@ -605,29 +631,15 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     /**
-     * Computes an upper bound on the number of allocations for a deployment based on the ML memory actually available
-     * across the cluster and the per-allocation memory observed at runtime. Returns {@code null} (no cap) when memory
-     * accounting is unavailable or no runtime memory has been observed yet, which leaves the first scale-up unaffected.
+     * Sums the free ML memory across all ML nodes. Returns an empty optional when there are no ML nodes or
+     * {@code nodeLoadDetector} is unavailable. The result is loop-invariant across deployments within a single
+     * scaler cycle and should be precomputed once rather than recomputed per deployment.
      */
-    private Integer computeMaxAllocationsByMemory(
-        ClusterState clusterState,
-        TrainedModelAssignmentMetadata assignmentMetadata,
-        String deploymentId,
-        int currentAllocations
-    ) {
-        if (nodeLoadDetector == null) {
-            return null;
+    private OptionalLong computeTotalFreeMlMemoryBytes(ClusterState clusterState, TrainedModelAssignmentMetadata assignmentMetadata) {
+        if (nodeLoadDetector == null || clusterState == null) {
+            return OptionalLong.empty();
         }
-        TrainedModelAssignment assignment = assignmentMetadata.getDeploymentAssignment(deploymentId);
-        if (assignment == null) {
-            return null;
-        }
-        Long observedPerAllocationMemoryBytes = assignment.getObservedPerAllocationMemoryBytes();
-        if (observedPerAllocationMemoryBytes == null || observedPerAllocationMemoryBytes <= 0) {
-            return null;
-        }
-
-        long totalFreeMlMemoryBytes = 0L;
+        long total = 0L;
         boolean anyMlNode = false;
         for (DiscoveryNode node : clusterState.nodes()) {
             if (MachineLearning.isMlNode(node) == false) {
@@ -645,9 +657,38 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 continue;
             }
             anyMlNode = true;
-            totalFreeMlMemoryBytes += Math.max(0L, nodeLoad.getFreeMemoryExcludingPerNodeOverhead());
+            total += Math.max(0L, nodeLoad.getFreeMemoryExcludingPerNodeOverhead());
         }
-        if (anyMlNode == false) {
+        return anyMlNode ? OptionalLong.of(total) : OptionalLong.empty();
+    }
+
+    /**
+     * Computes an upper bound on the number of allocations for a deployment based on the ML memory actually available
+     * across the cluster and the per-allocation memory observed at runtime. Returns {@code null} (no cap) when memory
+     * accounting is unavailable or no runtime memory has been observed yet, which leaves the first scale-up unaffected.
+     *
+     * @param totalFreeMlMemoryBytes precomputed by {@link #computeTotalFreeMlMemoryBytes} — pass the same value for
+     *                               every deployment in a single scaler cycle to avoid redundant {@code detectNodeLoad}
+     *                               calls.
+     */
+    private Integer computeMaxAllocationsByMemory(
+        TrainedModelAssignmentMetadata assignmentMetadata,
+        String deploymentId,
+        int currentAllocations,
+        OptionalLong totalFreeMlMemoryBytes
+    ) {
+        if (totalFreeMlMemoryBytes.isEmpty()) {
+            return null;
+        }
+        if (assignmentMetadata == null) {
+            return null;
+        }
+        TrainedModelAssignment assignment = assignmentMetadata.getDeploymentAssignment(deploymentId);
+        if (assignment == null) {
+            return null;
+        }
+        Long observedPerAllocationMemoryBytes = assignment.getObservedPerAllocationMemoryBytes();
+        if (observedPerAllocationMemoryBytes == null || observedPerAllocationMemoryBytes <= 0) {
             return null;
         }
 
@@ -655,7 +696,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         // the current allocations plus however many additional allocations fit in the remaining headroom. Flooring the
         // additional count at zero keeps the cap from ever forcing a scale-down below the current size (avoiding churn);
         // real scale-down is driven by the demand signal and enforced by the planner.
-        long additionalAllocations = totalFreeMlMemoryBytes / observedPerAllocationMemoryBytes;
+        long additionalAllocations = totalFreeMlMemoryBytes.getAsLong() / observedPerAllocationMemoryBytes;
         long cap = currentAllocations + Math.max(0L, additionalAllocations);
         return (int) Math.min(Integer.MAX_VALUE, cap);
     }

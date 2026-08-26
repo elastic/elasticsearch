@@ -135,7 +135,7 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(test.reroute.get(), equalTo(1));
     }
 
-    public void testPeekDataWithIncompleteCacheReturnsNoData() throws Exception {
+    public void testPeekDataReturnsNoDataWhenADataNodeHasNotBeenFetched() throws Exception {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         test.addSimulation(node1.getId(), response1);
         test.addSimulation(node2.getId(), response2);

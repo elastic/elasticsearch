@@ -299,6 +299,11 @@ public final class RecordFieldMapper extends FieldMapper {
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
 
+        /** Returns the configured ignore-above threshold for this field. */
+        public Mapper.IgnoreAbove ignoreAbove() {
+            return ignoreAbove;
+        }
+
         @Override
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedRecordFieldType(name(), childPath, this);
@@ -470,6 +475,11 @@ public final class RecordFieldMapper extends FieldMapper {
     @Override
     public RootRecordFieldType fieldType() {
         return (RootRecordFieldType) super.fieldType();
+    }
+
+    /** Returns the configured depth limit for this field. */
+    public int depthLimit() {
+        return builder.depthLimit.get();
     }
 
     @Override

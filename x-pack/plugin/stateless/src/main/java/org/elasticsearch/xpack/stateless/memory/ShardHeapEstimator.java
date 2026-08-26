@@ -120,8 +120,6 @@ public class ShardHeapEstimator {
         return new ShardMetricsAggregation(mappingSizeInBytes, totalShardHeapInBytes, maxShardHeapInBytes, lowestMetricQuality);
     }
 
-    /// Estimates a shard's fixed/adaptive memory overhead (segment, field, live-doc byte counts, and points memory metrics),
-    /// <b>excluding</b> postings memory ({@link StatelessMemoryMetricsService.ShardMemoryMetrics#getPostingsInMemoryBytes()});
     private long estimateShardOverheadExcludingPostings(StatelessMemoryMetricsService.ShardMemoryMetrics metrics) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
         if (fixedShardOverhead.getBytes() > 0) {

@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Tests the guarded atomic delete-and-restore of an existing data stream: the destination data stream and its backing/failure-store
+ * Tests the atomic delete-and-restore of an existing data stream: the destination data stream and its backing/failure-store
  * indices are removed and the corresponding snapshot data stream is restored under the same name, in one cluster-state update. The
  * restored backing indices keep their names but get entirely new index UUIDs, unlike a regular index's open-to-open history-UUID
  * transition, which keeps the same index UUID.
@@ -119,8 +119,8 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
 
     /**
      * Deleting the destination data stream strips it from every existing data-stream alias that referenced it, so the synthetic snapshot
-     * metadata built for a guarded restore must carry the snapshot's own data-stream aliases explicitly; there is no other path by which
-     * a restored data stream can regain its aliases.
+     * metadata built for a restore over an existing data stream must carry the snapshot's own data-stream aliases explicitly; there is no
+     * other path by which a restored data stream can regain its aliases.
      */
     public void testRestoreOverExistingDataStreamRestoresAliasesFromSnapshot() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -145,7 +145,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
 
     /**
      * The ordinary restore path passes every repository {@link IndexMetadata} through the configured
-     * {@link IndexMetadataRestoreTransformer} before it is applied; the guarded restore must do the same rather than inserting the raw
+     * {@link IndexMetadataRestoreTransformer} before it is applied; the restore must do the same rather than inserting the raw
      * snapshot metadata directly, since a caller resolving a {@link RestoreService.DataStreamRestoreTarget} has no way to apply that
      * transformer itself.
      */
@@ -178,7 +178,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             .getSettings()
             .get(restoredBackingIndex);
         assertThat(
-            "the guarded restore must apply the configured IndexMetadataRestoreTransformer, the same as an ordinary restore does",
+            "the restore must apply the configured IndexMetadataRestoreTransformer, the same as an ordinary restore does",
             INDEX_SEARCH_IDLE_AFTER.get(restoredSettings),
             equalTo(TimeValue.timeValueMinutes(2))
         );
@@ -209,7 +209,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
      * if an active snapshot already includes the destination data stream (by name), leaving the destination untouched, and a plain retry
      * after that snapshot finishes must then succeed.
      */
-    public void testGuardedDataStreamRestoreRejectsActiveSnapshotConflict() throws Exception {
+    public void testRestoreOverExistingDataStreamRejectsActiveSnapshotConflict() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
 
@@ -231,7 +231,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             blockingSnapshot.actionGet(TEST_REQUEST_TIMEOUT);
         }
 
-        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+        assertThat("a rejected restore must leave the destination unchanged", currentDataStream(), notNullValue());
         assertThat(currentDataStream().getIndices(), hasSize(1));
 
         // the conflict is transient: a plain retry after the snapshot finishes succeeds
@@ -241,10 +241,10 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
 
     /**
      * The caller resolves the exact destination {@link DataStream} identity (name plus exact backing/failure index identities) before
-     * submitting the guarded restore, precisely so that a destination whose backing indices changed since then (e.g. a rollover) is
+     * submitting the restore, precisely so that a destination whose backing indices changed since then (e.g. a rollover) is
      * never silently adopted.
      */
-    public void testGuardedDataStreamRestoreRejectsExactIdentityMismatch() throws Exception {
+    public void testRestoreOverExistingDataStreamRejectsExactIdentityMismatch() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -269,11 +269,11 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         final SnapshotRestoreException e = expectThrows(SnapshotRestoreException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(e.getMessage(), containsString("have changed"));
 
-        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+        assertThat("a rejected restore must leave the destination unchanged", currentDataStream(), notNullValue());
 
         // a destination that has been deleted entirely (rather than merely changed) gets a distinct, more specific message. The
         // destination is genuinely deleted here, rather than simulated by renaming the resolved destination object, so that this
-        // exercises the "no longer exists" branch specifically rather than the guarded restore's same-name precondition
+        // exercises the "no longer exists" branch specifically rather than the restore's same-name precondition
         assertAcked(
             client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
                 .get()
@@ -293,7 +293,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
      * that resolved the wrong snapshot data stream for a destination) must be rejected before anything is deleted, rather than silently
      * deleting the destination and installing an unrelated data stream under its own, different name.
      */
-    public void testGuardedDataStreamRestoreRejectsNameMismatch() throws Exception {
+    public void testRestoreOverExistingDataStreamRejectsNameMismatch() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -307,9 +307,12 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
             IllegalArgumentException.class,
             () -> restoreOverExistingDataStreamFuture(restoreTarget.withDestination(mismatchedDestination))
         );
-        assertThat(e.getMessage(), containsString("guarded restore only supports restoring a data stream over one of the same name"));
+        assertThat(
+            e.getMessage(),
+            containsString("restore over an existing data stream only supports restoring it over one of the same name")
+        );
 
-        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+        assertThat("a rejected restore must leave the destination unchanged", currentDataStream(), notNullValue());
     }
 
     /**
@@ -317,7 +320,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
      * references: a caller that resolved too few (or too many) index entries has made a mistake that must be rejected up front, rather
      * than silently restoring an incomplete data stream or leaving orphaned indices behind.
      */
-    public void testGuardedDataStreamRestoreRejectsIndexSetMismatch() throws Exception {
+    public void testRestoreOverExistingDataStreamRejectsIndexSetMismatch() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -340,7 +343,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         );
         assertThat(e.getMessage(), containsString("do not exactly match its backing and failure-store indices"));
 
-        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+        assertThat("a rejected restore must leave the destination unchanged", currentDataStream(), notNullValue());
     }
 
     /**
@@ -348,7 +351,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
      * mismatch means the caller mixed up which repository identity and metadata belong to which index name, which must be rejected
      * rather than silently restoring the wrong index content under a given name.
      */
-    public void testGuardedDataStreamRestoreRejectsIndexNameMismatch() throws Exception {
+    public void testRestoreOverExistingDataStreamRejectsIndexNameMismatch() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -382,14 +385,14 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         );
         assertThat(e.getMessage(), containsString("does not match the name of its supplied IndexId or IndexMetadata"));
 
-        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
+        assertThat("a rejected restore must leave the destination unchanged", currentDataStream(), notNullValue());
     }
 
     /**
-     * A retry that supplies the same restore UUID as an already-applied guarded restore observes the correlated
+     * A retry that supplies the same restore UUID as an already-applied restore observes the correlated
      * {@link RestoreInProgress} entry and must be a no-op rather than a second initialization.
      */
-    public void testGuardedDataStreamRestoreIdempotentRetryIsANoOp() throws Exception {
+    public void testRestoreOverExistingDataStreamIdempotentRetryIsANoOp() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
@@ -483,7 +486,7 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
-     * Bundles the identity of the snapshot to restore from with the guarded restore target resolved from it, mirroring the analogous
+     * Bundles the identity of the snapshot to restore from with the restore target resolved from it, mirroring the analogous
      * regular-index test's {@code RestoreTarget}. Resolving is separate from publishing the transition so a test can mutate the
      * destination identity (e.g. to simulate a stale caller resolution) before submitting.
      */

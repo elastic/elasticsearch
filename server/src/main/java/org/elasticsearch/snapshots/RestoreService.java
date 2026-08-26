@@ -578,7 +578,7 @@ public final class RestoreService implements ClusterStateApplier {
      * failure-store index the snapshot-side data stream references.
      *
      * @param destinationDataStream the exact current identity (name plus exact backing/failure {@link Index} identities) of the data
-     *                              stream to delete and restore over, resolved by the caller before submitting the guarded restore, so
+     *                              stream to delete and restore over, resolved by the caller before submitting the restore, so
      *                              that a data stream deleted and recreated under the same name is never silently adopted
      * @param snapshotDataStream    the data stream as recorded in the snapshot, to be restored under the same name
      * @param snapshotIndices       every backing/failure-store index referenced by {@code snapshotDataStream}, keyed by name
@@ -595,7 +595,7 @@ public final class RestoreService implements ClusterStateApplier {
                         + snapshotDataStream.getName()
                         + "] over data stream ["
                         + destinationDataStream.getName()
-                        + "] because a guarded restore only supports restoring a data stream over one of the same name"
+                        + "] because a restore over an existing data stream only supports restoring it over one of the same name"
                 );
             }
             final Set<String> expectedIndexNames = Stream.concat(
@@ -639,7 +639,7 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * The guarded atomic data-stream delete-and-restore operation: deletes the given destination data streams and their
+     * The atomic delete-and-restore operation for existing data streams: deletes the given destination data streams and their
      * backing/failure-store indices and restores the corresponding snapshot data streams under the same names, in one
      * cluster-state update that atomically removes the old destinations, applies the restored metadata, adds snapshot-recovery routing
      * for the newly-restored backing/failure indices, installs the correlated {@link RestoreInProgress} entry, and reroutes. Every target
@@ -650,7 +650,7 @@ public final class RestoreService implements ClusterStateApplier {
      * exact resolved {@link DataStream} identity and snapshot metadata for every target directly. Renaming, feature states, global state
      * restore, and partial restore are not supported here.
      * <p>
-     * A retry that supplies the same {@code restoreUUID} as an already-applied guarded restore observes the correlated
+     * A retry that supplies the same {@code restoreUUID} as an already-applied restore observes the correlated
      * {@link RestoreInProgress} entry and is a no-op rather than a second initialization while that first entry still exists. If that
      * first entry no longer exists, the retry will fail because the check now sees the restored backing/failure indices' new UUIDs and
      * rejects the stale identity the retry still carries.
@@ -1576,7 +1576,7 @@ public final class RestoreService implements ClusterStateApplier {
          * The {@link DataStreamRestoreTarget}s that the caller has explicitly authorized deleting and restoring over. Empty for an ordinary
          * restore, which only ever restores into a data stream that doesn't already exist.
          */
-        private final Collection<DataStreamRestoreTarget> guardedDataStreamTargets;
+        private final Collection<DataStreamRestoreTarget> existingDataStreamTargets;
 
         /**
          * Feature states to restore.
@@ -1650,7 +1650,7 @@ public final class RestoreService implements ClusterStateApplier {
             BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
             Settings settings,
             String restoreUUID,
-            Collection<DataStreamRestoreTarget> guardedDataStreamTargets
+            Collection<DataStreamRestoreTarget> existingDataStreamTargets
         ) {
             super(request.masterNodeTimeout());
             this.request = request;
@@ -1664,7 +1664,7 @@ public final class RestoreService implements ClusterStateApplier {
             this.settings = settings;
             this.listener = new AllocationActionListener<>(listener, threadPool.getThreadContext());
             this.restoreUUID = restoreUUID;
-            this.guardedDataStreamTargets = guardedDataStreamTargets;
+            this.existingDataStreamTargets = existingDataStreamTargets;
         }
 
         @Override
@@ -1676,7 +1676,7 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             // A restore over an existing data stream supplies its own restore UUID, so an existing RestoreInProgress entry with that UUID
-            // means this call is a retry of an already-applied guarded restore. We should treat it as a no-op rather than re-validating,
+            // means this call is a retry of an already-applied restore. We should treat it as a no-op rather than re-validating,
             // re-deleting, or re-mutating anything. An ordinary restore's restoreUUID is always freshly random, so this never matches for
             // it.
             if (RestoreInProgress.get(currentState).get(restoreUUID) != null) {
@@ -1689,12 +1689,12 @@ public final class RestoreService implements ClusterStateApplier {
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
 
-            if (guardedDataStreamTargets.isEmpty() == false) {
+            if (existingDataStreamTargets.isEmpty() == false) {
                 // Validate and delete the destination data streams and their backing/failure-store indices, in the same cluster-state
                 // update, before the ordinary per-index restore loop below runs. Once deleted, the restored backing/failure indices no
                 // longer exist from that loop's perspective, so they naturally take its "index doesn't exist yet" path and are created
                 // fresh with new index UUIDs, exactly like an ordinary restore into a brand-new index.
-                currentState = validateAndDeleteGuardedDataStreamTargets(currentState, projectId, guardedDataStreamTargets);
+                currentState = validateAndDeleteExistingDataStreams(currentState, projectId, existingDataStreamTargets);
             }
 
             // Clear out all existing indices which fall within a system index pattern being restored
@@ -1914,7 +1914,7 @@ public final class RestoreService implements ClusterStateApplier {
         }
 
         /**
-         * Validates a guarded restore over one or more existing data streams and, if every target passes, deletes them and their
+         * Validates a restore over one or more existing data streams and, if every target passes, deletes them and their
          * backing/failure-store indices in the returned cluster state. The caller has explicitly
          * authorized deleting and restoring over each target, but this method still re-verifies the exact identity it resolved before
          * submitting hasn't changed, so a data stream deleted and recreated under the same name since then is never silently adopted.
@@ -1923,16 +1923,16 @@ public final class RestoreService implements ClusterStateApplier {
          * unchanged: the thrown exception discards the whole (never-returned) {@link ClusterState}, matching the {@link
          * ClusterStateUpdateTask} contract that already gives the rest of this task's per-index loop its all-or-nothing guarantee.
          *
-         * @param guardedDataStreamTargets the targets the caller resolved for this restore
+         * @param existingDataStreamTargets the targets the caller resolved for this restore
          */
-        private ClusterState validateAndDeleteGuardedDataStreamTargets(
+        private ClusterState validateAndDeleteExistingDataStreams(
             ClusterState currentState,
             ProjectId projectId,
-            Collection<DataStreamRestoreTarget> guardedDataStreamTargets
+            Collection<DataStreamRestoreTarget> existingDataStreamTargets
         ) {
             final ProjectState projectState = currentState.projectState(projectId);
             final ProjectMetadata projectMetadata = projectState.metadata();
-            for (DataStreamRestoreTarget target : guardedDataStreamTargets) {
+            for (DataStreamRestoreTarget target : existingDataStreamTargets) {
                 final DataStream expected = target.destinationDataStream();
                 final DataStream current = projectMetadata.dataStreams().get(expected.getName());
                 if (current == null) {
@@ -1968,7 +1968,7 @@ public final class RestoreService implements ClusterStateApplier {
                     );
                 }
             }
-            final Set<DataStream> destinationsToDelete = guardedDataStreamTargets.stream()
+            final Set<DataStream> destinationsToDelete = existingDataStreamTargets.stream()
                 .map(DataStreamRestoreTarget::destinationDataStream)
                 .collect(Collectors.toSet());
             return MetadataDataStreamsService.deleteDataStreams(projectState, destinationsToDelete, settings);

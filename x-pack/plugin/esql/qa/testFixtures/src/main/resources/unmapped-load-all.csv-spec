@@ -561,6 +561,295 @@ c:long
 3
 ;
 
+###################################
+# LOOKUP JOIN with LOAD_ALL        #
+###################################
+
+// Basic: unmapped _source fields expand alongside lookup-index fields. language_code (unmapped, keyword) serves as the join key
+// and therefore becomes a real query column — it is excluded from the blob and does not reappear as an expanded column.
+lookupJoinExpandsUnmappedFields
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | French                | e                       | 1232383                         | 43
+;
+
+// Coordinator LOOKUP JOIN: the $unmapped_fields blob crosses the coordinator exchange and expands on the coordinator.
+lookupJoinCoordinatorExpandsUnmappedFields
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN _coordinator:keyword_languages_lookup ON language_code
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | French                | e                       | 1232383                         | 43
+;
+
+// KEEP wildcard before the join: the blob is preserved through the KEEP (special handling), and the *message* pattern
+// restricts it so only unmapped_message (which contains "message") expands — other unmapped fields are excluded.
+// message_type is added by the join after the KEEP.
+lookupJoinKeepWildcardBelowJoin
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, *message*
+| LOOKUP JOIN partial_message_types_lookup ON message
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | message:keyword        | message_type:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | Connected to 10.1.0.3! | connection           | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | Connected to 10.1.0.2! | connection           | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 42                     | numeric              | 43
+;
+
+lookupJoinDropWildcardBelowJoin
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| DROP unmapped_*
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f
+;
+
+// Expression-based join: lc_expr derives from the unmapped language_code; language_code is then dropped to avoid
+// ambiguity with the lookup's language_code field. The ON expression references lc_expr (an unmapped-source value)
+// and the lookup's language_code via an explicit == expression. The remaining unmapped fields expand via the blob.
+lookupJoinOnExpressionWithUnmappedField
+required_capability: optional_fields_load_all_join_and_enrich
+required_capability: lookup_join_on_boolean_expression
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL lc_expr = language_code
+| DROP language_code
+| LOOKUP JOIN keyword_languages_lookup ON lc_expr == language_code
+| KEEP @timestamp, lc_expr, *unmapped*
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | lc_expr:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 4               | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 3               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 2               | e                       | 1232383                         | 43
+;
+
+// Sorting on a lookup-index field (language_name) after the join forces join execution on data nodes
+// rather than on the coordinator, exercising the LateMaterializationPlanner code path on data nodes.
+lookupJoinThenSortLimit
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| SORT language_name DESC, @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 3                     | Spanish               | c                       | 8268154                         | Disconnection error
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                    | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                    | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+;
+
+// KEEP wildcard applied _after_ the join: can select both lookup-index fields and expanded unmapped source fields.
+lookupJoinKeepWildcardAfterJoin
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| KEEP *language*, *unmapped*
+| SORT language_name, unmapped.nested
+| LIMIT 3
+;
+
+language_code:keyword | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+1                     | English               | a                       | 1756468                         | Disconnected from 10.1.0.1
+1                     | English               | d                       | 725449                          | Disconnection error
+2                     | French                | b                       | 5033756                         | Disconnection error
+;
+
+// DROP wildcard applied _after_ the join: removes expanded unmapped source fields from the output.
+lookupJoinDropWildcardAfterJoin
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_code
+| DROP unmapped_*
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | language_name:keyword | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | German                | g
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | Spanish               | f
+;
+
+// Lookup index field shadows an unmapped source field of the same name: the blob must not emit a second language_code column.
+// Joining on the mapped message field; language_code comes from the lookup and replaces the unmapped _source language_code.
+lookupJoinLookupFieldShadowsUnmappedField
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN message_language_code_lookup ON message
+| KEEP @timestamp, *language*, *unmapped*
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | pt                    | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | es                    | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | fr                    | e                       | 1232383                         | 43
+;
+
+// Match field is unmapped and absent from _source: it is null for every row, so no lookup-table rows match and the
+// added language_code column is null for all rows. The other unmapped source fields still expand from the blob.
+lookupJoinMissingMatchField
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| LOOKUP JOIN keyword_languages_lookup ON language_name
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_name:keyword | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | null                  | null                  | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | null                  | null                  | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | null                  | null                  | e                       | 1232383                         | 43
+;
+
+###################################
+# ENRICH with LOAD_ALL             #
+###################################
+
+enrichExpandsUnmappedFields
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL lc = language_code::integer
+| ENRICH languages_policy ON lc
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | lc:integer | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | 4          | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | 3          | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | 2          | French                | e                       | 1232383                         | 43
+;
+
+// ENRICH WITH (non-renamed output): language_name is explicitly requested without renaming, so it does not shadow
+// the unmapped source field language_code, which still expands from the blob.
+enrichWithNamedOutputExpandsUnmappedFields
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL lc = language_code::integer
+| ENRICH languages_policy ON lc WITH language_name
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | lc:integer | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | 4          | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | 3          | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | 2          | French                | e                       | 1232383                         | 43
+;
+
+// ENRICH WITH renaming: the renamed output (language_code = language_name) shadows the unmapped source field language_code,
+// so the blob must not produce a second language_code column. Result: language_code holds the language name (string), not "1"/"2".
+enrichWithRenamedOutputShadowsUnmappedField
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL lc = 1
+| ENRICH languages_policy ON lc WITH language_code = language_name
+| SORT @timestamp DESC
+| LIMIT 2
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | lc:integer | language_code:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | 1          | English               | a                       | 1756468                         | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | 173.21.3.15  | 5033754             | Connection error?      | 1          | English               | b                       | 5033756                         | Disconnection error
+;
+
+// ENRICH + LOOKUP JOIN in the same query.
+enrichThenLookupJoin
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL lc = 1
+| ENRICH languages_policy ON lc
+| LOOKUP JOIN partial_message_types_lookup ON message
+| KEEP @timestamp, language_name, message_type, unmapped_message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:datetime      | language_name:keyword | message_type:keyword | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | English               | connection           | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | English               | error                | Disconnection error
+2024-10-23T13:52:55.015Z | English               | error                | Disconnection error
+;
+
+// Coordinator ENRICH: the $unmapped_fields blob crosses the coordinator exchange and expands on the coordinator.
+enrichCoordinatorExpandsUnmappedFields
+skip_flattened_rewrite: enrich_output_type_mismatch
+required_capability: optional_fields_load_all_join_and_enrich
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| EVAL lc = language_code::integer
+| ENRICH _coordinator:languages_policy ON lc
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword        | language_code:keyword | lc:integer | language_name:keyword | unmapped.nested:keyword | unmapped_event_duration:keyword | unmapped_message:keyword
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232             | Connected to 10.1.0.3! | 4                     | 4          | German                | g                       | 3450234                         | Disconnected from 10.1.0.3
+2024-10-23T12:27:28.948Z | 173.21.2.113 | 2764888             | Connected to 10.1.0.2! | 3                     | 3          | Spanish               | f                       | 2764890                         | Disconnected from 10.1.0.2
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42                     | 2                     | 2          | French                | e                       | 1232383                         | 43
+;
+
 ####################################################################
 # Gap coverage: known-failing tests documenting intended behaviour #
 ####################################################################

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -321,6 +323,164 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         UnmappedFieldsPattern pattern = patternFor("FROM test | EVAL len = LENGTH(_unmapped_fields)");
         assertKept(pattern, "unmapped_extra");
         assertNotKept(pattern, excl("_unmapped_fields", "len"));
+    }
+
+    // -----------------------------------------------------------------------
+    // LOOKUP JOIN: the left side's KEEP/DROP constraints must survive the join
+    // -----------------------------------------------------------------------
+
+    public void testKeepWildcardBelowLookupJoinIsRespected() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | KEEP first_name*, language_code | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        // first_name* pattern should survive the join
+        assertKept(pattern, "first_name_suffix", "first_name.sub");
+        // lookup index fields (language_name, language_code) and test-mapped fields are excluded
+        assertNotKept(pattern, excl("language_code", "language_name"));
+        // other unmapped fields not matching first_name* are not kept
+        assertNotKept(pattern, "unmapped_extra", "salary_bonus");
+    }
+
+    /** A KEEP below the join with a wildcard still restricts — looking at the intersection across the join. */
+    public void testDropWildcardBelowLookupJoinIsRespected() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | DROP salary | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        // salary is excluded, everything else kept
+        assertKept(pattern, "unmapped_extra", "first_name_suffix");
+        assertNotKept(pattern, excl("salary", "language_code", "language_name"));
+        assertKeptAnyOtherName(pattern, excl("salary", "language_code", "language_name"));
+    }
+
+    /**
+     * The lookup index's own output fields ({@code language_code}, {@code language_name}) are excluded from expansion via
+     * {@link UnmappedFieldsPattern#withAdditionalExcludes} on the Join's output, even though they come from the right side.
+     */
+    public void testLookupIndexFieldsAreExcludedFromPattern() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+            test().addLanguagesLookup()
+        );
+        assertKept(pattern, "unmapped_extra");
+        // language_code and language_name come from the lookup index - they must be excluded from the blob
+        assertNotKept(pattern, excl("language_code", "language_name"));
+        assertKeptAnyOtherName(pattern, excl("language_code", "language_name"));
+    }
+
+    /**
+     * Fields from a lookup index with names that overlap existing columns (e.g. {@code salary}) must be excluded from expansion.
+     * We use {@code EVAL language_code = languages} to produce an integer join key matching the lookup's integer {@code language_code}.
+     */
+    public void testLookupIndexOverlappingFieldIsExcluded() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = languages | LOOKUP JOIN custom_lookup ON language_code",
+            test().addLookupIndex("custom_lookup", lookupIndexWithOverlappingFields())
+        );
+        // salary, lookup_only are lookup-index output fields — excluded from blob
+        assertNotKept(pattern, excl("salary", "lookup_only", "language_code"));
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    /**
+     * Multi-column LOOKUP JOIN ({@code ON field1, field2}): all join-key names and lookup output fields are
+     * excluded from the unmapped-fields blob.
+     */
+    public void testMultiColumnLookupJoin() {
+        // EVAL two keyword columns that match the lookup's two key fields.
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL language_code = first_name, language_name = last_name"
+                + " | LOOKUP JOIN keyword_languages_lookup ON language_code, language_name",
+            test().addLookupIndex(keywordLanguagesLookup())
+        );
+        // language_code and language_name appear in join output — excluded from blob
+        assertNotKept(pattern, excl("language_code", "language_name"));
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    /**
+     * ON-expression LOOKUP JOIN ({@code ON lc == language_code}): the derived column and all lookup output fields
+     * are excluded from the unmapped-fields blob.
+     */
+    public void testLookupJoinOnExpression() {
+        UnmappedFieldsPattern pattern = patternForJoin(
+            "FROM test | EVAL lc = first_name" + " | LOOKUP JOIN keyword_languages_lookup ON lc == language_code",
+            test().addLookupIndex(keywordLanguagesLookup())
+        );
+        // lc is the derived join key; language_code and language_name come from the lookup — all excluded
+        assertNotKept(pattern, excl("lc", "language_code", "language_name"));
+        assertKept(pattern, "unmapped_extra");
+    }
+
+    // -----------------------------------------------------------------------
+    // ENRICH: already a UnaryPlan/GeneratingPlan, so recursion was already correct;
+    // these tests confirm nothing regressed and that enrich output names are excluded.
+    // -----------------------------------------------------------------------
+
+    public void testEnrichOutputFieldsAreExcludedFromPattern() {
+        // languages policy adds language_name; the enrich output name must be excluded from the blob.
+        UnmappedFieldsPattern pattern = patternForEnrich(
+            "FROM test | ENRICH languages ON languages",
+            test().addAnalysisTestsEnrichResolution()
+        );
+        assertKept(pattern, "unmapped_extra");
+        // language_name is the enrich output field — must not reappear from the blob
+        assertNotKept(pattern, excl("language_name"));
+        assertKeptAnyOtherName(pattern, excl("language_name"));
+    }
+
+    public void testKeepWildcardBelowEnrichIsRespected() {
+        // EVAL a match key before KEEP so the match field (lc) is available after the wildcard KEEP narrows the output.
+        UnmappedFieldsPattern pattern = patternForEnrich(
+            "FROM test | EVAL lc = languages | KEEP first_name*, lc | ENRICH languages ON lc",
+            test().addAnalysisTestsEnrichResolution()
+        );
+        assertKept(pattern, "first_name_suffix");
+        assertNotKept(pattern, excl("language_name", "lc"));
+        assertNotKept(pattern, "unmapped_extra");
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers for multi-relation queries (LOOKUP JOIN has left + right EsRelation)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Like {@link #patternFor(String)}, but for queries involving a LOOKUP JOIN which have two {@link EsRelation}s.
+     * Returns the pattern on the non-LOOKUP relation (the primary index).
+     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH} is disabled.
+     */
+    private static UnmappedFieldsPattern patternForJoin(String query, org.elasticsearch.xpack.esql.TestAnalyzer analyzer) {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+        );
+        LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
+        EsRelation primary = plan.collect(EsRelation.class)
+            .stream()
+            .filter(r -> r.indexMode() != IndexMode.LOOKUP)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No non-LOOKUP EsRelation found"));
+        return EsqlTestUtils.singleValue(CollectionUtils.collect(primary.output(), UnmappedFieldsAttribute.class)).pattern();
+    }
+
+    /**
+     * Like {@link #patternFor(String, org.elasticsearch.xpack.esql.TestAnalyzer)}, but for queries using ENRICH.
+     * Automatically skips when {@code OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH} is disabled.
+     */
+    private static UnmappedFieldsPattern patternForEnrich(String query, org.elasticsearch.xpack.esql.TestAnalyzer analyzer) {
+        assumeTrue(
+            "Requires OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.isEnabled()
+        );
+        return patternFor(query, analyzer);
+    }
+
+    /** Like {@link #patternFor(String)}, but accepts a pre-configured analyzer (e.g. one with extra enrich policies). */
+    private static UnmappedFieldsPattern patternFor(String query, org.elasticsearch.xpack.esql.TestAnalyzer analyzer) {
+        LogicalPlan plan = analyzer.statement(setUnmappedLoadAll(query));
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        return EsqlTestUtils.singleValue(CollectionUtils.collect(relation.output(), UnmappedFieldsAttribute.class)).pattern();
     }
 
     private static void assertKept(UnmappedFieldsPattern pattern, String... names) {

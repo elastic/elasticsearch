@@ -1467,7 +1467,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects every other command, naming the one it found.
+     * The MVP allow-list of {@link Verifier#checkLoadAllModeSupportedCommands} rejects commands not yet supported, naming the one it found.
      */
     public void testLoadAllModeRejectsUnsupportedCommands() {
         for (var commandAndLabel : List.of(
@@ -1475,7 +1475,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             Tuple.tuple("| GROK first_name \"%{WORD:a}\"", "GROK"),
             Tuple.tuple("| MV_EXPAND first_name", "MV_EXPAND"),
             Tuple.tuple("| FORK (WHERE emp_no > 1) (WHERE emp_no < 100)", "FORK"),
-            Tuple.tuple("| EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code", "LOOKUP JOIN"),
             // Allowing Aggregate must not allow INLINE STATS: it wraps its Aggregate in an InlineStats, which stays off the allow-list.
             Tuple.tuple("| INLINE STATS m = MAX(salary) BY languages", "INLINE STATS")
         )) {
@@ -1483,8 +1482,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 .statementError(
                     setUnmappedLoadAll("FROM test " + commandAndLabel.v1()),
                     containsString(
-                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                            + "and STATS commands; ["
+                        "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                            + "STATS, LOOKUP JOIN and ENRICH commands; ["
                             + commandAndLabel.v2()
                             + "] is not supported yet"
                     )
@@ -1520,16 +1519,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             .statementError(
                 setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                        + "and STATS commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS, LOOKUP JOIN and ENRICH commands; [TS] is not supported yet"
                 )
             );
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(
                 setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
                 containsString(
-                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT "
-                        + "and STATS commands; [TS] is not supported yet"
+                    "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, WHERE, SORT, LIMIT, "
+                        + "STATS, LOOKUP JOIN and ENRICH commands; [TS] is not supported yet"
                 )
             );
     }

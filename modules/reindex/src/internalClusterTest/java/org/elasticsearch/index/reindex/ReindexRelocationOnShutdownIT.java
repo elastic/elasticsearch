@@ -65,6 +65,7 @@ import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_T
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -144,14 +145,15 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), SOURCE);
         }
 
-        // Heavily throttle the request so that it can't complete before we shut the node down
+        // Reindex should take about 60s, but be regularly active
+        final float requestsPerSecond = numDocs / 60f;
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
-        request.getSearchRequest().source().size(1000);
+            .setRequestsPerSecond(requestsPerSecond);
+        request.getSearchRequest().source().size(1);
 
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
@@ -390,7 +392,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(100, 120);
         createIndex(SOURCE);
         indexRandom(
             true,
@@ -402,11 +404,13 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
+        // Reindex should take about 60s, but be regularly active
+        final float requestsPerSecond = numDocs / 60f;
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
             .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
+            .setRequestsPerSecond(requestsPerSecond);
         request.getSearchRequest().source().size(1);
 
         // Start the reindexing task on the coordinating node
@@ -434,6 +438,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
         shutdownPrepareService.prepareForShutdown();
+
+        assertThat("reindex listener should not yet be complete", listenerDone.getCount(), greaterThan(0L));
+
         // Forcibly shutting the node before the reindexing task completes
         internalCluster().stopNode(coordNodeName);
 
@@ -468,7 +475,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         ensureStableCluster(3);
 
-        final int numDocs = randomIntBetween(10, 40);
+        final int numDocs = randomIntBetween(100, 120);
         createIndex(SOURCE);
         createIndex(DEST, indexSettings(1, 0).build());
         indexRandom(
@@ -481,11 +488,13 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(SOURCE).setSize(0).setTrackTotalHits(true), numDocs);
 
+        // Reindex should take about 60s, but be regularly active
+        final float requestsPerSecond = numDocs / 60f;
         final ReindexRequest request = new ReindexRequest().setSourceIndices(SOURCE)
             .setDestIndex(DEST)
             .setRefresh(true)
             .setEligibleForRelocationOnShutdown(true)
-            .setRequestsPerSecond(0.000001f);
+            .setRequestsPerSecond(requestsPerSecond);
         request.getSearchRequest().source().size(1);
 
         // Start the reindexing task

@@ -163,13 +163,15 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
     }
 
     /**
-     * Tracks charges per label and records the net balance at the moment the first {@code [response]}
-     * charge is added. This lets a test verify that render bytes are still in the breaker when response
-     * bytes are charged — the transient 2× peak documented in the {@code onResponse} NOTE comment.
+     * Tracks charges per label and the peak net balance. Used to enforce the documented 2× transient
+     * peak: at most {@code renderBytesCharged + responseBytesCharged} bytes are ever held simultaneously,
+     * with no additional third-party charge overlapping.
      */
     private static final class PeakCapturingBreaker extends NoopCircuitBreaker {
         private long netBytes = 0;
-        private long netAtFirstResponseCharge = Long.MIN_VALUE;
+        private long peakNetBytes = 0;
+        private long renderBytesCharged = 0;
+        private long responseBytesCharged = 0;
 
         PeakCapturingBreaker() {
             super("test");
@@ -178,14 +180,17 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
             netBytes += bytes;
-            if (label != null && label.contains("[response]") && netAtFirstResponseCharge == Long.MIN_VALUE) {
-                netAtFirstResponseCharge = netBytes;
+            peakNetBytes = Math.max(peakNetBytes, netBytes);
+            if (label != null && bytes > 0) {
+                if (label.contains("[render]")) renderBytesCharged += bytes;
+                else if (label.contains("[response]")) responseBytesCharged += bytes;
             }
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
             netBytes += bytes;
+            peakNetBytes = Math.max(peakNetBytes, netBytes);
         }
 
         @Override
@@ -193,8 +198,16 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             return netBytes;
         }
 
-        long getNetAtFirstResponseCharge() {
-            return netAtFirstResponseCharge;
+        long getPeakNetBytes() {
+            return peakNetBytes;
+        }
+
+        long getRenderBytesCharged() {
+            return renderBytesCharged;
+        }
+
+        long getResponseBytesCharged() {
+            return responseBytesCharged;
         }
     }
 
@@ -864,12 +877,11 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
     }
 
     /**
-     * Documents the transient 2× peak described in the {@code onResponse} NOTE comment: during the
-     * inner-msearch response callback the inner {@code _msearch} still holds its own REQUEST-breaker
-     * reservation, and we add our own charge for the same bytes before incRef-ing them. The
-     * {@link PeakCapturingBreaker} records the net balance at the moment the first {@code [response]}
-     * charge fires; that balance must already be positive (from render bytes), proving the two
-     * reservations overlap.
+     * Enforces the documented 2× transient peak: the highest simultaneous breaker hold is exactly
+     * {@code renderBytesCharged + responseBytesCharged} — no additional third-party charge may overlap.
+     * During the inner-msearch response callback the render bytes are still held (released only in
+     * {@code runAfter}, after the callback returns), so the peak is render + response. Any regression
+     * that introduces a third concurrent charge would push the peak above that sum and fail this test.
      */
     public void testTwoTimesTransientPeakDuringResponseCallback() throws Exception {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
@@ -908,12 +920,16 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             action.execute(task, request, future.delegateFailure((l, r) -> l.onResponse(null)));
             future.get();
 
-            // When the first [response] charge fired, render bytes were already in the breaker.
-            // A positive net proves the two reservations overlapped (the 2× transient peak).
+            // Sanity: both phases must have charged something.
+            assertThat("render bytes must have been charged", breaker.getRenderBytesCharged(), greaterThan(0L));
+            assertThat("response bytes must have been charged", breaker.getResponseBytesCharged(), greaterThan(0L));
+            // Peak must be exactly render + response: render bytes are still held when response bytes
+            // are charged (runAfter releases render only after the callback returns). Any third
+            // concurrent charge would push the peak above this sum, failing the assertion.
             assertThat(
-                "render bytes must already be charged when response bytes are added (2× transient peak)",
-                breaker.getNetAtFirstResponseCharge(),
-                greaterThan(0L)
+                "peak must be exactly render + response bytes (2× transient peak, no third concurrent charge)",
+                breaker.getPeakNetBytes(),
+                equalTo(breaker.getRenderBytesCharged() + breaker.getResponseBytesCharged())
             );
             // After runAfter cleanup all charges are released.
             assertThat("breaker must be fully released after a successful request", breaker.getUsed(), equalTo(0L));

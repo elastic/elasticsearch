@@ -86,11 +86,14 @@ public final class VectorEncoderDecoder {
         }
     }
 
-    public static void decodeBFloat16DenseVector(BytesRef vectorBR, float[] vector) {
+    public static void decodeBFloat16DenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        ShortBuffer sb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        ByteOrder byteOrder = indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
+            ? ByteOrder.LITTLE_ENDIAN
+            : ByteOrder.BIG_ENDIAN;
+        ShortBuffer sb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(byteOrder).asShortBuffer();
         BFloat16.bFloat16ToFloat(sb, vector);
     }
 

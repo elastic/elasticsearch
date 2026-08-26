@@ -16,7 +16,6 @@ The following settings *must* be considered before going to production:
 * <<networkaddress-cache-ttl,JVM DNS cache settings>>
 * <<executable-jna-tmpdir,Temporary directory not mounted with `noexec`>>
 * <<system-config-tcpretries,TCP retransmission timeout>>
-* <<linux-cgroup-version,Linux cgroups version>>: {es} versions 8.0.0–8.4.3 fail to start on Linux distributions that use https://man7.org/linux/man-pages/man7/cgroups.7.html[cgroups] version 2 with the bundled JDK. Upgrade to 8.5.0 or later to resolve this.
 
 [[dev-vs-prod]]
 [discrete]

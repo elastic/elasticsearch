@@ -77,9 +77,14 @@ find "$MAVEN_DIR" -type f -name '*-javadoc.jar' -print0 | while IFS= read -r -d 
 done
 
 echo "--- Publishing to s3://$BUCKET/$BUILD_ID/{maven,javadoc}/"
-aws s3 sync --no-progress --only-show-errors \
+# Use `cp --recursive` rather than `sync`: sync needs s3:ListBucket to diff the
+# remote against the local tree, which the `unified-release-maven` role does
+# not grant (only object-level Put/Get on `maven/*` and `javadoc/*`). Each
+# <buildId>/ path is fresh per DRA build, so re-uploading unconditionally is
+# equivalent to sync's outcome here.
+aws s3 cp --recursive --no-progress --only-show-errors \
   "$MAVEN_DIR/"   "s3://$BUCKET/$BUILD_ID/maven/"
-aws s3 sync --no-progress --only-show-errors \
+aws s3 cp --recursive --no-progress --only-show-errors \
   "$JAVADOC_DIR/" "s3://$BUCKET/$BUILD_ID/javadoc/"
 
 echo "Published build $BUILD_ID:"

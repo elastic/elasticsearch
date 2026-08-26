@@ -52,20 +52,40 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String DATA_EXTENSION = "cnd";
     static final String META_CODEC = "ColumNARMeta";
     static final String META_EXTENSION = "cnm";
+    static final String SKIP_CODEC = "ColumNARSkipIndex";
+    static final String SKIP_EXTENSION = "cns";
 
     private final NumericPipelineSelector pipelineSelector;
+    private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
 
-    /** SPI constructor. Uses the default pipeline for every field. */
+    /** SPI constructor. Uses the default pipeline for every field and reads each field's type from its attribute. */
     public ColumNARDocValuesFormat() {
-        this((fieldName, type) -> NumericPipeline::defaultPipeline, DEFAULT_BLOCK_SIZE);
+        this((fieldName, type) -> NumericPipeline::defaultPipeline, ColumnarFieldType::fromField, DEFAULT_BLOCK_SIZE);
+    }
+
+    /** Constructs a format with a custom type selector, using the default pipeline and block size. */
+    public ColumNARDocValuesFormat(final ColumnarFieldTypeSelector typeSelector) {
+        this((fieldName, type) -> NumericPipeline::defaultPipeline, typeSelector, DEFAULT_BLOCK_SIZE);
     }
 
     /**
-     * Constructs a format with a custom pipeline selector and block size.
+     * Constructs a format with a custom pipeline selector and block size. Field types are read from their attribute.
      * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
      */
     public ColumNARDocValuesFormat(final NumericPipelineSelector pipelineSelector, int blockSize) {
+        this(pipelineSelector, ColumnarFieldType::fromField, blockSize);
+    }
+
+    /**
+     * Constructs a format with a custom pipeline selector, type selector, and block size.
+     * {@code blockSize} must be a power of 2 in [{@value #MIN_BLOCK_SIZE}, {@value #MAX_BLOCK_SIZE}].
+     */
+    public ColumNARDocValuesFormat(
+        final NumericPipelineSelector pipelineSelector,
+        final ColumnarFieldTypeSelector typeSelector,
+        int blockSize
+    ) {
         super(ColumnarFormat.NAME);
         if (blockSize < MIN_BLOCK_SIZE || blockSize > MAX_BLOCK_SIZE || (blockSize & (blockSize - 1)) != 0) {
             throw new IllegalArgumentException(
@@ -73,12 +93,13 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
             );
         }
         this.pipelineSelector = pipelineSelector;
+        this.typeSelector = typeSelector;
         this.blockSize = blockSize;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ColumNARDocValuesConsumer(state, pipelineSelector, blockSize);
+        return new ColumNARDocValuesConsumer(state, pipelineSelector, typeSelector, blockSize);
     }
 
     @Override

@@ -1001,8 +1001,8 @@ public class StatelessPlugin extends Plugin
                     clusterService,
                     memoryMetricsService,
                     shardsMappingSizeCollector,
-                    threadPool,
-                    estimatedHeapSettings.get()
+                    estimatedHeapSettings.get(),
+                    meterRegistry
                 )
             );
             components.add(estimatedHeapUsageRecoveryGate.get());
@@ -1303,7 +1303,7 @@ public class StatelessPlugin extends Plugin
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        Releasables.close(sharedBlobCacheService.get());
+        Releasables.close(estimatedHeapUsageRecoveryGate.get(), sharedBlobCacheService.get());
         IOUtils.close(reshardSearchFilters.get());
         try {
             IOUtils.close(blobStoreHealthIndicator.get());
@@ -1346,7 +1346,6 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
             StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
-            StatelessCommitService.STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE,
             StatelessCommitService.STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,

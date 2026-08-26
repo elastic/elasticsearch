@@ -199,6 +199,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    /**
+     * Normally we shouldn't touch this setting. It's an escape hatch. We plan to remove it after the code sees sufficient action.
+     */
     public static final Setting<Boolean> SNAPSHOT_MONOTONIC_END_TIME_SETTING = Setting.boolSetting(
         "snapshot.monotonic_end_time",
         true,
@@ -958,7 +961,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
                 final long waitMillis = endTimeMillis - wallClock;
                 if (waitMillis > 0) {
-                    logger.info("[{}] delaying snapshot finalization by [{} ms] for monotonic end time", snapshot, waitMillis);
+                    logger.debug("[{}] delaying snapshot finalization by [{} ms] for monotonic end time", snapshot, waitMillis);
                     threadPool.schedule(this, TimeValue.timeValueMillis(waitMillis), threadPool.executor(ThreadPool.Names.SNAPSHOT));
                     return;
                 }

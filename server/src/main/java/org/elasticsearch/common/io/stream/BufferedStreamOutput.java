@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CHAR_BYTES;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putMultiByteVInt;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putVInt;
@@ -222,7 +223,6 @@ public class BufferedStreamOutput extends StreamOutput {
     private static final int MAX_VINT_BYTES = 5;
     private static final int MAX_VLONG_BYTES = 9;
     private static final int MAX_ZLONG_BYTES = 10;
-    private static final int MAX_CHAR_BYTES = 3;
 
     @Override
     public void writeVInt(int i) throws IOException {

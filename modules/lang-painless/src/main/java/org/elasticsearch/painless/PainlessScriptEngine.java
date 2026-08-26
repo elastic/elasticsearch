@@ -58,30 +58,35 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
-     * Supplies the node-level allocation metrics, read once per compile. A supplier rather than the instance itself because
-     * {@code PainlessPlugin} builds the engine in {@code getScriptEngine}, which runs before {@code createComponents} hands it
-     * a {@code MeterRegistry}; the plugin owns a {@code SetOnce} and passes a read-only view of it. Never returns {@code null}
-     * — the plugin substitutes {@link AllocationMetrics#NOOP} while its holder is still unset.
+     * Supplies the node-level allocation metrics, or {@code null} to record none. A supplier rather than the instance itself
+     * because {@code PainlessPlugin} builds the engine in {@code getScriptEngine}, which runs before {@code createComponents}
+     * hands it a {@code MeterRegistry}; the plugin owns a {@code SetOnce} and passes a read-only view of it, standing in
+     * {@link AllocationMetrics#NOOP} until that holder is set.
+     * <p>
+     * Read twice per engine: once at construction to decide whether to compile the recording path at all, and once per compile
+     * for the instance to inject. Those two reads must agree on nullness — see the constructor.
      */
     private final Supplier<AllocationMetrics> allocationMetrics;
 
     /**
-     * Both allocation-metrics arguments are passed in rather than resolved here: enablement so that a caller (in practice a
-     * test) can exercise the recording path without mutating the global system property, and the metrics themselves as a
-     * {@link Supplier} because {@code PainlessPlugin} builds the engine before telemetry exists. The engine therefore reads no
-     * global state of its own — {@code PainlessPlugin} is the sole place
-     * {@link CompilerSettings#ALLOCATION_METRICS_ENABLED_PROPERTY} is read.
+     * Whether metrics are recorded is taken from {@code allocationMetrics} rather than resolved here, so the engine reads no
+     * global state of its own: {@code PainlessPlugin} is the sole place
+     * {@link CompilerSettings#ALLOCATION_METRICS_ENABLED_PROPERTY} is read, and a test can exercise the recording path just by
+     * supplying an instance.
      * @param settings The settings to initialize the engine with.
-     * @param allocationMetrics Supplies the metrics to record into; must not return {@code null}. Pass
-     *                          {@code () -> AllocationMetrics.NOOP} to record nothing.
+     * @param allocationMetrics Supplies the metrics to record into, or {@code null} to record none. Must answer consistently
+     *                          for the life of the engine — always {@code null} or never — since the first answer decides
+     *                          whether generated classes carry the recording bytecode at all. A supplier that starts non-null
+     *                          and later returns {@code null} would produce a class that reads a field it never declared;
+     *                          {@link #compile} asserts against it.
      */
     public PainlessScriptEngine(
         Settings settings,
         Map<ScriptContext<?>, List<Whitelist>> contexts,
-        Supplier<AllocationMetrics> allocationMetrics,
-        boolean allocationMetricsEnabled
+        Supplier<AllocationMetrics> allocationMetrics
     ) {
         this.allocationMetrics = allocationMetrics;
+        boolean allocationMetricsEnabled = allocationMetrics.get() != null;
         CompilerSettings.RegexEnabled regexEnabled = CompilerSettings.REGEX_ENABLED.get(settings);
         int regexLimitFactor = CompilerSettings.REGEX_LIMIT_FACTOR.get(settings);
 
@@ -141,9 +146,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
-        AllocationMetrics metrics = contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled()
-            ? allocationMetrics.get()
-            : null;
+        AllocationMetrics metrics = allocationMetrics.get();
+        // The construction-time read decided whether these classes carry the recording bytecode, so a supplier that changed
+        // its answer since would emit a read of the undeclared $allocMetrics field. See the constructor.
+        assert (metrics != null) == contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled()
+            : "allocation metrics supplier changed nullness after construction";
 
         ScriptScope scriptScope = compile(
             compiler,

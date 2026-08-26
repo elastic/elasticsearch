@@ -73,7 +73,7 @@ public class AllocationLimitSettingTests extends ESTestCase {
 
     public void testEngineReadsLimitOnceAtConstruction() {
         Settings settings = Settings.builder().put(LIMIT_KEY, "32mb").build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> AllocationMetrics.NOOP, false);
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> null);
 
         CompilerSettings contextDefaults = engine.getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
         assertEquals(ByteSizeValue.ofMb(32).getBytes(), contextDefaults.getMaxAllocationBytes());
@@ -81,7 +81,7 @@ public class AllocationLimitSettingTests extends ESTestCase {
     }
 
     public void testEngineDefaultsToDisabled() {
-        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), () -> AllocationMetrics.NOOP, false);
+        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), () -> null);
         CompilerSettings contextDefaults = engine.getDefaultCompilerSettings(PainlessTestScript.CONTEXT);
         assertEquals(-1L, contextDefaults.getMaxAllocationBytes());
         assertFalse(contextDefaults.isAllocationTrackingEnabled());

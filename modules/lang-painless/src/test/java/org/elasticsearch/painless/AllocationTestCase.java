@@ -35,15 +35,15 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     /** Compiles {@code source} for the test context under {@code limit} and returns a fresh script instance. */
     protected PainlessTestScript compile(String source, String limit) {
         Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> AllocationMetrics.NOOP, false);
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> null);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }
 
     /**
      * Compiles {@code source} with allocation metrics enabled and the limit left off, which is the metrics-only mode: the
-     * counter runs and each execution is recorded, but nothing enforces a threshold. Passes enablement to the engine
-     * directly rather than setting the system property, which tests sharing a JVM must treat as immutable.
+     * counter runs and each execution is recorded, but nothing enforces a threshold. Supplying an instance is what enables
+     * recording, so no test has to set the system property, which tests sharing a JVM must treat as immutable.
      */
     protected PainlessTestScript compileWithMetrics(String source) {
         return compileWithMetrics(source, AllocationMetrics.NOOP);
@@ -54,7 +54,7 @@ public abstract class AllocationTestCase extends ScriptTestCase {
      * Use this overload when you need to assert on recorded samples.
      */
     protected PainlessTestScript compileWithMetrics(String source, AllocationMetrics metrics) {
-        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), () -> metrics, true);
+        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), () -> metrics);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }

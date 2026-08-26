@@ -91,7 +91,7 @@ public class RegexLimitTests extends ScriptTestCase {
             .put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 1)
             .put(CompilerSettings.REGEX_ENABLED.getKey(), "true")
             .build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> AllocationMetrics.NOOP, false);
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> null);
         assertEquals(Boolean.TRUE, exec(script));
     }
 
@@ -341,11 +341,11 @@ public class RegexLimitTests extends ScriptTestCase {
 
     private void setRegexLimitFactor(int factor) {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> AllocationMetrics.NOOP, false);
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> null);
     }
 
     private void setRegexEnabled() {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_ENABLED.getKey(), "true").build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> AllocationMetrics.NOOP, false);
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> null);
     }
 }

@@ -57,6 +57,9 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
      */
     private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
 
+    /** Read once in {@link #getScriptEngine}, before the engine that depends on it is built. */
+    private boolean allocationMetricsEnabled;
+
     public static List<Whitelist> baseWhiteList() {
         return List.of(
             WhitelistLoader.loadFromResourceFiles(
@@ -100,22 +103,21 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        painlessScriptEngine.set(
-            new PainlessScriptEngine(
-                settings,
-                contextsWithWhitelists,
-                this::allocationMetrics,
-                CompilerSettings.readAllocationMetricsEnabledProperty()
-            )
-        );
+        allocationMetricsEnabled = CompilerSettings.readAllocationMetricsEnabledProperty();
+        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists, this::allocationMetrics));
         return painlessScriptEngine.get();
     }
 
     /**
-     * The node-level allocation metrics, or {@link AllocationMetrics#NOOP} if telemetry is not available yet. Scripts compiled
-     * before {@link #createComponents} runs record nothing; every later compile picks up the real instance.
+     * The node-level allocation metrics, or {@code null} when recording is switched off — the engine takes that as "compile no
+     * recording bytecode", so it must stay stable for the life of the engine, which it does: enablement is read once in
+     * {@link #getScriptEngine}. While recording is on but telemetry has yet to arrive this is {@link AllocationMetrics#NOOP},
+     * so scripts compiled before {@link #createComponents} record nothing and every later compile gets the real instance.
      */
     private AllocationMetrics allocationMetrics() {
+        if (allocationMetricsEnabled == false) {
+            return null;
+        }
         AllocationMetrics metrics = allocationMetrics.get();
         return metrics != null ? metrics : AllocationMetrics.NOOP;
     }

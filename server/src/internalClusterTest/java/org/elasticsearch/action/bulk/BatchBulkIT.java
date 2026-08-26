@@ -33,6 +33,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -1812,6 +1813,7 @@ public class BatchBulkIT extends ESIntegTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testMultiValueFalseOnFailureIgnoreInBatchPath() throws IOException {
+        assumeTrue("doc_values on_failure feature flag must be enabled", FieldMapper.DOC_VALUES_ON_FAILURE_FEATURE_FLAG.isEnabled());
         String index = "test-batch-mvf";
 
         XContentBuilder mapping = JsonXContent.contentBuilder();
@@ -1887,10 +1889,14 @@ public class BatchBulkIT extends ESIntegTestCase {
             );
         });
 
-        // Document must exist and its source must contain the first value.
+        // Document must exist and its source must contain both values: val1 (the primary column) and val2 (._on_failure sidecar).
         var getResponse = client().get(new GetRequest(index).id("doc-1")).actionGet();
         assertTrue(getResponse.isExists());
-        assertThat("first value must appear in source", getResponse.getSourceAsMap().get("field"), equalTo("val1"));
+        assertThat(
+            "both values must appear in source after ._on_failure read-side wiring",
+            getResponse.getSourceAsMap().get("field"),
+            equalTo(List.of("val1", "val2"))
+        );
     }
 
     public void testPreBuiltBatchSingleShard() throws IOException {

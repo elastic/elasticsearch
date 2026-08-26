@@ -778,3 +778,12 @@ tests:
 - class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
   method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
   issue: https://github.com/elastic/elasticsearch/issues/157793
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
+  issue: https://github.com/elastic/elasticsearch/issues/157799
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testUploadedCommitPrefetchNeverHitsIndexingNode
+  issue: https://github.com/elastic/elasticsearch/issues/157813
+- class: org.elasticsearch.xpack.esql.CsvColumnarIT
+  method: test {csv-spec:inlinestats.inlineStatsDroppingMultipleCommandsGroupingFields}
+  issue: https://github.com/elastic/elasticsearch/issues/157817

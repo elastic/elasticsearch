@@ -60,11 +60,13 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         BiConsumer<V, RateLimitSettings> setter,
         RateLimitSettings defaultValue
     ) {
+        var strictParser = RateLimitSettings.createParser(false, defaultValue);
+        var lenientParser = RateLimitSettings.createParser(true, defaultValue);
         parser.declareObject(
             setter,
             // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
             // invoked with null.
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, defaultValue).apply(p, null),
+            (p, c) -> (c == ConfigurationParseContext.PERSISTENT ? lenientParser : strictParser).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
     }
@@ -82,10 +84,11 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         AbstractObjectParser<V, Void> parser,
         BiConsumer<V, StatefulValue<RateLimitSettings>> setter
     ) {
+        var innerParser = RateLimitSettings.createParser(false, null);
         StatefulValue.declareNullable(
             parser,
             setter,
-            (p) -> RateLimitSettings.createParser(false, null).apply(p, null),
+            (p) -> innerParser.apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME),
             ObjectParser.ValueType.OBJECT_OR_NULL
         );

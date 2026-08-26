@@ -265,19 +265,19 @@ public final class StringColumnWriter {
         }
 
         String ordinalTempName = null;
-        String exceptionTempName = null;
+        String escapeTempName = null;
         final List<IndexInput> replays = new ArrayList<>();
         try {
             long escapes = 0;
-            final ValueStream.Metadata exceptions;
+            final ValueStream.Metadata escapeStream;
             final MonotonicWriter.Table escapeRanks;
             try (MonotonicWriter ranks = new MonotonicWriter(directory, context, data.getName(), escapeRankEntries(numValues))) {
                 try (
                     IndexOutput ordinalTemp = directory.createTempOutput(data.getName(), "columnar-ordinals", context);
-                    IndexOutput exceptionTemp = directory.createTempOutput(data.getName(), "columnar-exceptions", context)
+                    IndexOutput escapeTemp = directory.createTempOutput(data.getName(), "columnar-escapes", context)
                 ) {
                     ordinalTempName = ordinalTemp.getName();
-                    exceptionTempName = exceptionTemp.getName();
+                    escapeTempName = escapeTemp.getName();
                     final StringColumnValues values = cursors.get();
                     // As in the survey: a column in term order repeats each value, so the ordinal is almost
                     // always the one before it. An escaped value still has its bytes staged individually.
@@ -311,8 +311,8 @@ public final class StringColumnWriter {
                             }
                             if (ordinal == Vocabulary.DROPPED) {
                                 ordinalTemp.writeVInt(dictionarySize);
-                                exceptionTemp.writeVInt(value.length);
-                                exceptionTemp.writeBytes(value.bytes, value.offset, value.length);
+                                escapeTemp.writeVInt(value.length);
+                                escapeTemp.writeBytes(value.bytes, value.offset, value.length);
                                 escapes++;
                             } else {
                                 ordinalTemp.writeVInt(ordinal);
@@ -323,10 +323,10 @@ public final class StringColumnWriter {
                     // One past the end, so the escapes in the last block can be counted like any other.
                     ranks.add(escapes);
                 }
-                exceptions = replayExceptions(
+                escapeStream = replayEscapes(
                     directory,
                     context,
-                    exceptionTempName,
+                    escapeTempName,
                     escapes,
                     chunkCodec,
                     targetChunkBytes,
@@ -356,13 +356,13 @@ public final class StringColumnWriter {
                 valueBytes,
                 dictionary,
                 ordinals,
-                exceptions,
+                escapeStream,
                 escapeRanks,
                 dictionarySize
             );
         } finally {
             IOUtils.close(replays);
-            IOUtils.deleteFilesIgnoringExceptions(directory, ordinalTempName, exceptionTempName);
+            IOUtils.deleteFilesIgnoringExceptions(directory, ordinalTempName, escapeTempName);
         }
     }
 
@@ -372,7 +372,7 @@ public final class StringColumnWriter {
     }
 
     /** Writes the staged escaped values, now that how many of them there are is known. */
-    private static ValueStream.Metadata replayExceptions(
+    private static ValueStream.Metadata replayEscapes(
         Directory directory,
         IOContext context,
         String name,

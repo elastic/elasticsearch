@@ -167,7 +167,7 @@ public class StringColumnStressTests extends ColumnarStringTestCase {
         assertEquals("values", present, metadata.numValues());
         if (metadata.layout() == StringColumnLayout.DICTIONARY) {
             assertTrue("a dictionary names something", metadata.dictionarySize() > 0);
-            assertTrue("everything is either named or escaped", metadata.dictionarySize() + metadata.exceptions().numValues() > 0);
+            assertTrue("everything is either named or escaped", metadata.dictionarySize() + metadata.escapes().numValues() > 0);
         }
     }
 

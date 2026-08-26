@@ -287,7 +287,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // with; it must not decide the shape of the merged column.
                 continue;
             }
-            if (reader.hasDictionary() == false || reader.exceptionCount() > 0) {
+            if (reader.hasDictionary() == false || reader.escapeCount() > 0) {
                 return null;
             }
             for (int ordinal = 0; ordinal < reader.dictionarySize(); ordinal++) {

@@ -104,7 +104,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             assertTrue("the lone value escaped", metadata.hasEscapes());
-            assertEquals("one escape", 1L, metadata.exceptions().numValues());
+            assertEquals("one escape", 1L, metadata.escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -127,7 +127,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             assertEquals("the head is the dictionary", head.length, metadata.dictionarySize());
-            assertEquals("the tail escaped", 400L, metadata.exceptions().numValues());
+            assertEquals("the tail escaped", 400L, metadata.escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -159,7 +159,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         withDictionary(docValues, (metadata, reader) -> assertEveryValueReadsBack(docValues, reader));
     }
 
-    /** A column that escapes nothing writes no exception stream and no rank table. */
+    /** A column that escapes nothing writes no escape stream and no rank table. */
     public void testNoEscapesWritesNoExceptions() throws IOException {
         final String[] terms = { "DEBUG", "ERROR", "INFO" };
         final BytesRef[] docValues = new BytesRef[between(300, 900)];
@@ -223,7 +223,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             assertEquals("dictionary terms", metadata.dictionary().numValues(), read.dictionary().numValues());
             assertEquals("ordinals", metadata.ordinals().numValues(), read.ordinals().numValues());
             assertEquals("numValues", metadata.numValues(), read.numValues());
-            assertEquals("escapes", metadata.exceptions().numValues(), read.exceptions().numValues());
+            assertEquals("escapes", metadata.escapes().numValues(), read.escapes().numValues());
         });
     }
 
@@ -236,7 +236,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         withDictionary(docValues, (metadata, reader) -> {
             assertTrue("some values escaped", metadata.hasEscapes());
             final StringColumnMetadata read = roundTrip(metadata, docValues.length);
-            assertEquals("escapes", metadata.exceptions().numValues(), read.exceptions().numValues());
+            assertEquals("escapes", metadata.escapes().numValues(), read.escapes().numValues());
             assertEquals("rank table length", metadata.escapeRanks().dataLength(), read.escapeRanks().dataLength());
             assertEquals("rank table offset", metadata.escapeRanks().dataOffset(), read.escapeRanks().dataOffset());
         });
@@ -335,7 +335,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = withEscapesAt(size, escapeAt);
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertEquals("one escape per position", escapeAt.length, (int) metadata.exceptions().numValues());
+            assertEquals("one escape per position", escapeAt.length, (int) metadata.escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
         });
     }

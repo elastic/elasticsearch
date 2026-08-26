@@ -43,7 +43,7 @@ public final class StringColumnReader {
     private final ValueStream.Reader dictionary;
     private final NumericColumnReader ordinals;
     /** Set on a dictionary column that any value escaped: their bytes, and where each one's is. */
-    private final ValueStream.Reader exceptions;
+    private final ValueStream.Reader escapes;
     private final LongValues escapeRanks;
 
     /** The last value {@link #escapeRankOf} answered, and its rank, so an ascending pass carries on. */
@@ -65,7 +65,7 @@ public final class StringColumnReader {
             this.dictionary = meta.dictionary().open(data);
             this.ordinals = new NumericColumnReader(meta.ordinals(), data);
             if (meta.hasEscapes()) {
-                this.exceptions = meta.exceptions().open(data);
+                this.escapes = meta.escapes().open(data);
                 this.escapeRanks = MonotonicReader.open(
                     data,
                     meta.escapeRanks().meta(),
@@ -74,14 +74,14 @@ public final class StringColumnReader {
                     meta.escapeRanks().dataLength()
                 );
             } else {
-                this.exceptions = null;
+                this.escapes = null;
                 this.escapeRanks = null;
             }
         } else {
             this.values = meta.numDocsWithField() == 0 ? null : meta.values().open(data);
             this.dictionary = null;
             this.ordinals = null;
-            this.exceptions = null;
+            this.escapes = null;
             this.escapeRanks = null;
         }
     }
@@ -113,7 +113,7 @@ public final class StringColumnReader {
             // The ordinals are one per value in the same order, so a value address addresses them directly.
             final long ordinal = ordinals.valueAt(valueAddress);
             if (ordinal == meta.dictionarySize()) {
-                exceptions.get(escapeRankOf(valueAddress), value);
+                escapes.get(escapeRankOf(valueAddress), value);
             } else {
                 dictionary.get(ordinal, value);
             }
@@ -196,8 +196,8 @@ public final class StringColumnReader {
     }
 
     /** How many values the dictionary did not name. */
-    public long exceptionCount() {
-        return meta.hasEscapes() ? meta.exceptions().numValues() : 0;
+    public long escapeCount() {
+        return meta.hasEscapes() ? meta.escapes().numValues() : 0;
     }
 
     /** What this column's values would occupy stored plainly, which a decision about it is weighed against. */

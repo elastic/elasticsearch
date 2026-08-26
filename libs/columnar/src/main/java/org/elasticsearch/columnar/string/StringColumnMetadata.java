@@ -29,10 +29,10 @@ import java.io.IOException;
  * {@link StringColumnLayout#PLAIN} reads its values straight out of {@link #values()}.
  * {@link StringColumnLayout#DICTIONARY} instead reads an ordinal from {@link #ordinals()} and resolves it
  * against {@link #dictionary()}; its {@link #values()} stream holds nothing, since a value is either named
- * by a term or held in {@link #exceptions()}.
+ * by a term or held in {@link #escapes()}.
  *
  * <p>An ordinal equal to {@link #dictionarySize()} is the escape: the value is not in the dictionary and
- * its bytes are in the exceptions stream instead. Which one is found by counting escapes, which
+ * its bytes are in the escapes stream instead. Which one is found by counting escapes, which
  * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
  */
 public record StringColumnMetadata(
@@ -44,7 +44,7 @@ public record StringColumnMetadata(
     ValueStream.Metadata values,
     ValueStream.Metadata dictionary,
     NumericColumnMetadata ordinals,
-    ValueStream.Metadata exceptions,
+    ValueStream.Metadata escapes,
     MonotonicWriter.Table escapeRanks,
     int dictionarySize,
     Summary summary
@@ -92,7 +92,7 @@ public record StringColumnMetadata(
 
     /**
      * A column that names its values with ordinals into {@code dictionary}. Values the dictionary does not
-     * hold escape into {@code exceptions}, found through {@code escapeRanks}.
+     * hold escape into {@code escapes}, found through {@code escapeRanks}.
      */
     public static StringColumnMetadata dictionary(
         ColumnIteratorMetadata iterator,
@@ -101,7 +101,7 @@ public record StringColumnMetadata(
         long valueBytes,
         ValueStream.Metadata dictionary,
         NumericColumnMetadata ordinals,
-        ValueStream.Metadata exceptions,
+        ValueStream.Metadata escapes,
         MonotonicWriter.Table escapeRanks,
         int dictionarySize
     ) {
@@ -114,7 +114,7 @@ public record StringColumnMetadata(
             ValueStream.Metadata.empty(),
             dictionary,
             ordinals,
-            exceptions,
+            escapes,
             escapeRanks,
             dictionarySize,
             null
@@ -132,7 +132,7 @@ public record StringColumnMetadata(
             values,
             dictionary,
             ordinals,
-            exceptions,
+            escapes,
             escapeRanks,
             dictionarySize,
             summary
@@ -146,7 +146,7 @@ public record StringColumnMetadata(
 
     /** Whether any value escaped the dictionary. */
     public boolean hasEscapes() {
-        return exceptions != null && exceptions.numValues() > 0;
+        return escapes != null && escapes.numValues() > 0;
     }
 
     /** True when at least one document has more than one value. */
@@ -170,8 +170,8 @@ public record StringColumnMetadata(
                 out.writeVInt(dictionarySize);
                 dictionary.writeTo(out);
                 ordinals.writeTo(out);
-                exceptions.writeTo(out);
-                if (exceptions.numValues() > 0) {
+                escapes.writeTo(out);
+                if (escapes.numValues() > 0) {
                     out.writeVLong(escapeRanks.dataOffset());
                     out.writeVLong(escapeRanks.dataLength());
                     out.writeVInt(escapeRanks.meta().length);
@@ -219,9 +219,9 @@ public record StringColumnMetadata(
                 final int dictionarySize = in.readVInt();
                 final ValueStream.Metadata dictionary = ValueStream.Metadata.readFrom(in);
                 final NumericColumnMetadata ordinals = NumericColumnMetadata.readFrom(in, maxDoc, formatVersion);
-                final ValueStream.Metadata exceptions = ValueStream.Metadata.readFrom(in);
+                final ValueStream.Metadata escapes = ValueStream.Metadata.readFrom(in);
                 MonotonicWriter.Table escapeRanks = MonotonicWriter.Table.NONE;
-                if (exceptions.numValues() > 0) {
+                if (escapes.numValues() > 0) {
                     final long dataOffset = in.readVLong();
                     final long dataLength = in.readVLong();
                     final byte[] meta = new byte[in.readVInt()];
@@ -235,7 +235,7 @@ public record StringColumnMetadata(
                     valueBytes,
                     dictionary,
                     ordinals,
-                    exceptions,
+                    escapes,
                     escapeRanks,
                     dictionarySize
                 );

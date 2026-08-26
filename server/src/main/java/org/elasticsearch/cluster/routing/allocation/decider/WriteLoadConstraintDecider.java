@@ -24,11 +24,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -66,25 +62,6 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
         return nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= hotspotQueueLatencyThreshold.millis()
             && nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= hotspotUtilizationThreshold;
-    }
-
-    public static double maxShardWriteLoadProportion(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
-        double totalWriteLoad = 0.0;
-        double maxShardWriteLoad = 0.0;
-        for (ShardId shardId : assignedShardIds) {
-            double shardWriteLoad = shardWriteLoads.getOrDefault(shardId, 0.0);
-            totalWriteLoad += shardWriteLoad;
-            if (shardWriteLoad > maxShardWriteLoad) {
-                maxShardWriteLoad = shardWriteLoad;
-            }
-        }
-
-        if (totalWriteLoad > 0.0) {
-            return maxShardWriteLoad / totalWriteLoad;
-        } else {
-            // no shards or some issue -- return 0.0
-            return 0.0;
-        }
     }
 
     public static boolean maxShardWriteLoadProportionIsHigh(double maxShardWriteLoadProportion, double maxShardWriteLoadThreshold) {

@@ -370,6 +370,66 @@ public class CsvModeReadTests extends ESTestCase {
         assertTrue("no response warning expected", drainWarnings().isEmpty());
     }
 
+    /**
+     * Core parity fix: a TSV row whose only content is TAB characters (the delimiter) must produce
+     * empty/null fields on every read path — it must NOT be silently dropped as a "blank" row.
+     * This covers the no-trim house path (direct walkers grammar) and the trim=true Jackson path.
+     *
+     * <p>The primary invariant is row count: 3 data rows must survive, not 2. Field values from a
+     * separator-only row are empty for keyword columns (the null_value="" path produces null; the
+     * default stores an empty BytesRef), so we assert null-or-empty rather than strictly null.
+     */
+    public void testTsvSeparatorOnlyRowEmitsNullFieldsNotDropped() throws IOException {
+        // \t\t is TAB TAB — with a TAB delimiter this is 3 fields (all null/empty), not a blank line.
+        String tsv = "a:keyword\tb:keyword\tc:keyword\nreal\tdata\trow\n\t\t\nmore\treal\tdata\n";
+
+        // no-trim quoted path (house splitter)
+        List<List<String>> plain = readAll(tsvReader(Map.of("mode", "quoted")), tsv);
+        assertEquals("separator-only row must not be dropped (plain/house path)", 3, plain.size());
+        assertNullOrEmpty(plain.get(1).get(0));
+        assertNullOrEmpty(plain.get(1).get(1));
+        assertNullOrEmpty(plain.get(1).get(2));
+
+        // trim_spaces=true (Jackson path)
+        List<List<String>> trimmed = readAll(tsvReader(Map.of("mode", "quoted", "trim_spaces", true)), tsv);
+        assertEquals("separator-only row must not be dropped (trim_spaces path)", 3, trimmed.size());
+        assertNullOrEmpty(trimmed.get(1).get(0));
+        assertNullOrEmpty(trimmed.get(1).get(1));
+        assertNullOrEmpty(trimmed.get(1).get(2));
+    }
+
+    /**
+     * Whitespace-only rows (no delimiter characters) must be skipped on all paths — they are
+     * genuine blank lines, not separator-only rows.
+     */
+    public void testWhitespaceOnlyRowIsSkipped() throws IOException {
+        // spaces only — no TAB delimiter, genuinely blank
+        String tsv = "a:keyword\tb:keyword\nreal\tdata\n   \nmore\treal\n";
+
+        List<List<String>> plain = readAll(tsvReader(Map.of("mode", "quoted")), tsv);
+        assertEquals("whitespace-only row must be skipped (plain/house path)", 2, plain.size());
+
+        List<List<String>> trimmed = readAll(tsvReader(Map.of("mode", "quoted", "trim_spaces", true)), tsv);
+        assertEquals("whitespace-only row must be skipped (trim_spaces path)", 2, trimmed.size());
+    }
+
+    /**
+     * CSV separator-only row (comma-only). A row like {@code ","} with comma delimiter must produce
+     * two empty/null fields, not be dropped, on the quoted CSV path.
+     */
+    public void testCsvSeparatorOnlyRowEmitsNullFields() throws IOException {
+        String csv = "a:keyword,b:keyword\nreal,data\n,\nmore,data\n";
+
+        List<List<String>> rows = readAll(csvReader(Map.of()), csv);
+        assertEquals("separator-only CSV row must not be dropped", 3, rows.size());
+        assertNullOrEmpty(rows.get(1).get(0));
+        assertNullOrEmpty(rows.get(1).get(1));
+    }
+
+    private static void assertNullOrEmpty(String value) {
+        assertTrue("expected null or empty string for separator-only field, got: " + value, value == null || value.isEmpty());
+    }
+
     private static void assertNullMarkerWarning(List<String> warnings) {
         // Match on an escape-free slice of the message: HeaderWarning escapes backslashes and quotes in
         // the header value, so a literal "\N" / "\"mode\"" substring would not match the drained value.

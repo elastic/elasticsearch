@@ -226,9 +226,19 @@ class CsvTokenizerKernel {
     /**
      * Bit flag set in the return value of {@link #scanUnquotedField} when at least one escape
      * character was found in the unquoted field span. Callers test with
-     * {@code (result & HAS_ESCAPE) != 0}.
+     * {@link #scanHasEscape(long)}.
      */
     static final long HAS_ESCAPE = 1L << 32;
+
+    /** True when the {@link #scanUnquotedField} result indicates at least one escape character. */
+    static boolean scanHasEscape(long result) {
+        return (result & HAS_ESCAPE) != 0;
+    }
+
+    /** Extracts the field-end position from a {@link #scanUnquotedField} result. */
+    static int scanFieldEnd(long result) {
+        return (int) (result & 0xFFFFFFFFL);
+    }
 
     /**
      * Scans an unquoted field in {@code src[from, to)} to its end delimiter, skipping

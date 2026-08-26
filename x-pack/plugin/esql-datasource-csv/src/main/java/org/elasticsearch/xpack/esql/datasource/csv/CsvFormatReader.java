@@ -2121,16 +2121,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Returns {@code true} if {@code line} is blank (whitespace-only or empty) or starts with
-     * the given comment prefix after skipping leading whitespace. Scans at most
-     * {@code line.length()} characters and allocates nothing — unlike
-     * {@code line.trim().isEmpty() || line.trim().startsWith(prefix)} which always creates a
-     * new {@link String}.
+     * Returns true when {@code line} is blank (contains no {@code delim} character and every character
+     * is ASCII whitespace) or is a comment (the first non-whitespace sequence matches
+     * {@code commentPrefix}). A row that contains the delimiter character is never blank — it has at
+     * least two fields, which may all be null/empty, but it is data, not whitespace filler.
+     *
+     * <p>The delimiter-awareness matters for dialects where the delimiter is a whitespace-range
+     * character: a TAB-only row in TSV (TAB = 0x09 ≤ 0x20 = space) must produce null fields, not be
+     * silently dropped as blank.
      */
-    static boolean isBlankOrComment(String line, String commentPrefix) {
+    static boolean isBlankOrComment(String line, String commentPrefix, char delim) {
         int len = line.length();
         int firstNonWs = 0;
-        while (firstNonWs < len && line.charAt(firstNonWs) <= ' ') {
+        while (firstNonWs < len) {
+            char c = line.charAt(firstNonWs);
+            if (c == delim) {
+                return false; // delimiter present → has fields → not blank
+            }
+            if (c > ' ') {
+                break;
+            }
             firstNonWs++;
         }
         if (firstNonWs == len) {
@@ -2142,17 +2152,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             && line.regionMatches(firstNonWs, commentPrefix, 0, commentPrefix.length());
     }
 
-    /** Returns true when {@code line} contains no non-whitespace characters. */
-    private static boolean isBlankLine(String line) {
-        return isBlankOrComment(line, null);
-    }
-
     /**
-     * Blank/comment classification for the direct-to-block path. A line is blank when it is empty or
-     * all whitespace. A line is a comment when its first cell, as Jackson would parse it, trimmed,
-     * starts with {@code commentPrefix}. Jackson decides on the first parsed cell, so unlike
-     * {@link #isBlankOrComment} the prefix match is bounded to the region before the first delimiter:
-     * a leading delimiter (for example a TAB in TSV) yields an empty first cell, which is not a comment.
+     * Blank/comment classification for the direct-to-block path. A line is blank when it contains no
+     * {@code delim} character and every character is ASCII whitespace (mirrors
+     * {@link #isBlankOrComment}'s delimiter-aware rule). A line is a comment when its first cell, as
+     * Jackson would parse it, trimmed, starts with {@code commentPrefix}. Jackson decides on the first
+     * parsed cell, so the prefix match is bounded to the region before the first delimiter: a leading
+     * delimiter (for example a TAB in TSV) yields an empty first cell, which is not a comment.
      *
      * <p>One rare case is not matched here: a quoted or escaped first cell whose decoded content
      * begins with the prefix (for example {@code "//x",a}). Detecting that needs field decoding, so
@@ -2162,7 +2168,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     static boolean isBlankOrCommentFirstCell(char[] buf, int from, int to, String commentPrefix, char delim) {
         int firstNonWs = from;
-        while (firstNonWs < to && buf[firstNonWs] <= ' ') {
+        while (firstNonWs < to) {
+            char c = buf[firstNonWs];
+            if (c == delim) {
+                return false; // delimiter present → has fields → not blank
+            }
+            if (c > ' ') {
+                break;
+            }
             firstNonWs++;
         }
         if (firstNonWs == to) {
@@ -2172,14 +2185,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return false;
         }
         int cellEnd = to;
-        for (int k = from; k < to; k++) {
+        for (int k = firstNonWs + 1; k < to; k++) {
             if (buf[k] == delim) {
                 cellEnd = k;
                 break;
             }
         }
         int prefixLen = commentPrefix.length();
-        if (firstNonWs >= cellEnd || firstNonWs + prefixLen > cellEnd) {
+        if (firstNonWs + prefixLen > cellEnd) {
             return false;
         }
         return regionEquals(buf, firstNonWs, commentPrefix);
@@ -2291,18 +2304,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // quoting — so a naive split mis-counts the header width and (Julian's report) the declared-schema
         // width tripwire wrongly rejects or admits a file. Mirrors splitHeaderQuoteAware for the non-quoting
         // delimiters (comma, tab).
-        return splitFieldsQuoteAware(line, options.delimiter(), options.quoteChar(), options.escapeChar());
+        return splitFieldsQuoteAware(line, options.delimiter(), options.quoteChar(), options.escapeChar(), options.escaping());
     }
 
     /**
      * General quote- and escape-aware field split for a single header/schema line over an arbitrary
      * delimiter (comma, tab). A quote opens only at a field boundary (leading, ignoring whitespace);
-     * a doubled quote inside a quoted field is a literal quote; an escape char before the delimiter
-     * inside quotes keeps the delimiter literal. Fields are trimmed, matching
-     * {@link #splitHeaderQuoteAware}; quotes are retained in the token exactly as that quote-aware
-     * sibling retains them, so the two paths agree on width and shape.
+     * a doubled quote inside a quoted field is a literal quote; when {@code escapeAware}, an escape
+     * char protects any following character both inside and outside quotes (matching
+     * {@link #splitHeaderQuoteAware}). Fields are trimmed; quotes are retained in the token exactly
+     * as that quote-aware sibling retains them, so the two paths agree on width and shape.
      */
-    private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc) {
+    private static String[] splitFieldsQuoteAware(String line, char delim, char quote, char esc, boolean escapeAware) {
         List<String> entries = new ArrayList<>();
         int start = 0;
         boolean inQuotes = false;
@@ -2316,9 +2329,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         continue;
                     }
                     inQuotes = false;
-                } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
-                    i++; // escaped delimiter inside quotes stays literal
+                } else if (escapeAware && c == esc && i + 1 < line.length()) {
+                    i++; // skip the escaped char (whatever it is), matching splitHeaderQuoteAware
                 }
+                continue;
+            }
+            if (escapeAware && c == esc && i + 1 < line.length()) {
+                i++;
+                fieldHasNonWhitespace = true;
                 continue;
             }
             if (c == delim) {
@@ -2720,8 +2738,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 next = r + 1;
             } else {
                 long scan = CsvTokenizerKernel.scanUnquotedField(record, i, len, delim, esc, escapeAware);
-                boolean hasEsc = (scan & CsvTokenizerKernel.HAS_ESCAPE) != 0;
-                int fieldEnd = (int) (scan & 0xFFFFFFFFL);
+                boolean hasEsc = CsvTokenizerKernel.scanHasEscape(scan);
+                int fieldEnd = CsvTokenizerKernel.scanFieldEnd(scan);
                 fields.add(
                     hasEsc
                         ? emitUnquotedEscapedSplitField(record, i, fieldEnd, options, maxFieldChars)
@@ -2810,11 +2828,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (jacksonGrammarApplies() == false) {
                 // No-trim, non-escaped-mode: the direct-block walkers are the grammar, so tokenize with
                 // their string-domain twin instead of Jackson (whose grammar diverges under no-trim — see
-                // jacksonGrammarApplies). Blank records are skipped here exactly as SKIP_EMPTY_LINES +
-                // the empty-row check below do on the Jackson path; comments are filtered by the callers on
-                // the first cell, so they are not dropped here. The decodeFieldValue seam runs unchanged —
-                // it is the identity for the QUOTED / PLAIN dialects this branch is gated to.
-                if (isBlankLine(record)) {
+                // jacksonGrammarApplies). Comments are filtered by the callers on the first cell, so they
+                // are not dropped here. The decodeFieldValue seam runs unchanged — it is the identity for
+                // the QUOTED / PLAIN dialects this branch is gated to.
+                if (isBlankOrComment(record, null, options.delimiter())) {
                     return null;
                 }
                 int maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
@@ -2833,6 +2850,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     row.add(hasCustomNullValue && nullValueStr.equals(decoded) ? null : decoded);
                 }
                 return row.isEmpty() ? null : row;
+            }
+            // SKIP_EMPTY_LINES is a streaming feature that skips zero-length inter-record gaps; it has no
+            // effect in the per-record parse context (single string → single CsvParser). Apply the blank
+            // check explicitly so whitespace-only rows do not leak into the schema-inference sample.
+            if (isBlankOrComment(record, null, options.delimiter())) {
+                return null;
             }
             try (CsvParser parser = sharedCsvMapper.getFactory().createParser(record)) {
                 parser.setSchema(csvSchema);
@@ -3843,7 +3866,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String record;
             final boolean trackOffsets = rowStartBytesList != null;
             while (rows.size() < batchSize && (record = readBracketAwareRecord()) != null) {
-                if (isBlankOrComment(record, options.commentPrefix())) {
+                if (isBlankOrComment(record, options.commentPrefix(), options.delimiter())) {
                     continue;
                 }
                 // Snapshot offset BEFORE splitLineBracketAware so a tokenizer throw still leaves
@@ -4337,7 +4360,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String record;
             final boolean trackOffsets = lineStartBytes != null;
             while (lines.size() < batchSize && (record = readBracketAwareRecord()) != null) {
-                if (isBlankOrComment(record, options.commentPrefix())) {
+                if (isBlankOrComment(record, options.commentPrefix(), options.delimiter())) {
                     continue;
                 }
                 lines.add(record);
@@ -5387,8 +5410,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else {
                     // Unquoted field: scan to the next unescaped delimiter, noting whether it has an escape.
                     long scan = CsvTokenizerKernel.scanUnquotedField(buf, i, len, delim, esc, escapeAware);
-                    boolean hasEsc = (scan & CsvTokenizerKernel.HAS_ESCAPE) != 0;
-                    int fieldEnd = (int) (scan & 0xFFFFFFFFL);
+                    boolean hasEsc = CsvTokenizerKernel.scanHasEscape(scan);
+                    int fieldEnd = CsvTokenizerKernel.scanFieldEnd(scan);
                     if (projected) {
                         if (hasEsc) {
                             if (emitUnquotedEscapedField(buf, i, fieldEnd, bufIdx, dt) == false) {

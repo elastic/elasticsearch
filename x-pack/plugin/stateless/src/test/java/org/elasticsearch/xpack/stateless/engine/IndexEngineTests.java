@@ -75,7 +75,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
 
@@ -929,53 +928,6 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(0, ongoingMerges.get());
                 assertEquals(0, ongoingMemoryEstimations.size());
             });
-        }
-    }
-
-    public void testIdLookupPrewarmExpires() throws Exception {
-        var recoveryInfo = new StatelessCommitService.RecoveryInfoFromSource(null, Set.of(), false, true);
-        long ttlNanos = randomIntBetween(500, 1000);
-        Settings nodeSettings = Settings.builder()
-            .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-            .put(IndexEngine.ID_LOOKUP_PREWARM_TTL_SETTING.getKey(), TimeValue.timeValueNanos(ttlNanos))
-            .build();
-        var commitService = mockCommitService(nodeSettings);
-        when(commitService.getRecoveryInfoFromSourceEntry(any())).thenReturn(recoveryInfo);
-        var clock = new AtomicLong(0);
-        var config = EngineConfig.builder(indexConfig(Settings.EMPTY, nodeSettings)).relativeTimeInNanosSupplier(clock::get).build();
-        try (
-            var engine = newIndexEngine(
-                config,
-                mock(TranslogReplicator.class),
-                mock(ObjectStoreService.class),
-                commitService,
-                mock(HollowShardsService.class)
-            )
-        ) {
-            assertTrue(engine.shouldPrewarmIdLookups());
-            clock.addAndGet(ttlNanos + 1);
-            assertFalse(engine.shouldPrewarmIdLookups());
-        }
-    }
-
-    public void testIdLookupPrewarmDisabledWithMinusOne() throws Exception {
-        var recoveryInfo = new StatelessCommitService.RecoveryInfoFromSource(null, Set.of(), false, true);
-        Settings nodeSettings = Settings.builder()
-            .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-            .put(IndexEngine.ID_LOOKUP_PREWARM_TTL_SETTING.getKey(), TimeValue.MINUS_ONE)
-            .build();
-        var commitService = mockCommitService(nodeSettings);
-        when(commitService.getRecoveryInfoFromSourceEntry(any())).thenReturn(recoveryInfo);
-        try (
-            var engine = newIndexEngine(
-                indexConfig(Settings.EMPTY, nodeSettings),
-                mock(TranslogReplicator.class),
-                mock(ObjectStoreService.class),
-                commitService,
-                mock(HollowShardsService.class)
-            )
-        ) {
-            assertFalse(engine.shouldPrewarmIdLookups());
         }
     }
 

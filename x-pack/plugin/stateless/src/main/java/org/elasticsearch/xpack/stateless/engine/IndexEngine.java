@@ -15,6 +15,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -126,16 +129,6 @@ public class IndexEngine extends InternalEngine {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    /**
-     * How long to keep the id lookup prewarm active after a relocation in which the source reported recent lookups.
-     * {@link TimeValue#MINUS_ONE} disables prewarming entirely.
-     */
-    public static final Setting<TimeValue> ID_LOOKUP_PREWARM_TTL_SETTING = Setting.timeSetting(
-        "stateless.id_lookup.prewarm_ttl",
-        TimeValue.MINUS_ONE,
-        TimeValue.MINUS_ONE,
-        Setting.Property.NodeScope
-    );
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
 
@@ -161,7 +154,6 @@ public class IndexEngine extends InternalEngine {
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
     private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
-    private final long idLookupPrewarmDeadlineNanos;
 
     @SuppressWarnings("this-escape")
     public IndexEngine(
@@ -219,12 +211,6 @@ public class IndexEngine extends InternalEngine {
         this.translogReplicator = translogReplicator;
         this.translogBlobContainer = translogBlobContainer;
         this.statelessCommitService = statelessCommitService;
-        final StatelessCommitService.RecoveryInfoFromSource recoveryInfo = statelessCommitService.getRecoveryInfoFromSourceEntry(shardId);
-        final boolean prewarmIdLookups = recoveryInfo != null && recoveryInfo.hasRecentIdLookup();
-        final TimeValue prewarmTtl = ID_LOOKUP_PREWARM_TTL_SETTING.get(engineConfig.getIndexSettings().getNodeSettings());
-        this.idLookupPrewarmDeadlineNanos = prewarmIdLookups && prewarmTtl.millis() >= 0
-            ? engineConfig.getRelativeTimeInNanosSupplier().getAsLong() + prewarmTtl.nanos()
-            : Long.MIN_VALUE;
         this.hollowShardsService = hollowShardsService;
         this.cacheWarmingService = cacheWarmingService;
         this.refreshManager = refreshManagerService.createRefreshManager(engineConfig.getIndexSettings(), this::doExternalRefresh);
@@ -254,6 +240,32 @@ public class IndexEngine extends InternalEngine {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+    }
+
+    /**
+     * Prefetches the min/max {@code _id} .tim blocks in each segment so the first id lookups after a primary relocation do not
+     * block on a cold read from the object store. Best-effort: only boundary blocks are prefetched; interior lookups will still
+     * cold-read on first access.
+     */
+    public void prewarmIdLookups() {
+        performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            for (LeafReaderContext leaf : reader.leaves()) {
+                var terms = leaf.reader().terms(IdFieldMapper.NAME);
+                if (terms == null) {
+                    continue; // no-op segment
+                }
+                var termsEnum = terms.iterator();
+                BytesRef min = terms.getMin();
+                if (min != null) {
+                    termsEnum.prepareSeekExact(min);
+                }
+                BytesRef max = terms.getMax();
+                if (max != null) {
+                    termsEnum.prepareSeekExact(max);
+                }
+            }
+            return null;
+        });
     }
 
     /**
@@ -1018,11 +1030,6 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected ElasticsearchMergeScheduler getMergeScheduler() {
         return super.getMergeScheduler();
-    }
-
-    @Override
-    public boolean shouldPrewarmIdLookups() {
-        return engineConfig.getRelativeTimeInNanosSupplier().getAsLong() < idLookupPrewarmDeadlineNanos;
     }
 
     @Override

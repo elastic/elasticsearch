@@ -250,14 +250,14 @@ public class VersionLookupTests extends ESTestCase {
         BytesRef[] uids = { new BytesRef("a") };
 
         DocIdAndVersion[] withSeqNo = new DocIdAndVersion[1];
-        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { true }, withSeqNo, false);
+        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { true }, withSeqNo);
         assertNotNull(withSeqNo[0]);
         assertEquals(5L, withSeqNo[0].version);
         assertEquals(42L, withSeqNo[0].seqNo);
         assertEquals(7L, withSeqNo[0].primaryTerm);
 
         DocIdAndVersion[] withoutSeqNo = new DocIdAndVersion[1];
-        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { false }, withoutSeqNo, false);
+        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[] { false }, withoutSeqNo);
         assertNotNull(withoutSeqNo[0]);
         assertEquals(5L, withoutSeqNo[0].version);
         assertEquals(UNASSIGNED_SEQ_NO, withoutSeqNo[0].seqNo);
@@ -455,8 +455,7 @@ public class VersionLookupTests extends ESTestCase {
             new String[] { id },
             false,
             new boolean[] { true },
-            withSeqNo,
-            false
+            withSeqNo
         );
         assertNotNull(withSeqNo[0]);
         assertEquals(9L, withSeqNo[0].version);
@@ -470,8 +469,7 @@ public class VersionLookupTests extends ESTestCase {
             new String[] { id },
             false,
             new boolean[] { false },
-            withoutSeqNo,
-            false
+            withoutSeqNo
         );
         assertNotNull(withoutSeqNo[0]);
         assertEquals(9L, withoutSeqNo[0].version);
@@ -642,7 +640,7 @@ public class VersionLookupTests extends ESTestCase {
             uids[i] = new BytesRef(ids[i]);
         }
         DocIdAndVersion[] results = new DocIdAndVersion[ids.length];
-        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[ids.length], results, false);
+        VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, uids, new boolean[ids.length], results);
         return results;
     }
 
@@ -652,7 +650,7 @@ public class VersionLookupTests extends ESTestCase {
             uids[i] = new BytesRef(ids[i]);
         }
         DocIdAndVersion[] results = new DocIdAndVersion[ids.length];
-        VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(reader, uids, ids, false, new boolean[ids.length], results, false);
+        VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(reader, uids, ids, false, new boolean[ids.length], results);
         return results;
     }
 

@@ -1,4 +1,3 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -1086,8 +1085,7 @@ public class InternalEngine extends Engine {
                 final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
                     searcher.getIndexReader(),
                     op.uid(),
-                    loadSeqNo,
-                    shouldPrewarmIdLookups()
+                    loadSeqNo
                 );
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
@@ -1120,11 +1118,10 @@ public class InternalEngine extends Engine {
                         op.uid(),
                         op.id(),
                         loadSeqNo,
-                        useTsdbSyntheticId,
-                        shouldPrewarmIdLookups()
+                        useTsdbSyntheticId
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo, shouldPrewarmIdLookups());
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
             });
             if (docIdAndVersion != null) {
@@ -1807,17 +1804,10 @@ public class InternalEngine extends Engine {
                         luceneIds,
                         useTsdbSyntheticId,
                         luceneLoadSeqNo,
-                        luceneResults,
-                        shouldPrewarmIdLookups()
+                        luceneResults
                     );
                 } else {
-                    VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(
-                        reader,
-                        luceneUids,
-                        luceneLoadSeqNo,
-                        luceneResults,
-                        shouldPrewarmIdLookups()
-                    );
+                    VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
                 }
                 return null;
             });
@@ -4330,7 +4320,7 @@ public class InternalEngine extends Engine {
         return preCommitSegmentGeneration.get();
     }
 
-    <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+    protected <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
         throws EngineException {
         assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
         if (store.tryIncRef() == false) {

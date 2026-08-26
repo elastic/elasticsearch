@@ -39,11 +39,7 @@ public final class VersionsAndSeqNoResolver {
         }
     };
 
-    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(
-        IndexReader reader,
-        boolean loadTimestampRange,
-        boolean prewarmIdLookups
-    ) throws IOException {
+    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, boolean loadTimestampRange) throws IOException {
         // We cache on the top level
         // This means cache entries have a shorter lifetime, maybe as low as 1s with the
         // default refresh interval and a steady indexing rate, but on the other hand it
@@ -68,7 +64,7 @@ public final class VersionsAndSeqNoResolver {
         if (lookupState == null) {
             lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
             for (LeafReaderContext leaf : reader.leaves()) {
-                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), loadTimestampRange, prewarmIdLookups);
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), loadTimestampRange);
             }
             ctl.set(lookupState);
         } else {
@@ -142,9 +138,8 @@ public final class VersionsAndSeqNoResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, BytesRef term, boolean loadSeqNo, boolean prewarmIdLookups)
-        throws IOException {
-        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false, prewarmIdLookups);
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
@@ -174,13 +169,8 @@ public final class VersionsAndSeqNoResolver {
      * This method uses {@code loadTimestampRange = false} and is intended for standard (non-time-series)
      * indices. For time series indices use {@link #timeSeriesBatchLoadDocIdAndVersion} instead.
      */
-    public static void batchLoadDocIdAndVersion(
-        IndexReader reader,
-        BytesRef[] uids,
-        boolean[] loadSeqNo,
-        DocIdAndVersion[] results,
-        boolean prewarmIdLookups
-    ) throws IOException {
+    public static void batchLoadDocIdAndVersion(IndexReader reader, BytesRef[] uids, boolean[] loadSeqNo, DocIdAndVersion[] results)
+        throws IOException {
         final int n = uids.length;
         assert results.length == n && loadSeqNo.length == n;
 
@@ -195,7 +185,7 @@ public final class VersionsAndSeqNoResolver {
         }
 
         final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
-        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false, prewarmIdLookups);
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
         final List<LeafReaderContext> leaves = reader.leaves();
         int remaining = n;
 
@@ -237,8 +227,7 @@ public final class VersionsAndSeqNoResolver {
         String[] ids,
         boolean useSyntheticId,
         boolean[] loadSeqNo,
-        DocIdAndVersion[] results,
-        boolean prewarmIdLookups
+        DocIdAndVersion[] results
     ) throws IOException {
         final int n = uids.length;
         assert results.length == n && loadSeqNo.length == n && ids.length == n;
@@ -267,7 +256,7 @@ public final class VersionsAndSeqNoResolver {
         }
 
         final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
-        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true, prewarmIdLookups);
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
         final List<LeafReaderContext> leaves = reader.leaves();
         int remaining = n;
 
@@ -311,8 +300,7 @@ public final class VersionsAndSeqNoResolver {
         BytesRef uid,
         String id,
         boolean loadSeqNo,
-        boolean useSyntheticId,
-        boolean prewarmIdLookups
+        boolean useSyntheticId
     ) throws IOException {
         final long timestamp;
         if (useSyntheticId) {
@@ -322,7 +310,7 @@ public final class VersionsAndSeqNoResolver {
             byte[] idAsBytes = Base64.getUrlDecoder().decode(id);
             timestamp = TsidExtractingIdFieldMapper.extractTimestampFromId(idAsBytes);
         }
-        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true, prewarmIdLookups);
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate in default order, the segments should be sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
         long prevMaxTimestamp = Long.MAX_VALUE;
@@ -363,7 +351,7 @@ public final class VersionsAndSeqNoResolver {
      * The result is either null or the live and latest version of the given uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term) throws IOException {
-        return loadDocIdAndSeqNo(reader, term, true, false);
+        return loadDocIdAndSeqNo(reader, term, true);
     }
 
     /**
@@ -371,9 +359,8 @@ public final class VersionsAndSeqNoResolver {
      * When {@code loadSeqNo} is false, {@code UNASSIGNED_SEQ_NO} is returned instead of reading the doc value.
      * The result is either null or the live and latest version of the given uid.
      */
-    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean loadSeqNo, boolean prewarmIdLookups)
-        throws IOException {
-        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false, prewarmIdLookups);
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, BytesRef term, boolean loadSeqNo) throws IOException {
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, false);
         final List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments

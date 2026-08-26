@@ -1102,7 +1102,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         final var nodeSettings = Settings.builder()
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             .put(ID_LOOKUP_RECENCY_THRESHOLD_SETTING.getKey(), recentIdLookupThreshold)
-            .put(IndexEngine.ID_LOOKUP_PREWARM_TTL_SETTING.getKey(), TimeValue.timeValueMinutes(15))
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .build();
         final var sourceNode = startMasterAndIndexNode(nodeSettings);
@@ -1118,11 +1117,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         long prefetchCountBeforeRelocation = StatelessTestPlugin.timFilePrefetchCount.longValue();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexWithLookups);
         ensureGreen(indexWithLookups);
-        assertTrue(
-            getShardEngine(findIndexShard(resolveIndex(indexWithLookups), 0, targetNode), IndexEngine.class).shouldPrewarmIdLookups()
-        );
-        // Trigger at least 1 lookup so the PerThreadIDVersionAndSeqNoLookup gets created
-        indexDocs(indexWithLookups, 1, ESTestCase::randomUUID);
         assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), greaterThan(prefetchCountBeforeRelocation));
 
         // Without recent ID lookups: prewarmIdLookups should be false on the target engine after relocation.
@@ -1139,9 +1133,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         long prefetchCountBeforeSecondRelocation = StatelessTestPlugin.timFilePrefetchCount.longValue();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexWithoutLookups);
         ensureGreen(indexWithoutLookups);
-        assertFalse(
-            getShardEngine(findIndexShard(resolveIndex(indexWithoutLookups), 0, targetNode), IndexEngine.class).shouldPrewarmIdLookups()
-        );
         assertThat(StatelessTestPlugin.timFilePrefetchCount.longValue(), equalTo(prefetchCountBeforeSecondRelocation));
     }
 

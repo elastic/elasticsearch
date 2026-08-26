@@ -58,7 +58,7 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false), nullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()), nullValue());
 
         Document doc = new Document();
         doc.add(new StringField(IdFieldMapper.NAME, "1", Field.Store.YES));
@@ -67,7 +67,7 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false).version, equalTo(1L));
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()).version, equalTo(1L));
 
         doc = new Document();
         Field uid = new StringField(IdFieldMapper.NAME, "1", Field.Store.YES);
@@ -78,7 +78,7 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false).version, equalTo(2L));
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()).version, equalTo(2L));
 
         // test reuse of uid field
         doc = new Document();
@@ -90,11 +90,11 @@ public class VersionsTests extends ESTestCase {
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
 
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false).version, equalTo(3L));
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()).version, equalTo(3L));
 
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "1"));
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false), nullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()), nullValue());
         directoryReader.close();
         writer.close();
         dir.close();
@@ -122,18 +122,18 @@ public class VersionsTests extends ESTestCase {
 
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false).version, equalTo(5L));
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()).version, equalTo(5L));
 
         version.setLongValue(6L);
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
         version.setLongValue(7L);
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false).version, equalTo(7L));
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()).version, equalTo(7L));
 
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "1"));
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean(), false), nullValue());
+        assertThat(loadDocIdAndVersion(directoryReader, new BytesRef("1"), randomBoolean()), nullValue());
         directoryReader.close();
         writer.close();
         dir.close();
@@ -153,10 +153,10 @@ public class VersionsTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
-        assertEquals(87, loadDocIdAndVersion(reader, new BytesRef("6"), randomBoolean(), false).version);
+        assertEquals(87, loadDocIdAndVersion(reader, new BytesRef("6"), randomBoolean()).version);
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // should be cache hit
-        assertEquals(87, loadDocIdAndVersion(reader, new BytesRef("6"), randomBoolean(), false).version);
+        assertEquals(87, loadDocIdAndVersion(reader, new BytesRef("6"), randomBoolean()).version);
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
@@ -179,11 +179,11 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
-        assertEquals(87, loadDocIdAndVersion(reader, new BytesRef("6"), randomBoolean(), false).version);
+        assertEquals(87, loadDocIdAndVersion(reader, new BytesRef("6"), randomBoolean()).version);
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // now wrap the reader
         DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
-        assertEquals(87, loadDocIdAndVersion(wrapped, new BytesRef("6"), randomBoolean(), false).version);
+        assertEquals(87, loadDocIdAndVersion(wrapped, new BytesRef("6"), randomBoolean()).version);
         // same size map: core cache key is shared
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
@@ -200,7 +200,7 @@ public class VersionsTests extends ESTestCase {
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         String id = createTSDBId(1000L);
         assertThat(
-            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, randomBoolean(), false, false),
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, randomBoolean(), false),
             nullValue()
         );
 
@@ -223,20 +223,20 @@ public class VersionsTests extends ESTestCase {
 
         id = createTSDBId(randomLongBetween(1000, 10000));
         assertThat(
-            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true, false, false),
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true, false),
             notNullValue()
         );
         assertThat(
-            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true, false, false),
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true, false),
             notNullValue()
         );
         id = createTSDBId(randomBoolean() ? randomLongBetween(0, 999) : randomLongBetween(10001, Long.MAX_VALUE));
         assertThat(
-            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true, false, false),
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("1"), id, true, false),
             nullValue()
         );
         assertThat(
-            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true, false, false),
+            VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, new BytesRef("2"), id, true, false),
             nullValue()
         );
 

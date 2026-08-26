@@ -682,6 +682,18 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 indexShard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
                 indexShard.openEngineAndSkipTranslogRecovery();
 
+                if (request.hasRecentIdLookup) {
+                    try {
+                        indexShard.withEngine(engine -> {
+                            assert engine instanceof IndexEngine : engine.getClass();
+                            ((IndexEngine) engine).prewarmIdLookups();
+                            return null;
+                        });
+                    } catch (Exception e) {
+                        logger.debug("id lookup prewarm for shard " + indexShard.shardId() + " failed", e);
+                    }
+                }
+
                 // Should not actually have recovered anything from the translog, so the MSN and LCP should remain equal and unchanged
                 // from the ones we received in the primary context handoff.
                 assert assertLastCommitSequenceNumberConsistency(

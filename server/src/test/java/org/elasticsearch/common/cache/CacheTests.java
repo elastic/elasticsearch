@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -918,17 +919,19 @@ public class CacheTests extends ESTestCase {
         assertNull("No exception should have been thrown by computing thread", threadException.get());
     }
 
-    public void testComputeIfAbsentDoesNotShareLoaderCancellation() throws Exception {
+    public void testComputeIfAbsentDoesNotShareLoaderCancellation() {
         final int threads = 8;
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
         CountDownLatch waitersParked = new CountDownLatch(threads - 1);
         AtomicReference<Thread> canceledThread = new AtomicReference<>();
+        AtomicInteger loads = new AtomicInteger();
         List<String> values = new CopyOnWriteArrayList<>();
         List<Throwable> failures = new CopyOnWriteArrayList<>();
 
         startInParallel(threads, i -> {
             try {
                 values.add(cache.computeIfAbsent(1, k -> {
+                    loads.incrementAndGet();
                     if (canceledThread.compareAndSet(null, Thread.currentThread())) {
                         safeAwait(waitersParked);
                         throw new TaskCancelledException("task cancelled [somebody else's channel closed]");
@@ -949,6 +952,8 @@ public class CacheTests extends ESTestCase {
         assertThat(values, hasSize(threads - 1));
         assertThat(values, everyItem(equalTo("value-1")));
         assertEquals("value-1", cache.get(1));
+        // the waiters retry once as a group rather than each recomputing, so the canceled load costs exactly one extra load
+        assertEquals("the canceled load must be retried exactly once", 2, loads.get());
     }
 
     public void testComputeIfAbsentPropagatesLoaderExceptionToWaitingThreadWithCancellationRegistrar() throws Exception {

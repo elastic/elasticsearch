@@ -10,7 +10,6 @@
 package org.elasticsearch.common.cache;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -519,7 +518,7 @@ public class Cache<K, V> {
                         throw e;
                     }
                     // the cancellation belongs to the canceled caller and not to this one, so go round again rather than inherit it
-                    logger.debug(() -> Strings.format("retrying key [%s], the computation it waited on was canceled", key));
+                    logger.debug("retrying key [{}], the computation it waited on was canceled", key);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new ExecutionException(e);

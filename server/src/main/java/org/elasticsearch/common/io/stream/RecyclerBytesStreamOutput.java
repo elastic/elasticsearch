@@ -33,6 +33,9 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Objects;
 
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.MAX_CHAR_BYTES;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
+
 /**
  * A @link {@link StreamOutput} that uses a {@link Recycler<BytesRef>} to acquire pages of bytes, which avoids frequent reallocation &amp;
  * copying of the internal data. When {@link #close()} is called, the bytes will be released.
@@ -328,37 +331,62 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's
     // intermediary buffers
     @Override
-    public void writeString(String str) throws IOException {
+    public void writeString(String str) {
         int currentOffset = this.currentOffset;
         final int charCount = str.length();
         int bytesNeededForVInt = vIntLength(charCount);
-        // maximum serialized length is 3 bytes per char + n bytes for the vint
-        if (charCount * 3 + bytesNeededForVInt > maxOffset - currentOffset) {
-            // Technically no need for scratch buffer here, we can do the same thing directly on the pages just with bounds checks -- TODO
-            StreamOutputHelper.writeString(str, this);
+        // maximum serialized length is 3 bytes per char + n bytes for the vInt
+        if (charCount * MAX_CHAR_BYTES + bytesNeededForVInt > maxOffset - currentOffset) {
+            writeStringWithBoundsChecks(charCount, str);
             return;
         }
 
         int offset = currentOffset;
         byte[] currentBufferPool = this.currentBufferPool;
-        // mostly duplicated from StreamOutput.writeString to to get more reliable compilation of this very hot loop
+        // mostly duplicated from StreamOutput.writeString to get more reliable compilation of this very hot loop
         putVInt(charCount, bytesNeededForVInt, currentBufferPool, offset);
         offset += bytesNeededForVInt;
 
         for (int i = 0; i < charCount; i++) {
-            final int c = str.charAt(i);
-            if (c <= 0x007F) {
-                currentBufferPool[offset++] = ((byte) c);
-            } else if (c > 0x07FF) {
-                currentBufferPool[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-                currentBufferPool[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
-                currentBufferPool[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            } else {
-                currentBufferPool[offset++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-                currentBufferPool[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
-            }
+            offset = putCharUtf8(currentBufferPool, str.charAt(i), offset);
         }
         this.currentOffset = offset;
+    }
+
+    // slower (cold) path extracted to its own method to allow fast & hot path to be inlined
+    private void writeStringWithBoundsChecks(int charCount, String str) {
+        writeVInt(charCount);
+        int i = 0;
+        int position = currentOffset;
+        int lastSafePosition = this.maxOffset - MAX_CHAR_BYTES;
+        while (i < charCount) {
+            final var currentBufferPool = this.currentBufferPool;
+            while (i < charCount && position <= lastSafePosition) {
+                position = putCharUtf8(currentBufferPool, str.charAt(i++), position);
+            }
+            this.currentOffset = position;
+            final int oldPageIndex = this.pageIndex;
+            while (this.pageIndex == oldPageIndex && i < charCount) {
+                writeCharUtf8(str.charAt(i++));
+            }
+            position = this.currentOffset;
+        }
+    }
+
+    /**
+     * Like {@link StreamOutputHelper#writeCharUtf8(StreamOutput, int)} except no {@code throws IOException}.
+     */
+    private void writeCharUtf8(int c) {
+        if (c <= 0x7F) {
+            writeByte((byte) c);
+        } else if (c > 0x07FF) {
+            writeByte((byte) (0xE0 | c >> 12 & 0x0F));
+            writeByte((byte) (0x80 | c >> 6 & 0x3F));
+            writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        } else {
+            writeByte((byte) (0xC0 | c >> 6 & 0x1F));
+            writeByte((byte) (0x80 | c >> 0 & 0x3F));
+        }
     }
 
     @Override

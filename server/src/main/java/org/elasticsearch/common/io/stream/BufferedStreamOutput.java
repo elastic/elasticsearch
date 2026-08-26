@@ -18,8 +18,10 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.putCharUtf8;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putMultiByteVInt;
 import static org.elasticsearch.common.io.stream.StreamOutputHelper.putVInt;
+import static org.elasticsearch.common.io.stream.StreamOutputHelper.writeCharUtf8;
 
 /**
  * Adapts a raw {@link OutputStream} into a rich {@link StreamOutput} for use with {@link Writeable} instances, using a buffer.
@@ -364,6 +366,7 @@ public class BufferedStreamOutput extends StreamOutput {
         final int charCount = str.length();
         int position = this.position;
         if (MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+            final var buffer = this.buffer;
             position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
                 position = putCharUtf8(buffer, str.charAt(i), position);
@@ -382,6 +385,7 @@ public class BufferedStreamOutput extends StreamOutput {
             final int charCount = str.length();
             int position = this.position;
             if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+                final var buffer = this.buffer;
                 buffer[position++] = (byte) 1;
                 position = putVInt(buffer, charCount, position);
                 for (int i = 0; i < charCount; i++) {
@@ -400,6 +404,7 @@ public class BufferedStreamOutput extends StreamOutput {
         final int charCount = str.length();
         int position = this.position;
         if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
+            final var buffer = this.buffer;
             buffer[position++] = (byte) 0;
             position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
@@ -424,36 +429,9 @@ public class BufferedStreamOutput extends StreamOutput {
             }
             this.position = position;
             while (capacity() < MAX_CHAR_BYTES && i < charCount) {
-                writeCharUtf8(str.charAt(i++));
+                writeCharUtf8(this, str.charAt(i++));
             }
             position = this.position;
-        }
-    }
-
-    private static int putCharUtf8(byte[] buffer, int c, int position) {
-        if (c <= 0x7F) {
-            buffer[position++] = ((byte) c);
-        } else if (c > 0x07FF) {
-            buffer[position++] = ((byte) (0xE0 | c >> 12 & 0x0F));
-            buffer[position++] = ((byte) (0x80 | c >> 6 & 0x3F));
-            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
-        } else {
-            buffer[position++] = ((byte) (0xC0 | c >> 6 & 0x1F));
-            buffer[position++] = ((byte) (0x80 | c >> 0 & 0x3F));
-        }
-        return position;
-    }
-
-    private void writeCharUtf8(int c) throws IOException {
-        if (c <= 0x7F) {
-            writeByte((byte) c);
-        } else if (c > 0x07FF) {
-            writeByte((byte) (0xE0 | c >> 12 & 0x0F));
-            writeByte((byte) (0x80 | c >> 6 & 0x3F));
-            writeByte((byte) (0x80 | c >> 0 & 0x3F));
-        } else {
-            writeByte((byte) (0xC0 | c >> 6 & 0x1F));
-            writeByte((byte) (0x80 | c >> 0 & 0x3F));
         }
     }
 }

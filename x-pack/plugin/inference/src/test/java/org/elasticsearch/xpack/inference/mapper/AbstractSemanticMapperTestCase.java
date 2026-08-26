@@ -402,7 +402,9 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
      */
     public void testNestedStoredSourceLoaderHandlesChunks() throws Exception {
         final String fieldName = "field";
-        Model model = createRandomSupportedModel();
+        // The generated embeddings are not unit-length, which dot_product requires. A real dot_product endpoint only declares that
+        // similarity because its model emits normalized embeddings, so this combination cannot occur in production.
+        Model model = createRandomSupportedModel(List.of(SimilarityMeasure.DOT_PRODUCT));
         givenModelSettings(model.getInferenceEntityId(), new EndpointClusterState(model));
 
         CheckedConsumer<IndexVersion, IOException> validate = indexVersion -> {
@@ -610,7 +612,11 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
     }
 
     protected TestModel createRandomSupportedModel() {
-        return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()));
+        return createRandomSupportedModel(null);
+    }
+
+    protected TestModel createRandomSupportedModel(@Nullable List<SimilarityMeasure> excludedSimilarities) {
+        return TestModel.createRandomInstance(randomFrom(supportedTaskTypes()), excludedSimilarities);
     }
 
     protected EndpointClusterState createRandomModelSettings() {

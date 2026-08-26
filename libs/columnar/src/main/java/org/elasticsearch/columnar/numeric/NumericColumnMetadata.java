@@ -58,10 +58,10 @@ public record NumericColumnMetadata(
 
     /**
      * The doc-values skip index for a range-indexed column: a multi-level structure of per-interval
-     * value bounds and doc-id ranges written into the data file, plus the column-wide summary. Present
+     * value bounds and doc-id ranges written into the skip-index file, plus the column-wide summary. Present
      * only when the field carries a range skip index.
      *
-     * @param dataOffset    start of the skip region in the data file
+     * @param dataOffset    start of the skip region in the skip-index file
      * @param dataLength    length of the skip region
      * @param minValue      smallest value in the column
      * @param maxValue      largest value in the column

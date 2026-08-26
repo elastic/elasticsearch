@@ -481,12 +481,10 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
      *
      * <p>Three layouts are handled, dispatched on the type of the first element:
      * <ul>
-     *   <li><em>Flat scalar list</em> ({@code List<Number>} — {@code dense_vector} source shape): treated as a single
-     *       vector and returned as a singleton list. Throws if any element is not a {@link Number}.</li>
-     *   <li><em>List of {@code float[]} vectors</em> (one entry per chunk for chunked {@code semantic_text} fields):
-     *       each element is converted to a {@link VectorData} independently.</li>
-     *   <li><em>Single hex or base64 string</em> ({@code dense_vector} stored in {@code _source} as an encoded string
-     *       when {@code index.mapping.exclude_source_vectors} is false): decoded to a byte vector.</li>
+     *   <li><em>Flat scalar list</em>: Returned by {@code dense_vector} source value fetchers.</li>
+     *   <li><em>List of {@code float[]} vectors</em>: Returned by {@code dense_vector} docvalue and
+     *       {@code semantic}/{@code semantic_text} value fetchers</li>
+     *   <li><em>List of {@code Object[]} vectors of boxed {@link Byte}</em>: Returned by {@code dense_vector} docvalue value fetchers</li>
      * </ul>
      * Returns an empty list when the values are absent, null, or of an unrecognized type.
      *
@@ -499,14 +497,13 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         return switch (values.getFirst()) {
             case Number ignored ->
-                // Flat scalar list — the entire values list is one vector (the dense_vector source shape).
-                parseDenseVectorValue(values);
+                parseNumberList(values);
             case float[] ignored ->
-                // Each element is a separate dense embedding (e.g. one float[] per chunk for semantic_text).
-                parseInferenceFieldValue(values);
-            case String encoded ->
-                // Hex/base64 string from stored _source (byte/bit dense_vector with exclude_source_vectors false).
-                parseEncodedVectorValue(encoded);
+                parseFloatArrays(values);
+            case Object[] array when array.length > 0 && array[0] instanceof Byte ->
+                // Byte and bit dense_vector doc values are fetched as a boxed Byte[]. Byte[] has no dedicated StreamOutput writer, so
+                // writeGenericValue falls back to the generic Object[] writer and the value arrives here as an Object[] of Byte.
+                parseByteArrays(values);
             default ->
                 // Silently return an empty list for any other value type. This handles the BwC path where an older node serializes the
                 // embeddings field request as a plain fields entry (without the embeddings format), and the field values arrive in an
@@ -516,12 +513,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         };
     }
 
-    private List<VectorData> parseEncodedVectorValue(String encoded) {
-        VectorData decoded = VectorData.tryDecodeEncodedVector(encoded);
-        return decoded == null ? List.of() : List.of(decoded);
-    }
-
-    private List<VectorData> parseDenseVectorValue(List<Object> values) {
+    private List<VectorData> parseNumberList(List<Object> values) {
         float[] vec = new float[values.size()];
         for (int i = 0; i < values.size(); i++) {
             if (values.get(i) instanceof Number n) {
@@ -535,7 +527,31 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         return List.of(new VectorData(vec));
     }
 
-    private List<VectorData> parseInferenceFieldValue(List<Object> values) {
+    private List<VectorData> parseByteArrays(List<Object> values) {
+        List<VectorData> embeddings = new ArrayList<>(values.size());
+        for (Object value : values) {
+            if (value instanceof Object[] array) {
+                float[] vec = new float[array.length];
+                for (int i = 0; i < array.length; i++) {
+                    if (array[i] instanceof Byte b) {
+                        vec[i] = b.floatValue();
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Field [" + diversificationField + "] value is not a well-formed dense vector. Is it a [dense_vector] field?"
+                        );
+                    }
+                }
+                embeddings.add(VectorData.fromFloats(vec));
+            } else {
+                throw new IllegalArgumentException(
+                    "Field [" + diversificationField + "] value is not a well-formed dense vector. Is it a [dense_vector] field?"
+                );
+            }
+        }
+        return embeddings;
+    }
+
+    private List<VectorData> parseFloatArrays(List<Object> values) {
         List<VectorData> embeddings = new ArrayList<>(values.size());
         for (Object value : values) {
             if (value instanceof float[] floatArray) {
@@ -544,7 +560,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 throw new IllegalArgumentException(
                     "Field ["
                         + diversificationField
-                        + "] value is not a well-formed list of dense vectors. Is it a [semantic] or [semantic_text] field?"
+                        + "] value is not a well-formed list of dense vectors. Is it a [dense_vector], [semantic], or [semantic_text]" +
+                        " field?"
                 );
             }
         }

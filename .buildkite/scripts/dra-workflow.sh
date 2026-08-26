@@ -105,17 +105,14 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 # Allow other users write access to create checksum files
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
-# Optional: publish the maven aggregation zip to snapshots.elastic.co /
+# Publish the maven aggregation zip to snapshots.elastic.co /
 # artifacts.elastic.co ourselves, ahead of the release-manager cutover tracked
-# in https://github.com/elastic/elasticsearch-team/issues/4297. Kept opt-in so
-# we can dual-publish alongside RM per-branch and diff before flipping.
-if [[ "${PUBLISH_MAVEN_TO_S3:-}" == "true" ]]; then
-  echo --- Publishing maven aggregation to S3
-  DRA_WORKFLOW="$WORKFLOW" \
-  ES_VERSION="$ES_VERSION" \
-  VERSION_SUFFIX="$VERSION_SUFFIX" \
-    .buildkite/scripts/dra-maven-snapshots-publish.sh
-fi
+# in https://github.com/elastic/elasticsearch-team/issues/4297.
+echo --- Publishing maven aggregation to S3
+DRA_WORKFLOW="$WORKFLOW" \
+ES_VERSION="$ES_VERSION" \
+VERSION_SUFFIX="$VERSION_SUFFIX" \
+  .buildkite/scripts/dra-maven-snapshots-publish.sh
 
 echo --- Running release-manager
 

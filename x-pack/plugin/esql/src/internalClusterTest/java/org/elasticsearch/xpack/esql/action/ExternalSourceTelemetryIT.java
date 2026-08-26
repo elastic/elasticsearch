@@ -272,8 +272,11 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         // ---- phone-home accumulator (DataSourceUsageAccumulator) — delta assertions ----
         // The accumulator is never reset (it is a lifetime counter), so compare fresh readings
         // against the before-values captured above.
-        assertThat("phone-home: parse.rows must increase by 10",
-            clusterTotal(DataSourceUsageAccumulator::parseRows) - parseRowsBefore, equalTo(10L));
+        assertThat(
+            "phone-home: parse.rows must increase by 10",
+            clusterTotal(DataSourceUsageAccumulator::parseRows) - parseRowsBefore,
+            equalTo(10L)
+        );
         assertThat(
             "phone-home: storage.requests (file scheme) must fire",
             clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE)) - storageRequestsBefore,
@@ -296,11 +299,15 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(
             "phone-home: discovery.files_scanned bucket for 2 files must be populated",
-            clusterTotal(a -> a.discoveryFilesScanned(1)) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1 (lt_10)
+            clusterTotal(a -> a.discoveryFilesScanned(1)) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1
+                                                                                       // (lt_10)
             greaterThan(0L)
         );
-        assertThat("phone-home: no discovery failures on a clean scan",
-            clusterTotal(DataSourceUsageAccumulator::discoveryFailures) - discoveryFailuresBefore, equalTo(0L));
+        assertThat(
+            "phone-home: no discovery failures on a clean scan",
+            clusterTotal(DataSourceUsageAccumulator::discoveryFailures) - discoveryFailuresBefore,
+            equalTo(0L)
+        );
     }
 
     /**

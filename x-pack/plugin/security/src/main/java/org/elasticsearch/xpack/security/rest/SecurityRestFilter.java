@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.security.rest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -17,9 +19,11 @@ import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -82,6 +86,24 @@ public class SecurityRestFilter implements RestInterceptor {
 
         // RestRequest might have stream content, in some cases we need to aggregate request content, for example audit logging.
         final Consumer<RestRequest> aggregationCallback = (aggregatedRestRequest) -> {
+            if (auditTrailService.includeRequestBody()) {
+                final int maxBodyBytes = auditTrailService.maxRequestBodyBytes();
+                if (maxBodyBytes > 0 && aggregatedRestRequest.contentLength() > maxBodyBytes) {
+                    handleException(
+                        aggregatedRestRequest,
+                        new ElasticsearchStatusException(
+                            "Request body size [{}] exceeds the audit body size limit [{}]; "
+                                + "adjust the [{}] setting to increase the limit or set it to 0 to disable",
+                            RestStatus.REQUEST_ENTITY_TOO_LARGE,
+                            ByteSizeValue.ofBytes(aggregatedRestRequest.contentLength()),
+                            ByteSizeValue.ofBytes(maxBodyBytes),
+                            LoggingAuditTrail.MAX_REQUEST_BODY_SIZE.getKey()
+                        ),
+                        listener
+                    );
+                    return;
+                }
+            }
             final RestRequest wrappedRequest = maybeWrapRestRequest(aggregatedRestRequest, targetHandler);
             auditTrailService.get().authenticationSuccess(wrappedRequest);
             secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {

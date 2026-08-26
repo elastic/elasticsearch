@@ -68,7 +68,10 @@ $$$xpack-sa-lf-events-emit-request$$$
     Be advised that sensitive data may be audited in plain text when including the request body in audit events, even though all the security APIs, such as those that change the user’s password, have the credentials filtered out when audited.
     ::::
 
+$$$xpack-sa-lf-events-max-request-body-size$$$
 
+`xpack.security.audit.logfile.events.max_request_body_size` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum request body size that may be included in audit events when [`xpack.security.audit.logfile.events.emit_request_body`](#xpack-sa-lf-events-emit-request) is `true`. Requests whose body exceeds this limit are rejected with HTTP 413 (Request Entity Too Large) rather than recorded with a truncated body, ensuring the audit log is always a complete record of accepted requests. The default value is `10mb`. Set to `0` to disable the limit (no rejection), which is not recommended on endpoints that may receive large request bodies such as OTLP or Prometheus remote-write ingestion endpoints.
 
 ## Local Node Info Settings [node-audit-settings]
 

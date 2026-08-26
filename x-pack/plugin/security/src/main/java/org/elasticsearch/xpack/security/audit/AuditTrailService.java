@@ -67,6 +67,15 @@ public class AuditTrailService {
         }
     }
 
+    /** Returns the configured {@code max_request_body_size} in bytes, or {@code 0} if unlimited. */
+    public int maxRequestBodyBytes() {
+        if (get() instanceof LoggingAuditTrail trail) {
+            return trail.maxRequestBodyBytes();
+        } else {
+            return 0;
+        }
+    }
+
     // TODO: this method only exists for access to LoggingAuditTrail in a Node for testing.
     // DO NOT USE IT, IT WILL BE REMOVED IN THE FUTURE
     public AuditTrail getAuditTrail() {

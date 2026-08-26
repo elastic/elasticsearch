@@ -10,6 +10,7 @@ import com.nimbusds.jose.util.StandardCharset;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -26,6 +27,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestMatchers;
@@ -58,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -422,6 +425,67 @@ public class SecurityRestFilterTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * When body auditing is on and the body exceeds the configured limit, the request must be rejected
+     * with HTTP 413 rather than processed (and potentially OOMing during rendering).
+     */
+    public void testRejectsOversizedBodyWhenBodyAuditingEnabled() throws Exception {
+        byte[] body = randomByteArrayOfLength(20);
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(body),
+            XContentType.JSON
+        ).build();
+
+        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        when(auditTrailService.includeRequestBody()).thenReturn(true);
+        when(auditTrailService.maxRequestBodyBytes()).thenReturn(10); // 10-byte limit; body is 20 bytes
+
+        SecurityRestFilter testFilter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            auditTrailService,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        testFilter.intercept(restRequest, channel, restHandler, future);
+
+        ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+        assertTrue(ex.getCause() instanceof ElasticsearchStatusException);
+        assertThat(((ElasticsearchStatusException) ex.getCause()).status(), is(RestStatus.REQUEST_ENTITY_TOO_LARGE));
+    }
+
+    /** Body within the audit limit must not be rejected. */
+    public void testAcceptsBodyWithinAuditLimit() throws Exception {
+        byte[] body = randomByteArrayOfLength(5);
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(body),
+            XContentType.JSON
+        ).build();
+        when(channel.request()).thenReturn(restRequest);
+
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        when(auditTrailService.includeRequestBody()).thenReturn(true);
+        when(auditTrailService.maxRequestBodyBytes()).thenReturn(10); // 10-byte limit; body is 5 bytes
+        when(auditTrailService.get()).thenReturn(auditTrail);
+
+        SecurityRestFilter testFilter = new SecurityRestFilter(
+            true,
+            true,
+            threadContext,
+            secondaryAuthenticator,
+            auditTrailService,
+            NOOP_OPERATOR_PRIVILEGES_SERVICE
+        );
+
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        testFilter.intercept(restRequest, channel, restHandler, future);
+        assertThat(future.get(), is(Boolean.TRUE));
     }
 
     private interface FilteredRestHandler extends RestHandler, RestRequestFilter {}

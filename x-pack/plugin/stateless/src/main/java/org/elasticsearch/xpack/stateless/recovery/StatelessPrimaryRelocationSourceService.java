@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -43,11 +42,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
-import org.elasticsearch.indices.recovery.DelayRecoveryException;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
@@ -182,22 +181,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         if (hasIndexRole) {
             clusterService.addListener(this);
         }
-        addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void beforeStop() {
-                throttledPrimaryRelocations.cancelAllPendingRelocations();
-            }
-        });
     }
 
     @Override
     protected void doStop() {
         if (hasIndexRole) {
-            // Drained by the `beforeStop()` listener, which runs before the lifecycle transitions to STOPPED, preventing
-            // `onRelocationComplete()` from racing to promote a queued relocation against a stopped lifecycle.
-            // TODO: Even if TransportService is stopped before plugin lifecycle components, there is still a tiny tiny window
-            // a relocation could pass through.
-            assert throttledPrimaryRelocations.queuedRelocationCount() == 0 : "pending relocations queue should already be drained";
+            throttledPrimaryRelocations.close();
+            throttledPrimaryRelocations.cancelAllPendingRelocations();
             if (throttledPrimaryRelocations.isEmpty() == false) {
                 throttledPrimaryRelocations.awaitEmpty();
             }
@@ -644,6 +634,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         private volatile CompositeRecoverySchedulingListener schedulingListeners;
+        private final ClusterService clusterService;
         private final Executor executor;
         private final RelocationRunner runner;
 
@@ -652,9 +643,16 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
         private final Deque<PendingRelocation> pendingRelocations = new ArrayDeque<>();
 
-        ThrottledPrimaryRelocations(Executor executor, RelocationRunner runner) {
+        private boolean closed = false;
+
+        ThrottledPrimaryRelocations(ClusterService clusterService, Executor executor, RelocationRunner runner) {
+            this.clusterService = clusterService;
             this.executor = executor;
             this.runner = runner;
+        }
+
+        private synchronized void close() {
+            this.closed = true;
         }
 
         // visible for testing
@@ -687,26 +685,37 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             IndexShard shard,
             ActionListener<StartRelocationResponse> listener
         ) {
+            final boolean alreadyClosed;
             synchronized (this) {
-                pendingRelocations.add(new PendingRelocation(task, request, shard, listener));
-                shard.recoveryStats().sourceRecoveryQueued();
+                alreadyClosed = this.closed;
+                if (alreadyClosed == false) {
+                    pendingRelocations.add(new PendingRelocation(task, request, shard, listener));
+                    shard.recoveryStats().sourceRecoveryQueued();
+                }
             }
-            schedulingListeners().onPeerRecoveryQueuedOnSource();
-            startRelocationsUpToLimit();
+            if (alreadyClosed) {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            } else {
+                schedulingListeners().onPeerRecoveryQueuedOnSource();
+                startRelocationsUpToLimit();
+            }
         }
 
         void cancelPendingRelocationsWithTargetNode(DiscoveryNode node) {
-            cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), "target node left during queued relocation");
+            cancelPendingRelocations(pending -> pending.request().targetNode().equals(node), new NodeClosedException(node));
         }
 
         // visible for testing
         void cancelPendingRelocationsForShard(IndexShard shard) {
-            cancelPendingRelocations(pending -> pending.shard() == shard, "index shard closed");
+            cancelPendingRelocations(
+                pending -> pending.shard() == shard,
+                new AlreadyClosedException(Strings.format("cancelling pending relocation for closed shard %s", shard.shardId()))
+            );
         }
 
         // visible for testing
         void cancelAllPendingRelocations() {
-            cancelPendingRelocations(ignored -> true, "source node is closing");
+            cancelPendingRelocations(ignored -> true, new NodeClosedException(clusterService.localNode()));
         }
 
         void updateMaxConcurrentOutgoingRelocations(int newMax) {
@@ -754,7 +763,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             startRelocationsUpToLimit();
         }
 
-        private void cancelPendingRelocations(Predicate<PendingRelocation> predicate, String reason) {
+        private void cancelPendingRelocations(Predicate<PendingRelocation> predicate, Exception reason) {
             final List<PendingRelocation> cancelled;
             synchronized (this) {
                 cancelled = new ArrayList<>();
@@ -768,17 +777,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 });
             }
             for (PendingRelocation cancelledRelocation : cancelled) {
-                cancelledRelocation.listener()
-                    .onFailure(
-                        new DelayRecoveryException(
-                            Strings.format(
-                                "cancelled pending relocation for shard %s, with target node %s: %s",
-                                cancelledRelocation.shard().shardId(),
-                                cancelledRelocation.request().targetNode(),
-                                reason
-                            )
-                        )
-                    );
+                cancelledRelocation.listener().onFailure(reason);
                 schedulingListeners().onQueuedPeerRecoveryDiscardedOnSource();
             }
         }

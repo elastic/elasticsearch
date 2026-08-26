@@ -806,7 +806,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         reason = "verifying INFO logging of repeated hot threads dumps",
         value = "org.elasticsearch.xpack.stateless.recovery.SlowRelocationLogger:INFO"
     )
-    public void testSlowRelocationLogsRepeatedHotThreadsDumps() throws Exception {
+    public void testSlowRelocationLogsRepeatedHotThreadsDumps() {
         final var nodeSettings = Settings.builder().put(SLOW_RELOCATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(100)).build();
         final var indexNodeA = startMasterAndIndexNode(nodeSettings);
         final var indexName = randomIdentifier();

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
@@ -530,6 +531,49 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /**
+     * Detects a change, between two {@link IndexMetadata} instances for the same open index, to the cluster-state-level
+     * {@link IndexMetadata#SETTING_HISTORY_UUID} setting. This is useful because it lets us know if an in-place snapshot restore is being
+     * attempted. Today, a snapshot restore is the only thing that writes the SETTING_HISTORY_UUID setting onto an index that a node already
+     * has open. A restore assigns the destination a new history UUID (see {@code RestoreService#restoreOverClosedIndex}) while preserving
+     * its index UUID.
+     *
+     * @param existingMetadata the metadata backing the index service currently loaded on this node
+     * @param newIndexMetadata the metadata for the same {@link Index}, i.e. with the same index UUID, in the new cluster state
+     */
+    private static boolean isRestoreHistoryUuidTransition(IndexMetadata existingMetadata, IndexMetadata newIndexMetadata) {
+        assert existingMetadata.getIndexUUID().equals(newIndexMetadata.getIndexUUID())
+            : "expected the same index but got [" + existingMetadata.getIndex() + "] and [" + newIndexMetadata.getIndex() + "]";
+        if (newIndexMetadata.getState() != IndexMetadata.State.OPEN) {
+            return false;
+        }
+        return historyUUID(existingMetadata).equals(historyUUID(newIndexMetadata)) == false;
+    }
+
+    /**
+     * @return whether any shard of {@code index} has a primary with a {@link RecoverySource.SnapshotRecoverySource} in {@code state},
+     * i.e. whether a restore is actually in progress for it. Used only to assert the precondition described on
+     * {@link #isRestoreHistoryUuidTransition}: that restore is currently the only thing that can trigger that transition. If this ever
+     * trips, some other operation has started writing {@link IndexMetadata#SETTING_HISTORY_UUID} onto an already-open index, and this
+     * transition's assumptions (and its {@link IndexRemovalReason#REOPENED} choice) need to be revisited for that case too.
+     */
+    private static boolean hasSnapshotRecoverySource(ClusterState state, ProjectId projectId, Index index) {
+        final IndexRoutingTable indexRoutingTable = state.routingTable(projectId).index(index);
+        if (indexRoutingTable == null) {
+            return false;
+        }
+        for (int shard = 0; shard < indexRoutingTable.size(); shard++) {
+            if (indexRoutingTable.shard(shard).primaryShard().recoverySource() instanceof RecoverySource.SnapshotRecoverySource) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String historyUUID(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+    }
+
+    /**
      * Removes indices that have no shards allocated to this node or indices whose state has changed. This does not delete the shard data
      * as we wait for enough shard copies to exist in the cluster before deleting shard data (triggered by
      * {@link org.elasticsearch.indices.store.IndicesStore}).
@@ -552,6 +596,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             IndexRemovalReason reason = null;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
+            } else if (indexMetadata != null && isRestoreHistoryUuidTransition(existingMetadata, indexMetadata)) {
+                assert hasSnapshotRecoverySource(state, project.get().id(), index)
+                    : "history UUID changed for open index "
+                        + index
+                        + " without a snapshot-recovery shard; today only restore does this, see #isRestoreHistoryUuidTransition";
+                // We assign the reason "REOPENED" here despite the fact that the index has not actually been closed. This is the closest
+                // IndexRemovalReason we have available, and it results in the expected behavior -- the shards are preserved on disk.
+                // NO_LONGER_ASSIGNED might seem closer to what we want, but
+                // {@link org.elasticsearch.search.SearchService#afterIndexRemoved} does not free open search contexts for
+                // NO_LONGER_ASSIGNED, which would result in search contexts continuing to operate on data the user is attempting to
+                // replace.
+                reason = REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
                 // if the cluster change indicates a brand new cluster, we only want
                 // to remove the in-memory structures for the index and not delete the

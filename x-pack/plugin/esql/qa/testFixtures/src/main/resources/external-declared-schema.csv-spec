@@ -1,0 +1,131 @@
+// Shared spec: declared-schema reads that every format must agree on.
+//
+// Audience is six FORMAT suites, not four: the CSV, TSV, NDJSON and Parquet spec suites run these cases, ORC also picks
+// them up (it globs external-*), and parquet-rs is skipped by the EXTERNAL-rebuild guard because a declaration has
+// no EXTERNAL-query form to rebuild into. Counted as IT classes rather than formats the number is eight, since the
+// compressed CSV and TSV suites run them too -- csv-declared-schema-multifile.csv-spec's header counts classes.
+//
+// A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts out
+// of the WITH JSON and sends as the PUT body's top-level `mappings` field. See csv-declared-schema.csv-spec for
+// why `required_capability: dataset_declared_schema` must never appear in a csv-spec.
+//
+// Why these cases live in the SHARED spec rather than a per-format one: a declaration NAMES the type, so the
+// output does not depend on what inference would have guessed from the file. That makes a declared read portable
+// across csv, tsv, parquet and ndjson in a way an inferred read is not -- an `unsigned_long` column has no text
+// form that infers back to it, and short/float widen in text but survive in parquet. Every case here therefore
+// projects DECLARED columns only, or inferred columns whose type is stable across all four formats (keyword).
+//
+// Cases that genuinely depend on the format stay in the per-format specs: dialect crossings and headerless
+// binding are text-only, hive partition layout is parquet-only, and binding to a JSON key is ndjson-only.
+//
+// {{employees_no_mv}} is materialized in all four formats from one CSV, 23 columns, 100 rows, emp_no 10001..10100.
+// Every case asserts a read that DIFFERS from an undeclared one; a declaration that restates the file is not
+// worth hand-writing.
+
+// Rename and retype: physical emp_no/first_name/salary are exposed as id/name/pay, and every other column of the
+// file is hidden. Discriminating on each axis -- drop the declaration and the dataset resolves by inference to
+// the file's 23 columns so `SORT id` fails on an unknown column; keep the rename but lose the retype and the
+// pinned id:long/pay:long will not match the inferred integer.
+sharedStrictDeclaredSchemaRenamesAndRetypes
+required_capability: dataset_in_from_command
+dataset: shared_declared_strict: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "name": {"type": "keyword", "path": "first_name"}, "pay": {"type": "long", "path": "salary"}}}}
+
+FROM shared_declared_strict
+| SORT id
+| LIMIT 3;
+
+id:long | name:keyword | pay:long
+10001   | "Georgi"     | 57305
+10002   | "Bezalel"    | 56371
+10003   | "Parto"      | 61805
+;
+
+// A declaration binds BY NAME even with no `path` on any column, on every format: binding is keyed on schema
+// provenance, not on whether a path was written (esql-planning#1307). The declaration is deliberately NOT in file
+// order -- the file leads with birth_date -- so binding by declaration POSITION would serve the wrong column's
+// values. It also pins that declared property order survives into the PUT body, since output order is declared
+// order.
+sharedStrictDeclaredSchemaWithoutPathBindsByName
+required_capability: dataset_in_from_command
+dataset: shared_declared_byname: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"first_name": {"type": "keyword"}, "emp_no": {"type": "long"}}}}
+
+FROM shared_declared_byname
+| SORT emp_no
+| LIMIT 3;
+
+first_name:keyword | emp_no:long
+"Georgi"           | 10001
+"Bezalel"          | 10002
+"Parto"            | 10003
+;
+
+// Coercion that every format must perform identically. An undeclared read reports salary as an integer and
+// still_hired as a boolean, so neither declared type is what inference would pick -- these are real casts, not
+// identity. Two logical columns may not share one physical column, so each reads its own.
+sharedStrictDeclaredCoercionToDoubleAndKeyword
+required_capability: dataset_in_from_command
+dataset: shared_declared_coerce: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "pay_double": {"type": "double", "path": "salary"}, "hired_text": {"type": "keyword", "path": "still_hired"}}}}
+
+FROM shared_declared_coerce
+| SORT id
+| LIMIT 3;
+
+id:long | pay_double:double | hired_text:keyword
+10001   | 57305.0           | "true"
+10002   | 56371.0           | "true"
+10003   | 61805.0           | "false"
+;
+
+// Coercion breadth: INTEGER stringified to KEYWORD. An undeclared read returns languages as integer; declaring it
+// as keyword forces every format to apply String::valueOf (or the equivalent text arm), confirming the
+// integer-to-keyword path is exercised uniformly.
+sharedStrictDeclaredCoercionIntegerToKeyword
+required_capability: dataset_in_from_command
+dataset: shared_declared_i2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "lang_text": {"type": "keyword", "path": "languages"}}}}
+
+FROM shared_declared_i2k
+| SORT id
+| LIMIT 3;
+
+id:long | lang_text:keyword
+10001   | "2"
+10002   | "5"
+10003   | "4"
+;
+
+// Coercion breadth: DOUBLE stringified to KEYWORD. An undeclared read returns height as double; declaring it as
+// keyword exercises the double-to-keyword path. Java's Double.toString (Giulietti/Schubfach since JDK 19) produces
+// the shortest round-trip decimal, so 2.03 → "2.03" uniformly across all formats.
+sharedStrictDeclaredCoercionDoubleToKeyword
+required_capability: dataset_in_from_command
+dataset: shared_declared_d2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "height_text": {"type": "keyword", "path": "height"}}}}
+
+FROM shared_declared_d2k
+| SORT id
+| LIMIT 3;
+
+id:long | height_text:keyword
+10001   | "2.03"
+10002   | "2.08"
+10003   | "1.83"
+;
+
+// A declared column the file does not supply reads null rather than failing the read: the declaration is the
+// contract, and a missing column is a data problem the caller sees in the values. `department` is not among the
+// fixture's columns on any format. The text readers also warn, naming the physical column; `warningRegex` only PERMITS that warning
+// (it maps to AllowedRegexes, which constrains the warnings that occur and cannot require one), and the columnar
+// readers emit none -- so the null values, not the warning, are what this pins.
+sharedStrictDeclaredSchemaAbsentColumnReadsNull
+required_capability: dataset_in_from_command
+dataset: shared_declared_absent: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"id": {"type": "long", "path": "emp_no"}, "dept": {"type": "keyword", "path": "department"}}}}
+
+FROM shared_declared_absent
+| SORT id
+| LIMIT 3;
+warningRegex:declared column \[department\] is not present in some source files and reads null there
+
+id:long | dept:keyword
+10001   | null
+10002   | null
+10003   | null
+;

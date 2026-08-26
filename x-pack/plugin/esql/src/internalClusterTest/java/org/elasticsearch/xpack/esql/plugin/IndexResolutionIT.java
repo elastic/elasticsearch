@@ -48,7 +48,6 @@ import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -388,21 +387,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private static void assertOk(EsqlQueryResponse response) {
-        assertThat(response.isPartial(), equalTo(false));
-    }
-
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
-        var indexColumn = findIndexColumn(response);
-        assertThat(() -> response.column(indexColumn), containsInAnyOrder(indices));
-    }
-
-    private static int findIndexColumn(EsqlQueryResponse response) {
-        for (int c = 0; c < response.columns().size(); c++) {
-            if (Objects.equals(response.columns().get(c).name(), MetadataAttribute.INDEX)) {
-                return c;
-            }
-        }
-        throw new AssertionError("no _index column found");
+        assertColumnContainsInAnyOrder(response, MetadataAttribute.INDEX, indices);
     }
 }

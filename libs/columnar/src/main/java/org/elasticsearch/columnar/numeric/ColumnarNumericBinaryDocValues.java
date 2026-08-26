@@ -36,44 +36,45 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     private final NumericColumnReader reader;
     private final ColumnIterator iterator;
     private final int maxDoc;
-    /** Dense single-valued: a document id is its own value ordinal, so a value block maps onto a doc-id window. */
-    private final boolean vectorizable;
+    /** Single-valued: a rank is its own value address, so a run of ranks is a contiguous slice of a block. */
+    private final boolean singleValued;
     private final int blockShift;
     private final int blockMask;
     private final NumericColumnMetadata.Skipper skipperMeta;
-    private final IndexInput data;
+    private final IndexInput skipIndex;
 
     private final BytesRefBuilder payload = new BytesRefBuilder();
     private long[] values = new long[8];
+    /** Reused across {@link #bulkLongs} calls; grown to the batch size, never to the column size. */
+    private int[] ranks = new int[8];
 
     public ColumnarNumericBinaryDocValues(
         NumericColumnReader reader,
         ColumnIterator iterator,
         int maxDoc,
-        boolean vectorizable,
         NumericColumnMetadata.Skipper skipperMeta,
-        IndexInput data
+        IndexInput skipIndex
     ) {
         this.reader = reader;
         this.iterator = iterator;
         this.maxDoc = maxDoc;
-        this.vectorizable = vectorizable;
+        this.singleValued = reader.multiValued() == false;
         this.blockShift = Integer.numberOfTrailingZeros(reader.blockSize());
         this.blockMask = reader.blockSize() - 1;
         this.skipperMeta = skipperMeta;
-        this.data = data;
+        this.skipIndex = skipIndex;
     }
 
     @Override
     public BytesRef binaryValue() throws IOException {
-        final int rank = iterator.index();
-        final long first = reader.firstOrdinal(rank);
+        final int rank = iterator.rank();
+        final long first = reader.firstValueAddress(rank);
         final long count = reader.valueCount(rank);
         if (values.length < count) {
             values = new long[ArrayUtil.oversize((int) count, Long.BYTES)];
         }
         for (int i = 0; i < count; i++) {
-            values[i] = reader.valueForOrdinal(first + i);
+            values[i] = reader.valueAt(first + i);
         }
         return NumericBinaryPayload.encode(values, (int) count, payload);
     }
@@ -125,7 +126,7 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
             @Override
             public long nextValue() throws IOException {
-                return reader.valueForOrdinal(first + upto++);
+                return reader.valueAt(first + upto++);
             }
 
             @Override
@@ -150,8 +151,8 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
             private int position(int doc) {
                 if (doc != DocIdSetIterator.NO_MORE_DOCS) {
-                    int rank = iterator.index();
-                    first = reader.firstOrdinal(rank);
+                    int rank = iterator.rank();
+                    first = reader.firstValueAddress(rank);
                     count = reader.valueCount(rank);
                     upto = 0;
                 }
@@ -161,26 +162,37 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
     }
 
     /**
-     * Reads the values of {@code docs[offset..offset+count)} (ascending doc ids) into {@code sink}.
-     * Returns {@code false} without touching the sink — so the caller reads per document instead — when
-     * this column is not dense single-valued, or when {@code mayContainDuplicates} is set: the dense-run
-     * detection below identifies a run from its endpoints alone, which is only correct when the doc ids
-     * are unique. A dense run within one block is handed to the sink in a single slice.
+     * Reads the values of {@code docs[offset..offset+count)} (ascending doc ids) into {@code sink}, one
+     * value per document, as runs sliced out of a decoded block. Documents are resolved to value addresses
+     * through {@link ColumnIterator#ranks}, and the run detection compares value addresses rather than document
+     * ids, so the column may be dense or sparse.
+     *
+     * <p>Returns {@code false} without touching the sink when the column is multi-valued, when any
+     * requested document has no value, or when {@code mayContainDuplicates} is set, since run detection
+     * identifies a run from its endpoints alone and that requires unique document ids.
      */
     public boolean bulkLongs(int[] docs, int offset, int count, boolean mayContainDuplicates, LongBlockSink sink) throws IOException {
-        if (vectorizable == false || mayContainDuplicates) {
+        if (singleValued == false || mayContainDuplicates) {
             return false;
         }
-        final int end = offset + count;
-        for (int i = offset; i < end;) {
-            final int ordinal = docs[i]; // dense single-valued: doc id == value ordinal
-            final long[] block = reader.block(ordinal >>> blockShift);
-            final int inBlock = ordinal & blockMask;
-            final int remaining = Math.min(blockMask + 1 - inBlock, end - i);
+        if (ranks.length < count) {
+            ranks = new int[ArrayUtil.oversize(count, Integer.BYTES)];
+        }
+        iterator.ranks(docs, offset, count, ranks);
+        for (int i = 0; i < count; i++) {
+            if (ranks[i] == ColumnIterator.NO_RANK) {
+                return false;
+            }
+        }
+        for (int i = 0; i < count;) {
+            final int valueAddress = ranks[i]; // single-valued: rank == value address
+            final long[] block = reader.block(valueAddress >>> blockShift);
+            final int inBlock = valueAddress & blockMask;
+            final int remaining = Math.min(blockMask + 1 - inBlock, count - i);
             int length = 1;
             for (int candidate = remaining; candidate > 1; candidate >>= 1) {
-                // A run is dense when its last doc id is exactly candidate-1 above the first.
-                if (docs[i + candidate - 1] - ordinal == candidate - 1) {
+                // A run is contiguous when its last value address is exactly candidate-1 above the first.
+                if (ranks[i + candidate - 1] - valueAddress == candidate - 1) {
                     length = candidate;
                     break;
                 }
@@ -193,29 +205,71 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
     /**
      * A {@link DocIdSetIterator} over documents whose value is in {@code [lowerValue, upperValue]}, or
-     * {@code null} when this column is not dense single-valued. Consults the skip index when present.
+     * {@code null} when the column is multi-valued. Consults the skip index when present.
+     *
+     * <p>The approximation is the column's own iterator, so only documents that have a value are visited,
+     * and the block work is keyed on value addresses. The column may be dense or sparse.
      */
     public DocIdSetIterator rangeIterator(long lowerValue, long upperValue) throws IOException {
-        if (vectorizable == false) {
+        if (singleValued == false) {
             return null;
         }
-        final DocIdSetIterator approximation = DocIdSetIterator.all(maxDoc);
+        final ColumnIterator column = reader.iterator();
         final BlockMask mask = new BlockMask(lowerValue, upperValue);
-        final DocValuesSkipper skipper = skipperMeta == null ? null : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, data);
+        final DocValuesSkipper skipper = skipperMeta == null
+            ? null
+            : SkipIndexCodec.forId(skipperMeta.codecId()).reader(skipperMeta, skipIndex);
         final TwoPhaseIterator twoPhase = skipper == null
-            ? scanningTwoPhase(approximation, mask, lowerValue, upperValue)
-            : skippingTwoPhase(approximation, mask, skipper, lowerValue, upperValue);
+            ? scanningTwoPhase(column, mask, lowerValue, upperValue)
+            : skippingTwoPhase(column, mask, skipper, lowerValue, upperValue);
         return TwoPhaseIterator.asDocIdSetIterator(twoPhase);
     }
 
+    /**
+     * Fills {@code bitSet} with the matching documents in {@code [column.docID(), upTo)}, leaving the
+     * iterator on the first document at or after {@code upTo}.
+     *
+     * <p>Proceeds in runs of documents known present ({@link ColumnIterator#docIDRunEnd()}). Within a run
+     * document ids and value addresses advance in lockstep, so a position in a decoded block maps back to a
+     * document id by a constant offset, and one {@code forEach} per block fills that stretch.
+     */
+    private void maskIntoBitSet(ColumnIterator column, BlockMask mask, int upTo, FixedBitSet bitSet, int offset) throws IOException {
+        int doc = column.docID();
+        while (doc < upTo) {
+            final int valueAddress = column.rank();
+            final int runEnd = Math.min(column.docIDRunEnd(), upTo);
+            if (runEnd - doc == 1) {
+                // A single document: setting the bit directly is cheaper than the block-at-a-time path.
+                mask.load(valueAddress >>> blockShift);
+                if (mask.matches.get(valueAddress & blockMask)) {
+                    bitSet.set(doc - offset);
+                }
+                doc = column.nextDoc();
+                continue;
+            }
+            final int valueAddressToDoc = doc - valueAddress; // constant for as long as the run lasts
+            final int firstValueAddress = valueAddress;
+            final int lastValueAddress = valueAddress + (runEnd - doc) - 1;
+            final int firstBlock = firstValueAddress >>> blockShift;
+            final int lastBlock = lastValueAddress >>> blockShift;
+            for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
+                mask.load(blockId);
+                final int firstInBlock = blockId == firstBlock ? firstValueAddress & blockMask : 0;
+                final int lastInBlock = blockId == lastBlock ? lastValueAddress & blockMask : blockMask;
+                mask.matches.forEach(firstInBlock, lastInBlock + 1, (blockId << blockShift) + valueAddressToDoc - offset, bitSet::set);
+            }
+            doc = column.advance(runEnd);
+        }
+    }
+
     /** No skip index: every block is tested with the vectorized range check. */
-    private TwoPhaseIterator scanningTwoPhase(DocIdSetIterator approximation, BlockMask mask, long lowerValue, long upperValue) {
-        return new TwoPhaseIterator(approximation) {
+    private TwoPhaseIterator scanningTwoPhase(ColumnIterator column, BlockMask mask, long lowerValue, long upperValue) {
+        return new TwoPhaseIterator(column) {
             @Override
             public boolean matches() throws IOException {
-                final int doc = approximation.docID();
-                mask.load(doc >>> blockShift);
-                return mask.matches.get(doc & blockMask);
+                final int valueAddress = column.rank();
+                mask.load(valueAddress >>> blockShift);
+                return mask.matches.get(valueAddress & blockMask);
             }
 
             @Override
@@ -225,41 +279,29 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
 
             @Override
             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
-                final int doc = approximation.docID();
                 upTo = Math.min(upTo, maxDoc);
-                if (doc >= upTo) {
-                    return;
-                }
-                final int firstBlock = doc >>> blockShift;
-                final int lastBlock = (upTo - 1) >>> blockShift;
-                for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                    mask.load(blockId);
-                    final int firstInBlock = blockId == firstBlock ? doc & blockMask : 0;
-                    final int lastInBlock = blockId == lastBlock ? (upTo - 1) & blockMask : blockMask;
-                    mask.matches.forEach(firstInBlock, lastInBlock + 1, (blockId << blockShift) - offset, bitSet::set);
-                }
-                approximation.advance(upTo);
+                maskIntoBitSet(column, mask, upTo, bitSet, offset);
             }
 
             @Override
             public int docIDRunEnd() throws IOException {
-                return mask.runEnd(approximation.docID());
+                return matchingRunEnd(column, mask);
             }
         };
     }
 
     /** With a skip index: coarse interval skipping, then the vectorized scan only on straddling intervals. */
     private TwoPhaseIterator skippingTwoPhase(
-        DocIdSetIterator approximation,
+        ColumnIterator column,
         BlockMask mask,
         DocValuesSkipper skipper,
         long lowerValue,
         long upperValue
     ) {
-        return new TwoPhaseIterator(approximation) {
+        return new TwoPhaseIterator(column) {
             @Override
             public boolean matches() throws IOException {
-                final int doc = approximation.docID();
+                final int doc = column.docID();
                 if (skipper.maxDocID(0) < doc) {
                     skipper.advance(doc);
                 }
@@ -271,8 +313,9 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
                 if (minVal > upperValue || maxVal < lowerValue) {
                     return false; // no overlap
                 }
-                mask.load(doc >>> blockShift);
-                return mask.matches.get(doc & blockMask);
+                final int valueAddress = column.rank();
+                mask.load(valueAddress >>> blockShift);
+                return mask.matches.get(valueAddress & blockMask);
             }
 
             @Override
@@ -283,48 +326,46 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
             @Override
             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
                 upTo = Math.min(upTo, maxDoc);
-                int doc = approximation.docID();
+                int doc = column.docID();
                 while (doc < upTo) {
                     if (skipper.maxDocID(0) < doc) {
                         skipper.advance(doc);
                         if (skipper.maxDocID(0) == DocIdSetIterator.NO_MORE_DOCS) {
-                            approximation.advance(maxDoc);
+                            column.advance(maxDoc);
                             return;
                         }
                     }
-                    final int firstInInterval = Math.max(doc, skipper.minDocID(0));
-                    final int lastInInterval = Math.min(skipper.maxDocID(0), upTo - 1);
+                    final int intervalEnd = Math.min(skipper.maxDocID(0) + 1, upTo);
                     final long minVal = skipper.minValue(0);
                     final long maxVal = skipper.maxValue(0);
                     if (lowerValue <= minVal && maxVal <= upperValue) {
-                        bitSet.set(firstInInterval - offset, lastInInterval + 1 - offset);
+                        // Whole interval in range, so every document in it that has a value matches. The
+                        // iterator fills them directly — on a sparse column the documents in between have no
+                        // value and must not be set, which a plain range set would get wrong.
+                        column.intoBitSet(intervalEnd, bitSet, offset);
                     } else if (minVal <= upperValue && lowerValue <= maxVal) {
-                        final int firstBlock = firstInInterval >>> blockShift;
-                        final int lastBlock = lastInInterval >>> blockShift;
-                        for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
-                            mask.load(blockId);
-                            final int firstInBlock = blockId == firstBlock ? firstInInterval & blockMask : 0;
-                            final int lastInBlock = blockId == lastBlock ? lastInInterval & blockMask : blockMask;
-                            mask.matches.forEach(firstInBlock, lastInBlock + 1, (blockId << blockShift) - offset, bitSet::set);
-                        }
+                        maskIntoBitSet(column, mask, intervalEnd, bitSet, offset);
+                    } else {
+                        column.advance(intervalEnd); // no overlap: skip the interval outright
                     }
-                    doc = lastInInterval + 1;
+                    doc = column.docID();
                 }
-                if (approximation.docID() < upTo) {
-                    approximation.advance(upTo);
+                if (column.docID() < upTo) {
+                    column.advance(upTo);
                 }
             }
 
             @Override
             public int docIDRunEnd() throws IOException {
-                final int doc = approximation.docID();
+                final int doc = column.docID();
                 if (skipper.maxDocID(0) < doc) {
                     skipper.advance(doc);
                 }
                 if (lowerValue <= skipper.minValue(0) && skipper.maxValue(0) <= upperValue) {
-                    return skipper.maxDocID(0) + 1; // whole interval matches
+                    // The interval matches throughout, but only where documents actually have a value.
+                    return Math.min(column.docIDRunEnd(), skipper.maxDocID(0) + 1);
                 }
-                return mask.runEnd(doc);
+                return matchingRunEnd(column, mask);
             }
         };
     }
@@ -352,14 +393,27 @@ public final class ColumnarNumericBinaryDocValues extends BinaryDocValues {
             }
         }
 
-        int runEnd(int doc) {
-            final int blockId = doc >>> blockShift;
+        /** The first value address at or after {@code valueAddress} that does not match, in value-address space. */
+        int runEnd(int valueAddress) {
+            final int blockId = valueAddress >>> blockShift;
             // docIDRunEnd may be called on an unconfirmed candidate, so never claim a run from a non-match.
-            if (maskBlock == blockId && matches.get(doc & blockMask)) {
-                return Math.min((blockId << blockShift) + nextClearBit((doc & blockMask) + 1, matches), maxDoc);
+            if (maskBlock == blockId && matches.get(valueAddress & blockMask)) {
+                return (blockId << blockShift) + nextClearBit((valueAddress & blockMask) + 1, matches);
             }
-            return doc;
+            return valueAddress;
         }
+    }
+
+    /**
+     * The end of the run of matching documents at the iterator's current position: the lesser of how far
+     * the values keep matching, from the block mask in value-address space, and how far the documents stay
+     * present, from the iterator in document space.
+     */
+    private int matchingRunEnd(ColumnIterator column, BlockMask mask) throws IOException {
+        final int doc = column.docID();
+        final int valueAddress = column.rank();
+        final int matchingValueAddresses = mask.runEnd(valueAddress) - valueAddress;
+        return Math.min(column.docIDRunEnd(), Math.min(doc + matchingValueAddresses, maxDoc));
     }
 
     /** First clear (0) bit at or after {@code from}; {@code matches.length()} if none. */

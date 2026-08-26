@@ -19,8 +19,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryGate;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -35,7 +38,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginIntegTestCase {
@@ -45,6 +54,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalSettingsPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -60,7 +70,30 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
     public void testDefersRecoveriesUntilEstimateDropsBelowWatermark() throws Exception {
         final String indexNodeName = startGateBlockedIndexNode();
+        final TestTelemetryPlugin telemetry = getTelemetryPlugin(indexNodeName);
+        telemetry.resetMeter();
         final String indexName = createIndexWithBlockedRecovery(indexNodeName);
+
+        telemetry.collect();
+        assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
+        final List<Measurement> blockCount = telemetry.getLongCounterMeasurement(
+            RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC
+        );
+        assertThat(blockCount, hasSize(1));
+        assertThat(blockCount.getFirst().getLong(), equalTo(1L));
+        assertThat(
+            blockCount.getFirst().attributes().get(RecoveryMetricsCollector.RECOVERY_GATE_NAME_ATTRIBUTE_KEY),
+            equalTo("estimated_heap")
+        );
+        assertThat(getLastLongGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_METRIC, telemetry), greaterThan(0L));
+        assertThat(
+            getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
+            lessThan(0.0)
+        );
+        assertThat(
+            telemetry.getLongHistogramMeasurement(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_COMPUTATION_TIME_METRIC),
+            not(empty())
+        );
 
         // Drop the node's estimate below the watermark: the gate opens and the monitor's periodic re-evaluation resumes the held
         // recovery
@@ -69,6 +102,14 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
         safeAwait(gateOpened);
         // shards are started
         ensureGreen(indexName);
+
+        telemetry.collect();
+        assertThat(getLastLongGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(0L));
+        assertThat(
+            getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
+            greaterThan(0.0)
+        );
+        assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), hasSize(1));
     }
 
     public void testDisablingThresholdSettingReleasesGate() throws Exception {
@@ -250,5 +291,9 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
     private void setWorkloadMemoryOverheadOverride(String nodeName, long value) {
         internalCluster().getInstance(StatelessMemoryMetricsService.class, nodeName).setWorkloadMemoryOverheadOverrideForTesting(value);
+    }
+
+    private static double getLastDoubleGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        return telemetryPlugin.getDoubleGaugeMeasurement(name).getLast().getDouble();
     }
 }

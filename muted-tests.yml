@@ -788,3 +788,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testRefreshAndGet
   issue: https://github.com/elastic/elasticsearch/issues/157727
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testDataVisibility
+  issue: https://github.com/elastic/elasticsearch/issues/157732

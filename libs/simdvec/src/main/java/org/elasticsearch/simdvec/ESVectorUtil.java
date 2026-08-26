@@ -9,13 +9,18 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
+import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentASHVectorsScorer;
+import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
@@ -65,6 +70,29 @@ public class ESVectorUtil {
 
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         return SCORERS.newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    /**
+     * Creates an {@link AsymmetricHashingVectorsScorer} for the given IndexInput.
+     * Uses Panama SIMD acceleration when the input supports MemorySegment slices
+     * and a specialized implementation exists for the (queryBitsPerDim, bitsPerDim)
+     * combination; otherwise falls back to the scalar baseline.
+     *
+     * @param input the IndexInput positioned for reading posting list data
+     * @param nDims number of projected dimensions
+     * @param bitsPerDim document bits per dimension
+     * @param queryBitsPerDim query bits per dimension (0 for float path)
+     * @return an ASH scorer, SIMD-accelerated when possible
+     */
+    public static AsymmetricHashingVectorsScorer getASHVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
+            IndexInput unwrapped = FilterIndexInput.unwrapOnlyTest(input);
+            unwrapped = MemorySegmentAccessInputAccess.unwrap(unwrapped);
+            if (IndexInputUtils.canUseSegmentSlices(unwrapped)) {
+                return MemorySegmentASHVectorsScorer.create(unwrapped, nDims, bitsPerDim, queryBitsPerDim);
+            }
+        }
+        return new AsymmetricHashingVectorsScorer(input, nDims, bitsPerDim);
     }
 
     public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(

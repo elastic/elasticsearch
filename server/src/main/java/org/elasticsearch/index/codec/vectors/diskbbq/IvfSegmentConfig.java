@@ -44,7 +44,7 @@ public record IvfSegmentConfig(
 
     /**
      * ASH (Asymmetric Scalar Hashing) configuration — used by ASH writers/readers.
-     * ASH handles its own packing via {@code AsymmetricHashingScorer} and does not use {@link QuantEncoding}.
+     * ASH handles its own packing via {@code AshPackingUtils} and does not use {@link QuantEncoding}.
      */
     public record AshConfig(float projectedDimsFraction, int bitsPerDim, int trainingIterations, int trainingFactor)
         implements

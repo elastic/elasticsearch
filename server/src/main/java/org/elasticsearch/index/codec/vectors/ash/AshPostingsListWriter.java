@@ -25,7 +25,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.OverspillAssignments;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.AsymmetricHashingScorer;
+import org.elasticsearch.simdvec.AshPackingUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -155,7 +155,7 @@ public class AshPostingsListWriter {
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final int bitsPerDim = ashConfig.bitsPerDim();
-        final int packedCodeBytes = AsymmetricHashingScorer.packedLength(nDims, bitsPerDim);
+        final int packedCodeBytes = AshPackingUtils.packedLength(nDims, bitsPerDim);
         final float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
@@ -163,7 +163,7 @@ public class AshPostingsListWriter {
         // Pre-allocated bulk block byte buffers.
         // Codes are written contiguously, then corrections in AoS layout per vector.
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
-        final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AsymmetricHashingScorer.CORRECTION_BYTES];
+        final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AshPostingsVisitor.CORRECTION_BYTES];
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
         DocIdsWriter idsWriter = new DocIdsWriter();
 
@@ -207,17 +207,13 @@ public class AshPostingsListWriter {
                 for (int j = 0; j < blockSize; j++) {
                     int vectorOrd = cluster[clusterOrds[written + j]];
                     AsymmetricHashingQuantizer.EncodedVector enc = ashQuantizer.encode(vectors[vectorOrd], centroid, wT, precomputed);
-                    byte[] vectorPacked = AsymmetricHashingScorer.pack(enc.xEnc(), bitsPerDim);
+                    byte[] vectorPacked = AshPackingUtils.pack(enc.xEnc(), bitsPerDim);
                     System.arraycopy(vectorPacked, 0, blockCodesBuf, j * packedCodeBytes, packedCodeBytes);
-                    int corrOff = j * AsymmetricHashingScorer.CORRECTION_BYTES;
+                    int corrOff = j * AshPostingsVisitor.CORRECTION_BYTES;
+                    BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AshPostingsVisitor.CORR_SCALE, Float.floatToIntBits(enc.scale()));
                     BitUtil.VH_LE_INT.set(
                         blockCorrectionsBuf,
-                        corrOff + AsymmetricHashingScorer.CORR_SCALE,
-                        Float.floatToIntBits(enc.scale())
-                    );
-                    BitUtil.VH_LE_INT.set(
-                        blockCorrectionsBuf,
-                        corrOff + AsymmetricHashingScorer.CORR_OFFSET,
+                        corrOff + AshPostingsVisitor.CORR_OFFSET,
                         Float.floatToIntBits(enc.offset())
                     );
                     // Compute docSum: sum of unsigned code values directly from the centered float codes
@@ -226,28 +222,28 @@ public class AshPostingsListWriter {
                     for (int d = 0; d < nDims; d++) {
                         docSum += Math.round(xEnc[d] + centerOffset);
                     }
-                    BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_DOC_SUM, docSum);
+                    BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AshPostingsVisitor.CORR_DOC_SUM, docSum);
                     // EUCLIDEAN: ⟨μ*,x⟩ and ‖x-μ*‖² from the original float vectors; 0 otherwise
                     if (isEuclidean) {
                         float[] vec = vectors[vectorOrd];
                         BitUtil.VH_LE_INT.set(
                             blockCorrectionsBuf,
-                            corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT,
+                            corrOff + AshPostingsVisitor.CORR_VEC_CENTROID_DOT,
                             Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, vec))
                         );
                         BitUtil.VH_LE_INT.set(
                             blockCorrectionsBuf,
-                            corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST,
+                            corrOff + AshPostingsVisitor.CORR_VEC_CENTROID_SQ_DIST,
                             Float.floatToIntBits(ESVectorUtil.squareDistance(vec, centroid))
                         );
                     } else {
-                        BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_DOT, 0);
-                        BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AsymmetricHashingScorer.CORR_VEC_CENTROID_SQ_DIST, 0);
+                        BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AshPostingsVisitor.CORR_VEC_CENTROID_DOT, 0);
+                        BitUtil.VH_LE_INT.set(blockCorrectionsBuf, corrOff + AshPostingsVisitor.CORR_VEC_CENTROID_SQ_DIST, 0);
                     }
                 }
                 // Write all packed codes contiguously, then all corrections
                 postingsOutput.writeBytes(blockCodesBuf, 0, blockSize * packedCodeBytes);
-                postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AsymmetricHashingScorer.CORRECTION_BYTES);
+                postingsOutput.writeBytes(blockCorrectionsBuf, 0, blockSize * AshPostingsVisitor.CORRECTION_BYTES);
                 written += blockSize;
             }
             lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);

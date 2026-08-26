@@ -1,5 +1,0 @@
-pr: 152588
-summary: Refactor JinaAI service settings to ObjectParser and allow clearing `rate_limit` and `max_input_tokens` on update
-area: Inference
-type: enhancement
-issues: []

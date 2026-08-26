@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -20,6 +19,8 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Service settings for the JinaAI rerank task. Rerank adds no settings of its own beyond the common {@link JinaAIServiceSettings}
@@ -39,7 +40,7 @@ public class JinaAIRerankServiceSettings extends JinaAIServiceSettings {
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
         ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
+            SERVICE_SETTINGS.toString(),
             ignoreUnknownFields,
             () -> new Builder(context)
         );
@@ -95,7 +96,7 @@ public class JinaAIRerankServiceSettings extends JinaAIServiceSettings {
      */
     private static class Update extends JinaAIServiceSettings.CommonUpdate {
 
-        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(SERVICE_SETTINGS.toString(), Update::new);
 
         static {
             JinaAIServiceSettings.declareCommonUpdatableFields(PARSER);

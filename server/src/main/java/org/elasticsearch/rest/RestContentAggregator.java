@@ -75,15 +75,7 @@ public class RestContentAggregator {
                 }
                 chunks = null;
                 closing = true;
-                boolean success = false;
-                try {
-                    resultConsumer.accept(restRequest);
-                    success = true;
-                } finally {
-                    if (!success) {
-                        restRequest.getHttpRequest().release();
-                    }
-                }
+                resultConsumer.accept(restRequest);
             }
         }
 

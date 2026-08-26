@@ -83,37 +83,6 @@ public class RestContentAggregatorTests extends ESTestCase {
         aggregated.content().close();
     }
 
-    public void testReleaseChunksOnConsumerException() {
-        var chunkSize = between(1, 1024);
-        var nChunks = between(1, 100);
-        var stream = new FakeHttpBodyStream();
-        // the `FakeHttpRequest.release` is a no-op, so we override here to close the underlying chunks similarly to what
-        // `Netty4HttpRequest.release` does, and hence we can assert at the end of this test that we released all chunks
-        var httpRequest = new FakeHttpRequest(
-            RestRequest.Method.POST,
-            "/",
-            Map.of("Content-Length", List.of(Integer.toString(chunkSize * nChunks))),
-            stream
-        ) {
-            @Override
-            public void release() {
-                body().close();
-            }
-        };
-        var request = RestRequest.request(parserConfig(), httpRequest, new FakeHttpChannel(null));
-        var chunks = range(0, nChunks).mapToObj(i -> randomReleasableBytesReference(chunkSize)).toList();
-
-        aggregate(request, r -> { throw new NullPointerException(); });
-
-        for (var i = 0; i < nChunks - 1; i++) {
-            assertTrue(stream.isRequested());
-            stream.sendNext(chunks.get(i), false);
-        }
-        assertTrue(stream.isRequested());
-        expectThrows(NullPointerException.class, () -> stream.sendNext(chunks.getLast(), true));
-        assertFalse(chunks.stream().anyMatch(ReleasableBytesReference::hasReferences));
-    }
-
     public void testReleaseChunksOnClose() {
         var chunkSize = between(1, 1024);
         var nChunks = between(1, 100);

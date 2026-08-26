@@ -1172,6 +1172,11 @@ public class EsqlCapabilities {
          */
         FIX_PARTIAL_PREFIX_COMPOUND_TOPN_PUSHDOWN,
 
+        /**
+         * Clamp {@code COUNT_DISTINCT} precision thresholds before narrowing them to integers.
+         */
+        FN_COUNT_DISTINCT_PRECISION_CLAMP,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -76,18 +75,6 @@ class NoopNativeAccess implements NativeAccess {
     @Override
     public Zstd getZstd() {
         logger.warn("cannot compress with zstd because native access is not available");
-        return null;
-    }
-
-    @Override
-    public CloseableByteBuffer newSharedBuffer(int len) {
-        logger.warn("cannot allocate buffer because native access is not available");
-        return null;
-    }
-
-    @Override
-    public CloseableByteBuffer newConfinedBuffer(int len) {
-        logger.warn("cannot allocate buffer because native access is not available");
         return null;
     }
 

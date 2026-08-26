@@ -43,7 +43,6 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "ndjson");
     }
 
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTestsForSuite("ndjson");

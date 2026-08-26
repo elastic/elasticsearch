@@ -36,7 +36,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         ? List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz")
         : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
-
     public NdJsonCompressedFormatSpecIT(
         String fileName,
         String groupName,
@@ -50,7 +49,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
-
     @Override
     protected String exclusionSuiteToken() {
         // This suite's format is not its declaration token, so the default would resolve to
@@ -60,14 +58,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/external-basic.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/external-multivalue.csv-spec",
-            "/ndjson-declared-schema.csv-spec"
-        );
+        return readExternalSpecTestsWithFormatsForSuite(COMPRESSED_FORMATS, "ndjson-compressed");
     }
 }

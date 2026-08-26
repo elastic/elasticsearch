@@ -22,6 +22,11 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
+  // Declared explicitly for the csvSpecTest source set. The exclusion lookup now lives in
+  // AbstractExternalSourceSpecTestCase rather than in each suite, so fixture-common is needed at RUNTIME
+  // here even though nothing in this module names it any more -- without it every test in the suite dies
+  // with NoClassDefFoundError before reaching an assertion.
+  csvSpecTestImplementation project(xpackModule('esql:qa:fixture-common'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
 
   // S3 fixture infrastructure for mocking S3 operations
@@ -180,3 +185,4 @@ ext.fixtureCoverageSpecDirs = [
   file('src/javaRestTest/resources')
 ]
 apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-coverage.gradle')
+apply from: project(xpackModule('esql:qa:fixture-common')).file('fixture-manifest.gradle')

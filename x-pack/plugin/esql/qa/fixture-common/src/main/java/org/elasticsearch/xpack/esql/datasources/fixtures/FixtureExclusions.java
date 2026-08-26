@@ -91,7 +91,7 @@ public final class FixtureExclusions {
         }
 
         for (String key : props.stringPropertyNames()) {
-            if (key.equals("suites")) {
+            if (key.equals("suites") || key.startsWith("reason.")) {
                 continue;
             }
             if (key.startsWith("exclude.") == false) {
@@ -150,6 +150,26 @@ public final class FixtureExclusions {
             String reason = value.substring(colon + 1).trim();
             if (reason.isEmpty()) {
                 throw new IllegalStateException("exclusion [" + key + "] states a kind but no reason");
+            }
+            // A reason of the form @name resolves to the shared reason.<name>. One defect usually disables
+            // several cases, and repeating its paragraph per case meant N copies that drift the moment one
+            // is corrected -- roughly 300 of this file's 367 lines were verbatim duplicates.
+            if (reason.startsWith("@")) {
+                String reasonKey = reason.substring(1).trim();
+                String shared = props.getProperty("reason." + reasonKey);
+                if (shared == null || shared.isBlank()) {
+                    throw new IllegalStateException(
+                        "exclusion ["
+                            + key
+                            + "] references shared reason [@"
+                            + reasonKey
+                            + "], which is not declared as "
+                            + "[reason."
+                            + reasonKey
+                            + "]"
+                    );
+                }
+                reason = shared.trim();
             }
             parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>()).put(caseOnly, new Exclusion(suite, spec, caseOnly, kind, reason));
         }

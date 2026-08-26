@@ -7,17 +7,18 @@
 // external-multifile-type-drift.csv-spec, no warning is emitted. The millis values scale up, so the
 // extrema span both files: 2ms = 2,000,000ns is the minimum, 9,000,000ns the maximum.
 //
-// Two formats are excluded, both structurally rather than for a defect.
+// Two formats cannot run the widening cases, each for a gap tracked in its own layer.
 //
 // ORC: OrcFormatReader maps TIMESTAMP and TIMESTAMP_INSTANT to DATETIME and has no DATE_NANOS
 // mapping, so it cannot round-trip the date_nanos half. The generator refuses the type rather than
 // writing it as a string, and the matrix declares that cell absent.
 //
-// NDJSON: its schema is INFERRED, and the inferrer's vocabulary has no DATE_NANOS -- both files' ISO
-// timestamps come back DATETIME, so there is no declared date to widen into a declared date_nanos
-// and the case would assert a type the format never produced. NDJSON fixtures for this layout ARE
-// generated: a declared-schema read can name date_nanos explicitly, which is where they are useful.
-// It is this inference-based case that cannot port, not the data.
+// NDJSON: its schema is INFERRED, and the inferrer's type set stops at DATETIME
+// (elastic/esql-planning#1798) -- both files' ISO timestamps come back DATETIME, so the union-by-name
+// widening under test never sees a date_nanos input. The decode path supports the type; only inference
+// never produces it. NDJSON fixtures for this layout ARE generated: a declared-schema read can name
+// date_nanos explicitly, which is where they are useful. It is this inference-based case that cannot
+// port, not the data.
 //
 // CSV runs its own twin, since it does not load the shared external specs.
 

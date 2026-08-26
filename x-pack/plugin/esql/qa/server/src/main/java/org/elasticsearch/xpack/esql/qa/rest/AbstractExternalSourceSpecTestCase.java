@@ -42,6 +42,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -120,7 +121,21 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * ten shadow executions was TSV.
      */
     protected static List<Object[]> readExternalSpecTestsForSuite(String suiteToken) throws Exception {
-        return readExternalSpecTests(MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTests(MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        if (excluded.isEmpty()) {
+            return loaded;
+        }
+        // Drop whole spec files the declaration excludes for this suite. Filtering here rather than
+        // assuming away per case at run time: a case that is registered and then always skipped is a skip
+        // no gate can see and no report can count.
+        return loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
+    /** The spec file name (without extension) a parameterised row came from -- element 0 is the file name. */
+    private static String specNameOf(Object[] row) {
+        String fileName = String.valueOf(row[0]);
+        return fileName.endsWith(".csv-spec") ? fileName.substring(0, fileName.length() - ".csv-spec".length()) : fileName;
     }
 
     protected static List<Object[]> readExternalSpecTests(String... specPatterns) throws Exception {
@@ -151,6 +166,21 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
      * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
      */
+    /**
+     * Codec-fanned variant of {@link #readExternalSpecTestsForSuite}: the spec list comes from
+     * {@code suite.<token>.specs} rather than from a list written at the call site.
+     *
+     * <p>Without this the compressed suites could not read the declaration at all, so the declaration and
+     * the suite drifted -- the declaration claimed twelve specs for ndjson-compressed while the suite
+     * hard-coded six, and the coverage gate believed the declaration. That is the same false green the gate
+     * exists to prevent, reintroduced one level up.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithFormatsForSuite(List<String> formats, String suiteToken) throws Exception {
+        Set<String> excluded = MATRIX.excludedSpecs(suiteToken);
+        List<Object[]> loaded = readExternalSpecTestsWithExtraParam(formats, MATRIX.specPatterns(suiteToken).toArray(String[]::new));
+        return excluded.isEmpty() ? loaded : loaded.stream().filter(row -> excluded.contains(specNameOf(row)) == false).toList();
+    }
+
     protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
         return readExternalSpecTestsWithExtraParam(formats, specPatterns);
     }
@@ -416,13 +446,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     @Override
     protected void doTest() throws Throwable {
-        // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class. After the FROM
-        // <dataset> migration the {{clickbench}} template lives in the dataset directive's resource rather
-        // than the query (which is now plain `FROM clickbench`), so check the declared sources too.
-        boolean clickBench = testCase.query.contains("{{clickbench}}")
-            || testCase.datasetSources.stream().anyMatch(source -> source.resource().contains("{{clickbench}}"));
-        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", clickBench);
-
         if (testCase.datasetSources.isEmpty() == false && forceExternalRebuild() == false) {
             runDatasetMode();
             return;

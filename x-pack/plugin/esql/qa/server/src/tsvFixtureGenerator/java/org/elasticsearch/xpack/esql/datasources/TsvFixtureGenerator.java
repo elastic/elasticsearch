@@ -233,9 +233,17 @@ public final class TsvFixtureGenerator {
             case "double", "scaled_float", "float", "half_float" -> Double.toString(((Number) value).doubleValue());
             case "boolean", "bool" -> Boolean.TRUE.equals(value) ? "true" : "false";
             case "date", "datetime", "dt" -> Instant.ofEpochMilli(((Number) value).longValue()).toString();
+            // Epoch nanos verbatim. The parser yields a Long of nanoseconds and the reader parses a numeric
+            // date_nanos cell as epoch nanos, so the raw decimal round-trips exactly -- where an ISO string
+            // would not, because Instant.toString() trims trailing zeros and silently drops precision.
+            // An explicit arm rather than the string fall-through it used to reach: a type that works by
+            // falling through is a type nobody decided about.
+            case "date_nanos" -> String.valueOf(((Number) value).longValue());
             case "uint32", "uint16", "uint64" -> throw new IllegalArgumentException(
                 "declared [" + type + "]: unsigned types have no TSV representation the reader accepts"
             );
+            // The string-representable types -- keyword, text, ip, version, the geo and json shapes. Their
+            // TSV form is their source text, so there is nothing to convert.
             default -> value.toString();
         };
     }

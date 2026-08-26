@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The fixture matrix, read from {@code fixture-matrix.properties}.
@@ -264,6 +266,31 @@ public final class FixtureMatrix {
             );
         }
         return declared.trim();
+    }
+
+    /**
+     * Spec files a suite must NOT load even though its patterns match them, as declared in
+     * {@code suite.<token>.specs.exclude}.
+     *
+     * <p>Deliberately rare -- one entry today. It exists because a glob cannot know that a spec belongs to
+     * a different suite, and the alternative was what this replaced: registering all 43 ClickBench cases in
+     * three suites and calling assumeFalse on every one, a skip that no gate could see and no report could
+     * count.
+     */
+    public Set<String> excludedSpecs(String suiteToken) {
+        String value = declaration.getProperty("suite." + suiteToken + ".specs.exclude");
+        if (value == null || value.isBlank()) {
+            return Set.of();
+        }
+        if (declaration.getProperty("suite." + suiteToken + ".specs.exclude.reason") == null) {
+            throw new IllegalStateException(
+                "suite ["
+                    + suiteToken
+                    + "] excludes spec files but declares no reason; a whole-file exclusion "
+                    + "removes every case in that file and must say why"
+            );
+        }
+        return Arrays.stream(value.split(",")).map(String::trim).filter(t -> t.isEmpty() == false).collect(Collectors.toUnmodifiableSet());
     }
 
     public List<String> specPatterns(String suiteToken) {

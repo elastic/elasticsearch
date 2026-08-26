@@ -33,16 +33,16 @@ public class LimitByGoldenTests extends GoldenTestCase {
         Stage.ANALYSIS,
         Stage.LOGICAL_OPTIMIZATION,
         Stage.PHYSICAL_OPTIMIZATION,
-        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
-        Stage.NODE_REDUCE,
-        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION
     );
 
     private static final EnumSet<Stage> STAGES_WITH_NODE_REDUCE = EnumSet.of(
         Stage.ANALYSIS,
         Stage.LOGICAL_OPTIMIZATION,
         Stage.PHYSICAL_OPTIMIZATION,
-        Stage.LOCAL_PHYSICAL_OPTIMIZATION
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION,
+        Stage.NODE_REDUCE,
+        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
     );
 
     public void testLimitByWithoutSort() {

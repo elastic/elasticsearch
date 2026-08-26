@@ -52,6 +52,8 @@ public class ColumNARDocValuesFormat extends DocValuesFormat {
     static final String DATA_EXTENSION = "cnd";
     static final String META_CODEC = "ColumNARMeta";
     static final String META_EXTENSION = "cnm";
+    static final String SKIP_CODEC = "ColumNARSkipIndex";
+    static final String SKIP_EXTENSION = "cns";
 
     private final NumericPipelineSelector pipelineSelector;
     private final int blockSize;

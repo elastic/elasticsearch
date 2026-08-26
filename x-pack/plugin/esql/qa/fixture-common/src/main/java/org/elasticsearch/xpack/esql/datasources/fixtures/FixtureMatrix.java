@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +37,35 @@ public final class FixtureMatrix {
     public static final String STANDALONE = "standalone";
 
     private static final String RESOURCE = "fixture-matrix.properties";
+    /**
+     * Every key shape the declaration recognises. A key matching none of these fails the load.
+     *
+     * <p>This file has TWO parsers -- this class at run time and fixture-matrix.gradle at Gradle
+     * configuration time -- and neither used to reject a key it did not understand. Adding write_dialect
+     * broke both of them, separately and identically: each read {@code dataset.apps.write_dialect} as a
+     * dataset named "apps.write_dialect" restricted to a format called "none". Silence on an unknown key is
+     * what let one attribute be mistaken for another entity.
+     *
+     * <p>Making this side reject unknown keys makes it the authority: a new axis cannot be added without
+     * being declared here, which is the moment to ask whether the Groovy side needs to know about it too.
+     */
+    private static final List<Pattern> KNOWN_KEYS = List.of(
+        Pattern.compile("formats"),
+        Pattern.compile("dataset\\.[a-z0-9_]+"),
+        Pattern.compile("dataset\\.[a-z0-9_]+\\.(reason|write_dialect)"),
+        Pattern.compile("layout\\.[a-z_]+\\.(dir|glob|sources|derived_from|bucket_by|partition_column)"),
+        Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+"),
+        Pattern.compile("layout\\.[a-z_]+\\.sources\\.[a-z0-9-]+\\.reason"),
+        Pattern.compile("layout\\.[a-z_]+\\.split\\.parts"),
+        Pattern.compile("layout\\.split\\.parts"),
+        Pattern.compile("suite\\.[a-z0-9-]+\\.(specs|format|outside_shared_specs)"),
+        Pattern.compile("suite\\.[a-z0-9-]+\\.specs\\.exclude"),
+        Pattern.compile("suite\\.[a-z0-9-]+\\.specs\\.exclude\\.reason"),
+        Pattern.compile("codec\\.(text|parquet)"),
+        Pattern.compile("codec\\.text\\.snapshot_only"),
+        Pattern.compile("codec\\.parquet\\.suite\\.[a-z0-9-]+")
+    );
+
     private static final FixtureMatrix INSTANCE = load();
 
     private final List<String> formats;
@@ -89,7 +119,24 @@ public final class FixtureMatrix {
     private final Map<String, List<String>> specPatterns;
     private final Properties declaration;
 
+    private static void rejectUnknownKeys(Properties props) {
+        List<String> unknown = props.stringPropertyNames()
+            .stream()
+            .filter(k -> KNOWN_KEYS.stream().noneMatch(p -> p.matcher(k).matches()))
+            .sorted()
+            .toList();
+        if (unknown.isEmpty() == false) {
+            throw new IllegalStateException(
+                "fixture-matrix.properties declares key(s) this parser does not recognise: "
+                    + unknown
+                    + ". Add the shape to KNOWN_KEYS -- and check whether fixture-matrix.gradle, which parses the "
+                    + "same file, needs to know about it too. An unrecognised key is silently mis-parsed otherwise."
+            );
+        }
+    }
+
     private FixtureMatrix(Properties props) {
+        rejectUnknownKeys(props);
         Map<String, List<String>> parsedSpecPatterns = new LinkedHashMap<>();
         for (String key : props.stringPropertyNames()) {
             if (key.startsWith("suite.") && key.endsWith(".specs")) {

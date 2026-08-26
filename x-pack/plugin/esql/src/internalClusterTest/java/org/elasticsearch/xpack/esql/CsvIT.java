@@ -195,19 +195,6 @@ public class CsvIT extends ESTestCase {
         ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
 
         /**
-         * Transforms the actual query results before they are compared against the expected results.
-         * The default implementation returns the actual values unchanged.
-         */
-        default List<List<Object>> transformActualResults(
-            String testId,
-            CsvSpecReader.CsvTestCase testCase,
-            ExpectedResults expected,
-            List<List<Object>> actualValues
-        ) {
-            return actualValues;
-        }
-
-        /**
          * Normalizes a single warning string before warnings are compared. The <em>same</em>
          * function is applied to both the expected warnings declared in the csv-spec entry (via
          * {@link CsvSpecReader.CsvTestCase#adjustExpectedWarnings(java.util.function.Function)}) and
@@ -220,16 +207,6 @@ public class CsvIT extends ESTestCase {
         default String normalizeWarning(String warning) {
             return warning;
         }
-
-        /**
-         * Called after {@link CsvSpecReader.CsvTestCase#adjustExpectedWarnings} but before the
-         * warning assertion, allowing the strategy to modify the test case's warning state.
-         * Implementations that rewrite the query and may produce additional warnings not declared
-         * in the csv-spec entry can add a match-all pattern directly to
-         * {@link CsvSpecReader.CsvTestCase#expectedWarningsRegex}; use {@code Pattern.DOTALL} so
-         * the match succeeds even when warning strings contain embedded newline characters.
-         */
-        default void adjustTestCaseForWarnings(CsvSpecReader.CsvTestCase testCase) {}
 
         /**
          * Called once after the index for {@code dataset} has been fully populated.
@@ -445,15 +422,9 @@ public class CsvIT extends ESTestCase {
             );
 
             CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), logger);
-            List<List<Object>> actualValues = indexLoadStrategy.transformActualResults(
-                groupName + "." + testName,
-                testCase,
-                expected,
-                actual.values()
-            );
             CsvAssert.assertDataWithValueConverter(
                 expected,
-                actualValues,
+                actual.values(),
                 testCase.ignoreOrder,
                 false,
                 false,
@@ -468,7 +439,6 @@ public class CsvIT extends ESTestCase {
             // query can reconcile warnings whose expression text or source position shifted purely
             // as a side effect of the rewrite. For the identity strategy this is a no-op.
             testCase.adjustExpectedWarnings(indexLoadStrategy::normalizeWarning);
-            indexLoadStrategy.adjustTestCaseForWarnings(testCase);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {

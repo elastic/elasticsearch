@@ -14,7 +14,12 @@ import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.AbstractExternalDataSourceIT;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,9 +60,20 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    @Before
+    protected void checkLocalSources() {
+        // We're using local data source here, which needs the flag
+        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
+    }
+
+    @After
+    protected void clearLastMetrics() {
+        lastMetrics = null;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
-        return List.of(CsvDataSourcePlugin.class);
+        return List.of(CsvDataSourcePlugin.class, NdJsonDataSourcePlugin.class, GzipDataSourcePlugin.class, ParquetDataSourcePlugin.class);
     }
 
     @Override
@@ -68,11 +84,7 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         return plugins;
     }
 
-    public void testMetricsCollector() throws Exception {
-        // We're using local data source here, which needs the flag
-        assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
-        lastMetrics = null;
-
+    public void testMetricsCollectorCsv() throws Exception {
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
         for (int i = 0; i < 5; i++) {
@@ -86,18 +98,63 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             // run the query — result discarded, only the collector side-effect matters
         }
 
-        assertThat(lastMetrics, notNullValue());
+        assertReadCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
-        // CPU counter should not exceed total counter
-        assertThat(
-            lastMetrics.get(QueryMetricsListener.READ_NANOS),
-            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS))
-        );
         assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
+    }
+
+    /** NdJson plain file — exercises the single-pass NdJson reader path. */
+    public void testMetricsCollectorNdJson() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder ndjson = new StringBuilder();
+        for (int i = 0; i < 5; i++) {
+            ndjson.append("{\"emp_no\":").append(i).append(",\"name\":\"name_").append(i).append("\"}\n");
+        }
+        Files.writeString(dir.resolve("data.ndjson"), ndjson.toString());
+
+        registerDataset("metrics_ndjson_ds", dir.resolve("data.ndjson").toUri().toString(), Map.of());
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_ndjson_ds | LIMIT 10"), TIMEOUT)) {}
+
+        assertReadCpuNanos("ndjson");
+    }
+
+    /**
+     * Gzip-compressed CSV — exercises the {@link org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator}
+     * path where decompression and parsing run on background threads.
+     * <p>
+     * On this path the producer thread only polls the result queue, so {@code read_nanos} reflects minimal queue-poll
+     * wall time (may be near zero). {@code read_cpu_nanos} captures the real CPU via the coordinator's background-thread
+     * accumulator, so only that counter is asserted here.
+     */
+    public void testMetricsCollectorGzipCsv() throws Exception {
+        Path dir = createTempDir();
+        StringBuilder csv = new StringBuilder("emp_no:integer,name:keyword\n");
+        for (int i = 0; i < 100; i++) {
+            csv.append(i).append(",name_").append(i).append('\n');
+        }
+        writeGzipped(dir.resolve("data.csv.gz"), csv.toString());
+
+        registerDataset("metrics_gzip_ds", dir.resolve("data.csv.gz").toUri().toString(), Map.of());
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_gzip_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertThat("gzip-csv: metrics must be set", lastMetrics, notNullValue());
+        assertThat("gzip-csv: read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+    }
+
+    /** Parquet file — exercises the Parquet format reader path. */
+    public void testMetricsCollectorParquet() throws Exception {
+        Path dir = createTempDir();
+        writeParquet(dir.resolve("data.parquet"), 100, 1024);
+
+        registerDataset("metrics_parquet_ds", dir.resolve("data.parquet").toUri().toString(), Map.of());
+
+        try (var ignored = run(syncEsqlQueryRequest("FROM metrics_parquet_ds | LIMIT 200"), TIMEOUT)) {}
+
+        assertReadCpuNanos("parquet");
     }
 
     public void testNoCollectionWithoutExternalData() throws Exception {
@@ -142,5 +199,17 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         lastMetrics = null;
         try (var ignored = run(syncEsqlQueryRequest("FROM " + ds + " | STATS COUNT(*)"), TIMEOUT)) {}
         assertThat("warm COUNT(*) over external source must be metered", lastMetrics, notNullValue());
+    }
+
+    /** Asserts that {@code read_cpu_nanos} is populated and does not exceed {@code read_nanos}. */
+    private void assertReadCpuNanos(String format) {
+        assertThat(format + ": metrics must be set", lastMetrics, notNullValue());
+        assertThat(format + ": read_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
+        assertThat(format + ": read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        assertThat(
+            format + ": read_cpu_nanos <= read_nanos",
+            lastMetrics.get(QueryMetricsListener.READ_NANOS),
+            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS))
+        );
     }
 }

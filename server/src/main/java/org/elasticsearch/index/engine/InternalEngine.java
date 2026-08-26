@@ -1715,7 +1715,11 @@ public class InternalEngine extends Engine {
                     // TODO: Batch Optimize the persisted seqNo
                     localCheckpointTracker.markSeqNoAsPersisted(result.getSeqNo());
                 }
-                result.setTook(relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime());
+
+                // subBatch.startTime() is the start time of the first sub-batch.
+                // The numerator below is the cumulative time which includes all sub batches before the current one
+                // TODO: Add a BatchResult which contains the item level results but has a top level took time
+                result.setTook((relativeTimeInNanosSupplier.getAsLong() - subBatch.startTime()) / subBatchSize);
                 result.freeze();
             }
         } finally {

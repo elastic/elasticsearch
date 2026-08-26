@@ -110,9 +110,7 @@ public class InternalIndexingStatsTests extends ESTestCase {
 
         final int docCount = randomIntBetween(1, 16);
         final IndexOperationBatch batch = primaryBatch(docCount);
-        final Exception failure = randomBoolean()
-            ? new VersionConflictEngineException(shardId, "0", "conflict")
-            : new RuntimeException("engine failure");
+        final Exception failure = new RuntimeException("engine failure");
 
         final List<Engine.Index> ops = batch.materializeIndexOps();
         for (Engine.Index op : ops) {

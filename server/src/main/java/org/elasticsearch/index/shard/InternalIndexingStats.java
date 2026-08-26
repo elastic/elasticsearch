@@ -192,9 +192,6 @@ public final class InternalIndexingStats implements IndexingOperationListener {
             final int docCount = batch.docCount();
             totalStats.indexCurrent.dec(docCount);
             totalStats.indexFailed.inc(docCount);
-            if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
-                totalStats.indexFailedDueToVersionConflicts.inc(docCount);
-            }
         }
     }
 

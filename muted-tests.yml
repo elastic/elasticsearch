@@ -77,10 +77,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
-- class: org.elasticsearch.xpack.prometheus.PrometheusMetadataRestIT
-  method: testMultipleEntriesForSameMetricAcrossStreams
-  issue: https://github.com/elastic/elasticsearch/issues/147170
-
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

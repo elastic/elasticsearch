@@ -9,27 +9,23 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
+import org.elasticsearch.columnar.substrate.MonotonicReader;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 /**
  * Reads a numeric column written by {@link NumericColumnWriter}, single- or multi-valued.
  *
- * <p>Values are addressed by ordinal within one block-encoded store. A document maps to its value
- * ordinals through {@link #iterator()}: single-valued columns map a document's rank
- * straight to its ordinal, while multi-valued columns look the range up in the value-address table.
- * A block is decoded whole into a reusable buffer with a single-block cache; nothing
+ * <p>Values are addressed by <b>value address</b> — a value's 0-based position in the block-encoded store, in
+ * {@code [0, numValues)}. A document maps to its value addresses through {@link #iterator()}: a single-valued
+ * column maps a document's rank straight to its value address, while a multi-valued one looks the range up in
+ * the value-address table. A block is decoded whole into a reusable buffer with a single-block cache; nothing
  * column-proportional is held on the heap (offset tables are read on demand from the mapped input).
  */
 public final class NumericColumnReader {
@@ -59,7 +55,7 @@ public final class NumericColumnReader {
             this.blockBuffer = new long[0];
             return;
         }
-        this.blockOffsets = monotonic(
+        this.blockOffsets = MonotonicReader.open(
             data,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,
@@ -67,7 +63,7 @@ public final class NumericColumnReader {
             meta.blockOffsetsDataLength()
         );
         this.valueAddresses = meta.multiValued()
-            ? monotonic(
+            ? MonotonicReader.open(
                 data,
                 meta.valueAddressesMeta(),
                 meta.numDocsWithField() + 1L,
@@ -81,13 +77,21 @@ public final class NumericColumnReader {
         this.blockBuffer = new long[meta.blockSize()];
     }
 
-    /** A fresh iterator over the documents that have a value; {@link ColumnIterator#index()} is the rank. */
+    /** A fresh iterator over the documents that have a value; positioned by {@link ColumnIterator#rank()}. */
     public ColumnIterator iterator() throws IOException {
         return iteratorReader.iterator();
     }
 
-    /** The ordinal of a document's first value, given its rank. */
-    public long firstOrdinal(int rank) {
+    /**
+     * Whether any document holds more than one value. A single-valued column maps a rank straight to a value
+     * address.
+     */
+    public boolean multiValued() {
+        return valueAddresses != null;
+    }
+
+    /** The value address of a document's first value, given its rank. */
+    public long firstValueAddress(int rank) {
         return valueAddresses == null ? rank : valueAddresses.get(rank);
     }
 
@@ -96,11 +100,11 @@ public final class NumericColumnReader {
         return valueAddresses == null ? 1 : valueAddresses.get(rank + 1) - valueAddresses.get(rank);
     }
 
-    /** The value at {@code ordinal} in {@code [0, numValues)}. */
-    public long valueForOrdinal(long ordinal) throws IOException {
-        long block = ordinal / meta.blockSize();
+    /** The value at {@code valueAddress} in {@code [0, numValues)}. */
+    public long valueAt(long valueAddress) throws IOException {
+        long block = valueAddress / meta.blockSize();
         ensureBlock(block);
-        return blockBuffer[(int) (ordinal - block * meta.blockSize())];
+        return blockBuffer[(int) (valueAddress - block * meta.blockSize())];
     }
 
     /** Values per encoding block. */
@@ -137,17 +141,4 @@ public final class NumericColumnReader {
         cachedBlock = block;
     }
 
-    private static LongValues monotonic(IndexInput data, byte[] metaBytes, long numEntries, long dataOffset, long dataLength)
-        throws IOException {
-        DirectMonotonicReader.Meta tableMeta;
-        try (
-            IndexInput metaInput = new ByteBuffersIndexInput(
-                new ByteBuffersDataInput(List.of(ByteBuffer.wrap(metaBytes))),
-                "monotonic-meta"
-            )
-        ) {
-            tableMeta = DirectMonotonicReader.loadMeta(metaInput, numEntries, NumericColumnWriter.DIRECT_MONOTONIC_BLOCK_SHIFT);
-        }
-        return DirectMonotonicReader.getInstance(tableMeta, data.randomAccessSlice(dataOffset, dataLength));
-    }
 }

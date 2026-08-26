@@ -30,7 +30,7 @@ import java.util.function.Consumer;
  * dropping a trailing partial line (split boundary). Reads the delegate lazily and keeps at most a
  * small read buffer plus any uncommitted tail after the last newline seen so far.
  *
- * <p>If a line without a delimiter exceeds the configured {@code max_record_size}, {@link ErrorPolicy#isStrict()}
+ * <p>If a line without a delimiter exceeds the configured {@code external_max_record_size}, {@link ErrorPolicy#isStrict()}
  * causes an {@link IOException}; otherwise the buffered partial line is discarded as bogus and
  * reading continues. Discards are logged like {@link NdJsonPageDecoder} parse skips:
  * {@link Level#INFO} when {@link ErrorPolicy#logErrors()} is true, otherwise {@link Level#DEBUG}.

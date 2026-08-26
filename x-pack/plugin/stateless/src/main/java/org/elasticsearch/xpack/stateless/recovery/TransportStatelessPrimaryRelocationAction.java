@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -89,6 +90,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
+        Settings settings,
         TransportService transportService,
         ActionFilters actionFilters,
         IndicesService indicesService,
@@ -99,8 +101,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         StatelessPrimaryRelocationMetricsCollector relocationMetricsCollector
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        assert transportService.getLocalNode().getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
-
+        assert DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.peerRecoveryTargetService = peerRecoveryTargetService;

@@ -164,6 +164,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -490,7 +491,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             }
 
             private Map<ActionType<?>, TransportAction<?, ?>> getActions(ActionFilters actionFilters) {
-                return Map.of(
+                final var actions = new HashMap<ActionType<?>, TransportAction<?, ?>>();
+                actions.put(
                     TransportNewCommitNotificationAction.TYPE,
                     new TransportNewCommitNotificationAction(
                         clusterService(),
@@ -499,37 +501,48 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         actionFilters,
                         indicesService,
                         mock(SearchShardSizeCollector.class)
-                    ),
+                    )
+                );
+                actions.put(
                     TransportSendRecoveryCommitRegistrationAction.TYPE,
-                    new TransportSendRecoveryCommitRegistrationAction(clusterService(), transportService(), indicesService, actionFilters),
+                    new TransportSendRecoveryCommitRegistrationAction(clusterService(), transportService(), indicesService, actionFilters)
+                );
+                actions.put(
                     TransportRegisterCommitForRecoveryAction.TYPE,
-                    new TransportRegisterCommitForRecoveryAction(transportService(), indicesService, clusterService(), actionFilters),
-                    StatelessPrimaryRelocationAction.TYPE,
-                    new TransportStatelessPrimaryRelocationAction(
-                        transportService(),
-                        actionFilters,
-                        indicesService,
-                        new CompositeRecoverySchedulingListener(),
-                        new StatelessPrimaryRelocationSourceService(
-                            clusterService(),
-                            transportService().getThreadPool(),
+                    new TransportRegisterCommitForRecoveryAction(transportService(), indicesService, clusterService(), actionFilters)
+                );
+                if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
+                    actions.put(
+                        StatelessPrimaryRelocationAction.TYPE,
+                        new TransportStatelessPrimaryRelocationAction(
+                            settings,
+                            transportService(),
+                            actionFilters,
                             indicesService,
-                            testStatelessPlugin.hollowShardsService,
-                            testStatelessPlugin.statelessCommitService,
-                            mock(IndexShardCacheWarmer.class),
-                            HollowShardsMetrics.NOOP
-                        ),
-                        new StatelessPrimaryRelocationTargetService(
-                            clusterService(),
-                            transportService().getThreadPool(),
-                            indicesService,
-                            testStatelessPlugin.statelessCommitService,
-                            mock(IndexShardCacheWarmer.class),
+                            new CompositeRecoverySchedulingListener(),
+                            new StatelessPrimaryRelocationSourceService(
+                                clusterService(),
+                                transportService().getThreadPool(),
+                                indicesService,
+                                testStatelessPlugin.hollowShardsService,
+                                testStatelessPlugin.statelessCommitService,
+                                mock(IndexShardCacheWarmer.class),
+                                HollowShardsMetrics.NOOP
+                            ),
+                            new StatelessPrimaryRelocationTargetService(
+                                clusterService(),
+                                transportService().getThreadPool(),
+                                indicesService,
+                                testStatelessPlugin.statelessCommitService,
+                                mock(IndexShardCacheWarmer.class),
+                                StatelessPrimaryRelocationMetricsCollector.NOOP
+                            ),
+                            peerRecoveryTargetService,
                             StatelessPrimaryRelocationMetricsCollector.NOOP
-                        ),
-                        peerRecoveryTargetService,
-                        StatelessPrimaryRelocationMetricsCollector.NOOP
-                    ),
+                        )
+                    );
+                }
+                actions.put(
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
                         transportService(),
@@ -542,7 +555,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         new PITRelocationService(),
                         new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService),
                         new PitRelocationMetrics(MeterRegistry.NOOP)
-                    ),
+                    )
+                );
+                actions.put(
                     TransportShardRefreshAction.TYPE,
                     new TransportShardRefreshAction(
                         settings,
@@ -553,7 +568,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         shardStateAction,
                         actionFilters,
                         projectResolver
-                    ),
+                    )
+                );
+                actions.put(
                     TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE,
                     new TransportGetVirtualBatchedCompoundCommitChunkAction(
                         actionFilters,
@@ -564,7 +581,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         mock(GetVirtualBatchedCompoundCommitChunksPressure.class),
                         new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                         projectResolver
-                    ),
+                    )
+                );
+                actions.put(
                     TransportGetShardSnapshotCommitInfoAction.TYPE,
                     new TransportGetShardSnapshotCommitInfoAction(
                         clusterService(),
@@ -573,6 +592,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         testStatelessPlugin.snapshotsCommitService
                     )
                 );
+                return Map.copyOf(actions);
             }
 
             @Override

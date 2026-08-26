@@ -63,7 +63,7 @@ public final class ShardBatchIndexer {
 
     /**
      * Checks whether the batch indexing path can be used for this request.
-     * Returns true if batch indexing is enabled, an EIRF batch is present, synthetic source is active,
+     * Returns true if batch indexing is enabled, a source batch is present, synthetic source is active,
      * and all operations are index/create (no deletes, no updates).
      */
     public boolean canUseBatchIndexing(BulkShardRequest request) {
@@ -178,7 +178,7 @@ public final class ShardBatchIndexer {
 
             // Find the end of the contiguous valid run within this chunk. A failed or NOOP primary
             // response ends the run; the remainder falls back to sequential processing.
-            // A batch is written as a single contiguous Translog.IndexBatch record, so a primary
+            // A batch is written as a single contiguous IndexOperationBatch.TranslogRecord, so a primary
             // no-op in the middle of a chunk ends the batch here (rather than being skipped).
             // TODO: This will be resolved in a follow-up to allow the engine level batch execution
             // to handle mixed index and no-op operations.

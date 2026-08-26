@@ -13,7 +13,6 @@ import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
-import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

@@ -20,13 +20,13 @@ group = "${group}.client.test"
 dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api "junit:junit:${versions.junit}"
+  api "junit:junit:${versions.junit4}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   // mockito
-  api 'org.mockito:mockito-core:5.15.2'
-  api 'org.mockito:mockito-subclass:5.15.2'
-  api 'net.bytebuddy:byte-buddy:1.15.11'
+  api 'org.mockito:mockito-core:5.23.0'
+  api 'org.mockito:mockito-subclass:5.23.0'
+  api 'net.bytebuddy:byte-buddy:1.18.12'
   api 'org.objenesis:objenesis:3.3'
 }
 

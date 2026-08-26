@@ -22,6 +22,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.io.OutputFile;
@@ -34,6 +35,7 @@ import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -51,18 +53,24 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -699,9 +707,142 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // ParquetStorageObjectAdapter — statistics are part of the metadata contract, so assert
             // row count, byte size and per-column stats match, not just the schema.
             assertStatisticsEqual(syncMeta, asyncMeta);
+
+            FooterByteCache.Key key = FooterByteCache.Key.keyFor(asyncObject, asyncObject.length());
+            ParquetMetadata seeded = ParquetFormatReader.parsedFooterForTests(key);
+            assertNotNull("async tail parse must seed PARSED_FOOTERS", seeded);
+            // Fresh reader so footer_cache_misses starts at 0; PARSED_FOOTERS is JVM-wide.
+            ParquetFormatReader phase2 = new ParquetFormatReader(blockFactory);
+            phase2.discoverSplitRanges(asyncObject);
+            assertSame("Phase-2 loadFooter must reuse the Phase-1 instance", seeded, ParquetFormatReader.parsedFooterForTests(key));
+            assertEquals(0, phase2.statusSnapshot().footerCacheMisses());
+            assertEquals("discoverSplitRanges must go through loadFooter", 1, phase2.statusSnapshot().footerCacheHits());
+            try (
+                CloseableIterator<Page> iterator = phase2.readRange(
+                    asyncObject,
+                    new RangeReadContext(List.of("id", "name", "age"), 10, 0, parquetData.length, List.of(), ErrorPolicy.STRICT)
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                assertEquals(1, page.getPositionCount());
+                assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
+                BytesRef scratch = new BytesRef();
+                assertEquals("Alice", ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, scratch).utf8ToString());
+                assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
+            }
+            assertEquals("readRange over the seeded footer is a cache hit", 0, phase2.statusSnapshot().footerCacheMisses());
+            assertEquals("readRange loadFooter is a second hit", 2, phase2.statusSnapshot().footerCacheHits());
         } finally {
             probePool.shutdownNow();
         }
+    }
+
+    /**
+     * Globally staged Phase-1 {@code metadataAsync} then Phase-2 {@code discoverSplitRanges} must
+     * reuse the seeded parsed footer for every file that still fits in the 32-entry LRU. Not a
+     * COUNT(*) skip-path test — skip-eligible aggregates never call {@code discoverSplitRanges}.
+     */
+    public void testAsyncFooterParseSeedsParsedCacheWithinLruWindow() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        for (int n : new int[] { 8, ParsedFooterCache.DEFAULT_MAX_ENTRIES }) {
+            ParquetStorageObjectAdapter.clearFooterCacheForTests();
+            List<StorageObject> files = vpcGlob(parquetData, n);
+            ParquetFormatReader phase1 = new ParquetFormatReader(blockFactory);
+            for (StorageObject file : files) {
+                metadataAsyncDirect(phase1, file);
+            }
+            assertEquals("Phase-1 seed must not count as a loadFooter miss", 0, phase1.statusSnapshot().footerCacheMisses());
+            ParquetFormatReader phase2 = new ParquetFormatReader(blockFactory);
+            for (StorageObject file : files) {
+                phase2.discoverSplitRanges(file);
+            }
+            assertEquals("Phase-2 must hit the Phase-1 seed for N=" + n, 0, phase2.statusSnapshot().footerCacheMisses());
+            assertEquals("Phase-2 loadFooter must run for every file", n, phase2.statusSnapshot().footerCacheHits());
+        }
+    }
+
+    /**
+     * Encodes the 32-entry ceiling: after Phase-1 over {@code 6 * DEFAULT_MAX_ENTRIES} unique
+     * keys the LRU holds the newest 32. Same-order Phase-2 would evict those seeds on the first
+     * misses, so this discovers the last 32 (hits) vs the first 32 (misses) instead of asserting
+     * {@code ~N-32}.
+     */
+    public void testAsyncFooterParseLruCeilingEvictsOlderFiles() throws Exception {
+        byte[] parquetData = createVpcFlowShapedParquet();
+        int window = ParsedFooterCache.DEFAULT_MAX_ENTRIES;
+        int n = window * 6;
+        assertTrue("ceiling test needs more files than the LRU", n > window);
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        List<StorageObject> files = vpcGlob(parquetData, n);
+        ParquetFormatReader phase1Last = new ParquetFormatReader(blockFactory);
+        for (StorageObject file : files) {
+            metadataAsyncDirect(phase1Last, file);
+        }
+        ParquetFormatReader last32 = new ParquetFormatReader(blockFactory);
+        for (int i = n - window; i < n; i++) {
+            last32.discoverSplitRanges(files.get(i));
+        }
+        assertEquals("newest seeds must still be cached", 0, last32.statusSnapshot().footerCacheMisses());
+        assertEquals(window, last32.statusSnapshot().footerCacheHits());
+
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        ParquetFormatReader phase1First = new ParquetFormatReader(blockFactory);
+        for (StorageObject file : files) {
+            metadataAsyncDirect(phase1First, file);
+        }
+        ParquetFormatReader first32 = new ParquetFormatReader(blockFactory);
+        for (int i = 0; i < window; i++) {
+            first32.discoverSplitRanges(files.get(i));
+        }
+        assertEquals("oldest Phase-1 seeds must have been evicted", window, first32.statusSnapshot().footerCacheMisses());
+        assertEquals(0, first32.statusSnapshot().footerCacheHits());
+    }
+
+    private byte[] createVpcFlowShapedParquet() throws IOException {
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < 10; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.INT32).named("i32_" + i);
+        }
+        for (int i = 0; i < 5; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.INT64).named("i64_" + i);
+        }
+        for (int i = 0; i < 5; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("s_" + i);
+        }
+        MessageType schema = builder.named("vpc_flow");
+        return createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            for (int i = 0; i < 10; i++) {
+                g.add("i32_" + i, i);
+            }
+            for (int i = 0; i < 5; i++) {
+                g.add("i64_" + i, (long) i);
+            }
+            for (int i = 0; i < 5; i++) {
+                g.add("s_" + i, "v" + i);
+            }
+            return List.of(g);
+        });
+    }
+
+    private List<StorageObject> vpcGlob(byte[] parquetData, int n) {
+        List<StorageObject> files = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            files.add(createStorageObject(parquetData, "memory://vpc/f" + i + ".parquet"));
+        }
+        return files;
+    }
+
+    /**
+     * Runs {@code metadataAsync} on the calling thread. {@code Runnable::run} is load-bearing
+     * for LRU tests: Phase-1 {@code put}s happen in file order, so "last 32" are the newest.
+     */
+    private static void metadataAsyncDirect(ParquetFormatReader reader, StorageObject object) {
+        PlainActionFuture<SourceMetadata> future = new PlainActionFuture<>();
+        reader.metadataAsync(object, Runnable::run, future);
+        future.actionGet(30, TimeUnit.SECONDS);
     }
 
     /** Asserts that two {@link SourceMetadata} carry identical row-count, byte-size and per-column statistics. */
@@ -3103,7 +3244,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .build();
         try (
             org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storageObject, blockFactory.arrowAllocator()),
+                new ParquetStorageObjectAdapter(storageObject, blockFactory.breaker()),
                 options
             )
         ) {
@@ -3374,7 +3515,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
     }
 
-    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+    public void testCorruptDataPageIsClient400() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();
@@ -3400,14 +3541,15 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // metadata() should still succeed (footer is intact)
         SourceMetadata metadata = reader.metadata(storageObject);
         assertNotNull(metadata);
-        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+        // read() should fail as a client-class 400 (I/O / malformed page), not a server 500
+        Exception ex = expectThrows(Exception.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
                 }
             }
         });
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(ex)));
         assertThat(ex.getMessage(), containsString("id"));
     }
 
@@ -3964,7 +4106,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -4189,7 +4331,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
                 )
             ) {
-                expectThrows(IllegalArgumentException.class, () -> {
+                expectThrows(InvalidArgumentException.class, () -> {
                     while (it.hasNext()) {
                         it.next().releaseBlocks();
                     }
@@ -4293,7 +4435,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 new RangeReadContext(List.of("vals"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.STRICT)
             )
         ) {
-            expectThrows(IllegalArgumentException.class, () -> {
+            expectThrows(InvalidArgumentException.class, () -> {
                 while (it.hasNext()) {
                     it.next().releaseBlocks();
                 }
@@ -6433,7 +6575,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("full scan must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());
@@ -6451,7 +6594,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals("only the predicate column needs a column index", Set.of("a"), paths.columnIndexPaths());
         assertEquals(
@@ -6467,7 +6611,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
      */
     public void testComputeIndexColumnPathsNonProjectedPredicateColumn() {
         MessageType projected = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("b").named("schema");
-        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(true, true, Set.of("a"), null, projected);
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            Set.of("a"),
+            null,
+            projected,
+            FormatReader.NO_LIMIT
+        );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(
             "predicate column a (not projected) and projected column b both need offset index",
@@ -6486,7 +6637,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             "a",
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(Set.of("a"), paths.offsetIndexPaths());
@@ -6502,7 +6654,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNull("legacy filter path must not gate", paths.columnIndexPaths());
         assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
@@ -6520,7 +6673,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());

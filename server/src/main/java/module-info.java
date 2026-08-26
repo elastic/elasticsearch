@@ -35,6 +35,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.columnar;
     requires org.elasticsearch.entitlement;
 
     requires hppc;
@@ -229,7 +230,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent;
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
-    exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
     exports org.elasticsearch.escf;
     exports org.elasticsearch.features;

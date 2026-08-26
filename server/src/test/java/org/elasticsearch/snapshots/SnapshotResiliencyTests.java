@@ -543,7 +543,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 2);
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -608,7 +609,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 .deleteSnapshot(new DeleteSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, "*"), deleteSnapshotStepListener)
         );
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + inProgressSnapshots);
 
         assertTrue(masterNode.clusterService().state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).isEmpty());
         final Repository repository = masterNode.repositoriesService().repository(repoName);
@@ -699,7 +701,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             );
         });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + 1);
 
         var response = safeResult(searchResponseListener);
         try {
@@ -1333,7 +1336,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
         }));
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount);
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
                 + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),
@@ -1557,7 +1561,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     }));
             });
 
-        deterministicTaskQueue.runAllRunnableTasks();
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + snapshotCount + 1);
         assertTrue(
             "executed all runnable tasks but test steps are still incomplete: "
                 + Strings.toTruncatedString(SnapshotsInProgress.get(masterClusterService.state()), true, true),

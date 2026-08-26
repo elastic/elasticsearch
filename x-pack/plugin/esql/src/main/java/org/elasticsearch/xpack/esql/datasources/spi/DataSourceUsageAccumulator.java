@@ -36,8 +36,7 @@ public final class DataSourceUsageAccumulator {
     public static final int SCHEME_FILE = 4;
     public static final int SCHEME_UNKNOWN = 5;
     public static final int SCHEME_COUNT = 6;
-    private static final String[] SCHEME_NAMES_ARRAY = { "s3", "gcs", "azure", "http", "file", "unknown" };
-    public static final List<String> SCHEME_NAMES = List.of(SCHEME_NAMES_ARRAY);
+    public static final List<String> SCHEME_NAMES = List.of("s3", "gcs", "azure", "http", "file", "unknown");
     /** Set form of {@link #SCHEME_NAMES}, used by {@code ExternalSourceMetrics} to clamp before calling {@link #schemeIndex}. */
     public static final Set<String> SCHEME_NAMES_SET = Set.copyOf(SCHEME_NAMES);
 
@@ -47,10 +46,7 @@ public final class DataSourceUsageAccumulator {
     public static final int OUTCOME_FAILURE = 1;
     public static final int OUTCOME_CANCELLED = 2;
     public static final int OUTCOME_COUNT = 3;
-    private static final String[] OUTCOME_NAMES_ARRAY = { "success", "failure", "cancelled" };
-    public static final List<String> OUTCOME_NAMES = List.of(OUTCOME_NAMES_ARRAY);
-    /** Set form of {@link #OUTCOME_NAMES}, used by {@code ExternalSourceMetrics} to clamp before calling {@link #outcomeIndex}. */
-    public static final Set<String> OUTCOME_NAMES_SET = Set.copyOf(OUTCOME_NAMES);
+    public static final List<String> OUTCOME_NAMES = List.of("success", "failure", "cancelled");
 
     // ---- bucket definitions (10 buckets each, matching ThresholdBucketer conventions) ----
 
@@ -84,22 +80,14 @@ public final class DataSourceUsageAccumulator {
         "gt_100M"
     );
 
-    /** Bytes ladder (log-10 anchored at 1 byte, decimal thresholds, SI labels matching the count ladder). */
-    private static final long[] BYTES_THRESHOLDS = { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
-    public static final List<String> BYTES_SUFFIXES = List.of(
-        "lt_1b",
-        "lt_10b",
-        "lt_100b",
-        "lt_1k",
-        "lt_10k",
-        "lt_100k",
-        "lt_1M",
-        "lt_10M",
-        "lt_100M",
-        "gt_100M"
-    );
-
     public static final int BUCKET_COUNT = 10;
+
+    static {
+        assert TIME_THRESHOLDS.length == BUCKET_COUNT - 1 : "TIME_THRESHOLDS length mismatch";
+        assert TIME_SUFFIXES.size() == BUCKET_COUNT : "TIME_SUFFIXES size mismatch";
+        assert COUNT_THRESHOLDS.length == BUCKET_COUNT - 1 : "COUNT_THRESHOLDS length mismatch";
+        assert COUNT_SUFFIXES.size() == BUCKET_COUNT : "COUNT_SUFFIXES size mismatch";
+    }
 
     // ---- per-scheme counters ----
 
@@ -136,7 +124,7 @@ public final class DataSourceUsageAccumulator {
 
     // ---- recording methods (called from ExternalSourceMetrics with already-canonicalised values) ----
 
-    /** @param canonicalScheme output of {@link ExternalSourceMetrics#accScheme(String)} */
+    /** @param canonicalScheme one of {@link #SCHEME_NAMES}; anything else throws {@link IllegalArgumentException} */
     public void recordRequest(String canonicalScheme, long durationMillis, long bytes) {
         int si = schemeIndex(canonicalScheme);
         storageRequests[si].increment();
@@ -150,10 +138,12 @@ public final class DataSourceUsageAccumulator {
         storageRetries.increment();
     }
 
+    /** @param canonicalScheme one of {@link #SCHEME_NAMES}; anything else throws {@link IllegalArgumentException} */
     public void recordError(String canonicalScheme) {
         storageErrors[schemeIndex(canonicalScheme)].increment();
     }
 
+    /** @param canonicalScheme one of {@link #SCHEME_NAMES}; anything else throws {@link IllegalArgumentException} */
     public void recordThrottled(String canonicalScheme) {
         storageThrottled[schemeIndex(canonicalScheme)].increment();
     }
@@ -181,7 +171,7 @@ public final class DataSourceUsageAccumulator {
     public void recordDiscovery(long durationMillis, long filesScanned, long bytesScanned) {
         bucketTime(discoveryDuration, Math.max(0L, durationMillis));
         bucketCount(discoveryFilesScanned, Math.max(0L, filesScanned));
-        bucketBytes(discoveryBytesScanned, Math.max(0L, bytesScanned));
+        bucketCount(discoveryBytesScanned, Math.max(0L, bytesScanned));
     }
 
     public void recordDiscoveryFailure() {
@@ -312,39 +302,6 @@ public final class DataSourceUsageAccumulator {
         return parseSplitsScanned[bucket].sum();
     }
 
-    // ---- merge (used by the IT test to sum across cluster nodes) ----
-
-    /** Adds every counter from {@code other} into this accumulator. */
-    public void mergeFrom(DataSourceUsageAccumulator other) {
-        for (int i = 0; i < SCHEME_COUNT; i++) {
-            storageRequests[i].add(other.storageRequests[i].sum());
-            storageBytesRead[i].add(other.storageBytesRead[i].sum());
-            storageErrors[i].add(other.storageErrors[i].sum());
-            storageThrottled[i].add(other.storageThrottled[i].sum());
-        }
-        storageRetries.add(other.storageRetries.sum());
-        queriesCancelled.add(other.queriesCancelled.sum());
-        queriesPartial.add(other.queriesPartial.sum());
-        discoveryFailures.add(other.discoveryFailures.sum());
-        parseRows.add(other.parseRows.sum());
-        readerPoolRejected.add(other.readerPoolRejected.sum());
-        breakerTripped.add(other.breakerTripped.sum());
-        for (int i = 0; i < OUTCOME_COUNT; i++) {
-            queries[i].add(other.queries[i].sum());
-        }
-        for (int b = 0; b < BUCKET_COUNT; b++) {
-            storageRequestDuration[b].add(other.storageRequestDuration[b].sum());
-            storageReadStallDuration[b].add(other.storageReadStallDuration[b].sum());
-            queryDuration[b].add(other.queryDuration[b].sum());
-            queryTimeToFirstRow[b].add(other.queryTimeToFirstRow[b].sum());
-            discoveryDuration[b].add(other.discoveryDuration[b].sum());
-            discoveryFilesScanned[b].add(other.discoveryFilesScanned[b].sum());
-            discoveryBytesScanned[b].add(other.discoveryBytesScanned[b].sum());
-            parseDuration[b].add(other.parseDuration[b].sum());
-            parseSplitsScanned[b].add(other.parseSplitsScanned[b].sum());
-        }
-    }
-
     // ---- internal helpers ----
 
     static int schemeIndex(String canonicalScheme) {
@@ -376,11 +333,8 @@ public final class DataSourceUsageAccumulator {
         bucket(buckets, COUNT_THRESHOLDS, value);
     }
 
-    private static void bucketBytes(LongAdder[] buckets, long value) {
-        bucket(buckets, BYTES_THRESHOLDS, value);
-    }
-
-    // Mirrors ThresholdBucketer.count() — intentional duplication: spi has no non-JDK dependencies.
+    // Mirrors ThresholdBucketer.count() — intentional duplication: DataSourceUsageAccumulator avoids xpack-core's
+    // Counters (which ThresholdBucketer depends on).
     private static void bucket(LongAdder[] buckets, long[] thresholds, long value) {
         for (int i = 0; i < thresholds.length; i++) {
             if (value < thresholds[i]) {

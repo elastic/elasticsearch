@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -200,14 +201,13 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // Snapshot accumulator before the query so assertions use deltas (SUITE-scoped cluster).
-        DataSourceUsageAccumulator before = phoneHomeAccumulator();
-        long parseRowsBefore = before.parseRows();
-        long storageRequestsBefore = before.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE);
-        long storageBytesReadBefore = before.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE);
-        long queriesSuccessBefore = before.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS);
-        long queriesFailureBefore = before.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE);
-        long filesScannedBucketBefore = before.discoveryFilesScanned(1);
-        long discoveryFailuresBefore = before.discoveryFailures();
+        long parseRowsBefore = clusterTotal(DataSourceUsageAccumulator::parseRows);
+        long storageRequestsBefore = clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE));
+        long storageBytesReadBefore = clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE));
+        long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
+        long queriesFailureBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE));
+        long filesScannedBucketBefore = clusterTotal(a -> a.discoveryFilesScanned(1));
+        long discoveryFailuresBefore = clusterTotal(DataSourceUsageAccumulator::discoveryFailures);
 
         // Isolate: only this query's measurements should be present on any node.
         resetAllMeters();
@@ -270,36 +270,37 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // ---- phone-home accumulator (DataSourceUsageAccumulator) — delta assertions ----
-        // The accumulator is never reset (it is a lifetime counter), so compare a fresh snapshot
-        // taken after the query against the before-values captured above.
-        DataSourceUsageAccumulator after = phoneHomeAccumulator();
-        assertThat("phone-home: parse.rows must increase by 10", after.parseRows() - parseRowsBefore, equalTo(10L));
+        // The accumulator is never reset (it is a lifetime counter), so compare fresh readings
+        // against the before-values captured above.
+        assertThat("phone-home: parse.rows must increase by 10",
+            clusterTotal(DataSourceUsageAccumulator::parseRows) - parseRowsBefore, equalTo(10L));
         assertThat(
             "phone-home: storage.requests (file scheme) must fire",
-            after.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE) - storageRequestsBefore,
+            clusterTotal(a -> a.storageRequests(DataSourceUsageAccumulator.SCHEME_FILE)) - storageRequestsBefore,
             greaterThan(0L)
         );
         assertThat(
             "phone-home: storage.bytes_read (file scheme) must fire",
-            after.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE) - storageBytesReadBefore,
+            clusterTotal(a -> a.storageBytesRead(DataSourceUsageAccumulator.SCHEME_FILE)) - storageBytesReadBefore,
             greaterThan(0L)
         );
         assertThat(
             "phone-home: queries.total (success outcome) must increase by 1",
-            after.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS) - queriesSuccessBefore,
+            clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(1L)
         );
         assertThat(
             "phone-home: queries.total (failure outcome) must not fire for a successful query",
-            after.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE) - queriesFailureBefore,
+            clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_FAILURE)) - queriesFailureBefore,
             equalTo(0L)
         );
         assertThat(
             "phone-home: discovery.files_scanned bucket for 2 files must be populated",
-            after.discoveryFilesScanned(1) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1 (lt_10)
+            clusterTotal(a -> a.discoveryFilesScanned(1)) - filesScannedBucketBefore,  // COUNT_THRESHOLDS[1]=10, so 2 files → bucket 1 (lt_10)
             greaterThan(0L)
         );
-        assertThat("phone-home: no discovery failures on a clean scan", after.discoveryFailures() - discoveryFailuresBefore, equalTo(0L));
+        assertThat("phone-home: no discovery failures on a clean scan",
+            clusterTotal(DataSourceUsageAccumulator::discoveryFailures) - discoveryFailuresBefore, equalTo(0L));
     }
 
     /**
@@ -338,9 +339,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // Snapshot before so delta assertions are order-independent.
-        DataSourceUsageAccumulator before = phoneHomeAccumulator();
-        long discoveryFailuresBefore = before.discoveryFailures();
-        long queriesSuccessBefore = before.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS);
+        long discoveryFailuresBefore = clusterTotal(DataSourceUsageAccumulator::discoveryFailures);
+        long queriesSuccessBefore = clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS));
 
         resetAllMeters();
 
@@ -366,15 +366,14 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
         );
 
         // ---- phone-home accumulator — delta assertions ----
-        DataSourceUsageAccumulator after = phoneHomeAccumulator();
         assertThat(
             "phone-home: discovery.failures must increase when resolution of a missing file fails",
-            after.discoveryFailures() - discoveryFailuresBefore,
+            clusterTotal(DataSourceUsageAccumulator::discoveryFailures) - discoveryFailuresBefore,
             greaterThanOrEqualTo(1L)
         );
         assertThat(
             "phone-home: queries.total (success) must not increase for a resolution failure",
-            after.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS) - queriesSuccessBefore,
+            clusterTotal(a -> a.queries(DataSourceUsageAccumulator.OUTCOME_SUCCESS)) - queriesSuccessBefore,
             equalTo(0L)
         );
     }
@@ -454,12 +453,12 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Returns a merged snapshot of phone-home counters across all cluster nodes. Each data node
-     * accumulates events independently; summing them gives the cluster-wide total — the same view
-     * that {@code TransportEsqlStatsAction} produces before handing off to {@code /_xpack/usage}.
+     * Sums a single accumulator field across all cluster nodes that have a live
+     * {@link DataSourceUsageAccumulator}. Using a per-field lambda keeps the SPI surface
+     * clean — the accumulator has no cross-node merge method.
      */
-    private DataSourceUsageAccumulator phoneHomeAccumulator() {
-        DataSourceUsageAccumulator merged = new DataSourceUsageAccumulator();
+    private long clusterTotal(ToLongFunction<DataSourceUsageAccumulator> fn) {
+        long total = 0;
         boolean found = false;
         for (String node : internalCluster().getNodeNames()) {
             PlanExecutor planExecutor = internalCluster().getInstance(PlanExecutor.class, node);
@@ -471,9 +470,9 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 continue;
             }
             found = true;
-            merged.mergeFrom(acc);
+            total += fn.applyAsLong(acc);
         }
         assertTrue("No node has a DataSourceModule with a non-null usageAccumulator", found);
-        return merged;
+        return total;
     }
 }

@@ -553,8 +553,8 @@ took:
   # count histogram buckets (files scanned)
   - exists: esql.datasources.discovery.files_scanned.lt_1
   - exists: esql.datasources.discovery.files_scanned.gt_100M
-  # bytes histogram buckets (bytes scanned)
-  - exists: esql.datasources.discovery.bytes_scanned.lt_1b
+  # bytes histogram buckets (bytes scanned — uses the same count ladder as files_scanned)
+  - exists: esql.datasources.discovery.bytes_scanned.lt_1
   - exists: esql.datasources.discovery.bytes_scanned.gt_100M
   # splits scanned histogram
   - exists: esql.datasources.parse.splits_scanned.lt_1

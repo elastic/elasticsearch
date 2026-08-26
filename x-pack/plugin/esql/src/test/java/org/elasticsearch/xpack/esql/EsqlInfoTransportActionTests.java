@@ -12,6 +12,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -141,7 +144,8 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        // One known type (s3) and one third-party type (custom_plugin) — the latter must be bucketed to "unknown"
+        // One known type (s3) and one third-party type (custom_plugin) — the latter must be bucketed to "unknown".
+        // Two datasets: one resolved to "ds-s3" (s3), one orphaned (no matching datasource → unknown).
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(
                 ProjectMetadata.builder(ProjectId.DEFAULT)
@@ -153,6 +157,17 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
                                 new DataSource("ds-s3", "s3", null, Map.of()),
                                 "ds-custom",
                                 new DataSource("ds-custom", "custom_plugin", null, Map.of())
+                            )
+                        )
+                    )
+                    .putCustom(
+                        DatasetMetadata.TYPE,
+                        new DatasetMetadata(
+                            Map.of(
+                                "view-s3",
+                                new Dataset("view-s3", new DataSourceReference("ds-s3"), "*", null, Map.of()),
+                                "view-ghost",
+                                new Dataset("view-ghost", new DataSourceReference("ghost-ds"), "*", null, Map.of())
                             )
                         )
                     )
@@ -176,5 +191,10 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
         assertThat(ObjectPath.eval("datasources.config.datasources.by_type.s3", esqlUsage.stats()), is(1L));
         // Third-party type must never reach the payload — it must be bucketed to "unknown"
         assertThat(ObjectPath.eval("datasources.config.datasources.by_type.unknown", esqlUsage.stats()), is(1L));
+
+        // Dataset inventory: view-s3 resolves to "ds-s3" (s3 type); view-ghost's datasource is absent → unknown
+        assertThat(ObjectPath.eval("datasources.config.datasets.count", esqlUsage.stats()), is(2L));
+        assertThat(ObjectPath.eval("datasources.config.datasets.by_datasource_type.s3", esqlUsage.stats()), is(1L));
+        assertThat(ObjectPath.eval("datasources.config.datasets.by_datasource_type.unknown", esqlUsage.stats()), is(1L));
     }
 }

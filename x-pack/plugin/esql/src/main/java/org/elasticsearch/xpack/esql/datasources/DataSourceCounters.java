@@ -75,10 +75,9 @@ public final class DataSourceCounters {
             counters.inc("datasources.parse.splits_scanned." + cs.get(b), acc.parseSplitsScanned(b));
         }
 
-        // ---- bytes histogram ----
-        List<String> bs = DataSourceUsageAccumulator.BYTES_SUFFIXES;
+        // ---- bytes histogram (uses the same count ladder as files_scanned and splits_scanned) ----
         for (int b = 0; b < DataSourceUsageAccumulator.BUCKET_COUNT; b++) {
-            counters.inc("datasources.discovery.bytes_scanned." + bs.get(b), acc.discoveryBytesScanned(b));
+            counters.inc("datasources.discovery.bytes_scanned." + cs.get(b), acc.discoveryBytesScanned(b));
         }
     }
 }

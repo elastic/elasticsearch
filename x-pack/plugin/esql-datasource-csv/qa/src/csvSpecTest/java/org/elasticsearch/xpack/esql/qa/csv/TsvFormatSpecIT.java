@@ -43,23 +43,6 @@ public class TsvFormatSpecIT extends AbstractDelimitedTextSpecTestCase {
     // uses only the bracket-free employees_no_mv twin, so it parses under TSV's default too.
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests(
-            "/csv-basic.csv-spec",
-            "/csv-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/csv-declared-schema-multifile.csv-spec",
-            "/external-heavy-aggregates.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-hive-partitioned.csv-spec",
-            "/external-hive-partitioned-shadow.csv-spec",
-            "/external-hive-partitioned-payload.csv-spec",
-            "/external-multifile-perm.csv-spec",
-            "/external-multifile-ubn.csv-spec",
-            "/external-multifile-ubn-widening.csv-spec",
-            "/external-multifile-type-drift.csv-spec",
-            "/external-multifile-temporal.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/tsv-multivalue.csv-spec"
-        );
+        return readExternalSpecTestsForSuite("tsv");
     }
 }

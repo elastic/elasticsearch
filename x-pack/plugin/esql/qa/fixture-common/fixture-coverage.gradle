@@ -106,8 +106,13 @@ tasks.register('checkFixtureCoverage') {
       best
     }
     def problems = []
-    coverageFormats.each { format ->
-      def consumed = templatesFor(format).collect { layoutOf(it) }.findAll { it != null } as Set
+    coverageFormats.each { token ->
+      // Specs are routed by SUITE TOKEN; layout source overrides are keyed by FORMAT. Different axes.
+      def format = props.getProperty("suite.${token}.format")
+      if (format == null) {
+        throw new GradleException("suite [${token}] declares no [suite.${token}.format]")
+      }
+      def consumed = templatesFor(token).collect { layoutOf(it) }.findAll { it != null } as Set
       def declaredCells = []
       def declaredGaps = [:]
       layouts.each { layout ->
@@ -117,7 +122,7 @@ tasks.register('checkFixtureCoverage') {
         if (override != null && override.trim().isEmpty()) {
           def reason = props.getProperty("layout.${layout}.sources.${format}.reason")
           if (reason == null || reason.trim().isEmpty()) {
-            problems.add("[${format}] layout [${layout}] is declared empty with no reason; " +
+            problems.add("[${token}] layout [${layout}] is declared empty with no reason; " +
                          "an undeclared gap is indistinguishable from an oversight")
           } else {
             declaredGaps[layout] = reason.trim()
@@ -128,11 +133,11 @@ tasks.register('checkFixtureCoverage') {
       }
       def uncovered = declaredCells.findAll { consumed.contains(it) == false }
       if (uncovered.isEmpty() == false) {
-        problems.add("[${format}] no spec reads layout(s) ${uncovered.sort()}; the fixtures are generated " +
+        problems.add("[${token}] no spec reads layout(s) ${uncovered.sort()}; the fixtures are generated " +
                      "on every build and nothing reads them. Either add a spec that reads the cell, or " +
                      "declare it empty for this format with a reason in fixture-matrix.properties")
       }
-      logger.lifecycle("fixture coverage [${format}]: ${declaredCells.size()} declared cell(s), " +
+      logger.lifecycle("fixture coverage [${token}]: ${declaredCells.size()} declared cell(s), " +
                        "${declaredGaps.size()} declared gap(s) ${declaredGaps.keySet().sort()}")
     }
 

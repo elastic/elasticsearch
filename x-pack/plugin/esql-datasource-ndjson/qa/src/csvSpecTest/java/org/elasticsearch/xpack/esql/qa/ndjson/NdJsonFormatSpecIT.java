@@ -46,19 +46,6 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests(
-            "/external-basic.csv-spec",
-            "/ndjson-declared-schema.csv-spec",
-            "/external-declared-schema.csv-spec",
-            "/external-heavy-aggregates.csv-spec",
-            "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec",
-            "/external-hive-partitioned.csv-spec",
-            "/external-hive-partitioned-shadow.csv-spec",
-            "/external-multifile-perm.csv-spec",
-            "/external-multifile-ubn.csv-spec",
-            "/external-multifile-type-drift.csv-spec",
-            "/external-multivalue.csv-spec"
-        );
+        return readExternalSpecTestsForSuite("ndjson");
     }
 }

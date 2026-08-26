@@ -2960,6 +2960,40 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("FROM test | WHERE mv_in_range(salary, 1, 2, 5)", containsString("must be a map expression"));
     }
 
+    public void testMvGreaterInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": true })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bnd\": true })",
+            containsString("Invalid option [include_bnd]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": \"banana\" })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_greater(salary, 1, { \"include_bound\": null })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_greater(salary, 1, 5)", containsString("must be a map expression"));
+    }
+
+    public void testMvLessInvalidOptions() {
+        defaultAnalyzer().query("FROM test | WHERE mv_less(salary, 1, { \"include_bound\": true })");
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bnd\": true })",
+            containsString("Invalid option [include_bnd]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bound\": \"banana\" })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error(
+            "FROM test | WHERE mv_less(salary, 1, { \"include_bound\": null })",
+            containsString("Invalid option [include_bound]")
+        );
+        defaultAnalyzer().error("FROM test | WHERE mv_less(salary, 1, 5)", containsString("must be a map expression"));
+    }
+
     public void testMvLikePattern() {
         defaultAnalyzer().query("FROM test | WHERE mv_like(first_name, \"Ann*\")");
         // A non-string literal pattern is a type error at analysis. The constant/null/malformed/multivalue checks run

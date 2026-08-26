@@ -706,7 +706,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             foreign.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-declared");
             foreign.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 41L);
-            service.reconcileSourceStats(Map.of(path, foreign));
+            // Through reconcileSourceStatsFromContributions, NOT the map-shaped reconcile: the contribution path runs
+            // SourceStatsContribution.classify, which is where the identity keys were being dropped. A test entering
+            // by the map bypasses the classifier and passes even when the gate is structurally inert.
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(foreign)));
 
             SchemaCacheEntry afterForeign = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertFalse(
@@ -717,7 +720,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             Map<String, Object> own = new LinkedHashMap<>(foreign);
             own.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred");
             own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
-            service.reconcileSourceStats(Map.of(path, own));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(own)));
 
             SchemaCacheEntry afterOwn = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals("its own shape enriches normally", 42L, afterOwn.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -753,7 +756,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             licensed.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
             licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
-            service.reconcileSourceStats(Map.of(path, licensed));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
 
             SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(

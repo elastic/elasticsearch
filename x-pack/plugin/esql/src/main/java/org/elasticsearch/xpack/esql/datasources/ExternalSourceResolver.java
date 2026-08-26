@@ -677,7 +677,7 @@ public class ExternalSourceResolver {
                 String formatType = detectFormatType(storagePath);
                 SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), meta.mtimeMillis(), formatType, config);
                 SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
-                    return SchemaCacheEntry.from(resolveSingleSource(path, config));
+                    return stampInferredReadShape(SchemaCacheEntry.from(resolveSingleSource(path, config)));
                 });
                 List<Attribute> schema = schemaEntry.toAttributes();
                 extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
@@ -1133,6 +1133,30 @@ public class ExternalSourceResolver {
             }
         }
         return filtered;
+    }
+
+    /**
+     * Stamps an inferred entry with the shape of the read that produced it. Without this an inferred entry carries no
+     * shape at all, the serve gate's "entry has no shape" pass-through fires on every lookup, and the identity is
+     * inert on exactly the rail the reported defect lives on. The declaration is {@code NONE} by construction here:
+     * these are the inferred rails, and a declared read reaches its own seed elsewhere.
+     */
+    private static SchemaCacheEntry stampInferredReadShape(SchemaCacheEntry entry) {
+        // File-typed (columnar) formats do not participate in shape identity: they harvest without stamping, and
+        // their rows never drop under a lenient policy, so a declared retype changes which VALUES a column yields
+        // but not which rows exist. Stamping them would make the serve gate strip a row count that is genuinely
+        // shape-independent, taking COUNT(*) cold for every mapped columnar dataset. Their per-column stats are
+        // already guarded by the declared-overlay poison.
+        if (FILE_TYPED_FORMATS.contains(entry.sourceType())) {
+            return entry;
+        }
+        String shape = ReadShapeFingerprint.of(entry.toAttributes(), DeclaredReadSpec.NONE);
+        if (ReadShapeFingerprint.UNKNOWN.equals(shape)) {
+            return entry;
+        }
+        Map<String, Object> stamped = new HashMap<>(entry.safeMetadata());
+        stamped.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, shape);
+        return entry.withSafeMetadata(stamped);
     }
 
     private static ExternalSourceMetadata buildMetadataFromCache(
@@ -1636,7 +1660,7 @@ public class ExternalSourceResolver {
             return;
         }
         resolveSingleSourceAsync(filePath.toString(), hint, config, listener.map(meta -> {
-            SchemaCacheEntry entry = SchemaCacheEntry.from(meta);
+            SchemaCacheEntry entry = stampInferredReadShape(SchemaCacheEntry.from(meta));
             cacheService.putSchema(schemaKey, entry);
             return buildMetadataFromCache(entry, entry.toAttributes(), config);
         }));

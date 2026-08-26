@@ -27,8 +27,18 @@ import java.util.Map;
  */
 sealed interface SourceStatsContribution {
 
-    /** A complete read of the whole file; its row count already covers every row, so duplicates are deduplicated rather than summed. */
-    record WholeFile(SourceStatistics stats, long mtimeMillis, String configFingerprint) implements SourceStatsContribution {}
+    /**
+     * A complete read of the whole file; its row count already covers every row, so duplicates are deduplicated
+     * rather than summed.
+     * <p>
+     * {@code readShape} and {@code rowCountShapeIndependent} ride alongside the config fingerprint because the
+     * identity gate needs both: a whole-file contribution that arrives without its shape compares against
+     * {@code null}, and the gate then passes everything silently — which is the bug this record shape caused once
+     * already.
+     */
+    record WholeFile(SourceStatistics stats, long mtimeMillis, String configFingerprint, String readShape, boolean rowCountShapeIndependent)
+        implements
+            SourceStatsContribution {}
 
     /**
      * The records of one canonical stripe that a single chunk observed — the unit of the orthogonal
@@ -96,8 +106,9 @@ sealed interface SourceStatsContribution {
         long mtime = raw.get(ExternalStats.MTIME_MILLIS_KEY) instanceof Number n ? n.longValue() : -1L;
         String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
         String readShape = raw.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY) instanceof String s ? s : null;
+        boolean shapeIndependentCount = Boolean.TRUE.equals(raw.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY));
         if (Boolean.TRUE.equals(raw.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
-            return new WholeFile(stats, mtime, fingerprint);
+            return new WholeFile(stats, mtime, fingerprint, readShape, shapeIndependentCount);
         }
         long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
         long ordinal = raw.get(ExternalStats.STRIPE_ORDINAL_KEY) instanceof Number n ? n.longValue() : -1L;

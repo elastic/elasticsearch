@@ -788,16 +788,29 @@ public class ExternalSourceCacheService implements Closeable {
      * Re-serializes a typed contribution back to the flat {@code _stats.*} wire map. This is the one
      * boundary where the reconciler hands typed statistics to the shared, cross-format map-based
      * merger ({@link SourceStatisticsSerializer#mergeStatistics}) and to the schema cache, both of
-     * which speak the flat map. Re-attaches the keying fields (mtime, config fingerprint) that live
-     * outside {@link SourceStatistics}.
+     * which speak the flat map. Re-attaches EVERY keying field that lives outside {@link SourceStatistics} — mtime,
+     * the config fingerprint, the read shape and the count licence. Dropping one here does not fail: it makes the
+     * identity gate compare against {@code null} and pass everything, silently.
      */
-    private static Map<String, Object> toFlatMap(SourceStatistics stats, long mtimeMillis, String configFingerprint) {
+    private static Map<String, Object> toFlatMap(
+        SourceStatistics stats,
+        long mtimeMillis,
+        String configFingerprint,
+        String readShape,
+        boolean rowCountShapeIndependent
+    ) {
         Map<String, Object> base = new HashMap<>();
         if (mtimeMillis >= 0) {
             base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
         }
         if (configFingerprint != null) {
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, configFingerprint);
+        }
+        if (readShape != null && readShape.isEmpty() == false) {
+            base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        }
+        if (rowCountShapeIndependent) {
+            base.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
         }
         return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
     }
@@ -967,7 +980,9 @@ public class ExternalSourceCacheService implements Closeable {
     ) {
         List<Map<String, Object>> maps = new ArrayList<>(chain.size());
         for (SourceStatsContribution.StripeFragment f : chain) {
-            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint()));
+            // Fragments in a chain are already required to agree on shape (foldStripeFragments), so any one of them
+            // carries the chain's. The licence is per-producer and rides the same way.
+            maps.add(toFlatMap(f.stats(), f.mtimeMillis(), f.configFingerprint(), f.readShape(), false));
         }
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
         // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey
@@ -1275,7 +1290,7 @@ public class ExternalSourceCacheService implements Closeable {
         // typed contributions to the wire map at this boundary (mirrors foldFragments).
         List<Map<String, Object>> maps = new ArrayList<>(wholeFile.size());
         for (SourceStatsContribution.WholeFile wf : wholeFile) {
-            maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint()));
+            maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint(), wf.readShape(), wf.rowCountShapeIndependent()));
         }
         if (maps.size() == 1) {
             return maps.get(0);

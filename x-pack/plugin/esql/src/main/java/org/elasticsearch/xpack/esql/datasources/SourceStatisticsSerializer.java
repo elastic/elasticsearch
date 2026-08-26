@@ -340,7 +340,7 @@ public final class SourceStatisticsSerializer {
      * left exactly as it was before read configurations existed, so the columnar readers — which harvest without stamping — keep
      * their current warmth instead of silently going cold.
      */
-    public static Map<String, Object> restrictToReadShape(Map<String, Object> stats, String expectedReadConfig) {
+    public static Map<String, Object> restrictToReadConfig(Map<String, Object> stats, String expectedReadConfig) {
         if (stats == null || stats.isEmpty()) {
             return stats;
         }

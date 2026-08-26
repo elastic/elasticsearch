@@ -47,6 +47,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.zip.GZIPOutputStream;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 /**
  * Unit tests for {@link CompressionDelegatingFormatReader}.
  */
@@ -332,5 +334,67 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         public StoragePath path() {
             return path;
         }
+    }
+
+    /**
+     * The delegate forwards each wither explicitly, and the SPI defaults return the WRAPPER — so an unforwarded
+     * wither is silent: the inner reader is never configured, nothing errors, and only warmth quietly disappears for
+     * compressed files. That is exactly how the read-configuration stamp was lost for .csv.gz once. Pin the forward
+     * rather than the incident.
+     */
+    public void testWithReadConfigReachesTheInnerReader() {
+        ReadConfigRecordingFormatReader inner = new ReadConfigRecordingFormatReader();
+        FormatReader delegating = new CompressionDelegatingFormatReader(inner, new BrotliDecompressionCodec());
+
+        FormatReader configured = delegating.withReadConfig("config-A");
+
+        assertEquals("the inner reader must receive the read configuration", "config-A", inner.lastReadConfig);
+        assertThat(
+            "and the result must stay wrapped, or the decompression is lost",
+            configured,
+            instanceOf(CompressionDelegatingFormatReader.class)
+        );
+        assertNotSame("a configured reader is a new instance, not the original wrapper", delegating, configured);
+    }
+
+    /** Records what the wrapper hands down, and returns a distinct instance so the wrapper must re-wrap. */
+    private static class ReadConfigRecordingFormatReader implements NoConfigFormatReader {
+        String lastReadConfig;
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public FormatReader withReadConfig(String readConfig) {
+            ReadConfigRecordingFormatReader configured = new ReadConfigRecordingFormatReader();
+            configured.lastReadConfig = readConfig;
+            this.lastReadConfig = readConfig;
+            return configured;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return new SimpleSourceMetadata(List.of(), "csv", object.path().toString());
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("not used by this test");
+        }
+
+        @Override
+        public String formatName() {
+            return "csv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".csv");
+        }
+
+        @Override
+        public void close() {}
     }
 }

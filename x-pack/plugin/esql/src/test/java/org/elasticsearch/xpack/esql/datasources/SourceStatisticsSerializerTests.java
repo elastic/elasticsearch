@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -762,5 +763,69 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     public void testRemoveColumnStatFamiliesIdentityReturnsSameInstanceWhenNothingPinned() {
         Map<String, Object> stats = Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         assertSame(stats, SourceStatisticsSerializer.removeColumnStatFamilies(stats, Set.of(), false));
+    }
+
+    /**
+     * The serve gate. A query must not be handed statistics measured by a read configured differently — the dual of
+     * the publish gate, and the only thing standing between a mapped dataset under a lenient policy and its inferred
+     * sibling's row count (the declared overlay poisons columns, but the row count is not a column).
+     */
+    public void testRestrictToReadConfigDropsForeignMeasurements() {
+        Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+        assertFalse(
+            "a row count measured by a differently-configured read must not be served",
+            restricted.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+        );
+        assertFalse("nor may its per-column statistics", restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id")));
+    }
+
+    /** The one licensed crossing: under FAIL_FAST the physical record count is the same number for every read. */
+    public void testRestrictToReadConfigKeepsOnlyTheLicensedCount() {
+        Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+        assertEquals("the licensed count crosses", 100L, restricted.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(
+            "a column extremum depends on the type the column was read at and never crosses",
+            restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id"))
+        );
+    }
+
+    /** Its own configuration serves everything, or the gate would take every warm read cold. */
+    public void testRestrictToReadConfigPassesItsOwnMeasurements() {
+        Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-inferred");
+
+        assertEquals(100L, restricted.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(7L, restricted.get(SourceStatisticsSerializer.columnMinKey("id")));
+    }
+
+    /**
+     * An entry carrying no configuration predates this identity, or came from a rail that records none (the columnar
+     * readers). It behaves exactly as it did before, rather than going cold on an identity it never participated in.
+     */
+    public void testRestrictToReadConfigLeavesConfiglessEntriesAlone() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        stats.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
+
+        Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+        assertEquals(100L, restricted.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertEquals(7L, restricted.get(SourceStatisticsSerializer.columnMinKey("id")));
+    }
+
+    private static Map<String, Object> statsWithReadConfig(String readConfig, long rowCount, long columnMin) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+        stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        stats.put(SourceStatisticsSerializer.columnMinKey("id"), columnMin);
+        return stats;
     }
 }

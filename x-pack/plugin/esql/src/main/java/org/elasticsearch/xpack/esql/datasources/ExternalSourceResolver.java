@@ -2962,7 +2962,7 @@ public class ExternalSourceResolver {
         // and the declaration may have changed the read configuration of the read we are about to do — a retype or a per-column
         // date pattern changes which rows survive under a lenient policy, so those numbers are not ours to serve.
         // Only the physical record count crosses, and only where the producer licensed it (FAIL_FAST).
-        Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadShape(
+        Map<String, Object> servableStats = SourceStatisticsSerializer.restrictToReadConfig(
             inferred.sourceMetadata(),
             ReadConfigFingerprint.of(unified.output(), declaredReadSpecOf(declaredMapping))
         );

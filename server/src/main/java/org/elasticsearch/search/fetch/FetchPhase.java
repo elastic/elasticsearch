@@ -192,7 +192,7 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
 
-        var docsIterator = createDocsIterator(context, profiler, rankDocs, writer != null ? bytes -> {} : memoryChecker);
+        var docsIterator = createDocsIterator(context, profiler, rankDocs, memoryChecker, writer != null);
 
         // Common completion handler for both sync and streaming modes
         // finalizes profiling, stores the shard result, and signals the outer listener.
@@ -262,14 +262,18 @@ public final class FetchPhase {
     }
 
     /**
-     * Creates the docs iterator that handles per-document fetching and sub-phase processing.
-     * Shared between sync and streaming modes; the memoryChecker parameter controls per-hit memory accounting.
+     * Creates the docs iterator that handles per-document fetching and sub-phase processing, shared between sync and
+     * streaming modes. In streaming mode, only per-hit source/script-field bytes exceeding
+     * {@link SearchContext#memAccountingBufferSize()} are charged to the request circuit breaker;
+     * In non-streaming mode, bytes are accumulated and charged once the threshold is crossed, and
+     * held until the fetch response is released.
      */
     private StreamingFetchPhaseDocsIterator createDocsIterator(
         SearchContext context,
         Profiler profiler,
         RankDocShardInfo rankDocs,
-        @Nullable IntConsumer memoryChecker
+        @Nullable IntConsumer memoryChecker,
+        boolean streaming
     ) {
         var lookup = context.getSearchExecutionContext().getMappingLookup();
 
@@ -303,14 +307,26 @@ public final class FetchPhase {
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         final long[] scriptFieldsBreakerBytes = new long[1];
-        LongConsumer scriptFieldsByteChecker = memoryChecker != null
-            ? bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes)
-            : bytes -> {
+        final long[] streamingHeldBytes = new long[1];
+        LongConsumer scriptFieldsByteChecker;
+        if (streaming) {
+            scriptFieldsByteChecker = bytes -> {
+                if (bytes > context.memAccountingBufferSize()) {
+                    context.circuitBreaker()
+                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
+                    streamingHeldBytes[0] += bytes;
+                }
+            };
+        } else if (memoryChecker != null) {
+            scriptFieldsByteChecker = bytes -> memoryChecker.accept(bytes > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) bytes);
+        } else {
+            scriptFieldsByteChecker = bytes -> {
                 if (bytes > 0) {
                     context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, "script_field");
                     scriptFieldsBreakerBytes[0] += bytes;
                 }
             };
+        }
         fetchContext.setScriptFieldsByteChecker(scriptFieldsByteChecker);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
@@ -345,17 +361,31 @@ public final class FetchPhase {
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
 
-            IntConsumer memChecker = memoryChecker != null ? memoryChecker : bytes -> {
+            IntConsumer memChecker = streaming ? bytes -> {
+                if (bytes > context.memAccountingBufferSize()) {
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
+                    streamingHeldBytes[0] += bytes;
+                }
+            } : (memoryChecker != null ? memoryChecker : bytes -> {
                 locallyAccumulatedBytes[0] += bytes;
                 if (context.checkCircuitBreaker(locallyAccumulatedBytes[0], "fetch source")) {
                     addRequestBreakerBytes(locallyAccumulatedBytes[0]);
                     locallyAccumulatedBytes[0] = 0;
                 }
-            };
+            });
 
             @Override
             public long getRequestBreakerBytes() {
-                return super.getRequestBreakerBytes() + scriptFieldsBreakerBytes[0];
+                return super.getRequestBreakerBytes() + scriptFieldsBreakerBytes[0] + streamingHeldBytes[0];
+            }
+
+            @Override
+            protected void onHitSerialized() {
+                long held = streamingHeldBytes[0];
+                if (held > 0) {
+                    context.circuitBreaker().addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+                    streamingHeldBytes[0] = 0;
+                }
             }
 
             @Override
@@ -565,6 +595,11 @@ public final class FetchPhase {
                     context.addFetchThreadsMetrics(docsIterator.getFetchMetricsDelta());
                     ReleasableBytesReference lastChunkBytes = lastChunkBytesRef.getAndSet(null);
                     Releasables.closeWhileHandlingException(lastChunkBytes);
+
+                    long leakedBytes = docsIterator.getRequestBreakerBytes();
+                    if (leakedBytes > 0) {
+                        context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+                    }
 
                     buildListener.onFailure(e);
                     mainBuildListener.onFailure(e);

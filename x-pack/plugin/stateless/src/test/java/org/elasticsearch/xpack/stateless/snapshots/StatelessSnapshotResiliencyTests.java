@@ -240,8 +240,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 final boolean isSnapshotFinalization = command.getClass()
                     .getName()
                     .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");
-                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0
-                    && isSnapshotFinalization == false ? TimeValue.ZERO : delay;
+                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 && isSnapshotFinalization == false
+                    ? TimeValue.ZERO
+                    : delay;
                 return super.schedule(command, actualDelay, executor);
             }
         }

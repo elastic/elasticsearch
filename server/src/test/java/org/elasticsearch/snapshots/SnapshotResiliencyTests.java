@@ -529,7 +529,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     public void testConcurrentSnapshotCreateAndDeleteOther() {
         final boolean monotonicSnapshotEndTime = randomBoolean();
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
+        setupTestCluster(
+            randomFrom(1, 3, 5),
+            randomIntBetween(2, 10),
+            ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -609,7 +614,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     public void testBulkSnapshotDeleteWithAbort() {
         final boolean monotonicSnapshotEndTime = randomBoolean();
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
+        setupTestCluster(
+            randomFrom(1, 3, 5),
+            randomIntBetween(2, 10),
+            ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -672,7 +682,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     public void testConcurrentSnapshotRestoreAndDeleteOther() {
         final boolean monotonicSnapshotEndTime = randomBoolean();
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
+        setupTestCluster(
+            randomFrom(1, 3, 5),
+            randomIntBetween(2, 10),
+            ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -1302,7 +1317,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
         };
 
         final boolean monotonicSnapshotEndTime = randomBoolean();
-        setupTestCluster(1, 1, node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
+        setupTestCluster(
+            1,
+            1,
+            node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
+        );
 
         final var masterNode = testClusterNodes.randomMasterNodeSafe();
         final var client = masterNode.client();

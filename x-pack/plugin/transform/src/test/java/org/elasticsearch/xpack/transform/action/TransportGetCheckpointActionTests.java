@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportGetCheckpointActionTests extends ESTestCase {
 
@@ -198,7 +197,20 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
         assertThat(options.type(), equalTo(TransportRequestOptions.Type.REG));
     }
 
-    public void testCheckpointNodeTransportOptions_NullTimeoutUsesEmptyOptions() {
-        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(null), sameInstance(TransportRequestOptions.EMPTY));
+    public void testCheckpointNodeTransportOptions_CapsLongRequestTimeout() {
+        TransportRequestOptions options = TransportGetCheckpointAction.checkpointNodeTransportOptions(TimeValue.timeValueHours(12));
+        assertThat(options.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testCheckpointNodeTransportOptions_HonorsShorterRequestTimeout() {
+        TimeValue timeout = TimeValue.timeValueSeconds(5);
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(timeout).timeout(), equalTo(timeout));
+    }
+
+    public void testCheckpointNodeTransportOptions_NullTimeoutUsesSenderCap() {
+        assertThat(
+            TransportGetCheckpointAction.checkpointNodeTransportOptions(null).timeout(),
+            equalTo(TimeValue.timeValueSeconds(30))
+        );
     }
 }

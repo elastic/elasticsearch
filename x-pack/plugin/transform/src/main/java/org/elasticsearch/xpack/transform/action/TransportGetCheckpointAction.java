@@ -574,12 +574,22 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     }
 
     /**
-     * Sender-side options for {@link GetCheckpointNodeAction} fan-out. The request body also carries
-     * {@code timeout} for the receiving node; without a transport timeout the coordinator waits
-     * forever if that node never responds.
+     * Fail-fast bound for the coordinator → node GetCheckpoint send. The request-body timeout can stay
+     * long (12h) so a healthy node can walk a huge searchable-snapshot shard set; a silent node must
+     * not pin the indexer in {@code INDEXING} for that whole window.
+     */
+    static final TimeValue CHECKPOINT_NODE_TRANSPORT_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * Sender-side options for {@link GetCheckpointNodeAction} fan-out. Uses the request timeout when it
+     * is shorter than {@link #CHECKPOINT_NODE_TRANSPORT_TIMEOUT}; otherwise caps at that bound.
      */
     static TransportRequestOptions checkpointNodeTransportOptions(TimeValue timeout) {
-        return timeout != null ? TransportRequestOptions.timeout(timeout) : TransportRequestOptions.EMPTY;
+        TimeValue transportTimeout = CHECKPOINT_NODE_TRANSPORT_TIMEOUT;
+        if (timeout != null && timeout.millis() > 0 && timeout.millis() < transportTimeout.millis()) {
+            transportTimeout = timeout;
+        }
+        return TransportRequestOptions.timeout(transportTimeout);
     }
 
     private void getCheckpointsFromNodes(

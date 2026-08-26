@@ -93,6 +93,9 @@ public class GroupingAggregatorImplementer {
     private static final ClassName ARRAYS_CLASS = ClassName.get("java.util", "Arrays");
     /** Only non-fallible LongArrayState exposes rawValues()/clear() needed for partitioned split. */
     private static final ClassName LONG_ARRAY_STATE = ClassName.get("org.elasticsearch.compute.aggregation", "LongArrayState");
+    /** DoubleArrayState exposes rawDoubleValues()/clear() for partitioned split. */
+    private static final ClassName DOUBLE_ARRAY_STATE = ClassName.get("org.elasticsearch.compute.aggregation", "DoubleArrayState");
+    private static final ClassName DOUBLE_ARRAY_CLASS = ClassName.get("org.elasticsearch.common.util", "DoubleArray");
 
     private final TypeElement declarationType;
     private final List<TypeMirror> warnExceptions;
@@ -282,6 +285,13 @@ public class GroupingAggregatorImplementer {
             builder.addMethod(combinePartitionMethod());
             builder.addType(aggSplitterType());
             builder.addType(partitionedAggType());
+        } else if (aggState.type().equals(DOUBLE_ARRAY_STATE)) {
+            builder.addMethod(supportsPartitionedSplitMethod());
+            builder.addMethod(clearMethod());
+            builder.addMethod(newSplitterMethod());
+            builder.addMethod(combinePartitionDoubleMethod());
+            builder.addType(aggSplitterDoubleType());
+            builder.addType(partitionedAggDoubleType());
         }
         builder.addMethod(close());
         return builder.build();
@@ -289,7 +299,7 @@ public class GroupingAggregatorImplementer {
 
     /** Returns true if the generated grouping aggregator supports the partitioned-split protocol. */
     public boolean supportsPartitionedSplit() {
-        return aggState.type().equals(LONG_ARRAY_STATE);
+        return aggState.type().equals(LONG_ARRAY_STATE) || aggState.type().equals(DOUBLE_ARRAY_STATE);
     }
 
     private String partitionedSplitPrefix() {
@@ -424,6 +434,127 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(
             MethodSpec.constructorBuilder()
                 .addParameter(ArrayTypeName.of(ArrayTypeName.of(TypeName.LONG)), "subs")
+                .addStatement("this.subs = subs")
+                .build()
+        );
+        builder.addMethod(
+            MethodSpec.methodBuilder("releasePartition")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(TypeName.INT, "partition")
+                .addStatement("subs[partition] = null")
+                .build()
+        );
+        builder.addMethod(
+            MethodSpec.methodBuilder("close")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addStatement("$T.fill(subs, null)", ARRAYS_CLASS)
+                .build()
+        );
+        return builder.build();
+    }
+
+    // ---- Double-backed partitioned-split support ----
+
+    private MethodSpec combinePartitionDoubleMethod() {
+        String partitionedAggName = partitionedSplitPrefix() + "PartitionedAgg";
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("combinePartition");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(PARTITIONED_HASH_TABLE_PARTITIONED_AGG, "source");
+        builder.addParameter(TypeName.INT, "partition");
+        builder.addParameter(ArrayTypeName.of(TypeName.INT), "dstIds");
+        builder.addParameter(TypeName.INT, "offset");
+        builder.addParameter(TypeName.INT, "length");
+        builder.addStatement("final double[] sourceSums = (($L) source).subs[partition]", partitionedAggName);
+        builder.addStatement("int end = offset + length");
+        builder.beginControlFlow("for (int i = offset; i < end; i++)");
+        builder.addStatement("state.set(dstIds[i], $T.combine(state.getOrDefault(dstIds[i]), sourceSums[i]))", declarationType);
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    private TypeSpec aggSplitterDoubleType() {
+        String splitterName = partitionedSplitPrefix() + "AggSplitter";
+        String partitionedAggName = partitionedSplitPrefix() + "PartitionedAgg";
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder(splitterName);
+        builder.addModifiers(Modifier.PRIVATE, Modifier.FINAL);
+        builder.addSuperinterface(PARTITIONED_HASH_TABLE_AGG_SPLITTER);
+        builder.addField(ArrayTypeName.of(ArrayTypeName.of(TypeName.DOUBLE)), "subs", Modifier.PRIVATE);
+        builder.addField(ArrayTypeName.of(TypeName.INT), "lengths", Modifier.PRIVATE);
+        builder.addMethod(MethodSpec.constructorBuilder().build());
+
+        MethodSpec.Builder preAlloc = MethodSpec.methodBuilder("preAllocate");
+        preAlloc.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        preAlloc.addParameter(ArrayTypeName.of(TypeName.INT), "partitionCounts");
+        preAlloc.addStatement("subs = new double[partitionCounts.length][]");
+        preAlloc.addStatement("lengths = new int[partitionCounts.length]");
+        preAlloc.beginControlFlow("for (int p = 0; p < partitionCounts.length; p++)");
+        preAlloc.addStatement("subs[p] = new double[partitionCounts[p]]");
+        preAlloc.endControlFlow();
+        builder.addMethod(preAlloc.build());
+
+        MethodSpec.Builder split = MethodSpec.methodBuilder("split");
+        split.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        split.addParameter(PARTITIONED_HASH_TABLE_SCRATCH_BUFFER, "scratch");
+        split.addParameter(TypeName.INT, "idOffset");
+        split.addParameter(TypeName.INT, "totalPositions");
+        split.addParameter(ArrayTypeName.of(TypeName.SHORT), "positions");
+        split.addParameter(ArrayTypeName.of(TypeName.INT), "fills");
+        split.addStatement("$T values = state.rawDoubleValues()", DOUBLE_ARRAY_CLASS);
+        split.addStatement("double[] buffer = scratch.doubles");
+        split.beginControlFlow("if (buffer.length < totalPositions)");
+        split.addStatement("buffer = scratch.doubles = new double[$T.oversize(totalPositions, $T.BYTES)]", ARRAY_UTIL, Double.class);
+        split.endControlFlow();
+        split.addStatement(
+            "final int readLen = (int) $T.min(totalPositions, $T.max(0L, values.size() - idOffset))",
+            Math.class,
+            Math.class
+        );
+        split.beginControlFlow("if (readLen > 0)");
+        split.addStatement("values.bulkGet(idOffset, buffer, 0, readLen)");
+        split.endControlFlow();
+        split.beginControlFlow("if (readLen < totalPositions)");
+        split.addStatement("$T.fill(buffer, readLen, totalPositions, 0.0)", ARRAYS_CLASS);
+        split.endControlFlow();
+        split.beginControlFlow("for (int p = 0; p < subs.length; p++)");
+        split.addStatement("final int c = fills[p]");
+        split.beginControlFlow("if (c == 0)");
+        split.addStatement("continue");
+        split.endControlFlow();
+        split.addStatement("final int base = p * scratch.splitWriteBatchSize");
+        split.addStatement("double[] sub = subs[p]");
+        split.addStatement("int dst = lengths[p]");
+        split.beginControlFlow("for (int i = 0; i < c; i++)");
+        split.addStatement("sub[dst++] = buffer[positions[base + i] & 0xFFFF]");
+        split.endControlFlow();
+        split.addStatement("lengths[p] += c");
+        split.endControlFlow();
+        builder.addMethod(split.build());
+
+        builder.addMethod(
+            MethodSpec.methodBuilder("finish")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(PARTITIONED_HASH_TABLE_PARTITIONED_AGG)
+                .addStatement("return new $L(subs)", partitionedAggName)
+                .build()
+        );
+        builder.addMethod(MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).build());
+        return builder.build();
+    }
+
+    private TypeSpec partitionedAggDoubleType() {
+        String partitionedAggName = partitionedSplitPrefix() + "PartitionedAgg";
+
+        TypeSpec.Builder builder = TypeSpec.classBuilder(partitionedAggName);
+        builder.addModifiers(Modifier.STATIC, Modifier.FINAL);
+        builder.addSuperinterface(PARTITIONED_HASH_TABLE_PARTITIONED_AGG);
+        builder.addField(ArrayTypeName.of(ArrayTypeName.of(TypeName.DOUBLE)), "subs", Modifier.FINAL);
+        builder.addMethod(
+            MethodSpec.constructorBuilder()
+                .addParameter(ArrayTypeName.of(ArrayTypeName.of(TypeName.DOUBLE)), "subs")
                 .addStatement("this.subs = subs")
                 .build()
         );

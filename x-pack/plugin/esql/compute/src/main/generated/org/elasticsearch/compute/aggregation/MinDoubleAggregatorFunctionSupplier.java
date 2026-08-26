@@ -41,6 +41,11 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
+  public boolean supportsPartitionedSplit() {
+    return true;
+  }
+
+  @Override
   public String describe() {
     return "min of doubles";
   }

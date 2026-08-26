@@ -52,4 +52,20 @@ public interface DoubleArray extends BigArray, Writeable {
      * Bulk set.
      */
     void set(long index, byte[] buf, int offset, int len);
+
+    /**
+     * Zero-fill all elements, equivalent to {@code fill(0, size(), 0.0)}.
+     */
+    default void clear() {
+        fill(0, size(), 0.0);
+    }
+
+    /**
+     * Bulk copy of {@code length} elements starting at {@code fromIndex} into {@code dest} starting at {@code destOffset}.
+     */
+    default void bulkGet(long fromIndex, double[] dest, int destOffset, int length) {
+        for (int i = 0; i < length; i++) {
+            dest[destOffset + i] = get(fromIndex + i);
+        }
+    }
 }

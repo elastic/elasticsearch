@@ -62,6 +62,16 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         trackGroupId(groupId);
     }
 
+    /** Returns the raw backing array for use by partitioned-split infrastructure. */
+    DoubleArray rawDoubleValues() {
+        return values;
+    }
+
+    /** Resets all accumulated state to initial values. */
+    void clear() {
+        values.clear();
+    }
+
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {

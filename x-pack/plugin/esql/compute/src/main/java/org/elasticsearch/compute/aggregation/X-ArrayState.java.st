@@ -103,6 +103,18 @@ $if(long)$
     }
 
 $endif$
+$if(double)$
+    /** Returns the raw backing array for use by partitioned-split infrastructure. */
+    $Type$Array rawDoubleValues() {
+        return values;
+    }
+
+    /** Resets all accumulated state to initial values. */
+    void clear() {
+        values.clear();
+    }
+
+$endif$
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {

@@ -41,6 +41,11 @@ public final class MaxDoubleAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
+  public boolean supportsPartitionedSplit() {
+    return true;
+  }
+
+  @Override
   public String describe() {
     return "max of doubles";
   }

@@ -4,11 +4,17 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.Double;
 import java.lang.Integer;
+import java.lang.Math;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
+import java.util.Arrays;
 import java.util.List;
+import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -407,7 +413,107 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
+  public boolean supportsPartitionedSplit() {
+    return true;
+  }
+
+  @Override
+  public void clear() {
+    state.clear();
+  }
+
+  @Override
+  public PartitionedHashTable.AggSplitter newSplitter() {
+    return new MinDoubleAggSplitter();
+  }
+
+  @Override
+  public void combinePartition(PartitionedHashTable.PartitionedAgg source, int partition,
+      int[] dstIds, int offset, int length) {
+    final double[] sourceSums = ((MinDoublePartitionedAgg) source).subs[partition];
+    int end = offset + length;
+    for (int i = offset; i < end; i++) {
+      state.set(dstIds[i], MinDoubleAggregator.combine(state.getOrDefault(dstIds[i]), sourceSums[i]));
+    }
+  }
+
+  @Override
   public void close() {
     state.close();
+  }
+
+  private final class MinDoubleAggSplitter implements PartitionedHashTable.AggSplitter {
+    private double[][] subs;
+
+    private int[] lengths;
+
+    MinDoubleAggSplitter() {
+    }
+
+    @Override
+    public void preAllocate(int[] partitionCounts) {
+      subs = new double[partitionCounts.length][];
+      lengths = new int[partitionCounts.length];
+      for (int p = 0; p < partitionCounts.length; p++) {
+        subs[p] = new double[partitionCounts[p]];
+      }
+    }
+
+    @Override
+    public void split(PartitionedHashTable.ScratchBuffer scratch, int idOffset, int totalPositions,
+        short[] positions, int[] fills) {
+      DoubleArray values = state.rawDoubleValues();
+      double[] buffer = scratch.doubles;
+      if (buffer.length < totalPositions) {
+        buffer = scratch.doubles = new double[ArrayUtil.oversize(totalPositions, Double.BYTES)];
+      }
+      final int readLen = (int) Math.min(totalPositions, Math.max(0L, values.size() - idOffset));
+      if (readLen > 0) {
+        values.bulkGet(idOffset, buffer, 0, readLen);
+      }
+      if (readLen < totalPositions) {
+        Arrays.fill(buffer, readLen, totalPositions, 0.0);
+      }
+      for (int p = 0; p < subs.length; p++) {
+        final int c = fills[p];
+        if (c == 0) {
+          continue;
+        }
+        final int base = p * scratch.splitWriteBatchSize;
+        double[] sub = subs[p];
+        int dst = lengths[p];
+        for (int i = 0; i < c; i++) {
+          sub[dst++] = buffer[positions[base + i] & 0xFFFF];
+        }
+        lengths[p] += c;
+      }
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedAgg finish() {
+      return new MinDoublePartitionedAgg(subs);
+    }
+
+    @Override
+    public void close() {
+    }
+  }
+
+  static final class MinDoublePartitionedAgg implements PartitionedHashTable.PartitionedAgg {
+    final double[][] subs;
+
+    MinDoublePartitionedAgg(double[][] subs) {
+      this.subs = subs;
+    }
+
+    @Override
+    public void releasePartition(int partition) {
+      subs[partition] = null;
+    }
+
+    @Override
+    public void close() {
+      Arrays.fill(subs, null);
+    }
   }
 }

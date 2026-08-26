@@ -148,12 +148,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
     @Override
     public void failed(Exception e) {
         if (this.isDone.compareAndSet(false, true)) {
-            if (listenerCalled.compareAndSet(false, true)) {
-                listener.onFailure(e);
-            } else {
-                exception = e;
-                publisher.onError(e);
-            }
+            failStream(e);
         }
     }
 
@@ -167,17 +162,22 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 // The exchange was torn down (cancelled, aborted, or the connection closed) before Apache signaled
                 // responseCompleted, and consumeContent() did not already report a cause. Completing the stream here
                 // would silently truncate the response, so fail it instead.
-                var closedEarly = new ConnectionClosedException(
-                    format("Stream for inference entity [%s] closed before the response was fully received", inferenceEntityId)
+                failStream(
+                    new ConnectionClosedException(
+                        format("Stream for inference entity [%s] closed before the response was fully received", inferenceEntityId)
+                    )
                 );
-                exception = closedEarly;
-                if (listenerCalled.compareAndSet(false, true)) {
-                    listener.onFailure(closedEarly);
-                } else {
-                    publisher.onError(closedEarly);
-                }
             }
-            // else: consumeContent() already set exception and forwarded it via publisher.onError()
+            // else: consumeContent() already set exception and forwarded it via publisher.onError(); don't overwrite.
+        }
+    }
+
+    private void failStream(Exception e) {
+        exception = e;
+        if (listenerCalled.compareAndSet(false, true)) {
+            listener.onFailure(e);
+        } else {
+            publisher.onError(e);
         }
     }
 

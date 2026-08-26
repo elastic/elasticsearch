@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -157,7 +158,7 @@ public class ExclusionConfigTests extends ESTestCase {
     }
 
     public void testConfigIsImmutableAgainstCallerMutation() {
-        List<String> mutable = new java.util.ArrayList<>(List.of("_*"));
+        List<String> mutable = new ArrayList<>(List.of("_*"));
         ExclusionConfig config = new ExclusionConfig(mutable, List.of());
         mutable.add("*.parquet");
         assertEquals(List.of("_*"), config.fileExclusions());

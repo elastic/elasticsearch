@@ -272,6 +272,42 @@ The following settings apply to all file-based data sources:
 | `error_mode` | `fail_fast` | How malformed rows are handled. Valid values: `"fail_fast"`, `"skip_row"`, `"null_field"`. For Parquet, `skip_row` fills affected columns with null instead of skipping the entire row. For CSV, TSV, and NDJSON, `null_field` fills only individual value failures with null. Rows whose structure cannot be parsed (for example, an unparsable JSON line or a malformed CSV row) are still dropped. |
 | `max_errors` | unbounded | Maximum malformed rows allowed before the query fails. Ignored when `error_mode` is `fail_fast`. |
 | `max_error_ratio` | `0.0` | Fraction of malformed rows allowed (0.0–1.0). Ignored when `error_mode` is `fail_fast`. |
+| `file_exclusions` | `["_*", ".*"]` | Globs naming objects to leave out of the listing. Each entry matches the **name of a single path segment**, so `_*` skips both a `_SUCCESS` file and everything under a `_temporary/` directory. Refer to [excluding non-data objects](#excluding-non-data-objects). |
+| `file_inclusions` | `["_*=*"]` | Globs that override `file_exclusions`. A segment matching one of these is kept even when an exclusion also matches it. The default keeps Hive partition directories such as `_dept=alpha/`. |
+
+### Excluding non-data objects
+
+Object-store prefixes rarely hold only data. A Spark `_SUCCESS` marker, `.crc` sidecars, a `_temporary/`
+or `_delta_log/` subtree, or a folder placeholder the S3 console created all sit next to the files you want
+to read, and any object no reader can claim fails the whole query.
+
+By default a dataset skips them, following the convention Spark, Hive and Trino use: a path segment beginning
+with `_` or `.` is not data. The exception is a segment carrying a `=`, which is a Hive partition directory —
+`_dept=alpha/` is read, `_SUCCESS` is not.
+
+That default is expressed as the two settings above, so you can change it. To drop something the convention
+does not cover, restate the default and add your own entry:
+
+```console
+PUT /_query/dataset/access_logs
+{
+  "data_source": "prod_s3_logs",
+  "resource": "s3://logs-bucket/access/**/*.parquet",
+  "settings": {
+    "file_exclusions": ["_*", ".*", "README.md", "*.tmp"],
+    "file_inclusions": ["_*=*"]
+  }
+}
+```
+
+To turn exclusion off entirely and read every object the resource pattern matches, set `"file_exclusions": []`.
+
+Two rules are worth knowing. Entries match one path-segment name, never a path, so `_temporary` is correct
+and `_temporary/**` is rejected when you register the dataset. And exclusion applies to wildcard discovery
+only — an object you name explicitly in `resource`, or through brace expansion such as `{a,b}.parquet`, is
+always read, because naming it is a request to read it.
+
+Objects ending in `/` are directory placeholder keys rather than files, and are always skipped.
 
 ### CSV and TSV settings
 

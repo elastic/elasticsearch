@@ -5761,6 +5761,87 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
     }
 
+    /**
+     * A marker and a sidecar in an otherwise clean prefix used to fail the whole query. They are excluded by
+     * default now, and a {@code _}-prefixed Hive partition directory in the same tree still resolves — the two
+     * halves of the default that a single glob list could not express together.
+     */
+    public void testDefaultExclusionsSkipMarkersAndKeepPartitionDirectories() throws Exception {
+        Path root = createTempDir();
+        Path partition = Files.createDirectories(root.resolve("_dept=alpha"));
+        Files.writeString(partition.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+        Files.writeString(root.resolve(".part1.csv.crc"), "junk");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("logs_default_exclusions", "local_ds", root.toUri() + "**/*.csv", Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_default_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals("the marker and sidecar must not reach the reader", 1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * The gap this feature closes: an object that no convention covers — a README beside the data — fails the
+     * query on main with no way out short of moving the file. Naming it in {@code file_exclusions} resolves it.
+     */
+    public void testCustomExclusionSkipsAnObjectNoConventionCovers() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("README.md"), "not data");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_custom_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of("_*", ".*", "README.md"))
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM logs_custom_exclusions | KEEP name | LIMIT 5"), TIMEOUT)) {
+            assertEquals(1, getValuesList(response).size());
+        }
+    }
+
+    /**
+     * An empty {@code file_exclusions} list restores the pre-exclusion listing, so the marker reaches the reader
+     * again and the query fails the way it did before any of this existed. This is the escape hatch, and it has
+     * to actually change what is listed rather than merely be accepted at registration.
+     */
+    public void testEmptyExclusionListRestoresTheRawListing() throws Exception {
+        Path root = createTempDir();
+        Files.writeString(root.resolve("part1.csv"), "emp_no:integer,name:keyword\n1,Alice\n");
+        Files.writeString(root.resolve("_SUCCESS"), "");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(
+                    "logs_no_exclusions",
+                    "local_ds",
+                    root.toUri() + "*",
+                    Map.of("format", "csv", "file_exclusions", List.of())
+                )
+            )
+        );
+
+        Exception e = expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
+        });
+        assertThat("the marker must reach the reader and fail loudly", e.getMessage() + e.getCause(), containsString("_SUCCESS"));
+    }
+
     private static PutDatasetAction.Request putDatasetRequest(
         String name,
         String dataSource,

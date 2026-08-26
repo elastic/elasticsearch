@@ -29,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -272,6 +273,80 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         assertThat("the csv-specific delimiter round-trips", settings.get("delimiter"), equalTo("|"));
 
         deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    /**
+     * The exclusion settings are the first list-valued dataset settings, so the whole storage path — request parse,
+     * cluster state, and GET rendering — has to carry a JSON array rather than the scalars every other setting uses.
+     * Round-tripping the arrays byte-for-byte is what proves it does.
+     */
+    public void testPutDatasetRoundTripsExclusionArrays() throws IOException {
+        final String parent = "exclusion_parent";
+        final String dataset = "exclusion_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(
+            dataset,
+            parent,
+            "s3://bucket/data/*.parquet",
+            Map.of("file_exclusions", List.of("_*", ".*", "*.tmp"), "file_inclusions", List.of("_*=*"))
+        );
+
+        Map<String, Object> got = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) got.get("datasets");
+        assertThat(hits, hasSize(1));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
+        assertThat("the exclusion globs round-trip verbatim", settings.get("file_exclusions"), equalTo(List.of("_*", ".*", "*.tmp")));
+        assertThat(settings.get("file_inclusions"), equalTo(List.of("_*=*")));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    /** Nothing set means nothing stored: GET returns only what was registered, exactly as for every other setting. */
+    public void testPutDatasetDoesNotMaterializeExclusionDefaults() throws IOException {
+        final String parent = "exclusion_default_parent";
+        final String dataset = "exclusion_default_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(dataset, parent, "s3://bucket/data/*.parquet", Map.of("format", "parquet"));
+
+        Map<String, Object> got = getDataset(dataset);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) got.get("datasets");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> settings = (Map<String, Object>) hits.get(0).get("settings");
+        assertThat("defaults are resolved at read time, never written to cluster state", settings, not(hasKey("file_exclusions")));
+        assertThat(settings, not(hasKey("file_inclusions")));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
+    /** Entries name one path segment, so a path entry is refused at registration rather than silently never matching. */
+    public void testPutDatasetRejectsExclusionEntryWithASlash() throws IOException {
+        final String parent = "bad_exclusion_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("bad_exclusion_child", parent, "s3://bucket/data", Map.of("file_exclusions", List.of("_temporary/**")))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("single path-segment name globs"));
+        deleteDataSource(parent);
+    }
+
+    /** A scalar where an array belongs is a shape error, reported once by the list validator. */
+    public void testPutDatasetRejectsScalarExclusionValue() throws IOException {
+        final String parent = "scalar_exclusion_parent";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> putDataset("scalar_exclusion_child", parent, "s3://bucket/data", Map.of("file_exclusions", "_*"))
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("must be a JSON array of strings"));
         deleteDataSource(parent);
     }
 

@@ -1,0 +1,2 @@
+FROM employees
+| EVAL m = emp_no IN (FROM employees | KEEP emp_no) OR emp_no IN (FROM employees | WHERE salary > 50000 | KEEP emp_no)

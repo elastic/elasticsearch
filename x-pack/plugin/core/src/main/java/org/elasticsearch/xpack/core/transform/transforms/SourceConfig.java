@@ -188,10 +188,20 @@ public class SourceConfig implements Writeable, ToXContentObject {
      * preserving all other fields. Pass {@code null} to clear any existing routing.
      */
     public SourceConfig withProjectRouting(@Nullable String projectRouting) {
-        return new SourceConfig(getIndex(), getQueryConfig(), getRuntimeMappings(), indicesOptions(), projectRouting);
+        return new SourceConfig(getIndex(), getQueryConfig(), getRuntimeMappings(), indicesOptions, projectRouting);
     }
 
-    public IndicesOptions indicesOptions() {
+    /**
+     * Returns the source {@link IndicesOptions}, dropping cross-project resolution when the transform
+     * cannot fan out cross-project. A transform with no minted cloud credential runs under an identity
+     * that carries no cloud token, so keeping it origin-only avoids failing closed in the auth layer.
+     */
+    public IndicesOptions indicesOptions(boolean crossProjectAllowed) {
+        if (crossProjectAllowed == false && indicesOptions.resolveCrossProjectIndexExpression()) {
+            return IndicesOptions.builder(indicesOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(false))
+                .build();
+        }
         return indicesOptions;
     }
 

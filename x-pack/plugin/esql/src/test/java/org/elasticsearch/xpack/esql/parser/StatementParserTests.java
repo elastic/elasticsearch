@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -96,6 +97,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -1330,9 +1332,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo | HIGHLIGHT "elasticsearch" ON title WITH {
               "pre_tags": ["<b>"], "post_tags": ["</b>"], "encoder": "html",
               "number_of_fragments": 2, "fragment_size": 150, "no_match_size": 100,
-              "boundary_scanner": "word", "boundary_scanner_locale": "en-US",
-              "boundary_chars": ".,!?", "boundary_max_scan": 10, "order": "score",
-              "analyzer": "standard", "max_analyzed_offset": 500, "phrase_limit": 64 }""");
+              "boundary_scanner": "word", "boundary_scanner_locale": "en-US", "order": "score",
+              "analyzer": "standard", "max_analyzed_offset": 500 }""");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.copyOf(Highlight.validOptionNames())));
     }
@@ -4448,6 +4449,125 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"timeout\": \"a long one\" }",
             "Invalid timeout value [a long one] for option [timeout] in COMPLETION: [failed to parse setting [timeout]"
         );
+    }
+
+    private static void assumeDenseVectorCommandEnabled() {
+        assumeTrue("DENSE_VECTOR requires corresponding capability", EsqlCapabilities.Cap.DENSE_VECTOR_COMMAND.isEnabled());
+    }
+
+    public void testDenseVectorSingleField() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\"}"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+    }
+
+    public void testDenseVectorMultipleFields() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR title, author WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"), attribute("author"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.rowLimit(), equalTo(integer(100)));
+    }
+
+    public void testDenseVectorQualifiedName() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR user.name WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("user.name"))));
+    }
+
+    public void testDenseVectorQuotedFieldName() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(processingCommand("DENSE_VECTOR `weird name` WITH { \"inference_id\" : \"my-id\" }"), DenseVector.class);
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("weird name"))));
+    }
+
+    public void testDenseVectorWildcardNotSupported() {
+        assumeDenseVectorCommandEnabled();
+        // Wildcards are not supported: the field list is an explicit qualifiedNames list, so a pattern is a parse error.
+        expectError("FROM books | DENSE_VECTOR titl* WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+        expectError("FROM books | DENSE_VECTOR * WITH { \"inference_id\" : \"my-id\" }", "mismatched input '*'");
+    }
+
+    public void testDenseVectorWithTimeout() {
+        assumeDenseVectorCommandEnabled();
+        var plan = as(
+            processingCommand("DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"30s\" }"),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+        assertThat(plan.timeout(), equalTo(TimeValue.timeValueSeconds(30)));
+    }
+
+    public void testDenseVectorMissingInferenceId() {
+        assumeDenseVectorCommandEnabled();
+        expectError("FROM foo* | DENSE_VECTOR title", "Missing mandatory option [inference_id] in DENSE_VECTOR");
+    }
+
+    public void testDenseVectorEmptyOptions() {
+        assumeDenseVectorCommandEnabled();
+        expectError("FROM foo* | DENSE_VECTOR title WITH { }", "Missing mandatory option [inference_id] in DENSE_VECTOR");
+    }
+
+    public void testDenseVectorUnknownOption() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"foo\" : 3 }",
+            "Invalid option [foo] in DENSE_VECTOR, expected one of [[inference_id, timeout]]"
+        );
+    }
+
+    public void testDenseVectorInferenceIdNotString() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : 3 }",
+            "Option [inference_id] must be a valid string, found [3]"
+        );
+    }
+
+    public void testDenseVectorTimeoutNotString() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : 3 }",
+            "Option [timeout] in DENSE_VECTOR must be a string literal (e.g. \"30s\"), found [3]"
+        );
+    }
+
+    public void testDenseVectorInvalidTimeout() {
+        assumeDenseVectorCommandEnabled();
+        expectError(
+            "FROM foo* | DENSE_VECTOR title WITH { \"inference_id\" : \"my-id\", \"timeout\" : \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in DENSE_VECTOR: [failed to parse setting [timeout]"
+        );
+    }
+
+    public void testDenseVectorMissingFieldList() {
+        assumeDenseVectorCommandEnabled();
+        expectError("FROM foo* | DENSE_VECTOR WITH { \"inference_id\" : \"my-id\" }", "mismatched input 'WITH' expecting {");
+    }
+
+    public void testDenseVectorWithPositionalParameters() {
+        assumeDenseVectorCommandEnabled();
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "my-id")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ? }", queryParams),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
+    }
+
+    public void testDenseVectorWithNamedParameters() {
+        assumeDenseVectorCommandEnabled();
+        var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "my-id")));
+        var plan = as(
+            TEST_PARSER.parseQuery("row a = 1 | DENSE_VECTOR title WITH { \"inference_id\" : ?inferenceId }", queryParams),
+            DenseVector.class
+        );
+        assertThat(plan.fields(), equalToIgnoringIds(List.of(attribute("title"))));
+        assertThat(plan.inferenceId(), equalTo(literalString("my-id")));
     }
 
     public void testSample() {

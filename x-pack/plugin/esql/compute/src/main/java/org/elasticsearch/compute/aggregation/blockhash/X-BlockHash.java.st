@@ -27,7 +27,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.$Type$Block;
+$if(hasVector)$
 import org.elasticsearch.compute.data.$Type$Vector;
+$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
@@ -95,6 +97,7 @@ $endif$
             return;
         }
         $Type$Block castBlock = ($Type$Block) block;
+$if(hasVector)$
         $Type$Vector vector = castBlock.asVector();
         if (vector == null) {
             try (IntBlock groupIds = add(castBlock)) {
@@ -105,8 +108,14 @@ $endif$
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
+$else$
+        try (IntBlock groupIds = add(castBlock)) {
+            addInput.add(0, groupIds);
+        }
+$endif$
     }
 
+$if(hasVector)$
     /**
      *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      */
@@ -146,6 +155,7 @@ $endif$
             return builder.build();
         }
     }
+$endif$
 
 $if(BytesRef)$
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
@@ -223,12 +233,16 @@ $endif$
         }
 
         $Type$Block castBlock = ($Type$Block) block;
+$if(hasVector)$
         $Type$Vector vector = castBlock.asVector();
         // TODO honor targetBlockSize and chunk the pages if requested.
         if (vector == null) {
             return ReleasableIterator.single(lookup(castBlock));
         }
         return ReleasableIterator.single(lookup(vector));
+$else$
+        return ReleasableIterator.single(lookup(castBlock));
+$endif$
     }
 
 $if(BytesRef)$
@@ -284,6 +298,7 @@ $if(BytesRef)$
     }
 $endif$
 
+$if(hasVector)$
     private IntBlock lookup($Type$Vector vector) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
@@ -309,6 +324,7 @@ $endif$
         }
     }
 
+$endif$
     private IntBlock lookup($Type$Block block) {
         return new MultivalueDedupe$Type$(block).hashLookup(blockFactory, hash);
     }
@@ -327,6 +343,11 @@ $endif$
                 } else {
 $if(BytesRef)$
                     builder.appendBytesRef(hash.get(groupId - 1, spare));
+$elseif(DoubleRange)$
+                    builder.appendDoubleRange(
+                        Double.longBitsToDouble(hash.getKey1(groupId - 1)),
+                        Double.longBitsToDouble(hash.getKey2(groupId - 1))
+                    );
 $elseif(int)$
                     builder.appendInt((int) hash.get(groupId - 1));
 $elseif(double)$
@@ -378,6 +399,8 @@ $endif$
         b.append("$Type$BlockHash{channel=").append(channel);
         b.append(", entries=").append(hash.size());
 $if(BytesRef)$
+        b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
+$elseif(DoubleRange)$
         b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
 $endif$
         b.append(", seenNull=").append(seenNull);

@@ -286,7 +286,17 @@ public class SearchCommitPrefetcher {
 
                 var cacheKey = new FileCacheKey(shardId, blobFile);
 
-                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile);
+                // Determine whether this file's BCC generation is already uploaded based on the notification,
+                // rather than the tracker — updateLatestUploadedBcc is intentionally deferred until after
+                // prefetch completes so that searches don't see isUploaded=true before the cache is populated.
+                // Using the blob store for uploaded files avoids unnecessary load on the indexing node, which
+                // has limited bandwidth compared to the object store.
+                // TODO: the cache still only allows one filler for a region and if warming started filling a
+                // region, a searcher can still incur a partial blob store cache miss wait.
+                var latestUploadedTermAndGen = notification.latestUploadedBatchedCompoundCommitTermAndGen();
+                var fileIsUploaded = latestUploadedTermAndGen != null
+                    && blobFile.termAndGeneration().compareTo(latestUploadedTermAndGen) <= 0;
+                var cacheBlobReader = cacheBlobReaderSupplier.getCacheBlobReaderForPreFetching(blobFile, fileIsUploaded);
 
                 final long timestampMillis = timestampPerBlob.get(blobFile);
 
@@ -502,7 +512,12 @@ public class SearchCommitPrefetcher {
     }
 
     public interface CacheBlobReaderSupplier {
-        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile);
+        /**
+         * @param blobFile   the file to prefetch
+         * @param isUploaded {@code true} when the notification already confirms this file's BCC generation is uploaded; the caller should
+         *                   pass this from the notification rather than relying on the upload tracker, which may not yet be updated
+         */
+        CacheBlobReader getCacheBlobReaderForPreFetching(BlobFile blobFile, boolean isUploaded);
     }
 
     /**

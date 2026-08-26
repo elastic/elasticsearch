@@ -284,6 +284,64 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         assertEquals("hive", result.get("partition_detection"));
     }
 
+    public void testValidateDatasetExclusionSettingsValid() {
+        Map<String, Object> result = validator.validateDataset(
+            Map.of(),
+            "s3://bucket/path/*.parquet",
+            Map.of("file_exclusions", List.of("_*", ".*", "*.tmp"), "file_inclusions", List.of("_*=*"))
+        );
+        assertEquals(
+            "stored verbatim — glob entries are case-sensitive user data",
+            List.of("_*", ".*", "*.tmp"),
+            result.get("file_exclusions")
+        );
+        assertEquals(List.of("_*=*"), result.get("file_inclusions"));
+    }
+
+    /** The empty list is a legitimate value: exclude nothing. */
+    public void testValidateDatasetExclusionSettingsAcceptEmptyList() {
+        Map<String, Object> result = validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of()));
+        assertEquals(List.of(), result.get("file_exclusions"));
+    }
+
+    /** Entries match one path-segment name, so a path entry is refused with a message that says so. */
+    public void testValidateDatasetExclusionRejectsPathEntry() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of("_temporary/**")))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("single path-segment name globs"));
+    }
+
+    public void testValidateDatasetExclusionRejectsUncompilableGlob() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_inclusions", List.of("[")))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("valid glob patterns"));
+    }
+
+    /** A shape problem is reported once, by the list validator — the owning parser must not add a second error. */
+    public void testValidateDatasetExclusionRejectsNonListWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", "_*"))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of strings"));
+    }
+
+    public void testValidateDatasetExclusionRejectsNonStringElementWithOneMessage() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("file_exclusions", List.of(42)))
+        );
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.getMessage(), containsString("must be a JSON array of non-empty strings"));
+    }
+
     public void testValidateDatasetPartitionDetectionInvalid() {
         ValidationException e = expectThrows(
             ValidationException.class,

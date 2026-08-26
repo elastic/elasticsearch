@@ -102,6 +102,40 @@ public class VocabularyTests extends ColumnarStringTestCase {
     }
 
     /** Coverage is what the counts say, and the counts are lower bounds, so it never overstates either. */
+    /**
+     * A vocabulary taken from what other columns recorded, rather than surveyed from values. It has to keep
+     * the terms in the order it was given, name each one by where it sits, and carry the counts when it was
+     * given any.
+     */
+    public void testKnownTermsAreOrdinalsInTermOrder() {
+        final List<BytesRef> sorted = List.of(new BytesRef(""), new BytesRef("alpha"), new BytesRef("bravo"), new BytesRef("charlie"));
+        final long[] counts = { 9, 4, 7, 1 };
+        final Vocabulary.Terms known = Vocabulary.known(sorted, 1000, 0.75, counts);
+
+        assertEquals("one ordinal a term", sorted.size(), known.size());
+        assertTrue("counts were given", known.counted());
+        assertEquals("coverage is kept as given", 0.75, known.coverage(), 0.0);
+        assertEquals("dictionary bytes are the terms' own", 0 + 5 + 5 + 7, known.dictionaryBytes());
+        assertEquals("column bytes are kept as given", 1000, known.columnBytes());
+
+        final BytesRef scratch = new BytesRef();
+        for (int ordinal = 0; ordinal < sorted.size(); ordinal++) {
+            known.terms().get(known.sortedIds()[ordinal], scratch);
+            assertEquals("term at ordinal " + ordinal, sorted.get(ordinal), scratch);
+            assertEquals("ordinal round trips through its id", ordinal, known.ordinalOfId()[known.sortedIds()[ordinal]]);
+            assertEquals("count at ordinal " + ordinal, counts[ordinal], known.countOf(ordinal));
+        }
+    }
+
+    /** Given no counts, the vocabulary says so rather than inventing them. */
+    public void testKnownTermsWithoutCounts() {
+        final List<BytesRef> sorted = List.of(new BytesRef("alpha"), new BytesRef("bravo"));
+        final Vocabulary.Terms known = Vocabulary.known(sorted, 500, 1.0, null);
+        assertFalse("no counts were given", known.counted());
+        assertEquals(sorted.size(), known.size());
+        assertEquals("coverage is kept as given", 1.0, known.coverage(), 0.0);
+    }
+
     public void testCoverageNeverOverstates() throws IOException {
         final List<BytesRef> values = zipfish();
         final Map<String, Integer> actual = tally(values);

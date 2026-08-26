@@ -243,9 +243,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 // with `runAllRunnableTasks` without advancing time.
                 // Exception: when monotonic snapshot end times are enabled, SnapshotFinalization reschedules itself by
                 // 1ms to wait for the clock to advance; collapsing that delay to zero would cause an infinite spin loop.
-                final boolean isSnapshotFinalization = command.getClass().getName().equals(
-                    SnapshotsService.class.getName() + "$SnapshotFinalization"
-                );
+                final boolean isSnapshotFinalization = command.getClass()
+                    .getName()
+                    .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");
                 final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0
                     && (monotonicSnapshotEndTime == false || isSnapshotFinalization == false) ? TimeValue.ZERO : delay;
                 return super.schedule(command, actualDelay, executor);

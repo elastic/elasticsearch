@@ -231,8 +231,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
             monotonicEndTime = SNAPSHOT_MONOTONIC_END_TIME_SETTING.get(settings);
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(SNAPSHOT_MONOTONIC_END_TIME_SETTING, b -> monotonicEndTime = b);
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;
@@ -941,7 +940,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             // Compute the snapshot end time. When SNAPSHOT_MONOTONIC_END_TIME_SETTING is enabled, the end time is guaranteed
             // to be strictly greater than every previously recorded snapshot end time in the repository.
-            // If the required end time is in the future (i.e. a previous snapshot ended during  the same millisecond),
+            // If the required end time is in the future (i.e. a previous snapshot ended during the same millisecond),
             // this task reschedules itself until the clock catches up.
             final long endTimeMillis;
             if (monotonicEndTime) {

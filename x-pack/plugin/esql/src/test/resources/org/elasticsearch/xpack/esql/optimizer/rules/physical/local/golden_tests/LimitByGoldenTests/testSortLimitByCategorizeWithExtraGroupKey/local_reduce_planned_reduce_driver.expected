@@ -1,0 +1,3 @@
+ExchangeSinkExec[[@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3],false]
+\_TopNByExec[[Order[@timestamp{f}#0,DESC,FIRST]],2[INTEGER],[CATEGORIZE(message{f}#3), client_ip{f}#1],82,INTERMEDIATE]
+  \_ExchangeSourceExec[[@timestamp{f}#0, client_ip{f}#1, event_duration{f}#2, message{f}#3],false]

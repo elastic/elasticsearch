@@ -29,10 +29,17 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     /**
      * Execution mode for CATEGORIZE groupings in a distributed plan.
-     * {@link #SINGLE} is the default and means local-only execution (no exchange involved, or
-     * no CATEGORIZE in the groupings). {@link #INITIAL} runs on data nodes and emits serialized
-     * categorizer state alongside the filtered rows. {@link #FINAL} runs on the coordinator,
-     * merges states from all data nodes, and applies the global limit.
+     * <ul>
+     *   <li>{@link #SINGLE} — default; local-only execution (no exchange, or no CATEGORIZE in the
+     *       groupings).
+     *   <li>{@link #INITIAL} — data-node driver; appends serialized categorizer state to each
+     *       output page after running the per-group limit.
+     *   <li>{@link #INTERMEDIATE} — node-reduce driver; merges shard-level categorizer states into
+     *       one node-level model, applies the per-group limit again, and re-emits the node-level
+     *       state. Enables one pruning pass per node before rows travel to the coordinator.
+     *   <li>{@link #FINAL} — coordinator; merges node-level (or shard-level on single-node) states,
+     *       applies the global per-group limit, and produces the final output without a state channel.
+     * </ul>
      *
      * <p>Not serialized — determined locally by {@link
      * org.elasticsearch.xpack.esql.planner.mapper.Mapper} (coordinator) and {@link
@@ -42,6 +49,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
     public enum CategorizeGroupingMode {
         SINGLE,
         INITIAL,
+        INTERMEDIATE,
         FINAL
     }
 
@@ -124,7 +132,16 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         );
     }
 
-    public LimitByExec withFinalMode() {
+    /**
+     * Creates a node-reduce (INTERMEDIATE) copy of this node. The reduce plan is never locally
+     * optimized, so {@code super.output()} (= child output = {@code ExchangeSourceExec.output()})
+     * is already stable; no snapshot is required.
+     */
+    public LimitByExec withIntermediateCategorizeMode() {
+        return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.INTERMEDIATE, null);
+    }
+
+    public LimitByExec withFinalCategorizeMode() {
         return new LimitByExec(source(), child(), limitPerGroup, groupings, estimatedRowSize, CategorizeGroupingMode.FINAL, null);
     }
 

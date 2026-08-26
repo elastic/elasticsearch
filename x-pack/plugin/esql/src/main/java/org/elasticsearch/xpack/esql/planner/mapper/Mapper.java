@@ -182,7 +182,8 @@ public class Mapper {
         if (unary instanceof LimitBy limitBy) {
             mappedChild = addExchangeForFragment(limitBy, mappedChild);
             if (LocalMapper.hasCategorize(limitBy.groupings()) && mappedChild instanceof ExchangeExec) {
-                return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null).withFinalMode();
+                return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null)
+                    .withFinalCategorizeMode();
             }
             return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
         }

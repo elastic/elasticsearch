@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.data.Block;
@@ -21,31 +19,35 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Coordinator-side operator for the FINAL phase of distributed {@code LIMIT BY CATEGORIZE} and
- * {@code TOPN BY CATEGORIZE}.
+ * Operator for the FINAL phase (coordinator) and INTERMEDIATE phase (node-reduce driver) of
+ * distributed {@code LIMIT BY CATEGORIZE} and {@code TOPN BY CATEGORIZE}.
  *
  * <p>Wraps an inner grouping operator (e.g. {@link GroupedLimitOperator} or
  * {@link org.elasticsearch.compute.operator.topn.GroupedTopNOperator}). Each page received from the exchange carries the current
  * categorizer state as a constant {@link BytesRefBlock} at {@code stateChannel} (appended by
- * {@link CategorizeGroupingOperator}). For each page, this operator:
+ * {@link CategorizeGroupingOperator} in INITIAL mode, or by this operator in INTERMEDIATE mode).
+ * For each page, this operator:
  * <ol>
- *   <li>Deserializes the state and merges each category into the coordinator's global categorizer
+ *   <li>Deserializes the state and merges each category into the operator's global categorizer
  *       via {@link TokenListCategorizer#mergeWireCategory}, building a local→global ID map.</li>
  *   <li>Remaps the local category-ID block at {@code catIdChannel} to global IDs, preserving
  *       multi-valued structure.</li>
  *   <li>Drops the state channel and passes the remapped page to the inner operator.</li>
  * </ol>
  *
+ * <p>When {@code emitState=true} (INTERMEDIATE mode, node-reduce driver), after the inner operator
+ * produces a page, this operator appends its own global categorizer state as a constant
+ * {@link BytesRefBlock}. The downstream coordinator's FINAL instance merges that state. When
+ * {@code emitState=false} (FINAL mode, coordinator), output pages carry only the base columns.
+ *
  * <p>Because {@code mergeWireCategory} is idempotent and categories are monotonically growing,
- * re-merging an older state snapshot from a previous page is safe.
+ * re-merging an older state snapshot from a previous page is safe. This makes three-phase (or
+ * four-phase in CCS) categorization equivalent to single-phase categorization.
  */
 public class CategorizeGroupingMergeOperator implements Operator {
 
@@ -54,12 +56,24 @@ public class CategorizeGroupingMergeOperator implements Operator {
         private final int stateChannel;
         private final CategorizeDef categorizeDef;
         private final Operator.OperatorFactory innerFactory;
+        private final boolean emitState;
 
         public Factory(int catIdChannel, int stateChannel, CategorizeDef categorizeDef, Operator.OperatorFactory innerFactory) {
+            this(catIdChannel, stateChannel, categorizeDef, innerFactory, false);
+        }
+
+        public Factory(
+            int catIdChannel,
+            int stateChannel,
+            CategorizeDef categorizeDef,
+            Operator.OperatorFactory innerFactory,
+            boolean emitState
+        ) {
             this.catIdChannel = catIdChannel;
             this.stateChannel = stateChannel;
             this.categorizeDef = categorizeDef;
             this.innerFactory = innerFactory;
+            this.emitState = emitState;
         }
 
         @Override
@@ -69,6 +83,7 @@ public class CategorizeGroupingMergeOperator implements Operator {
                 stateChannel,
                 categorizeDef,
                 innerFactory.get(driverContext),
+                emitState,
                 driverContext.blockFactory()
             );
         }
@@ -79,18 +94,19 @@ public class CategorizeGroupingMergeOperator implements Operator {
                 + catIdChannel
                 + ", stateChannel="
                 + stateChannel
+                + ", emitState="
+                + emitState
                 + ", inner="
                 + innerFactory.describe()
                 + "]";
         }
     }
 
-    private static final int NULL_ORD = 0;
-
     private final int catIdChannel;
     private final int stateChannel;
     private final TokenListCategorizer.CloseableTokenListCategorizer globalCategorizer;
     private final Operator inner;
+    private final boolean emitState;
     private final BlockFactory blockFactory;
 
     private CategorizeGroupingMergeOperator(
@@ -98,12 +114,14 @@ public class CategorizeGroupingMergeOperator implements Operator {
         int stateChannel,
         CategorizeDef categorizeDef,
         Operator inner,
+        boolean emitState,
         BlockFactory blockFactory
     ) {
         this.catIdChannel = catIdChannel;
         this.stateChannel = stateChannel;
         this.blockFactory = blockFactory;
         this.inner = inner;
+        this.emitState = emitState;
         this.globalCategorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
             new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
             CategorizationPartOfSpeechDictionary.getInstance(),
@@ -138,14 +156,33 @@ public class CategorizeGroupingMergeOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        return inner.getOutput();
+        Page p = inner.getOutput();
+        if (p == null || emitState == false) {
+            return p;
+        }
+        BytesRefBlock stateBlock = null;
+        boolean success = false;
+        try {
+            BytesRef state = CategorizerStateCodec.serialize(globalCategorizer);
+            stateBlock = blockFactory.newConstantBytesRefBlockWith(state, p.getPositionCount());
+            Page result = p.appendBlock(stateBlock);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                if (stateBlock != null) {
+                    stateBlock.close();
+                }
+                p.releaseBlocks();
+            }
+        }
     }
 
     private Page mergeAndRemap(Page page) {
         BytesRefBlock stateBlock = page.getBlock(stateChannel);
         IntBlock localCatIds = page.getBlock(catIdChannel);
 
-        Map<Integer, Integer> idMap = buildIdMap(stateBlock);
+        Map<Integer, Integer> idMap = CategorizerStateCodec.buildIdMap(stateBlock, globalCategorizer);
         IntBlock globalCatIds = remapIntBlock(localCatIds, idMap);
 
         boolean success = false;
@@ -160,35 +197,13 @@ public class CategorizeGroupingMergeOperator implements Operator {
         }
     }
 
-    /** Deserializes the state from the constant BytesRefBlock and builds a local→global ID map. */
-    private Map<Integer, Integer> buildIdMap(BytesRefBlock stateBlock) {
-        Map<Integer, Integer> idMap = new HashMap<>();
-        idMap.put(NULL_ORD, NULL_ORD);
-
-        BytesRef stateBytes = stateBlock.getBytesRef(stateBlock.getFirstValueIndex(0), new BytesRef());
-        try (StreamInput in = new BytesArray(stateBytes).streamInput()) {
-            boolean seenNull = in.readBoolean();
-            if (seenNull) {
-                idMap.put(NULL_ORD, NULL_ORD);
-            }
-            int count = in.readVInt();
-            for (int oldId = 0; oldId < count; oldId++) {
-                int newGlobalId = globalCategorizer.mergeWireCategory(new SerializableTokenListCategory(in)).getId();
-                idMap.put(oldId + 1, newGlobalId + 1);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return idMap;
-    }
-
     /** Remaps an {@link IntBlock} using {@code idMap}, preserving multi-valued structure. */
     private IntBlock remapIntBlock(IntBlock original, Map<Integer, Integer> idMap) {
         IntVector vec = original.asVector();
         if (vec != null) {
             try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(vec.getPositionCount())) {
                 for (int p = 0; p < vec.getPositionCount(); p++) {
-                    builder.appendInt(p, idMap.getOrDefault(vec.getInt(p), NULL_ORD));
+                    builder.appendInt(p, idMap.getOrDefault(vec.getInt(p), CategorizerStateCodec.NULL_ORD));
                 }
                 return builder.build().asBlock();
             }
@@ -196,17 +211,17 @@ public class CategorizeGroupingMergeOperator implements Operator {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(original.getPositionCount())) {
             for (int pos = 0; pos < original.getPositionCount(); pos++) {
                 if (original.isNull(pos)) {
-                    builder.appendInt(NULL_ORD);
+                    builder.appendInt(CategorizerStateCodec.NULL_ORD);
                     continue;
                 }
                 int first = original.getFirstValueIndex(pos);
                 int count = original.getValueCount(pos);
                 if (count == 1) {
-                    builder.appendInt(idMap.getOrDefault(original.getInt(first), NULL_ORD));
+                    builder.appendInt(idMap.getOrDefault(original.getInt(first), CategorizerStateCodec.NULL_ORD));
                 } else {
                     builder.beginPositionEntry();
                     for (int i = first; i < first + count; i++) {
-                        builder.appendInt(idMap.getOrDefault(original.getInt(i), NULL_ORD));
+                        builder.appendInt(idMap.getOrDefault(original.getInt(i), CategorizerStateCodec.NULL_ORD));
                     }
                     builder.endPositionEntry();
                 }
@@ -243,7 +258,15 @@ public class CategorizeGroupingMergeOperator implements Operator {
 
     @Override
     public String toString() {
-        return "CategorizeGroupingMergeOperator[catIdChannel=" + catIdChannel + ", stateChannel=" + stateChannel + ", inner=" + inner + "]";
+        return "CategorizeGroupingMergeOperator[catIdChannel="
+            + catIdChannel
+            + ", stateChannel="
+            + stateChannel
+            + ", emitState="
+            + emitState
+            + ", inner="
+            + inner
+            + "]";
     }
 
     @Override

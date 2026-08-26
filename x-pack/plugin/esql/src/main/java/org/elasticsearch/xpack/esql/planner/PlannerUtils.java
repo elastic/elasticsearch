@@ -223,13 +223,8 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
-            // CATEGORIZE groupings require two-phase state transfer; node-level reduction would misalign the
-            // intermediate channel schema (catId + state columns), so fall through to pass-through reduction.
-            case TopNByExec topNBy when topNBy.categorizeMode() != LimitByExec.CategorizeGroupingMode.SINGLE ->
-                SimplePlanReduction.NO_REDUCTION;
-            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topNBy));
-            case LimitByExec limitBy when limitBy.mode() != LimitByExec.CategorizeGroupingMode.SINGLE -> SimplePlanReduction.NO_REDUCTION;
-            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, limitBy));
+            case TopNByExec topNBy -> new TopNByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, asNodeReduction(topNBy)));
+            case LimitByExec limitBy -> new LimitByReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, asNodeReduction(limitBy)));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
@@ -257,6 +252,40 @@ public class PlannerUtils {
 
     private static ReducedPlan getPhysicalPlanReduction(int estimatedRowSize, PhysicalPlan plan) {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
+    }
+
+    /**
+     * Promotes a {@link LimitByExec} to {@link LimitByExec.CategorizeGroupingMode#INTERMEDIATE} when
+     * it was mapped with {@link LimitByExec.CategorizeGroupingMode#INITIAL} by {@link LocalMapper}.
+     * SINGLE nodes (no CATEGORIZE) are returned unchanged.
+     */
+    private static LimitByExec asNodeReduction(LimitByExec limitBy) {
+        return switch (limitBy.mode()) {
+            case SINGLE -> limitBy;
+            case INITIAL -> limitBy.withIntermediateCategorizeMode();
+            // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
+            case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
+                "unexpected LIMIT BY categorize mode [{}] when planning node-level reduction",
+                limitBy.mode()
+            );
+        };
+    }
+
+    /**
+     * Promotes a {@link TopNByExec} to {@link LimitByExec.CategorizeGroupingMode#INTERMEDIATE} when
+     * it was mapped with {@link LimitByExec.CategorizeGroupingMode#INITIAL} by {@link LocalMapper}.
+     * SINGLE nodes (no CATEGORIZE) are returned unchanged.
+     */
+    private static TopNByExec asNodeReduction(TopNByExec topNBy) {
+        return switch (topNBy.categorizeMode()) {
+            case SINGLE -> topNBy;
+            case INITIAL -> topNBy.withCategorizeMode(LimitByExec.CategorizeGroupingMode.INTERMEDIATE);
+            // LocalMapper only ever produces SINGLE or INITIAL; guard against future modes.
+            case INTERMEDIATE, FINAL -> throw new EsqlIllegalArgumentException(
+                "unexpected TOPN BY categorize mode [{}] when planning node-level reduction",
+                topNBy.categorizeMode()
+            );
+        };
     }
 
     public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {

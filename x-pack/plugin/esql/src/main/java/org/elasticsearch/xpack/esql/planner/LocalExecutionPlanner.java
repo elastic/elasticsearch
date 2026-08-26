@@ -1182,9 +1182,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
         return switch (topNByExec.categorizeMode()) {
-            case INITIAL -> planTopNByInitial(topNByExec, context);
-            case FINAL -> planTopNByFinal(topNByExec, context);
             case SINGLE -> planTopNBySingle(topNByExec, context);
+            case INITIAL -> planTopNByInitial(topNByExec, context);
+            case INTERMEDIATE -> planTopNByMerge(topNByExec, context, true);
+            case FINAL -> planTopNByMerge(topNByExec, context, false);
         };
     }
 
@@ -1316,11 +1317,17 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * FINAL mode (coordinator): wraps {@link GroupedTopNOperator} in {@link CategorizeGroupingMergeOperator}
-     * which merges per-page categorizer state from data nodes, remaps local category IDs to global IDs,
-     * and delegates to the inner operator. Exchange carries {@code [base | catId | state]} channels.
+     * INTERMEDIATE mode (node-reduce driver) and FINAL mode (coordinator): wraps
+     * {@link GroupedTopNOperator} in {@link CategorizeGroupingMergeOperator} which merges
+     * per-page categorizer state, remaps local category IDs to global IDs, and delegates to the
+     * inner operator. Exchange carries {@code [base | catId | state]} channels.
+     *
+     * <p>When {@code emitState=true} (INTERMEDIATE), the operator re-serializes its merged
+     * categorizer state onto each output page so the coordinator can merge again. When
+     * {@code emitState=false} (FINAL), the state channel is dropped and the output is projected
+     * back to the base channels.
      */
-    private PhysicalOperation planTopNByFinal(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planTopNByMerge(TopNByExec topNByExec, LocalExecutionPlannerContext context, boolean emitState) {
         final Integer rowSize = topNByExec.estimatedRowSize();
         PhysicalOperation source = plan(topNByExec.child(), context);
 
@@ -1345,10 +1352,11 @@ public class LocalExecutionPlanner {
             throw new EsqlIllegalArgumentException("TopNBy groupings cannot be empty at runtime");
         }
         if (categorizeDef == null) {
-            throw new EsqlIllegalArgumentException("TopNBy FINAL mode requires a CATEGORIZE grouping");
+            String mode = emitState ? "INTERMEDIATE" : "FINAL";
+            throw new EsqlIllegalArgumentException("TopNBy " + mode + " mode requires a CATEGORIZE grouping");
         }
 
-        // mergedLayout: base + catId (state is dropped by CategorizeGroupingMergeOperator).
+        // mergedLayout: base + catId (state is dropped by CategorizeGroupingMergeOperator before delegating to inner).
         Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
         var common = topNCommon(
             rowSize,
@@ -1368,11 +1376,16 @@ public class LocalExecutionPlanner {
             context.plannerSettings.valuesLoadingJumboSize().getBytes(),
             topNByExec.outputOrdering()
         );
+
+        // INTERMEDIATE: append a state channel so the coordinator can merge; FINAL: no state channel.
+        Layout outLayout = emitState
+            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
+            : mergedLayout;
         source = source.with(
-            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory),
-            mergedLayout
+            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, topNFactory, emitState),
+            outLayout
         );
-        return projectAwayInternalChannels(source, channelsBefore);
+        return emitState ? source : projectAwayInternalChannels(source, channelsBefore);
     }
 
     private record TopNCommon(ElementType[] elementTypes, TopNEncoder[] encoders, List<TopNOperator.SortOrder> orders, int limit) {}
@@ -2434,9 +2447,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         return switch (limitBy.mode()) {
-            case INITIAL -> planLimitByInitial(limitBy, context);
-            case FINAL -> planLimitByFinal(limitBy, context);
             case SINGLE -> planLimitBySingle(limitBy, context);
+            case INITIAL -> planLimitByInitial(limitBy, context);
+            case INTERMEDIATE -> planLimitByMerge(limitBy, context, true);
+            case FINAL -> planLimitByMerge(limitBy, context, false);
         };
     }
 
@@ -2534,11 +2548,17 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * FINAL mode (coordinator): wraps {@link GroupedLimitOperator} in {@link CategorizeGroupingMergeOperator}
-     * which merges per-page categorizer state from data nodes, remaps local category IDs to global IDs,
-     * and delegates to the inner operator. Exchange carries {@code [base | catId | state]} channels.
+     * INTERMEDIATE mode (node-reduce driver) and FINAL mode (coordinator): wraps
+     * {@link GroupedLimitOperator} in {@link CategorizeGroupingMergeOperator} which merges
+     * per-page categorizer state, remaps local category IDs to global IDs, and delegates to the
+     * inner operator. Exchange carries {@code [base | catId | state]} channels.
+     *
+     * <p>When {@code emitState=true} (INTERMEDIATE), the operator re-serializes its merged
+     * categorizer state onto each output page so the coordinator can merge again. When
+     * {@code emitState=false} (FINAL), the state channel is dropped and the output is projected
+     * back to the base channels.
      */
-    private PhysicalOperation planLimitByFinal(LimitByExec limitBy, LocalExecutionPlannerContext context) {
+    private PhysicalOperation planLimitByMerge(LimitByExec limitBy, LocalExecutionPlannerContext context, boolean emitState) {
         PhysicalOperation source = plan(limitBy.child(), context);
         int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
 
@@ -2560,17 +2580,23 @@ public class LocalExecutionPlanner {
             }
         }
         if (categorizeDef == null) {
-            throw new EsqlIllegalArgumentException("LIMIT BY FINAL mode requires a CATEGORIZE grouping");
+            String mode = emitState ? "INTERMEDIATE" : "FINAL";
+            throw new EsqlIllegalArgumentException("LIMIT BY " + mode + " mode requires a CATEGORIZE grouping");
         }
 
-        // mergedLayout: base + catId (state is dropped by CategorizeGroupingMergeOperator).
+        // mergedLayout: base + catId (state is dropped by CategorizeGroupingMergeOperator before delegating to inner).
         Layout mergedLayout = source.layout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.INTEGER)).build();
         var limitFactory = new GroupedLimitOperator.Factory(limitValue, groupKeys, buildElementTypes(mergedLayout));
+
+        // INTERMEDIATE: append a state channel so the coordinator can merge; FINAL: no state channel.
+        Layout outLayout = emitState
+            ? mergedLayout.builder().append(new Layout.ChannelSet(Set.of(new NameId()), DataType.KEYWORD)).build()
+            : mergedLayout;
         source = source.with(
-            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory),
-            mergedLayout
+            new CategorizeGroupingMergeOperator.Factory(catIdChannel, stateChannel, categorizeDef, limitFactory, emitState),
+            outLayout
         );
-        return projectAwayInternalChannels(source, channelsBefore);
+        return emitState ? source : projectAwayInternalChannels(source, channelsBefore);
     }
 
     /**

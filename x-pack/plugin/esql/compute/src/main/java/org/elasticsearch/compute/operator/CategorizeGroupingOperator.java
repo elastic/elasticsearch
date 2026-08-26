@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash.CategorizeDef;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,7 +21,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
@@ -233,17 +231,7 @@ public class CategorizeGroupingOperator implements Operator {
      * Wire format mirrors {@code CategorizeBlockHash.serializeCategorizer()}.
      */
     private BytesRef serializeCategorizer() {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeBoolean(false); // seenNull: uses NULL_ORD=0, not a separate null flag
-            int count = categorizer.getCategoryCount();
-            out.writeVInt(count);
-            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
-                category.writeTo(out);
-            }
-            return out.bytes().toBytesRef();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return CategorizerStateCodec.serialize(categorizer);
     }
 
     @Override

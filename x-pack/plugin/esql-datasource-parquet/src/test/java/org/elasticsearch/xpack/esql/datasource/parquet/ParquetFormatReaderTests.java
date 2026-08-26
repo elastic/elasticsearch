@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -3243,7 +3244,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .build();
         try (
             org.apache.parquet.hadoop.ParquetFileReader reader = org.apache.parquet.hadoop.ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(storageObject, blockFactory.arrowAllocator()),
+                new ParquetStorageObjectAdapter(storageObject, blockFactory.breaker()),
                 options
             )
         ) {
@@ -6574,7 +6575,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("full scan must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());
@@ -6592,7 +6594,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals("only the predicate column needs a column index", Set.of("a"), paths.columnIndexPaths());
         assertEquals(
@@ -6608,7 +6611,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
      */
     public void testComputeIndexColumnPathsNonProjectedPredicateColumn() {
         MessageType projected = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("b").named("schema");
-        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(true, true, Set.of("a"), null, projected);
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            Set.of("a"),
+            null,
+            projected,
+            FormatReader.NO_LIMIT
+        );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(
             "predicate column a (not projected) and projected column b both need offset index",
@@ -6627,7 +6637,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             null,
             "a",
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertEquals(Set.of("a"), paths.columnIndexPaths());
         assertEquals(Set.of("a"), paths.offsetIndexPaths());
@@ -6643,7 +6654,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             true,
             null,
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNull("legacy filter path must not gate", paths.columnIndexPaths());
         assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
@@ -6661,7 +6673,8 @@ public class ParquetFormatReaderTests extends ESTestCase {
             false,
             Set.of("a"),
             null,
-            threeColumnSchema()
+            threeColumnSchema(),
+            FormatReader.NO_LIMIT
         );
         assertNotNull("must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
         assertNotNull(paths.offsetIndexPaths());

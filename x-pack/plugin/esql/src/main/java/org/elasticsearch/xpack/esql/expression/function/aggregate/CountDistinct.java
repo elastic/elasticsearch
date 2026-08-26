@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -220,11 +219,6 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
         return SUPPLIERS.get(type).apply(precision);
-    }
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.FALSE;
     }
 
     private int precisionValue() {

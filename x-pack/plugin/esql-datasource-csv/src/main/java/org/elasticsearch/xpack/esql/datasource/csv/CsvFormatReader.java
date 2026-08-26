@@ -469,11 +469,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private final Map<String, String> declaredDateFormats;
     /**
-     * True when some column declared a {@code path}, so a pinned (strict) schema binds to the file BY NAME rather
-     * than by position — see {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredPathBinding}.
-     * False (the default) keeps the positional declared-schema contract byte-for-byte.
+     * True when the pinned schema's provenance is {@code DECLARED} (set by {@code FileSourceFactory} from
+     * {@link org.elasticsearch.xpack.esql.datasources.SchemaProvenance#DECLARED}), meaning the schema was explicitly
+     * declared by the user and its columns must bind to the file BY NAME rather than by position — see
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredProvenanceBinding}.
+     * False (the default) means the schema is inferred; the file columns bind positionally.
      */
-    private final boolean declaredPathBinding;
+    private final boolean declaredProvenanceBinding;
 
     /**
      * When {@code true} (default), eligible non-bracket reads use the direct-to-block path that parses
@@ -544,7 +546,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String canonicalConfig,
         boolean directBlockEnabled,
         Map<String, String> declaredDateFormats,
-        boolean declaredPathBinding
+        boolean declaredProvenanceBinding
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -556,7 +558,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.canonicalConfig = canonicalConfig;
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
-        this.declaredPathBinding = declaredPathBinding;
+        this.declaredProvenanceBinding = declaredProvenanceBinding;
         this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -580,7 +582,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             enabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
@@ -875,7 +877,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
@@ -892,13 +894,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
     @Override
-    public CsvFormatReader withDeclaredPathBinding(boolean binding) {
-        if (binding == declaredPathBinding) {
+    public CsvFormatReader withDeclaredProvenanceBinding(boolean binding) {
+        if (binding == declaredProvenanceBinding) {
             return this;
         }
         return new CsvFormatReader(
@@ -918,24 +920,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public boolean declaredNameBindingNeedsFileStart() {
-        // Headered + declared path binds against the header line, which only the first split carries. Headerless binds
-        // from the names alone, so it stays splittable.
-        return declaredPathBinding && options.headerRow();
+        // Headered + provenance-declared schema binds against the header line, which only the first split carries.
+        // Headerless binds from the names alone, so it stays splittable.
+        return declaredProvenanceBinding && options.headerRow();
     }
 
     /**
-     * Maps each position of a pinned (strict) schema to the raw field index it reads, so a declared {@code path}
-     * binds the same column it binds under {@code dynamic:true}. Returns {@code null} when no {@code path} was
-     * declared — the caller then keeps the positional contract, identity-mapped, byte-for-byte as before.
+     * Maps each position of a pinned declared schema to the raw field index it reads, so each declared column
+     * binds the file column it names regardless of its position. Returns {@code null} for a pinned inferred schema
+     * ({@link #declaredProvenanceBinding} is false) — the caller then keeps the positional contract.
      * <p>
      * Headerless files self-bind: the physical name IS the position ({@code col4} -> field 4), so no file content is
-     * needed and strict stays content-independent. Headered files bind against {@code headerFields}, which the caller
+     * needed and binding stays content-independent. Headered files bind against {@code headerFields}, which the caller
      * has already read off the file.
      *
      * @param headerFields the file's header names, or {@code null} for a headerless file
      */
-    private int[] declaredPathFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
-        if (declaredPathBinding == false || readSchema == null) {
+    private int[] declaredFieldIndexes(List<Attribute> readSchema, String[] headerFields, StorageObject object) {
+        if (declaredProvenanceBinding == false || readSchema == null) {
             return null;
         }
         int[] bound = new int[readSchema.size()];
@@ -968,7 +970,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (int i = 0; i < schemaFieldIndex.length; i++) {
             if (schemaFieldIndex[i] == ABSENT_FIELD) {
                 String name = readSchema.get(i).name();
-                warningSink.accept("declared column [" + name + "] is not present in some source files and reads null there");
+                warningSink.accept(SkipWarnings.absentDeclaredColumnMessage(name));
             }
         }
     }
@@ -1041,7 +1043,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canonicalConfig,
             directBlockEnabled,
             physicalNameToPattern,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 
@@ -1070,7 +1072,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             canon,
             result.directBlockEnabled,
             result.declaredDateFormats,
-            result.declaredPathBinding
+            result.declaredProvenanceBinding
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
@@ -1180,9 +1182,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
+        // Nested try/finally: sample bytes must be released even when wideningWindow collection throws.
+        // collectSampleRows self-releases its own bytes on failure, so only sample bytes need an
+        // outer guard here.
         try {
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
+            // Collect a widen window from rows beyond the initial sample (no offset tracking needed on
+            // the planning path). A second call on the same iterator is safe: collectSampleRows always
+            // exits with the iterator's pre-fetch slot null, so the new call picks up at the exact next row.
+            SchemaSample wideningWindow = collectSampleRows(
+                csvIterator,
+                options.commentPrefix(),
+                schemaSampleSize,
+                breaker,
+                effectivePolicy
+            );
+            try {
+                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+                List<Attribute> schema = CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
+                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
+            } finally {
+                breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
+            }
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -1193,11 +1213,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
-            if (sample.rows().isEmpty()) {
-                throw new IOException("CSV file has no data rows");
+            SchemaSample wideningWindow = collectSampleRows(
+                csvIterator,
+                options.commentPrefix(),
+                schemaSampleSize,
+                breaker,
+                effectivePolicy
+            );
+            try {
+                if (sample.rows().isEmpty()) {
+                    throw new IOException("CSV file has no data rows");
+                }
+                maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+                List<Attribute> schema = inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+                return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
+            } finally {
+                breaker.addWithoutBreaking(-wideningWindow.reservedBytes());
             }
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
         } finally {
             breaker.addWithoutBreaking(-sample.reservedBytes());
         }
@@ -1721,8 +1753,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
-        // Raw field index per declared column, or null for the positional contract. Set only when a path was
-        // declared; see declaredPathFieldIndexes.
+        // Raw field index per declared column, or null for the positional contract. Set when provenance is DECLARED;
+        // see declaredFieldIndexes.
         int[] schemaFieldIndex = null;
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -1736,7 +1768,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
-                // A declared (pinned) schema binds its columns to the header BY NAME (when declaredPathBinding), which
+                // A declared (pinned) schema binds its columns to the header BY NAME (when declaredProvenanceBinding), which
                 // consumes the header line — so it is read here, not skipped. Runs before ownership of the stream chain
                 // transfers to the returned iterator, so the reader must be closed here or the file handle leaks
                 // (caught by LeakFS in CI).
@@ -1751,11 +1783,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     throw e;
                 }
             }
-            if (options.headerRow() == false && declaredPathBinding) {
+            if (options.headerRow() == false && declaredProvenanceBinding) {
                 // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file
                 // content and runs on EVERY split — macro-splits past the first stay correctly bound.
-                schemaFieldIndex = declaredPathFieldIndexes(readSchema, null, object);
-            } else if (options.headerRow() && declaredPathBinding && context.firstSplit() == false) {
+                schemaFieldIndex = declaredFieldIndexes(readSchema, null, object);
+            } else if (options.headerRow() && declaredProvenanceBinding && context.firstSplit() == false) {
                 // This read does not own the file's start, so the header is not in front of it. Bind by name
                 // against the header columns whoever cut the file up read once and passed down. Without them
                 // there is no way to know what this chunk's fields are called, and binding by position would
@@ -1763,7 +1795,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 List<String> headerColumns = context.fileHeaderColumns();
                 if (headerColumns == null) {
                     throw new IllegalStateException(
-                        "headered path-bound read of ["
+                        "headered declared-provenance read of ["
                             + object.path()
                             + "] reached a non-first split without the file's header columns; cannot bind the declared "
                             + "schema by name"
@@ -1948,43 +1980,41 @@ public class CsvFormatReader implements SegmentableFormatReader {
             normalised[i] = headerNames[i] == null ? null : headerNames[i].trim();
         }
         rejectDuplicateHeaderNames(normalised, object);
-        return declaredPathFieldIndexes(readSchema, normalised, object);
+        return declaredFieldIndexes(readSchema, normalised, object);
     }
 
     /**
-     * Width tripwire for an externally-supplied (declared) positional schema against the file's actual header.
+     * Dispatches header-based binding for a pinned schema at the start of a headered file.
      *
-     * <p>A declared schema binds text columns <b>positionally</b>: the declared names replace the header's names in
-     * order (the same contract as DuckDB {@code columns=} / ClickHouse {@code structure}), so declared names are NOT
-     * cross-checked against header names — renaming by position is intended. What CAN be checked is width: a
-     * declaration WIDER than the file's header means the file cannot supply the declared columns (a drifted file, or
-     * the wrong file entirely) — fail loudly at the first read instead of null-splicing every row. Fewer declared
-     * columns than the header is allowed: the declaration binds the leading columns and the rest stay unread.
+     * <p>When {@link #declaredProvenanceBinding} is true the schema is a user <em>declaration</em>: its columns
+     * bind to the file <b>by name</b>. This routes to {@link #bindDeclaredToHeaderNames} and the width of the
+     * declaration relative to the file is irrelevant (naming one column of a hundred-column file is legitimate).
      *
-     * <p>When a {@code path} WAS declared ({@link #declaredPathBinding}), the declaration no longer binds
-     * positionally: it names its columns, so this returns the raw field index each declared column reads and the
-     * width tripwire does not apply (naming {@code col100} of a 105-column file is legitimate with 1 declared
-     * column). Returns {@code null} otherwise — the caller then keeps the positional contract.
+     * <p>When {@link #declaredProvenanceBinding} is false the schema is a <em>pinned inferred</em> schema (for
+     * example, a cached first-file schema being reused across a multi-file read). Binding is still positional, so
+     * a schema <em>wider</em> than the file's header is a signal that the file has drifted — fail loudly rather
+     * than null-splicing every row. A narrower schema leaves the trailing file columns unread.
      *
-     * @return the raw field index per {@code readSchema} position, or {@code null} for positional binding
+     * @return the raw field index per {@code readSchema} position (by-name binding), or {@code null} for
+     *         positional binding (pinned inferred schema whose width fits the file)
      */
     private int[] validateDeclaredHeaderBinding(String headerLine, List<Attribute> readSchema, StorageObject object) {
         if (headerLine == null) {
             return null; // empty file — nothing to validate, and nothing to read
         }
         String[] fields = splitFieldsForOptions(headerLine, options);
-        if (declaredPathBinding) {
+        if (declaredProvenanceBinding) {
             return bindDeclaredToHeaderNames(headerColumnNames(headerLine, fields), readSchema, object);
         }
         if (readSchema.size() > fields.length) {
             throw new IllegalArgumentException(
-                "declared schema has "
+                "pinned schema has "
                     + readSchema.size()
-                    + " columns but the header of ["
+                    + " columns but ["
                     + object.path()
-                    + "] has "
+                    + "] has only "
                     + fields.length
-                    + "; a declared schema binds text columns in order (for a headerless file set header_row=false)"
+                    + " — the file may have drifted (or set header_row=false if the file has no header row)"
             );
         }
         return null;
@@ -2916,24 +2946,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final SkipWarnings skipWarnings;
         private List<Attribute> schema;
         /**
-         * Raw field index per pinned-schema position, or {@code null} when the schema binds positionally (no
-         * {@code path} declared). Lets a declared {@code path} read the column it names rather than the column
-         * that happens to sit at its declaration position.
+         * Raw field index per pinned-schema position, or {@code null} when the schema binds positionally (provenance
+         * is not DECLARED). Lets a declared column read the column it names rather than the column that happens to sit
+         * at its declaration position.
          */
         @Nullable
         private final int[] schemaFieldIndex;
         private int[] projectedIdx;
         /**
-         * Widest row this schema accepts before it reads as drift. A positional declaration binds the file's leading
-         * columns 1:1, so a wider row means the file does not match the declaration — fail loudly. A declared
-         * {@code path} binds BY NAME, so a wider file is the intended case (declare 5 columns of a 105-column file)
-         * and only rows too narrow to hold a bound index matter — those the short-row handling already covers.
+         * Widest row this schema accepts before it reads as drift. A positional (inferred provenance) schema binds the
+         * file's leading columns 1:1, so a wider row means the file does not match the declaration — fail loudly. A
+         * declared-provenance schema binds BY NAME, so a wider file is the intended case (declare 5 columns of a
+         * 105-column file) and only rows too narrow to hold a bound index matter — those the short-row handling covers.
          */
         private int rowWidthLimit;
         /**
          * One past the widest raw field index any projected column binds — the addressable length of
-         * {@link #sourceToBufferIndex}. Equals the schema size under positional binding; a declared {@code path} can
-         * push it beyond that (bind {@code col100} of a 105-column file) or leave it short of the file's width.
+         * {@link #sourceToBufferIndex}. Equals the schema size under positional binding; a declared-provenance column
+         * can push it beyond that (bind {@code col100} of a 105-column file) or leave it short of the file's width.
          */
         private int sourceIndexBound;
         private DataType[] projectedTypes;
@@ -3888,14 +3918,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
-            prefetchedRows = sample.rows();
-            prefetchedRowsBytes = sample.reservedBytes();
-            prefetchedRowStartBytes = sample.rowStartBytes();
-            if (sample.recordCapDropped()) {
-                recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
-            }
+            SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
+            List<Attribute> schema = CsvSchemaInferrer.inferSchema(columnNames, sample.rows(), options.datetimeFormatter());
+            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
@@ -3914,14 +3940,64 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
                 return null;
             }
-            prefetchedRows = sample.rows();
-            prefetchedRowsBytes = sample.reservedBytes();
-            prefetchedRowStartBytes = sample.rowStartBytes();
-            if (sample.recordCapDropped()) {
+            SchemaSample wideningWindow = collectWideningWindowAndPrefetch(sample);
+            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
+            List<Attribute> schema = inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            return CsvSchemaInferrer.widenSchema(schema, wideningWindow.rows(), options.datetimeFormatter());
+        }
+
+        /**
+         * Collects the widening window from rows immediately following {@code sample}, sets up the combined
+         * prefetch state ({@code prefetchedRows}, {@code prefetchedRowStartBytes}, {@code prefetchedRowsBytes}),
+         * and returns the window for use in schema widening.
+         * <p>
+         * {@code prefetchedRowsBytes} is assigned before any heap allocations in the non-empty branch so that
+         * {@link #closeInternal()} can release the correct byte total even if a subsequent allocation throws.
+         * <p>
+         * On failure, releases {@code sample.reservedBytes()} from the circuit breaker and re-throws.
+         */
+        private SchemaSample collectWideningWindowAndPrefetch(SchemaSample sample) throws IOException {
+            final SchemaSample wideningWindow;
+            try {
+                routeCsvIterator(newCsvIterator(recordReader), true);
+                wideningWindow = collectSampleRows(
+                    csvIterator,
+                    options.commentPrefix(),
+                    schemaSampleSize,
+                    blockFactory.breaker(),
+                    errorPolicy,
+                    recordReader,
+                    splitStartByte
+                );
+                clearCsvIterator();
+            } catch (Exception | Error t) {
+                clearCsvIterator();
+                blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
+                throw t;
+            }
+            if (sample.recordCapDropped() || wideningWindow.recordCapDropped()) {
                 recordCapDropped = true; // cap-determined survivor loss during sampling — publish must safe-miss
             }
-            maybeHintUndecodedNullMarker(sample.rows(), sourceLocation);
-            return inferSyntheticSchema(sample.rows(), options.columnPrefix(), options.datetimeFormatter());
+            if (wideningWindow.rows().isEmpty()) {
+                prefetchedRows = sample.rows();
+                prefetchedRowStartBytes = sample.rowStartBytes();
+                prefetchedRowsBytes = sample.reservedBytes();
+            } else {
+                // Set prefetchedRowsBytes first so closeInternal() releases the right total
+                // even if the ArrayList or array allocation below throws OOM.
+                prefetchedRowsBytes = sample.reservedBytes() + wideningWindow.reservedBytes();
+                List<String[]> allRows = new ArrayList<>(sample.rows().size() + wideningWindow.rows().size());
+                allRows.addAll(sample.rows());
+                allRows.addAll(wideningWindow.rows());
+                long[] so = sample.rowStartBytes();
+                long[] wo = wideningWindow.rowStartBytes();
+                long[] allOffsets = new long[so.length + wo.length];
+                System.arraycopy(so, 0, allOffsets, 0, so.length);
+                System.arraycopy(wo, 0, allOffsets, so.length, wo.length);
+                prefetchedRows = allRows;
+                prefetchedRowStartBytes = allOffsets;
+            }
+            return wideningWindow;
         }
 
         /** The raw field index a pinned-schema position reads; the identity under positional binding. */
@@ -4856,14 +4932,93 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directRecFrom = from;
             directRecTo = to;
             if (directBlockQuoted) {
-                try {
-                    return splitAndConvertQuoted(buf, from, to);
-                } catch (MalformedRowException e) {
-                    onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
-                    return false;
-                }
+                return splitAndConvertOptimisticQuoted(buf, from, to);
             }
             return splitAndConvertPlain(buf, from, to);
+        }
+
+        /**
+         * Single-pass optimistic dispatcher for the quoted-dialect direct path. Walks
+         * {@code [from, to)} with the same delimiter scan as {@link #splitAndConvertPlain},
+         * but concurrently watches for two signals that mandate the full quoted walker:
+         * <ul>
+         *   <li>a {@link CsvFormatOptions#quoteChar()} at field-start (after optional outer
+         *       whitespace, matching {@link #splitAndConvertQuoted}'s field-open rule), and
+         *   <li>a {@link CsvFormatOptions#escapeChar()} anywhere in an unquoted field (when
+         *       {@link CsvFormatOptions#escaping()} is active).
+         * </ul>
+         * On either detection the whole row is handed off to {@link #splitAndConvertQuoted}.
+         * Staging slots already written for earlier fields in the same row are plain array
+         * cells that the restart overwrites with identical values — safe and correct.
+         * <p>
+         * In the common case (no quotes, no escapes) this is a single pass over the record
+         * buffer, avoiding the extra pre-scan pass that the prior two-step approach required.
+         */
+        private boolean splitAndConvertOptimisticQuoted(char[] buf, int from, int to) {
+            final char delim = options.delimiter();
+            final char quote = options.quoteChar();
+            final boolean escaping = options.escaping();
+            final char esc = escaping ? options.escapeChar() : 0;
+
+            int fieldIndex = 0;
+            int fieldStart = from;
+            for (int i = from; i <= to; i++) {
+                if (i < to && buf[i] != delim) {
+                    if (escaping && buf[i] == esc) {
+                        // Escape char mid-field: hand off the whole row to the full quoted walker.
+                        try {
+                            return splitAndConvertQuoted(buf, from, to);
+                        } catch (MalformedRowException e) {
+                            onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                            return false;
+                        }
+                    }
+                    continue;
+                }
+                // Field boundary: end-of-record (i == to) or delimiter.
+                // Skip outer whitespace to locate a potential field-leading quote,
+                // matching splitAndConvertQuoted's field-open detection rule.
+                int p = fieldStart;
+                while (p < i && buf[p] <= ' ' && buf[p] != delim) {
+                    p++;
+                }
+                if (p < i && buf[p] == quote) {
+                    // Field-leading quote: hand off the whole row to the full quoted walker.
+                    try {
+                        return splitAndConvertQuoted(buf, from, to);
+                    } catch (MalformedRowException e) {
+                        onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
+                        return false;
+                    }
+                }
+                // No special chars detected: emit field directly, same as splitAndConvertPlain.
+                if (fieldIndex < sourceIndexBound && projectedFieldSet.get(fieldIndex)) {
+                    int bufIdx = sourceToBufferIndex[fieldIndex];
+                    if (emitPlainField(buf, fieldStart, i, bufIdx, projectedTypes[bufIdx]) == false) {
+                        return false;
+                    }
+                } else if (checkUnprojectedFieldCap(buf, fieldStart, i) == false) {
+                    return false;
+                }
+                fieldIndex++;
+                fieldStart = i + 1;
+            }
+            int totalFields = fieldIndex;
+            if (totalFields > rowWidthLimit) {
+                onRowError(
+                    "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
+                    null,
+                    directRawLine(),
+                    true
+                );
+                return false;
+            }
+            for (int c = 0; c < columnCount; c++) {
+                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
+                    stageNullValue(c);
+                }
+            }
+            return true;
         }
 
         /** Lazily materializes the current direct-path record as a String, for cold error/warning paths only. */

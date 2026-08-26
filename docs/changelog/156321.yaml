@@ -1,0 +1,17 @@
+area: Distributed
+deprecation:
+  area: Index setting
+  details: |-
+    The `index.number_of_routing_shards` setting is deprecated. It no longer affects document
+    routing for indices created in Elasticsearch 9.4.0 and later, which use
+    `hash(_routing) % number_of_shards`. The setting remains relevant for splitting indices
+    and for indices that still use the legacy routing function.
+  impact: |-
+    Specifying `index.number_of_routing_shards` when creating an index emits a deprecation
+    warning. Prefer omitting the setting for new indices; document routing no longer depends
+    on it when the index uses the modulo routing function.
+  title: Deprecate the `index.number_of_routing_shards` setting
+issues: []
+pr: 156321
+summary: Deprecate the `index.number_of_routing_shards` setting. It no longer affects document routing for indices created in Elasticsearch 9.4.0 and later.
+type: deprecation

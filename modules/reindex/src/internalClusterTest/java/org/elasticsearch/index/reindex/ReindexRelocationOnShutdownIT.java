@@ -300,7 +300,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
             .setRequestsPerSecond(requestsPerSecond);
-        request.getSearchRequest().source().size(1);
+        request.getSearchRequest().source().size(numDocs / 60); // Reindex should take ~60 requests
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();

@@ -685,8 +685,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 if (request.hasRecentIdLookup) {
                     try {
                         indexShard.withEngine(engine -> {
-                            assert engine instanceof IndexEngine : engine.getClass();
-                            ((IndexEngine) engine).prewarmIdLookups();
+                            if (engine instanceof IndexEngine indexEngine) {
+                                indexEngine.prewarmIdLookups();
+                            }
                             return null;
                         });
                     } catch (Exception e) {

@@ -93,6 +93,7 @@ public class ComputeListenerTests extends ESTestCase {
             ),
             java.util.Map.of(),
             randomBoolean(),
+            randomBoolean(),
             new LinkedHashSet<>(randomList(0, 2, () -> randomAlphaOfLengthBetween(1, 64)))
         );
     }

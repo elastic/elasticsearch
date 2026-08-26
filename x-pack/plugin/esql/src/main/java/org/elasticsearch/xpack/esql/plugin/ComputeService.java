@@ -1413,6 +1413,7 @@ public class ComputeService {
             );
             PhysicalPlan localPlan;
             final String logicalPlanString;
+            final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
                 context.searchExecutionContexts().iterable().forEach(localContexts::add);
@@ -1429,6 +1430,7 @@ public class ComputeService {
                         planTimeProfile
                     );
                     logicalPlanString = null;
+                    approximationApplied = false;
                 } else {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
@@ -1441,10 +1443,13 @@ public class ComputeService {
                     );
                     localPlan = localPlanResult.physicalPlan();
                     logicalPlanString = localPlanResult.logicalPlanString();
+                    // TODO: detect whether approximation was applied.
+                    approximationApplied = false;
                 }
             } else {
                 localPlan = plan;
                 logicalPlanString = null;
+                approximationApplied = false;
             }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
@@ -1521,7 +1526,8 @@ public class ComputeService {
                 localPlan,
                 logicalPlanString,
                 planTimeProfile,
-                planningBytesRead
+                planningBytesRead,
+                approximationApplied
             );
             driverRunner.executeDrivers(
                 task,
@@ -1552,7 +1558,8 @@ public class ComputeService {
         PhysicalPlan localPlan,
         String logicalPlanString,
         PlanTimeProfile planTimeProfile,
-        long planningBytesRead
+        long planningBytesRead,
+        boolean approximated
     ) {
         /*
          * We *really* don't want to close over the localPlan because it can
@@ -1570,7 +1577,8 @@ public class ComputeService {
                     planString,
                     logicalPlanString,
                     planTimeProfile,
-                    planningBytesRead
+                    planningBytesRead,
+                    approximated
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {
@@ -1583,7 +1591,7 @@ public class ComputeService {
                 }
             }
 
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
         });
     }
 

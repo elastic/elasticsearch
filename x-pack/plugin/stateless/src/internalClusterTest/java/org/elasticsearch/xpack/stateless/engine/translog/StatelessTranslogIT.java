@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.stateless.engine.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -847,7 +847,7 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     private static Settings batchIndexingNodeSettings() {
-        return Settings.builder().put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true).build();
+        return Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true).build();
     }
 
     private String createBatchIndex() {

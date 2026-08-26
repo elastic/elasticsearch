@@ -169,12 +169,12 @@ final class PreloadedRowGroupMetadata implements Releasable {
         Set<String> predicateColumnPaths,
         CircuitBreaker breaker
     ) {
-        return preload(reader, storageObject, predicateColumnPaths, null, null, breaker);
+        return preload(reader, storageObject, predicateColumnPaths, null, null, Integer.MAX_VALUE, breaker);
     }
 
     /**
-     * Variant that additionally restricts which columns contribute ColumnIndex and OffsetIndex
-     * byte-range fetches. The page indexes are only consumed by a subset of plans:
+     * Restricts which columns contribute ColumnIndex and OffsetIndex byte-range fetches. The page
+     * indexes are only consumed by a subset of plans:
      * <ul>
      *   <li>ColumnIndex: predicate columns (page-level {@code RowRanges} computation) and the
      *       dynamic-threshold / top-N sort column (page skipping).</li>
@@ -188,26 +188,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
      * <p>A {@code null} set means "unrestricted" — fetch the index for every column. This preserves
      * the legacy behavior for callers (and tests) that cannot enumerate the consuming columns.
      *
+     * <p>{@code offsetIndexRowGroupLimit} caps OffsetIndex fetches to the first K row groups.
+     * ColumnIndex and dictionary/bloom pre-warm ranges are not capped. {@code Integer.MAX_VALUE}
+     * (or any value {@code >=} the block count) is "all groups".
+     *
      * @param columnIndexPaths dot-string paths of columns whose ColumnIndex should be fetched, or
      *            {@code null} to fetch for all columns
      * @param offsetIndexPaths dot-string paths of columns whose OffsetIndex should be fetched, or
      *            {@code null} to fetch for all columns
-     */
-    static PreloadedRowGroupMetadata preload(
-        ParquetFileReader reader,
-        StorageObject storageObject,
-        Set<String> predicateColumnPaths,
-        Set<String> columnIndexPaths,
-        Set<String> offsetIndexPaths,
-        CircuitBreaker breaker
-    ) {
-        return preload(reader, storageObject, predicateColumnPaths, columnIndexPaths, offsetIndexPaths, Integer.MAX_VALUE, breaker);
-    }
-
-    /**
-     * As {@link #preload(ParquetFileReader, StorageObject, Set, Set, Set, CircuitBreaker)}, plus a
-     * row-group cap on OffsetIndex fetches. ColumnIndex and dictionary/bloom pre-warm ranges are
-     * not capped. {@code Integer.MAX_VALUE} (or any value {@code >=} the block count) is "all groups".
      */
     static PreloadedRowGroupMetadata preload(
         ParquetFileReader reader,
@@ -463,7 +451,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
 
     /**
      * Sequential fallback using {@link ParquetFileReader}'s built-in methods. Honors the same
-     * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}.
+     * column-path and OffsetIndex row-group cap as {@link #preloadCoalesced}. Intentional: a
+     * coalesced-preload failure must not silently re-fetch every page index (that used to undo
+     * {@code computeIndexColumnPaths} gating, including the full-scan zero-index-GET path).
      */
     private static PreloadedRowGroupMetadata preloadSequential(
         ParquetFileReader reader,

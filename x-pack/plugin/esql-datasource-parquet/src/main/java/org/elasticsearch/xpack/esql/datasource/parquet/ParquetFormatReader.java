@@ -1655,6 +1655,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 reader,
                 context.projectedColumns(),
                 context.batchSize(),
+                // Same remaining budget the whole-file path already threads into count-only,
+                // baseline, and optimized iterators. Previously hard-coded NO_LIMIT so a range
+                // split could over-read and the producer discarded surplus. The value is
+                // state.rowsRemaining, so truncation here is equivalent and lets the optimized
+                // path stop unread groups/pages.
                 context.rowLimit(),
                 context.resolvedAttributes(),
                 // The deferred extractor scopes itself to the file's full footer rather than the
@@ -2036,32 +2041,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * dynamic-threshold sort column, or for unfiltered {@code LIMIT} (OffsetIndex on projected
      * columns so the first-window prefix can skip unread pages). Returns {@code null} sets
      * (unrestricted, legacy behavior) when a filter is active but its predicate columns can't be
-     * enumerated ({@code predicateColumnPaths == null}).
+     * enumerated ({@code predicateColumnPaths == null}). {@code unfilteredLimitBudget} is the
+     * unfiltered-LIMIT row budget; callers must pass {@link FormatReader#NO_LIMIT} for filtered,
+     * late-mat, and TopN limits so this does not fetch OffsetIndex bytes nothing reads.
      */
     static IndexColumnPaths computeIndexColumnPaths(
         boolean filteringRequired,
         boolean pageRangeFilterActive,
         Set<String> predicateColumnPaths,
         String thresholdColumn,
-        MessageType projectedSchema
-    ) {
-        return computeIndexColumnPaths(
-            filteringRequired,
-            pageRangeFilterActive,
-            predicateColumnPaths,
-            thresholdColumn,
-            projectedSchema,
-            NO_LIMIT
-        );
-    }
-
-    static IndexColumnPaths computeIndexColumnPaths(
-        boolean filteringRequired,
-        boolean pageRangeFilterActive,
-        Set<String> predicateColumnPaths,
-        String thresholdColumn,
         MessageType projectedSchema,
-        int rowLimit
+        int unfilteredLimitBudget
     ) {
         if (filteringRequired && predicateColumnPaths == null) {
             return new IndexColumnPaths(null, null);
@@ -2076,13 +2066,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             columnIndexPaths.add(thresholdColumn);
             offsetIndexPaths.add(thresholdColumn);
         }
-        if (pageRangeFilterActive) {
-            for (ColumnDescriptor descriptor : projectedSchema.getColumns()) {
-                offsetIndexPaths.add(String.join(".", descriptor.getPath()));
-            }
-        } else if (rowLimit != NO_LIMIT) {
-            // Unfiltered LIMIT: OffsetIndex only (ColumnIndex min/max is unused). The row-group
-            // cap is applied at preload time; this only names the projected columns.
+        // Unfiltered LIMIT: OffsetIndex only (ColumnIndex min/max is unused). The caller must
+        // pass NO_LIMIT when the budget is a filtered / late-mat / TopN limit — those paths
+        // must not fetch OffsetIndex bytes nothing reads. The row-group cap is applied at
+        // preload time; this only names the projected columns.
+        if (pageRangeFilterActive || unfilteredLimitBudget != NO_LIMIT) {
             for (ColumnDescriptor descriptor : projectedSchema.getColumns()) {
                 offsetIndexPaths.add(String.join(".", descriptor.getPath()));
             }

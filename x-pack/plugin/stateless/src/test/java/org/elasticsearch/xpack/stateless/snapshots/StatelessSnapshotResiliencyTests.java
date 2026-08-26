@@ -235,8 +235,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 // Schedule a task immediately if the delay is within 10ms. A current known case for this is to schedule
                 // translog upload right away so that indexing operations, which wait for translog upload, can complete
                 // with `runAllRunnableTasks` without advancing time.
-                // Exception: when monotonic snapshot end times are enabled, SnapshotFinalization reschedules itself by
-                // 1ms to wait for the clock to advance; collapsing that delay to zero would cause an infinite spin loop.
+                // Exception: in case wall clock time moves back, SnapshotFinalization reschedules itself to wait for the clock to advance
+                // so snapshots don't look as if they finished into the future. Collapsing that delay to zero causes an infinite spin loop.
                 final boolean isSnapshotFinalization = command.getClass()
                     .getName()
                     .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");

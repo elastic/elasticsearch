@@ -940,8 +940,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             // Compute the snapshot end time. When SNAPSHOT_MONOTONIC_END_TIME_SETTING is enabled, the end time is guaranteed
             // to be strictly greater than every previously recorded snapshot end time in the repository.
-            // If the required end time is in the future (i.e. a previous snapshot ended during the same millisecond),
-            // this task reschedules itself until the clock catches up.
+            // Moreover, if the required end time is in the future, this task reschedules itself until the clock catches up.
             final long endTimeMillis;
             if (monotonicEndTime) {
                 final long prevMaxEndTime = repositoryData.getSnapshotIds()

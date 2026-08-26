@@ -129,8 +129,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     protected TestClusterNodes testClusterNodes;
 
-    protected final boolean monotonicSnapshotEndTime = randomBoolean();
-
     protected Path tempDir;
 
     @Before
@@ -488,8 +486,50 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    public void testSnapshotEndTimesAreUnique() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, true);
+
+        final String repoName = "repo";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 3);
+        final int numSnapshots = randomIntBetween(2, 5);
+
+        final TestClusterNodes.TestClusterNode masterNode = testClusterNodes.currentMaster(
+            testClusterNodes.nodes().values().iterator().next().clusterService().state()
+        );
+
+        // Queue all snapshots concurrently so they all compete for finalization at the same simulated millisecond.
+        final var allSnapshotsDone = new SubscribableListener<Collection<CreateSnapshotResponse>>();
+        final var groupListener = new GroupedActionListener<>(numSnapshots, allSnapshotsDone);
+        continueOrDie(createRepoAndIndex(repoName, index, shards), ignored -> {
+            for (int i = 0; i < numSnapshots; i++) {
+                client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-" + i)
+                    .setWaitForCompletion(true)
+                    .execute(groupListener);
+            }
+        });
+
+        // advance time to let all snapshots finalize with strictly monotonically increasing times
+        deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + numSnapshots - 1);
+
+        assertTrue(allSnapshotsDone.isDone());
+
+        final Repository repository = masterNode.repositoriesService().repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        assertThat(repositoryData.getSnapshotIds(), hasSize(numSnapshots));
+
+        final Set<Long> endTimes = repositoryData.getSnapshotIds()
+            .stream()
+            .map(id -> getSnapshotInfo(repository, id).endTime())
+            .collect(Collectors.toSet());
+        assertThat("all snapshot end times must be distinct", endTimes, hasSize(numSnapshots));
+    }
+
     public void testConcurrentSnapshotCreateAndDeleteOther() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -568,7 +608,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testBulkSnapshotDeleteWithAbort() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -630,7 +671,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testConcurrentSnapshotRestoreAndDeleteOther() {
-        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10), ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
 
         String repoName = "repo";
         String snapshotName = "snapshot";
@@ -1259,7 +1301,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         };
 
-        setupTestCluster(1, 1, node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        final boolean monotonicSnapshotEndTime = randomBoolean();
+        setupTestCluster(1, 1, node -> node.isMasterNode() ? throttlingInterceptor : TransportService.NOOP_TRANSPORT_INTERCEPTOR, monotonicSnapshotEndTime);
 
         final var masterNode = testClusterNodes.randomMasterNodeSafe();
         final var client = masterNode.client();
@@ -1424,11 +1467,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
     public void testDeleteIndexBetweenSuccessAndFinalization() {
 
         final var sequencer = new ShardSnapshotUpdatesSequencer();
-
+        final boolean monotonicSnapshotEndTime = randomBoolean();
         setupTestCluster(
             1,
             1,
-            node -> node.isMasterNode() ? sequencer.newTransportInterceptor() : TransportService.NOOP_TRANSPORT_INTERCEPTOR
+            node -> node.isMasterNode() ? sequencer.newTransportInterceptor() : TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            monotonicSnapshotEndTime
         );
 
         final var masterNode = testClusterNodes.randomMasterNodeSafe();
@@ -2028,10 +2072,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     protected void setupTestCluster(int masterNodes, int dataNodes) {
-        setupTestCluster(masterNodes, dataNodes, ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR);
+        setupTestCluster(masterNodes, dataNodes, ignored -> TransportService.NOOP_TRANSPORT_INTERCEPTOR, randomBoolean());
     }
 
     protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+        setupTestCluster(masterNodes, dataNodes, transportInterceptorFactory, randomBoolean());
+    }
+
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new TestClusterNodes(
             masterNodes,
             dataNodes,

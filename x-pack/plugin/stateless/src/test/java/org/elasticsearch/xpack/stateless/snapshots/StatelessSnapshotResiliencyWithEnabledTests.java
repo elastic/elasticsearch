@@ -15,7 +15,12 @@ import org.elasticsearch.snapshots.SnapshotsService;
 public class StatelessSnapshotResiliencyWithEnabledTests extends StatelessSnapshotResiliencyTests {
 
     @Override
-    protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new StatelessNodes(
             masterNodes,
             dataNodes,

@@ -205,12 +205,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             ThreadPool.Names.REFRESH
         );
 
-        private final boolean monotonicSnapshotEndTime;
-
-        StatelessDeterministicTaskQueue(boolean monotonicSnapshotEndTime) {
-            this.monotonicSnapshotEndTime = monotonicSnapshotEndTime;
-        }
-
         @Override
         public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
             return new StatelessDeterministicThreadPool(runnableWrapper);
@@ -247,7 +241,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     .getName()
                     .equals(SnapshotsService.class.getName() + "$SnapshotFinalization");
                 final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0
-                    && (monotonicSnapshotEndTime == false || isSnapshotFinalization == false) ? TimeValue.ZERO : delay;
+                    && isSnapshotFinalization == false ? TimeValue.ZERO : delay;
                 return super.schedule(command, actualDelay, executor);
             }
         }
@@ -255,7 +249,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
     @Override
     protected DeterministicTaskQueue createDeterministicTaskQueue() {
-        return new StatelessDeterministicTaskQueue(monotonicSnapshotEndTime);
+        return new StatelessDeterministicTaskQueue();
     }
 
     @Override
@@ -278,7 +272,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
     }
 
     @Override
-    protected void setupTestCluster(int masterNodes, int dataNodes, TransportInterceptorFactory transportInterceptorFactory) {
+    protected void setupTestCluster(
+        int masterNodes,
+        int dataNodes,
+        TransportInterceptorFactory transportInterceptorFactory,
+        boolean monotonicSnapshotEndTime
+    ) {
         testClusterNodes = new StatelessNodes(
             masterNodes,
             dataNodes,

@@ -543,6 +543,15 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
+     * Whether the effective user is a service account created through the service account management APIs, as opposed
+     * to one of the built-in {@code elastic/*} accounts. The two differ in how their privileges are resolved, so
+     * anything that reads a service account's authorization has to distinguish them.
+     */
+    public boolean isUserManagedServiceAccount() {
+        return effectiveSubject.isUserManagedServiceAccount();
+    }
+
+    /**
      * Whether the effective user is an API key, this including a simple API key authentication
      * or a token created by the API key.
      */
@@ -1037,7 +1046,13 @@ public final class Authentication implements ToXContentObject {
         checkNoInternalUser(authenticatingSubject, "Token");
         if (Subject.Type.SERVICE_ACCOUNT == authenticatingSubject.getType()) {
             checkNoDomain(authenticatingRealm, "Service account");
-            checkNoRole(authenticatingSubject, "Service account");
+            checkBuiltInNamespaceNotUserManaged(authenticatingSubject);
+            // A built-in account is authorized from a role descriptor fixed by the account definition, so role names on
+            // its user would never be read and their presence means the authentication is malformed. A user-managed
+            // account is authorized from exactly those names, so it is the sole case where they must be carried.
+            if (false == authenticatingSubject.isUserManagedServiceAccount()) {
+                checkNoRole(authenticatingSubject, "Service account");
+            }
             checkNoRunAs(this, "Service account");
         } else {
             if (Subject.Type.API_KEY == authenticatingSubject.getType()) {
@@ -1102,6 +1117,20 @@ public final class Authentication implements ToXContentObject {
     private static void checkNoDomain(RealmRef realm, String prefixMessage) {
         if (realm.getDomain() != null) {
             throw new IllegalArgumentException(prefixMessage + " authentication cannot have domain");
+        }
+    }
+
+    /**
+     * The reserved {@code elastic} namespace is closed to user-managed accounts, so a principal can only ever name one
+     * kind of service account. Rejecting the contradiction here means the role exemption above does not have to rest on
+     * the account management APIs upholding that from a distance.
+     */
+    private static void checkBuiltInNamespaceNotUserManaged(Subject subject) {
+        final String principal = subject.getUser().principal();
+        if (principal.startsWith(ServiceAccountSettings.BUILTIN_NAMESPACE + "/") && subject.isUserManagedServiceAccount()) {
+            throw new IllegalArgumentException(
+                Strings.format("Service account authentication for built-in account [%s] cannot be user-managed", principal)
+            );
         }
     }
 

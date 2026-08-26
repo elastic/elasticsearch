@@ -13,17 +13,20 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
@@ -45,16 +48,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.pooled;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestOpTypeFromString() throws Exception {
@@ -520,6 +526,30 @@ public class IndexRequestTests extends ESTestCase {
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    public void testRetainSourceRefDelegatesToIndexSource() {
+        final IndexRequest unpooled = new IndexRequest(randomAlphaOfLength(10)).source(
+            Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5))
+        );
+        assertThat(unpooled.retainSourceRef(), nullValue());
+
+        final AtomicInteger releases = new AtomicInteger();
+        final ReleasableBytesReference pooled = pooled(new BytesArray("{\"field\":\"" + randomAlphaOfLength(20) + "\"}"), releases);
+        final IndexRequest request = new IndexRequest(randomAlphaOfLength(10));
+        request.source(pooled, XContentType.JSON);
+
+        final Releasable retained = request.retainSourceRef();
+        assertThat(retained, notNullValue());
+
+        pooled.decRef();
+        assertTrue("the request's retention has to outlive the owner's release", pooled.hasReferences());
+        retained.close();
+        assertThat(releases.get(), equalTo(1));
+    }
+
+    public void testDeleteRequestCarriesNoSourceToRetain() {
+        assertThat(new DeleteRequest(randomAlphaOfLength(10), randomAlphaOfLength(5)).retainSourceRef(), nullValue());
     }
 
     public void testSerialization() throws IOException {

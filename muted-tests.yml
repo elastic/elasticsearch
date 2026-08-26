@@ -256,18 +256,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlOldCoordinatorSpecDateRangeIT
   method: test {csv-spec:date_range.rangeWithinPointMultiValueSomeMatch}
   issue: https://github.com/elastic/elasticsearch/issues/152267
-- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
-  method: testCancelAllReindexTasksByActionWithMixedRelocationState
-  issue: https://github.com/elastic/elasticsearch/issues/152291
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/152311
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/152914
-- class: org.elasticsearch.reindex.management.ReindexCancelRelocationIT
-  method: testCancelReindexCancelsRelocatedTaskByOriginalTaskId
-  issue: https://github.com/elastic/elasticsearch/issues/152925
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromRightSideWhenNotKept}
   issue: https://github.com/elastic/elasticsearch/issues/153046
@@ -701,9 +695,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/ml_standard_analyze/Test analyze API with the standard 7.16 ML analyzer}
   issue: https://github.com/elastic/elasticsearch/issues/156878
-- class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
-  method: testDoubleRelocationWithManagementEndpoints
-  issue: https://github.com/elastic/elasticsearch/issues/156929
 - class: org.elasticsearch.entitlement.qa.EntitlementAgentAttachLoggingIT
   method: testEntitlementAgentAttachLineIsLogged
   issue: https://github.com/elastic/elasticsearch/issues/156950

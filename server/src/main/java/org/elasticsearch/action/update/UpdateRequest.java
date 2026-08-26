@@ -29,6 +29,8 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -576,6 +578,16 @@ public class UpdateRequest extends UntypedActionRequest
 
     public IndexRequest doc() {
         return this.doc;
+    }
+
+    @Override
+    public @Nullable Releasable retainSourceRef() {
+        final Releasable docRef = doc == null ? null : doc.retainSourceRef();
+        final Releasable upsertRef = upsertRequest == null ? null : upsertRequest.retainSourceRef();
+        if (docRef == null) {
+            return upsertRef;
+        }
+        return upsertRef == null ? docRef : Releasables.wrap(docRef, upsertRef);
     }
 
     private IndexRequest safeDoc() {

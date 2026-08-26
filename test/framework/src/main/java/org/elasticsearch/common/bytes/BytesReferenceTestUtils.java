@@ -18,9 +18,15 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public enum BytesReferenceTestUtils {
     ;
+
+    /// [ReleasableBytesReference] that increments `releases` when it's released.
+    public static ReleasableBytesReference pooled(BytesReference bytes, AtomicInteger releases) {
+        return new ReleasableBytesReference(bytes, releases::incrementAndGet);
+    }
 
     /**
      * Like {@link Matchers#equalTo} except it reports the contents of the respective {@link BytesReference} instances on mismatch.

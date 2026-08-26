@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -446,6 +447,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     public IndexSource indexSource() {
         return indexSource;
+    }
+
+    @Override
+    public @Nullable Releasable retainSourceRef() {
+        return indexSource.retainSourceRef();
     }
 
     /**

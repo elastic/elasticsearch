@@ -17,10 +17,12 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.get.GetResult;
@@ -49,9 +51,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.pooled;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
@@ -719,6 +723,64 @@ public class UpdateRequestTests extends ESTestCase {
                 update {[test][1], doc_as_upsert[false], doc[index {[null][null], source[{"body":"bar"}]}], \
                 scripted_upsert[false], detect_noop[true]}"""));
         }
+    }
+
+    public void testNothingToRetainWithoutDocOrUpsert() {
+        assertThat(new UpdateRequest(randomAlphaOfLength(10), randomAlphaOfLength(5)).retainSourceRef(), nullValue());
+
+        final UpdateRequest unpooled = new UpdateRequest(randomAlphaOfLength(10), randomAlphaOfLength(5)).doc(
+            Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5))
+        ).upsert(Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        assertThat(unpooled.retainSourceRef(), nullValue());
+    }
+
+    /// Which of the two inner requests the primary reads depends on whether the document already exists, so both have to be retained.
+    public void testRetainsBothDocAndUpsertSources() {
+        final AtomicInteger docReleases = new AtomicInteger();
+        final AtomicInteger upsertReleases = new AtomicInteger();
+        final ReleasableBytesReference pooledDoc = pooledSource(docReleases);
+        final ReleasableBytesReference pooledUpsert = pooledSource(upsertReleases);
+
+        final UpdateRequest request = new UpdateRequest(randomAlphaOfLength(10), randomAlphaOfLength(5)).doc(pooledDoc, XContentType.JSON)
+            .upsert(pooledUpsert, XContentType.JSON);
+
+        final Releasable retained = request.retainSourceRef();
+        assertThat(retained, notNullValue());
+
+        pooledDoc.decRef();
+        pooledUpsert.decRef();
+        assertTrue(pooledDoc.hasReferences());
+        assertTrue(pooledUpsert.hasReferences());
+
+        retained.close();
+        assertThat(docReleases.get(), equalTo(1));
+        assertThat(upsertReleases.get(), equalTo(1));
+    }
+
+    public void testRetainsOnlyThePooledInnerRequest() {
+        final AtomicInteger releases = new AtomicInteger();
+        final ReleasableBytesReference pooled = pooledSource(releases);
+        final Map<String, Object> unpooled = Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5));
+
+        final boolean pooledIsDoc = randomBoolean();
+        final UpdateRequest request = new UpdateRequest(randomAlphaOfLength(10), randomAlphaOfLength(5));
+        if (pooledIsDoc) {
+            request.doc(pooled, XContentType.JSON).upsert(unpooled);
+        } else {
+            request.doc(unpooled).upsert(pooled, XContentType.JSON);
+        }
+
+        final Releasable retained = request.retainSourceRef();
+        assertThat(retained, notNullValue());
+
+        pooled.decRef();
+        assertTrue(pooled.hasReferences());
+        retained.close();
+        assertThat(releases.get(), equalTo(1));
+    }
+
+    private static ReleasableBytesReference pooledSource(AtomicInteger releases) {
+        return pooled(new BytesArray("{\"field\":\"" + randomAlphaOfLength(20) + "\"}"), releases);
     }
 
     private static IndexShard createMockIndexShard(ShardId shardId) {

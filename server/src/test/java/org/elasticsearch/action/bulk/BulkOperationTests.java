@@ -22,7 +22,9 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -49,12 +51,16 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,11 +68,13 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,9 +87,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.pooled;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -356,6 +367,140 @@ public class BulkOperationTests extends ESTestCase {
             .orElseThrow(() -> new AssertionError("Could not find failed item"));
         assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getMessage(), is(equalTo("test")));
+    }
+
+    public void testCancelledDispatchKeepsPooledSourceAliveForInFlightWrite() throws Exception {
+        final AtomicInteger releasesForDoc1 = new AtomicInteger();
+        final AtomicInteger releasesForDoc3 = new AtomicInteger();
+        // Documents 1 and 3 hash to different shards of the two shard test index
+        final Map<String, ReleasableBytesReference> sourcesById = Map.of(
+            "1",
+            pooledSource(releasesForDoc1),
+            "3",
+            pooledSource(releasesForDoc3)
+        );
+        final Map<String, AtomicInteger> releasesById = Map.of("1", releasesForDoc1, "3", releasesForDoc3);
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        sourcesById.forEach((id, source) -> bulkRequest.add(new IndexRequest(indexName).id(id).source(source, XContentType.JSON)));
+
+        final CountDownLatch shardWriteStarted = new CountDownLatch(1);
+        final CountDownLatch continueShardWrite = new CountDownLatch(1);
+        final AtomicReference<BulkShardRequest> parkedShardRequest = new AtomicReference<>();
+        final Executor writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
+        final NodeClient client = throwingAfterFirstShardNodeClient((request, listener) -> {
+            parkedShardRequest.set(request);
+            goAsyncAndWait(writeExecutor, shardWriteStarted, continueShardWrite, acceptAllShardWrites()).accept(request, listener);
+        }, () -> new TaskCancelledException("parent task was cancelled [by user request]"));
+
+        final PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        final Releasable callerRefs = Releasables.wrap(sourcesById.values());
+        newBulkOperation(client, bulkRequest, ActionListener.releaseBefore(callerRefs, ActionListener.assertOnce(future))).run();
+
+        TaskCancelledException cancellation = expectThrows(TaskCancelledException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
+        assertThat(cancellation.getMessage(), equalTo("parent task was cancelled [by user request]"));
+
+        String parkedId;
+        try {
+            safeAwait(shardWriteStarted);
+            parkedId = parkedShardRequest.get().items()[0].request().id();
+            assertTrue(
+                "the source of the in flight write was freed once the caller released its own reference",
+                sourcesById.get(parkedId).hasReferences()
+            );
+        } finally {
+            continueShardWrite.countDown();
+        }
+
+        String rejectedId = parkedId.equals("1") ? "3" : "1";
+        assertThat(
+            "the shard whose dispatch threw never reads its items again, so its retention is released with the throw",
+            releasesById.get(rejectedId).get(),
+            equalTo(1)
+        );
+        assertBusy(() -> assertThat(releasesById.get(parkedId).get(), equalTo(1)));
+    }
+
+    public void testRetentionIsBalancedWhenShardsSucceed() {
+        final AtomicInteger releases = new AtomicInteger();
+        final List<ReleasableBytesReference> pooledSources = List.of(pooledSource(releases), pooledSource(releases));
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(indexName).id("1").source(pooledSources.get(0), XContentType.JSON));
+        bulkRequest.add(new IndexRequest(indexName).id("3").source(pooledSources.get(1), XContentType.JSON));
+
+        final NodeClient client = getNodeClient(acceptAllShardWrites());
+        final BulkResponse bulkItemResponses = safeAwait(
+            l -> newBulkOperation(client, bulkRequest, ActionListener.releaseBefore(Releasables.wrap(pooledSources), l)).run()
+        );
+
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+        assertThat(releases.get(), equalTo(pooledSources.size()));
+        pooledSources.forEach(source -> assertFalse(source.hasReferences()));
+    }
+
+    public void testRetentionIsBalancedWhenAShardFails() {
+        final AtomicInteger releases = new AtomicInteger();
+        final List<ReleasableBytesReference> pooledSources = List.of(pooledSource(releases), pooledSource(releases));
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(indexName).id("1").source(pooledSources.get(0), XContentType.JSON));
+        bulkRequest.add(new IndexRequest(indexName).id("3").source(pooledSources.get(1), XContentType.JSON));
+
+        final NodeClient client = getNodeClient(
+            shardSpecificResponse(Map.of(new ShardId(indexMetadata.getIndex(), 0), failWithException(() -> new MapperException("test"))))
+        );
+        final BulkResponse bulkItemResponses = safeAwait(
+            l -> newBulkOperation(client, bulkRequest, ActionListener.releaseBefore(Releasables.wrap(pooledSources), l)).run()
+        );
+
+        assertThat(bulkItemResponses.hasFailures(), is(true));
+        assertThat(releases.get(), equalTo(pooledSources.size()));
+        pooledSources.forEach(source -> assertFalse(source.hasReferences()));
+    }
+
+    /// Which of an update's two inner requests the primary reads depends on whether the document already exists, so both have to
+    /// survive for as long as the shard request is in flight. The caller here releases as early as it can, right after the bulk has
+    /// been dispatched, which is the ownership contract the retention exists to support.
+    public void testUpdateRequestRetainsDocAndUpsertSources() {
+        final AtomicInteger docReleases = new AtomicInteger();
+        final ReleasableBytesReference pooledDoc = pooledSource(docReleases);
+        final AtomicInteger upsertReleases = new AtomicInteger();
+        final boolean withUpsert = randomBoolean();
+        final ReleasableBytesReference pooledUpsert = withUpsert ? pooledSource(upsertReleases) : null;
+
+        final UpdateRequest updateRequest = new UpdateRequest(indexName, "1").doc(pooledDoc, XContentType.JSON);
+        if (withUpsert) {
+            updateRequest.upsert(pooledUpsert, XContentType.JSON).docAsUpsert(randomBoolean());
+        }
+        final BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(updateRequest);
+
+        final CountDownLatch shardWriteStarted = new CountDownLatch(1);
+        final CountDownLatch continueShardWrite = new CountDownLatch(1);
+        final Executor writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
+        final NodeClient client = getNodeClient(
+            goAsyncAndWait(writeExecutor, shardWriteStarted, continueShardWrite, acceptAllShardWrites())
+        );
+
+        final PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        newBulkOperation(client, bulkRequest, future).run();
+
+        try {
+            safeAwait(shardWriteStarted);
+            pooledDoc.decRef();
+            assertTrue("the update's doc source was freed under the in flight write", pooledDoc.hasReferences());
+            if (withUpsert) {
+                pooledUpsert.decRef();
+                assertTrue("the update's upsert source was freed under the in flight write", pooledUpsert.hasReferences());
+            }
+        } finally {
+            continueShardWrite.countDown();
+        }
+
+        assertThat(safeGet(future).hasFailures(), is(false));
+        assertThat(docReleases.get(), equalTo(1));
+        assertThat(upsertReleases.get(), equalTo(withUpsert ? 1 : 0));
     }
 
     /**
@@ -1194,6 +1339,39 @@ public class BulkOperationTests extends ESTestCase {
                 }
             }
         };
+    }
+
+    /// A client whose first shard dispatch is handled by `firstShardBehavior` and whose later dispatches throw synchronously, the way
+    /// [org.elasticsearch.tasks.TaskManager#registerChildConnection] does once the parent task has banned its children.
+    ///
+    /// Unlike [#getNodeClient], the throw is not converted into a listener failure, so [BulkOperation]'s dispatch loop observes it the
+    /// way it does in production. Dispatches are counted rather than keyed on [ShardId] so the test does not depend on the iteration
+    /// order of the per-shard request map.
+    private NodeClient throwingAfterFirstShardNodeClient(
+        final BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> firstShardBehavior,
+        final Supplier<RuntimeException> laterShardFailure
+    ) {
+        final AtomicInteger dispatches = new AtomicInteger();
+        return new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                assertSame(TransportShardBulkAction.TYPE, action);
+                if (dispatches.getAndIncrement() > 0) {
+                    throw laterShardFailure.get();
+                }
+                firstShardBehavior.accept((BulkShardRequest) request, (ActionListener<BulkShardResponse>) listener);
+                return null;
+            }
+        };
+    }
+
+    private static ReleasableBytesReference pooledSource(final AtomicInteger releases) {
+        return pooled(new BytesArray("{\"key\":\"" + randomAlphaOfLength(20) + "\"}"), releases);
     }
 
     private BulkOperation newBulkOperation(NodeClient client, BulkRequest request, ActionListener<BulkResponse> listener) {

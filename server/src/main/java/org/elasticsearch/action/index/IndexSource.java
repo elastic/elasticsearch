@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
@@ -137,6 +138,13 @@ public class IndexSource implements Writeable, Releasable {
 
     public boolean isClosed() {
         return isClosed;
+    }
+
+    /// If source is ref-counted and present: make sure it has references, increment ref-count, and return a releasable that decrements it.
+    /// If source is not ref-counted or not present, return `null`.
+    public @Nullable Releasable retainSourceRef() {
+        assert isClosed == false;
+        return source instanceof ReleasableBytesReference pooled ? pooled.retain()::decRef : null;
     }
 
     @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
@@ -37,6 +36,13 @@ public class LimitByGoldenTests extends GoldenTestCase {
         Stage.LOCAL_PHYSICAL_OPTIMIZATION,
         Stage.NODE_REDUCE,
         Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION
+    );
+
+    private static final EnumSet<Stage> STAGES_WITH_NODE_REDUCE = EnumSet.of(
+        Stage.ANALYSIS,
+        Stage.LOGICAL_OPTIMIZATION,
+        Stage.PHYSICAL_OPTIMIZATION,
+        Stage.LOCAL_PHYSICAL_OPTIMIZATION
     );
 
     public void testLimitByWithoutSort() {
@@ -66,7 +72,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM sample_data
             | LIMIT 2 BY CATEGORIZE(message)
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     /** Shows INITIAL (data node) and FINAL (coordinator) plan for {@code SORT ... | LIMIT N BY CATEGORIZE(...)}. */
@@ -75,7 +81,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
             FROM sample_data
             | SORT @timestamp DESC
             | LIMIT 2 BY CATEGORIZE(message)
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     /** CATEGORIZE alongside a plain grouping key. */
@@ -83,7 +89,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM sample_data
             | LIMIT 2 BY CATEGORIZE(message), client_ip
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     /** CATEGORIZE alongside a plain grouping key, with sort. */
@@ -92,7 +98,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
             FROM sample_data
             | SORT @timestamp DESC
             | LIMIT 2 BY CATEGORIZE(message), client_ip
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     /** Constant CATEGORIZE — pruned to a plain LIMIT by PruneLiteralsInLimitBy. */
@@ -101,7 +107,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
             FROM sample_data
             | EVAL x = "Connection error"::keyword
             | LIMIT 2 BY CATEGORIZE(x)
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     /** CATEGORIZE on a function expression (CONCAT). */
@@ -110,7 +116,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
             FROM sample_data
             | SORT @timestamp DESC
             | LIMIT 2 BY CATEGORIZE(CONCAT(message, " "))
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     /** Four mixed groupings: expression, CATEGORIZE(attribute), attribute, CATEGORIZE(expression).
@@ -121,7 +127,7 @@ public class LimitByGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM sample_data
             | LIMIT 1 BY CONCAT(message, " "), CATEGORIZE(message), client_ip, CATEGORIZE(CONCAT(message, " "))
-            """, STAGES);
+            """, STAGES_WITH_NODE_REDUCE);
     }
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(

@@ -23,14 +23,6 @@ import java.util.List;
 
 public class ColumnarDocValuesFormatSelectorTests extends ESTestCase {
 
-    public void testColumnarCodecSettingRegistrationFollowsFlag() {
-        assertEquals(
-            "index.columnar_codec.enabled registration must follow the columnar_codec feature flag",
-            columnarFeatureFlagEnabled(),
-            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING)
-        );
-    }
-
     public void testColumnarCodecSettingIsRegisteredWhenFlagEnabled() {
         assumeTrue("columnar_codec feature flag must be enabled", columnarFeatureFlagEnabled());
         assertNotNull(

@@ -2031,7 +2031,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // COMPRESSED position while text readers anchor _rowPosition in decompressed bytes —
                 // composing _id from that mix yields non-split-invariant, collision-prone tokens. Take
                 // the slot out of the reader's projection and null-splice it instead: null _id over
-                // these layouts, same honest carve-out parquet-rs gets. Only the reader's column list is
+                // these layouts, same honest carve-out columnar readers get. Only the reader's column list is
                 // narrowed (readerCols); the shared perFileCols still feeds the adapter below at full
                 // width, matching the pre-hoist behaviour where the adapter recomputed the projection.
                 boolean compressedOffsetSplit = "true".equals(fileSplit.config().get(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY));
@@ -2136,7 +2136,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Batch-read path: claims {@code max(1, ceil(remaining / (parallelism * 2)))} splits from the
      * queue at once and opens a single {@link RangeAwareFormatReader#readAll} iterator over all of
-     * them. This allows the reader (e.g. parquet-rs) to process the files concurrently in a single
+     * them. This allows the reader to process the files concurrently in a single
      * async call rather than paying one sequential S3 round-trip per file.
      * <p>
      * Only called when {@link #batchReadCapable} is {@code true}, which requires no partition-column

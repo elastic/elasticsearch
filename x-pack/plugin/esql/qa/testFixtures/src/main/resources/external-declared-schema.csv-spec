@@ -1,8 +1,7 @@
 // Shared spec: declared-schema reads that every format must agree on.
 //
 // Audience is six FORMAT suites, not four: the CSV, TSV, NDJSON and Parquet spec suites run these cases, ORC also picks
-// them up (it globs external-*), and parquet-rs is skipped by the EXTERNAL-rebuild guard because a declaration has
-// no EXTERNAL-query form to rebuild into. Counted as IT classes rather than formats the number is eight, since the
+// them up (it globs external-*). Counted as IT classes rather than formats the number is eight, since the
 // compressed CSV and TSV suites run them too -- csv-declared-schema-multifile.csv-spec's header counts classes.
 //
 // A declaration rides the `dataset:` directive under the reserved `mappings` key, which DatasetRegistry lifts out

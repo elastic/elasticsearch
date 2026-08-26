@@ -14,14 +14,11 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone ORC files.
@@ -52,17 +49,7 @@ public class OrcFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
-    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("orc");
 
-    @Override
-    protected void shouldSkipTest(String testName) throws IOException {
-        if (SKIPPED_TESTS.contains(testName)) {
-            // The message is the declared reason, so a skip explains itself in the log.
-            assumeTrue(testName + ": " + FixtureExclusions.get().find("orc", testName).reason(), false);
-        }
-        super.shouldSkipTest(testName);
-    }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {

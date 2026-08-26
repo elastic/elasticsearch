@@ -13,11 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for standalone NDJSON files.
@@ -33,8 +30,6 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
      * fixture/STRICT-semantics gap, unrelated to the empty-projection fix. The empty-projection
      * multi-file tests ({@code COUNT(*)} / {@code _file.*}-only) previously muted here now run.
      */
-    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
-    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("ndjson");
 
     public NdJsonFormatSpecIT(
         String fileName,
@@ -48,13 +43,6 @@ public class NdJsonFormatSpecIT extends AbstractNdJsonExternalSpecTestCase {
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "ndjson");
     }
 
-    @Override
-    protected void shouldSkipTest(String testName) throws IOException {
-        if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
-        }
-        super.shouldSkipTest(testName);
-    }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {

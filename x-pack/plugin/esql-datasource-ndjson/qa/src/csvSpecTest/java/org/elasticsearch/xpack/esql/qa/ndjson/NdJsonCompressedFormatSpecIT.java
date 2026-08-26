@@ -16,12 +16,9 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
@@ -40,8 +37,6 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         : List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd");
 
     /** Same SchemaAdaptingIterator limitation as the uncompressed NDJSON IT — see {@link NdJsonFormatSpecIT}. */
-    /** Read from fixture-exclusions.properties, which records every exclusion and its reason in one place. */
-    private static final Set<String> SKIPPED_TESTS = FixtureExclusions.get().casesFor("ndjson-compressed");
 
     public NdJsonCompressedFormatSpecIT(
         String fileName,
@@ -56,12 +51,12 @@ public class NdJsonCompressedFormatSpecIT extends AbstractNdJsonExternalSpecTest
         super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
+
     @Override
-    protected void shouldSkipTest(String testName) throws IOException {
-        if (SKIPPED_TESTS.contains(testName)) {
-            assumeTrue(testName + " not supported by NDJSON multi-file path (SchemaAdaptingIterator limitation)", false);
-        }
-        super.shouldSkipTest(testName);
+    protected String exclusionSuiteToken() {
+        // This suite's format is not its declaration token, so the default would resolve to
+        // another suite's exclusions.
+        return "ndjson-compressed";
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")

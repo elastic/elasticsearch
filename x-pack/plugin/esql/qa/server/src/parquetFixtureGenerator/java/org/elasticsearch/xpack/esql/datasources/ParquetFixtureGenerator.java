@@ -409,7 +409,9 @@ public final class ParquetFixtureGenerator {
             case "version" -> throw new IllegalArgumentException(
                 "declared [version] in a list: Parquet has no version type, same as the scalar arm"
             );
-            case "uint32" -> listElement.append("element", ((Number) elem).longValue());
+            // Same reason as the scalar arm: the physical list element is INT32, so truncating the
+            // uint32 long to int preserves the raw bit pattern the column stores.
+            case "uint32" -> listElement.append("element", ((Number) elem).intValue());
             case "uint16" -> listElement.append("element", ((Number) elem).intValue());
             case "uint64" -> listElement.append("element", ((Number) elem).longValue());
             default -> listElement.append("element", elem.toString());

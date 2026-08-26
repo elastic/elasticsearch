@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHt
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
+import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureExclusions;
 import org.elasticsearch.xpack.esql.datasources.fixtures.FixtureMatrix;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -359,8 +360,28 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         this.format = format;
     }
 
+    /**
+     * The token this suite's exclusions are declared under in {@code fixture-exclusions.properties}.
+     *
+     * <p>Defaults to the base format with any codec stripped, which is correct for the suites whose
+     * declaration token IS their format ({@code csv}, {@code tsv}, {@code ndjson}, {@code orc},
+     * {@code parquet}). A suite whose token diverges from its format MUST override this: the
+     * parquet-rs suite runs with format {@code "parquet"} (its reader is selected separately) and the
+     * compressed suites carry a codec, so for those the default would silently resolve to another
+     * suite's exclusion set.
+     */
+    protected String exclusionSuiteToken() {
+        return FixtureMatrix.baseFormat(format);
+    }
+
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        // One skip path for every external-source suite, reading the single declaration. The message is the
+        // declared reason, so a skip explains itself in the log rather than asserting a hard-coded cause.
+        FixtureExclusions.Exclusion exclusion = FixtureExclusions.get().find(exclusionSuiteToken(), testName);
+        if (exclusion != null) {
+            assumeTrue(testName + ": " + exclusion.reason(), false);
+        }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
@@ -419,10 +440,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // directive so the suite's reader override still applies. A spec with no directive is returned as-is.
         String query = rebuildExternalFromDatasets(testCase.query);
 
-        // The dataset path below matches on the bare suffix; this one matches on suffix + "}}" because it reads the
-        // rebuilt query text. HIVE_SHADOW_SUFFIX therefore needs naming explicitly: it contains HIVE_SUFFIX but does
-        // not end with it, so "_hive}}" does not match "{{employees_hive_shadow}}".
-        if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}") || query.contains(HIVE_SHADOW_SUFFIX + "}}")) {
+        if (referencesGlobLayout(query)) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
         }
@@ -490,7 +508,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // HTTP cannot list a directory, so multi-file/Hive-partitioned glob datasets cannot be resolved
         // over it; skip those on the HTTP backend (the glob lives in the dataset's resource template).
         for (DatasetSource source : testCase.datasetSources) {
-            if (source.resource().contains(MULTIFILE_SUFFIX) || source.resource().contains(HIVE_SUFFIX)) {
+            if (referencesGlobLayout(source.resource())) {
                 assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);
             }
         }
@@ -839,41 +857,24 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** The one layout whose directory a subclass may redirect to a codec-specific variant. */
     private static final String MULTIFILE_SPLIT_LAYOUT = "multifile_split";
 
-    /** Suffix that triggers multi-file glob resolution */
-    private static final String MULTIFILE_SUFFIX = MATRIX.layout("multifile").suffix();
-    /** Suffix that triggers multi-file split glob resolution (same schema, split from a single file) */
-    private static final String MULTIFILE_SPLIT_SUFFIX = MATRIX.layout(MULTIFILE_SPLIT_LAYOUT).suffix();
-    /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
-    private static final String MULTIFILE_UBN_SUFFIX = MATRIX.layout("multifile_ubn").suffix();
     /**
-     * Suffix that triggers a multi-file glob whose files share the same columns in different
-     * physical order (anchor vs reversed non-anchor) with distinct per-column types, used to lock
-     * cross-file column-order reconciliation against silent value swaps.
+     * True when the given text references a layout the fixture matrix declares as a GLOB layout (anything
+     * other than {@code standalone}). Derived from the declaration rather than from hard-coded layout names,
+     * so a layout added to {@code fixture-matrix.properties} is covered without editing this class -- which
+     * is the whole point of the declaration owning the convention.
+     *
+     * <p>Matching is on the bare suffix, which needs no precedence reasoning: every glob layout contributes
+     * its own suffix, so {@code _hive_shadow} is matched by its own entry rather than by being a superstring
+     * of {@code _hive}.
      */
-    private static final String MULTIFILE_PERM_SUFFIX = MATRIX.layout("multifile_perm").suffix();
-    /**
-     * Suffix that triggers multi-file UBN glob with cross-file type drift (one file's sampler
-     * infers INTEGER, the other infers KEYWORD for the same column). Used by csv-union-by-name
-     * to exercise the KEYWORD-fallback path: under UBN the reconciler widens to KEYWORD with a
-     * warning; under STRICT it still throws.
-     */
-    private static final String MULTIFILE_TYPE_DRIFT_SUFFIX = MATRIX.layout("multifile_type_drift").suffix();
-    /**
-     * Suffix that triggers a multi-file UBN glob with a mixed-temporal column ({@code date} in one file,
-     * {@code date_nanos} in the other) that union_by_name widens LOSSLESSLY to {@code date_nanos} -- no
-     * warning. Used to lock warm MIN/MAX over a cross-file mixed-temporal column without perturbing the
-     * shared multifile_ubn fixture, whose FFW and widened-column tests depend on its exact schema.
-     */
-    private static final String MULTIFILE_TEMPORAL_SUFFIX = MATRIX.layout("multifile_temporal").suffix();
-    /** Suffix that triggers Hive-style partition discovery (lang=N/ directories) */
-    private static final String HIVE_SUFFIX = MATRIX.layout("hive").suffix();
-
-    /**
-     * Hive-partitioned fixture whose partition key collides with a real payload column (see the
-     * {@code generateHiveShadowParquet_employees} fixture task). Checked before {@link #HIVE_SUFFIX}; the name still
-     * contains {@code _hive} so the HTTP glob-skip applies to it too.
-     */
-    private static final String HIVE_SHADOW_SUFFIX = MATRIX.layout("hive_shadow").suffix();
+    private static boolean referencesGlobLayout(String text) {
+        for (FixtureMatrix.Layout layout : MATRIX.layouts()) {
+            if (layout.isStandalone() == false && text.contains(layout.suffix())) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Resolve a template name to an actual path based on storage backend and format.

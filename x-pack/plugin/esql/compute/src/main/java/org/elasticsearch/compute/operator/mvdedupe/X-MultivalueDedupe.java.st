@@ -23,6 +23,11 @@ $elseif(long)$
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
+$elseif(DoubleRange)$
+import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
+import org.elasticsearch.compute.data.IntBlock;
+
 $else$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
@@ -42,6 +47,8 @@ public class MultivalueDedupe$Type$ {
      */
 $if(BytesRef)$
     static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
+$elseif(DoubleRange)$
+    static final int ALWAYS_COPY_MISSING = 20;
 $elseif(double)$
     static final int ALWAYS_COPY_MISSING = 110;
 $else$
@@ -69,6 +76,8 @@ $endif$
 $if(BytesRef)$
         // TODO very large numbers might want a hash based implementation - and for BytesRef that might not be that big
         fillWork(0, work.length);
+$elseif(DoubleRange)$
+        fillWork(0, work.length);
 $endif$
     }
 
@@ -92,6 +101,8 @@ $endif$
                 switch (count) {
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+$elseif(DoubleRange)$
+                    case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
 $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
@@ -149,6 +160,8 @@ $endif$
                 switch (count) {
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+$elseif(DoubleRange)$
+                    case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
 $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
@@ -186,6 +199,8 @@ $endif$
                 switch (count) {
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+$elseif(DoubleRange)$
+                    case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
 $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
@@ -214,6 +229,8 @@ $endif$
                 switch (count) {
 $if(BytesRef)$
                     case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+$elseif(DoubleRange)$
+                    case 1 -> builder.appendDoubleRange(block.getDoubleRange(first, work[0]));
 $else$
                     case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
@@ -247,6 +264,8 @@ $endif$
                     case 1 -> {
 $if(BytesRef)$
                         BytesRef v = block.getBytesRef(first, work[0]);
+$elseif(DoubleRange)$
+                        DoubleRange v = block.getDoubleRange(first, work[0]);
 $else$
                         $type$ v = block.get$Type$(first);
 $endif$
@@ -284,6 +303,8 @@ $endif$
                     case 1 -> {
 $if(BytesRef)$
                         BytesRef v = block.getBytesRef(first, work[0]);
+$elseif(DoubleRange)$
+                        DoubleRange v = block.getDoubleRange(first, work[0]);
 $else$
                         $type$ v = block.get$Type$(first);
 $endif$
@@ -339,6 +360,9 @@ $endif$
 $if(BytesRef)$
                             BytesRef v = block.getBytesRef(first, work[0]);
                             if (hasCapacity(v.length, 1)) {
+$elseif(DoubleRange)$
+                            DoubleRange v = block.getDoubleRange(first, work[0]);
+                            if (hasCapacity(1)) {
 $else$
                             $type$ v = block.get$Type$(first);
                             if (hasCapacity(1)) {
@@ -405,6 +429,9 @@ $endif$
 $if(BytesRef)$
             work[w] = block.getBytesRef(i, work[w]);
             w++;
+$elseif(DoubleRange)$
+            block.getDoubleRange(i, work[w]);
+            w++;
 $else$
             work[w++] = block.get$Type$(i);
 $endif$
@@ -423,6 +450,8 @@ $endif$
 
 $if(BytesRef)$
         work[0] = block.getBytesRef(first, work[0]);
+$elseif(DoubleRange)$
+        block.getDoubleRange(first, work[0]);
 $else$
         work[0] = block.get$Type$(first);
 $endif$
@@ -430,11 +459,15 @@ $endif$
         i: for (int i = first + 1; i < end; i++) {
 $if(BytesRef)$
             $type$ v = block.getBytesRef(i, work[w]);
+$elseif(DoubleRange)$
+            DoubleRange v = block.getDoubleRange(i, work[w]);
 $else$
             $type$ v = block.get$Type$(i);
 $endif$
             for (int j = 0; j < w; j++) {
 $if(BytesRef)$
+                if (v.equals(work[j])) {
+$elseif(DoubleRange)$
                 if (v.equals(work[j])) {
 $else$
                 if (v == work[j]) {
@@ -470,6 +503,8 @@ $endif$
         builder.append$Type$(prev);
         for (int i = 1; i < w; i++) {
 $if(BytesRef)$
+            if (false == prev.equals(work[i])) {
+$elseif(DoubleRange)$
             if (false == prev.equals(work[i])) {
 $else$
             if (prev != work[i]) {
@@ -688,6 +723,11 @@ $if(BytesRef)$
                 work[w].length = prev.length;
                 w++;
             }
+$elseif(DoubleRange)$
+                prev = work[i];
+                work[w].reset(prev.from(), prev.to());
+                w++;
+            }
 $else$
                 prev = work[i];
                 work[w++] = prev;
@@ -698,6 +738,10 @@ $endif$
 
     private void grow(int size) {
 $if(BytesRef)$
+        int prev = work.length;
+        work = ArrayUtil.grow(work, size);
+        fillWork(prev, work.length);
+$elseif(DoubleRange)$
         int prev = work.length;
         work = ArrayUtil.grow(work, size);
         fillWork(prev, work.length);
@@ -712,11 +756,20 @@ $if(BytesRef)$
             work[i] = new BytesRef();
         }
     }
-$endif$
 
+$elseif(DoubleRange)$
+    private void fillWork(int from, int to) {
+        for (int i = from; i < to; i++) {
+            work[i] = new DoubleRange();
+        }
+    }
+
+$endif$
     private void hashAdd(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
 $if(double)$
         appendFound(builder, hash.add(Double.doubleToLongBits(v)));
+$elseif(DoubleRange)$
+        appendFound(builder, hash.add(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to())));
 $else$
         appendFound(builder, hash.add(v));
 $endif$
@@ -725,6 +778,8 @@ $endif$
     private long hashLookup($Hash$Table hash, $type$ v) {
 $if(double)$
         return hash.find(Double.doubleToLongBits(v));
+$elseif(DoubleRange)$
+        return hash.find(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to()));
 $else$
         return hash.find(v);
 $endif$
@@ -745,6 +800,8 @@ $endif$
 
     private static boolean valuesEqual($type$ lhs, $type$ rhs) {
 $if(BytesRef)$
+        return lhs.equals(rhs);
+$elseif(DoubleRange)$
         return lhs.equals(rhs);
 $else$
         return lhs == rhs;

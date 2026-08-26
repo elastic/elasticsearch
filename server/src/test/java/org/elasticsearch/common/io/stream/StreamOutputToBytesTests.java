@@ -42,7 +42,6 @@ public class StreamOutputToBytesTests extends ESTestCase {
         final var bufferStart = between(0, bufferPool.length - KB.toIntBytes(1));
         final var bufferLen = between(1, bufferPool.length - bufferStart);
         final var buffer = new BytesRef(bufferPool, bufferStart, bufferLen);
-        final var maxFieldLen = Math.max(2000, bufferLen * 4);
 
         final var bufferPoolCopy = ArrayUtil.copyArray(bufferPool); // kept so we can check no out-of-bounds writes
         Arrays.fill(bufferPoolCopy, bufferStart, bufferStart + bufferLen, (byte) 0xa5);
@@ -50,7 +49,8 @@ public class StreamOutputToBytesTests extends ESTestCase {
         final var isFullBufferWrite = equalTo(bufferLen);
         final var isExpectedWriteSize = new AtomicReference<>(isFullBufferWrite);
 
-        final var targetSize = between(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2);
+        final var maxFieldLen = PageCacheRecycler.PAGE_SIZE_IN_BYTES * 3;
+        final var targetSize = between(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES * 4);
 
         try (
             var countingStream = new CountingStreamOutput();

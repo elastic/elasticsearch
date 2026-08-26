@@ -57,6 +57,7 @@ public class PreAnalyzer {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
+        boolean requiresAllDimensionFields,
         List<String> icebergPaths,
         List<String> inferenceIds
     ) {
@@ -65,6 +66,7 @@ public class PreAnalyzer {
             List.of(),
             List.of(),
             Set.of(),
+            false,
             false,
             false,
             false,
@@ -174,8 +176,12 @@ public class PreAnalyzer {
         }));
 
         Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        Holder<Boolean> requiresAllDimensionFields = new Holder<>(false);
         plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
-        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> {
+            hasTimeSeriesAggregation.set(true);
+            requiresAllDimensionFields.set(true);
+        });
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
@@ -188,6 +194,7 @@ public class PreAnalyzer {
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),
+            requiresAllDimensionFields.get(),
             icebergPaths,
             inferenceIds
         );

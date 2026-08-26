@@ -53,3 +53,21 @@ id:long | languages:long | langs:long
 10002   | 5              | 5
 10003   | 4              | 4
 ;
+
+// Coercion from DATETIME (what NDJSON infers for ISO-8601 strings) to KEYWORD. When birth_date is declared as
+// keyword the coercion path runs dateTimeToString, which emits the strict_date_optional_time format; the
+// millisecond part is omitted when it is zero, so midnight reads as T00:00:00Z, not T00:00:00.000Z. This case is
+// NDJSON-specific: CSV and columnar formats do not infer DATETIME from a string-shaped physical value.
+strictDeclaredSchemaCoercesNdjsonDatetimeStringToKeyword
+required_capability: dataset_in_from_command
+dataset: ndjson_declared_dt2k: "{{employees_no_mv}}" WITH {"mappings": {"dynamic": "false", "properties": {"emp_no": {"type": "long"}, "birth_date_text": {"type": "keyword", "path": "birth_date"}}}}
+
+FROM ndjson_declared_dt2k
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:long | birth_date_text:keyword
+10001       | "1953-09-02T00:00:00Z"
+10002       | "1964-06-02T00:00:00Z"
+10003       | "1959-12-03T00:00:00Z"
+;

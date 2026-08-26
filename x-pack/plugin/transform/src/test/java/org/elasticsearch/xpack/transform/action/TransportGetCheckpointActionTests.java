@@ -208,9 +208,6 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
     }
 
     public void testCheckpointNodeTransportOptions_NullTimeoutUsesSenderCap() {
-        assertThat(
-            TransportGetCheckpointAction.checkpointNodeTransportOptions(null).timeout(),
-            equalTo(TimeValue.timeValueSeconds(30))
-        );
+        assertThat(TransportGetCheckpointAction.checkpointNodeTransportOptions(null).timeout(), equalTo(TimeValue.timeValueSeconds(30)));
     }
 }

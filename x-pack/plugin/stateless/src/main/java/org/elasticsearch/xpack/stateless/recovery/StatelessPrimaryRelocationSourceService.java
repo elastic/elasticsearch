@@ -190,17 +190,28 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     @Override
     protected void doStop() {
         if (hasIndexRole) {
+            // Stop accepting source-side relocation requests and drain the queue.
             throttledPrimaryRelocations.close();
             throttledPrimaryRelocations.cancelAllPendingRelocations();
-            if (throttledPrimaryRelocations.isEmpty() == false) {
-                throttledPrimaryRelocations.awaitEmpty();
-            }
             clusterService.removeListener(this);
         }
     }
 
     @Override
-    protected void doClose() {}
+    protected void doClose() {
+        // Waits for any active relocations still in flight when doStop() ran. By the time doClose() is called,
+        // IndicesService has already closed all shards, and TransportService is already stopped.
+        // A relocation that reaches any transport communication point (prewarm or primary-context handoff) therefore
+        // fails immediately.
+        // A relocation that is mid-way through a blob-store operation (pre-flush or markRelocating) will run
+        // that upload to completion before noticing the shard is closed, so this wait is bounded by the duration
+        // of whichever blob-store I/O is already in flight, typically seconds, should be at most a few minutes.
+        // A relocation waiting on primary operation permits (inside IndexShard#relocated) will unblock once in-flight
+        // writes fail and release their permits. In the pathological case the permit wait has a 30-minute timeout.
+        if (hasIndexRole && throttledPrimaryRelocations.isEmpty() == false) {
+            throttledPrimaryRelocations.awaitEmpty();
+        }
+    }
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
@@ -220,6 +231,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
         assert lifecycle.started();
+        // Note that we trigger prewarm on the target before the source-side throttle queue. Indeed, by the relocation
+        // has already passed through the own target-side recovery throttle (the concurrency limit on incoming recoveries),
+        // so the target node cannot be overloaded by prewarm requests. Starting early overlaps cache warming with any
+        // queue wait, reducing overall relocation latency.
         initiatePrewarm(task, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
@@ -334,6 +349,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
+            if (indexShard.getEngineOrNull() == null) {
+                listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));
+                return;
+            }
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 Engine engine = ensureIndexTierAllowedEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
@@ -378,6 +397,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                         hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
                         engine = indexShard.getEngineOrNull();
                         assert engine == null || engine instanceof HollowIndexEngine : engine;
+                        if (engine == null) {
+                            throw new AlreadyClosedException("shard " + shardId + " closed during relocation");
+                        }
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }
@@ -521,6 +543,10 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                     latestBccBlobLength.set(blobLength);
                     otherBlobFilesCount.set(otherBlobFiles.size());
 
+                    if (indexShard.getEngineOrNull() == null) {
+                        finalHandoffListener.onFailure(new AlreadyClosedException("shard " + shardId + " closed during relocation"));
+                        return;
+                    }
                     primaryContextHandoffTrigger.sendToTarget(
                         task,
                         request.targetNode(),

@@ -163,6 +163,16 @@ public class DriverContext {
         }
     }
 
+    /**
+     * Returns a new {@link DriverContext} identical to this one except that it uses the supplied
+     * {@link BlockFactory} for all block allocations. Useful when handing off a per-worker child
+     * factory (created by {@link #createChildBlockFactory()}) to operators or aggregators that
+     * need to allocate blocks on a worker-private {@link LocalCircuitBreaker}.
+     */
+    public DriverContext withBlockFactory(BlockFactory blockFactory) {
+        return new DriverContext(this.bigArrays, blockFactory, this.localBreakerSettings, this.driverDescription, this.warningsMode);
+    }
+
     /** See {@link Driver#shortDescription}. */
     @Nullable
     public String driverDescription() {

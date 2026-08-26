@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -73,7 +73,6 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
     private final DriverContext driverContext;
     private final SwissHashFactory swissHashFactory;
     private final BigArrays bigArrays;
-    private final CircuitBreaker circuitBreaker;
 
     // ---- Input queue (driver → workers) ----
     private final LinkedBlockingQueue<Page> inputQueue = new LinkedBlockingQueue<>();
@@ -161,10 +160,6 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         this.driverContext = driverContext;
         this.swissHashFactory = factory;
         this.bigArrays = driverContext.bigArrays();
-        // TODO: per-worker CB isolation — each Worker should call driverContext.createChildBlockFactory()
-        // and use its breaker (matching the ParallelTopNOperator pattern). Blocked on ensuring
-        // localBreakerSettings is always non-null in the SPPA v2 construction path.
-        this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
 
         this.ppw = NUM_PARTITIONS / workerCount;
         this.mergeCursors = new AtomicInteger[workerCount];
@@ -345,6 +340,14 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
      * worker instance is reused as the merge hash and accumulator for claimed partitions.
      */
     private class Worker implements Releasable {
+        /**
+         * Per-worker child {@link BlockFactory} backed by a {@link org.elasticsearch.compute.data.LocalCircuitBreaker}.
+         * This isolates memory pressure: if this worker's hash table or aggregators OOM, only this
+         * worker's local breaker trips, not the shared request-level breaker.
+         */
+        final BlockFactory childFactory;
+        /** Thin {@link DriverContext} that routes block allocations to {@link #childFactory}. */
+        final DriverContext workerDriverContext;
         final LongLongSwissHash hash;
         final GroupingAggregatorFunction[] collectAggs;
         // Reusable key and id buffers for bulk operations
@@ -358,13 +361,15 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         private PartitionedHashTable.MergedKeys[] mergedKeys;
 
         Worker() {
+            this.childFactory = driverContext.createChildBlockFactory();
+            this.workerDriverContext = driverContext.withBlockFactory(childFactory);
             int numAggs = aggregatorSuppliers.size();
-            this.hash = swissHashFactory.newLongLongSwissHash(bigArrays.recycler(), circuitBreaker);
+            this.hash = swissHashFactory.newLongLongSwissHash(bigArrays.recycler(), childFactory.breaker());
             this.collectAggs = new GroupingAggregatorFunction[numAggs];
             boolean success = false;
             try {
                 for (int a = 0; a < numAggs; a++) {
-                    collectAggs[a] = aggregatorSuppliers.get(a).groupingAggregator(driverContext, aggregatorChannels.get(a));
+                    collectAggs[a] = aggregatorSuppliers.get(a).groupingAggregator(workerDriverContext, aggregatorChannels.get(a));
                 }
                 success = true;
             } finally {
@@ -446,7 +451,7 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
                     splitters[a] = collectAggs[a].newSplitter();
                 }
                 PartitionedHashTable.AggSplitter combined = combinedSplitter(splitters);
-                PartitionedHashTable.PartitionedKeys keys = hash.partition(bigArrays, circuitBreaker, combined);
+                PartitionedHashTable.PartitionedKeys keys = hash.partition(bigArrays, childFactory.breaker(), combined);
                 PartitionedHashTable.PartitionedAgg[] aggParts = new PartitionedHashTable.PartitionedAgg[collectAggs.length];
                 for (int a = 0; a < collectAggs.length; a++) {
                     aggParts[a] = splitters[a].finish();
@@ -477,11 +482,11 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         void mergePhase(int myW) {
             int numAggs = aggregatorSuppliers.size();
             // Allocate merge-phase resources (merge hash reuses this worker's hash after it's done collecting)
-            mergeHash = swissHashFactory.newLongLongSwissHash(bigArrays.recycler(), circuitBreaker);
+            mergeHash = swissHashFactory.newLongLongSwissHash(bigArrays.recycler(), childFactory.breaker());
             mergeAggs = new GroupingAggregatorFunction[numAggs];
             try {
                 for (int a = 0; a < numAggs; a++) {
-                    mergeAggs[a] = aggregatorSuppliers.get(a).groupingAggregator(driverContext, List.of());
+                    mergeAggs[a] = aggregatorSuppliers.get(a).groupingAggregator(workerDriverContext, List.of());
                 }
                 List<PartitionedHashTable.PartitionedKeysAndAggs> snapshots;
                 synchronized (allSnapshots) {
@@ -614,6 +619,7 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         public void close() {
             Releasables.close(hash);
             Releasables.close(collectAggs);
+            driverContext.releaseChildBlockFactory(childFactory);
         }
     }
 

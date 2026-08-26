@@ -182,6 +182,7 @@ import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
@@ -1607,6 +1608,7 @@ public class MachineLearning extends Plugin
         restHandlers.add(new RestMlMemoryAction());
         restHandlers.add(new RestSetUpgradeModeAction());
         if (anomalyDetectionEnabled) {
+            final boolean mlCrossProjectSearchEnabled = DatafeedConfig.isCPSAllowed(restHandlersServices.crossProjectModeDecider());
             restHandlers.add(new RestGetJobsAction());
             restHandlers.add(new RestGetJobStatsAction());
             restHandlers.add(new RestPutJobAction());
@@ -1634,10 +1636,10 @@ public class MachineLearning extends Plugin
             restHandlers.add(new RestUpdateModelSnapshotAction());
             restHandlers.add(new RestGetDatafeedsAction());
             restHandlers.add(new RestGetDatafeedStatsAction());
-            restHandlers.add(new RestPutDatafeedAction());
-            restHandlers.add(new RestUpdateDatafeedAction());
+            restHandlers.add(new RestPutDatafeedAction(mlCrossProjectSearchEnabled));
+            restHandlers.add(new RestUpdateDatafeedAction(mlCrossProjectSearchEnabled));
             restHandlers.add(new RestDeleteDatafeedAction());
-            restHandlers.add(new RestPreviewDatafeedAction());
+            restHandlers.add(new RestPreviewDatafeedAction(mlCrossProjectSearchEnabled));
             restHandlers.add(new RestStartDatafeedAction());
             restHandlers.add(new RestStopDatafeedAction());
             restHandlers.add(new RestDeleteModelSnapshotAction());

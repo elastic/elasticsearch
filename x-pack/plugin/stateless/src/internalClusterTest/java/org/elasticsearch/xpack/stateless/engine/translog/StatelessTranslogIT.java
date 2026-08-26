@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.stateless.engine.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -23,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -30,10 +34,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -41,6 +48,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 
@@ -743,6 +751,157 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
             }
         }
         ensureGreenAndNoInitializingShards(indexName);
+    }
+
+    public void testBatchBulkReplicatedToObjectStoreAsBatchRecord() throws Exception {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        startMasterOnlyNode(batchIndexingNodeSettings());
+        String indexNode = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(batchIndexingNodeSettings()).build()
+        );
+        ensureStableCluster(2);
+
+        String indexName = createBatchIndex();
+        ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+        int docCount = randomIntBetween(2, 50);
+        BulkResponse bulkResponse = batchIndexDocs(indexName, docCount);
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+
+        // The bulk ACK implies the translog blob upload completed, so the uploaded records are inspectable immediately.
+        assertThat(countBatchRecordsInObjectStore(indexNode, shardId), greaterThan(0L));
+    }
+
+    public void testBatchTranslogRecoveredAfterIndexNodeRestart() throws Exception {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        startMasterOnlyNode(batchIndexingNodeSettings());
+        String indexNode = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(batchIndexingNodeSettings()).build()
+        );
+        ensureStableCluster(2);
+
+        String indexName = createBatchIndex();
+        ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+        int docCount = randomIntBetween(2, 50);
+        BulkResponse bulkResponse = batchIndexDocs(indexName, docCount);
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+        assertThat(countBatchRecordsInObjectStore(indexNode, shardId), greaterThan(0L));
+
+        // Directory accounting (estimatedOperationsToRecover, referenced files) must hold with logical op counts of batches.
+        BlobContainer translogBlobContainer = getObjectStoreService(indexNode).getTranslogBlobContainer();
+        List<BlobMetadata> blobs = translogBlobContainer.listBlobs(operationPurpose)
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(Map.Entry::getValue)
+            .toList();
+        assertDirectoryConsistency(blobs, translogBlobContainer, shardId);
+
+        internalCluster().restartNode(indexNode);
+        ensureGreen(indexName);
+
+        assertBatchDocCount(indexName, docCount);
+    }
+
+    public void testBatchTranslogWithFailedItemRecoveredAfterRestart() throws Exception {
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
+        startMasterOnlyNode(batchIndexingNodeSettings());
+        String indexNode = startIndexNode(
+            Settings.builder().put(disableIndexingDiskAndMemoryControllersNodeSettings()).put(batchIndexingNodeSettings()).build()
+        );
+        ensureStableCluster(2);
+
+        String indexName = createBatchIndex();
+        ShardId shardId = new ShardId(resolveIndex(indexName), 0);
+
+        int docCount = randomIntBetween(2, 20);
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docCount; i++) {
+            bulkRequest.add(
+                new IndexRequest(indexName).id("doc-" + i).create(true).source(XContentType.JSON, "name", "name-" + i, "value", (long) i)
+            );
+        }
+        // duplicate CREATE of an id earlier in the same bulk: fails with a version conflict but keeps the bulk batched
+        bulkRequest.add(new IndexRequest(indexName).id("doc-0").create(true).source(XContentType.JSON, "name", "dup", "value", -1L));
+        BulkResponse bulkResponse = bulkRequest.get();
+
+        assertTrue("expected the duplicate create to fail", bulkResponse.hasFailures());
+        assertThat(Arrays.stream(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count(), equalTo(1L));
+        assertThat(countBatchRecordsInObjectStore(indexNode, shardId), greaterThan(0L));
+
+        internalCluster().restartNode(indexNode);
+        ensureGreen(indexName);
+
+        assertBatchDocCount(indexName, docCount);
+    }
+
+    /**
+     * Verifies via primary doc stats that recovery repopulated the engine with exactly the expected documents.
+     */
+    private void assertBatchDocCount(String indexName, int docCount) {
+        refresh(indexName);
+        assertThat(
+            indicesAdmin().prepareStats(indexName).setDocs(true).get().getPrimaries().getDocs().getCount(),
+            equalTo((long) docCount)
+        );
+    }
+
+    private static Settings batchIndexingNodeSettings() {
+        return Settings.builder().put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true).build();
+    }
+
+    private String createBatchIndex() {
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indicesAdmin().prepareCreate(indexName)
+            .setSettings(
+                // The columnar batch path requires a strict-columnar index mode (see FieldMapper#supportsColumnarParse);
+                // COLUMNAR defaults to synthetic source.
+                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+            )
+            .setMapping("""
+                {"dynamic":"strict","properties":{"name":{"type":"keyword"},"value":{"type":"long"}}}
+                """)
+            .get();
+        ensureGreen(indexName);
+        return indexName;
+    }
+
+    private BulkResponse batchIndexDocs(String indexName, int docCount) {
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docCount; i++) {
+            bulkRequest.add(new IndexRequest(indexName).id("doc-" + i).source(XContentType.JSON, "name", "name-" + i, "value", (long) i));
+        }
+        return bulkRequest.get();
+    }
+
+    /**
+     * Scans every compound translog blob region belonging to the given shard and counts native
+     * {@link IndexOperationBatch.TranslogRecord} records.
+     */
+    private long countBatchRecordsInObjectStore(String nodeName, ShardId shardId) throws IOException {
+        BlobContainer container = getObjectStoreService(nodeName).getTranslogBlobContainer();
+        long batchRecords = 0;
+        for (BlobMetadata blob : container.listBlobs(operationPurpose).values()) {
+            try (StreamInput streamInput = new InputStreamStreamInput(container.readBlob(operationPurpose, blob.name()))) {
+                CompoundTranslogHeader header = CompoundTranslogHeader.readFromStore(blob.name(), streamInput);
+                TranslogMetadata metadata = header.metadata().get(shardId);
+                if (metadata == null || metadata.size() == 0) {
+                    continue;
+                }
+                streamInput.skipNBytes(metadata.offset());
+                BytesReference region = streamInput.readBytesReference((int) metadata.size());
+                try (var checksumInput = new BufferedChecksumStreamInput(region.streamInput(), "batch record scan")) {
+                    while (checksumInput.available() > 0) {
+                        if (Translog.readRecord(checksumInput) instanceof IndexOperationBatch.TranslogRecord) {
+                            batchRecords++;
+                        }
+                    }
+                }
+            }
+        }
+        return batchRecords;
     }
 
     private static String nonMasterIndexingNode() {

@@ -106,6 +106,50 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | DROP salary");
     }
 
+    public void testStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*)");
+    }
+
+    public void testStatsByMappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY languages");
+    }
+
+    public void testStatsByUnmappedFieldOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY unmapped_extra");
+    }
+
+    public void testKeepWildcardThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | KEEP first_name* | STATS c = COUNT(*)");
+    }
+
+    public void testEvalThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | EVAL z = salary + 1 | STATS c = COUNT(*) BY z");
+    }
+
+    public void testDropWildcardThenStatsOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | DROP first_name* | STATS c = COUNT(*)");
+    }
+
+    public void testStatsThenKeepStarOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) | KEEP *");
+    }
+
+    public void testStatsThenEvalOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) | EVAL z = c + 1");
+    }
+
+    /**
+     * A wildcard {@code DROP} or {@code KEEP} contributes a pattern of its own, so these check that a projection downstream of
+     * {@code STATS} cannot re-open what the aggregate already closed.
+     */
+    public void testStatsThenDropWildcardOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | STATS c = COUNT(*) BY languages | DROP lang*");
+    }
+
+    public void testDropWildcardThenStatsThenKeepWildcardOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttribute("FROM test | DROP first_name* | STATS c = COUNT(*) BY languages | KEEP lang*");
+    }
+
     public void testKeepWildcardIgnoresMappedExactNameInSameCommand() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first_name*, salary");
         assertKept(pattern, "first_name_suffix");

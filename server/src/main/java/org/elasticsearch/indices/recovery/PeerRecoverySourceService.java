@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayDeque;
@@ -359,13 +360,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 maxConcurrentOutgoingRecoveries = newMax;
             }
             if (oldMax < newMax) {
-                startRecoveriesUpToLimit();
+                // Move off the cluster applier thread. The generic executor has an unbounded queue and the cluster
+                // applier thread stops before the thread pool shuts down so this can never be rejected.
+                transportService.getThreadPool().generic().execute(this::startRecoveriesUpToLimit);
             }
         }
 
         /// Dequeues and starts pending recoveries up to the max concurrency limit.
         /// Acquires the lock once per dequeued recovery and triggers recovery in same loop, outside the lock.
         void startRecoveriesUpToLimit() {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             while (true) {
                 final PendingRecovery nextRecovery;
                 final RecoverySourceHandler nextHandler;

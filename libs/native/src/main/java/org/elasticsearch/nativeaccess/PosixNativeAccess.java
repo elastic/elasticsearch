@@ -30,7 +30,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
-    protected final SimdVecLibrary vectorDistance;
     protected final ParquetRsFunctions parquetRsFunctions;
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
@@ -38,7 +37,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorDistance = vectorSimilarityFunctionsOrNull();
         this.parquetRsFunctions = parquetRsFunctionsOrNull(libraryProvider);
         this.constants = constants;
         this.processLimits = new ProcessLimits(
@@ -67,17 +65,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
             logger.warn("unable to retrieve " + description + " [" + libc.strerror(libc.errno()) + "]");
             return ProcessLimits.UNKNOWN;
         }
-    }
-
-    static SimdVecLibrary vectorSimilarityFunctionsOrNull() {
-        if (isNativeVectorLibSupported() == false) {
-            return null;
-        }
-        var lib = SimdVecLibrary.tryLoad().orElse(null);
-        if (lib != null) {
-            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
-        }
-        return lib;
     }
 
     static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
@@ -208,11 +195,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected abstract boolean nativePreallocate(int fd, long currentSize, long newSize);
 
     @Override
-    public Optional<SimdVecLibrary> getVectorSimilarityFunctions() {
-        return Optional.ofNullable(vectorDistance);
-    }
-
-    @Override
     public Optional<ParquetRsFunctions> getParquetRsFunctions() {
         return Optional.ofNullable(parquetRsFunctions);
     }
@@ -228,10 +210,6 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         } else {
             return Long.toUnsignedString(value);
         }
-    }
-
-    static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 22 && (isMacOrLinuxAarch64() || isLinuxAmd64()) && checkEnableSystemProperty();
     }
 
     static boolean isNativeRustLibSupported() {
@@ -250,15 +228,5 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     static boolean isMacOrLinuxAarch64() {
         String name = System.getProperty("os.name");
         return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
-    }
-
-    /** -Dorg.elasticsearch.nativeaccess.enableVectorLibrary=false to disable.*/
-    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
-
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
-    static boolean checkEnableSystemProperty() {
-        return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }
 }

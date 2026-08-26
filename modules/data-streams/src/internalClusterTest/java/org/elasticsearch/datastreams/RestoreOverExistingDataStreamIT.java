@@ -313,39 +313,6 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
     }
 
     /**
-     * Two targets in the same restore call must not share a destination data-stream name: {@code guardedDataStreamTargets} is a
-     * {@code Map} keyed by destination name, so a duplicate would silently overwrite the earlier target there while its snapshot data
-     * stream and indices still get restored for real via the plain (non-deduplicating) collections built alongside it, letting a
-     * malformed earlier target escape all identity/template/conflict validation entirely.
-     */
-    public void testGuardedDataStreamRestoreRejectsDuplicateDestination() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-
-        createRepositoryAndSnapshottedDataStream();
-        final RestoreTarget restoreTarget = resolveRestoreTarget();
-        final String restoreUUID = UUIDs.randomBase64UUID();
-
-        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
-            () -> restoreService().restoreOverExistingDataStreams(
-                ProjectId.DEFAULT,
-                restoreTarget.snapshot(),
-                restoreTarget.snapshotInfo(),
-                TEST_REQUEST_TIMEOUT,
-                restoreUUID,
-                List.of(restoreTarget.target(), restoreTarget.target()),
-                restoreTarget.snapshotDataStreamAliases(),
-                future
-            )
-        );
-        assertThat(e.getMessage(), containsString("targeted by more than one restore target"));
-
-        assertThat("a rejected guarded restore must leave the destination unchanged", currentDataStream(), notNullValue());
-    }
-
-    /**
      * {@code snapshotIndices} must exactly match the backing/failure-store indices that the target's own snapshot data stream
      * references: a caller that resolved too few (or too many) index entries has made a mistake that must be rejected up front, rather
      * than silently restoring an incomplete data stream or leaving orphaned indices behind.

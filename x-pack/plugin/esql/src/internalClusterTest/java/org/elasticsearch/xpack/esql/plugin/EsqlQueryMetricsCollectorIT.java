@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -89,6 +90,12 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
         assertThat(lastMetrics.get(QueryMetricsListener.READ_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
+        // CPU counter should not exceed total counter
+        assertThat(
+            lastMetrics.get(QueryMetricsListener.READ_NANOS),
+            greaterThanOrEqualTo(lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS))
+        );
         assertThat(lastMetrics.get(QueryMetricsListener.SPLIT_DISCOVERY_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }

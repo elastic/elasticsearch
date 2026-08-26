@@ -29,11 +29,13 @@ import java.util.function.BooleanSupplier;
  * that yields nothing, but the read itself is one implementation here rather than one per caller: how wide a
  * window to open, when to drain it and when to abort it, how to read the splitter's sentinels.
  * <p>
- * Which of the two walks applies is a property of the splitter. {@link RecordSplitter#supportsStridedProbing()}
- * means any offset can be probed independently of any other, which is what
- * {@link #probeAt} and {@link #stridedOutcomes} assume. A splitter that instead only supports
- * {@link RecordSplitter#supportsProvenProbing()} (quoted or escaped CSV/TSV) must use {@link #provenBoundaries},
- * whose every step depends on the boundary the previous one found.
+ * Which walks are open to a caller is a property of the splitter. {@link RecordSplitter#supportsStridedProbing()}
+ * means any offset can be probed independently of any other, which is what {@link #probeAt} assumes; such a
+ * splitter can be walked either at a fixed grid of offsets ({@link #stridedOutcomes}, whose offsets can be
+ * probed in any order or concurrently) or from each boundary to the next ({@link #advancingBoundaries}, which
+ * gives up that independence and gets a wider window for it). A splitter that instead only supports
+ * {@link RecordSplitter#supportsProvenProbing()} (quoted or escaped CSV/TSV) has no choice and must use
+ * {@link #provenBoundaries}, whose every step depends on the boundary the previous one found.
  */
 final class RecordBoundaryProbe {
 
@@ -94,7 +96,7 @@ final class RecordBoundaryProbe {
      * Default width of the window one split-discovery probe opens, which is how far it reads before giving up
      * on its offset. A dataset whose records are longer than this sets {@code split_probe_window}. Segmenting a
      * split across the threads of one node takes no width from here, because its probes read only bytes that
-     * node is about to parse; see {@link ParallelParsingCoordinator#computeSegments}.
+     * node is about to parse; see {@link #advancingBoundaries}.
      * <p>
      * A width narrower than the record cap is what ties a walk's cost in bytes to numbers its caller states,
      * the offset count times this one. The record cap alone would leave that product free to run away: at the
@@ -112,21 +114,14 @@ final class RecordBoundaryProbe {
 
     /**
      * The window a probe at {@code pos} reads: the smallest of the longest record the splitter would accept,
-     * the stride, the configured probe window, and what is left of the file.
+     * the window its caller asked for, and what is left of the file.
      * <p>
      * {@code maxRecordBytes} bounds it because a record longer than the streamed path would accept is one no
      * split can usefully start after, so reading past it buys nothing. It also leaves the longest record a
-     * probe resolves under the query's own control, through the {@code external_max_record_size} pragma and the
-     * {@code target_split_size} read option, rather than under a size nothing in a query can reach. Since the
-     * window ends the scan at the same byte the cap would, a probe never observes
-     * {@link RecordSplitter#RECORD_TOO_LARGE}; that sentinel belongs to the streamed path, which reads until
-     * the cap is exceeded rather than until a window runs out.
-     * <p>
-     * Capping at the stride is what keeps one probe's window from reaching into the next probe's offset, so the
-     * boundaries a set of offsets produces stay in the same order as the offsets themselves. It is also what
-     * makes a caller asking for splits smaller than a record's worth of bytes get correspondingly smaller
-     * probes. Where the stride is the smaller of the two it is the stride that binds, so a record longer than
-     * one split yields no boundary even though the streamed path would accept it.
+     * probe resolves under the query's own control, through the {@code external_max_record_size} pragma,
+     * rather than under a size nothing in a query can reach. Since the window ends the scan at the same byte
+     * the cap would, a probe never observes {@link RecordSplitter#RECORD_TOO_LARGE}; that sentinel belongs to
+     * the streamed path, which reads until the cap is exceeded rather than until a window runs out.
      * <p>
      * A wide window is not a wide read. The splitters scan through an 8kb buffer and stop at the first
      * terminator, and {@link ProbeStream} then aborts the stream rather than transferring the rest, so on a
@@ -138,12 +133,30 @@ final class RecordBoundaryProbe {
      * window, because {@link #probeAt} rejects a boundary on the window's last byte as found against the window
      * rather than against the file.
      *
-     * @param windowBytes the bytes one probe may read: {@code split_probe_window} when discovering splits, and
-     *                    the record cap when segmenting one split across a node's threads
+     * @param windowBytes the bytes one probe may read: {@link #gridWindow} when walking a fixed grid of
+     *                    offsets, and the record cap when advancing from each boundary in turn
      */
-    static long probeWindow(long pos, long fileLength, long strideBytes, int maxRecordBytes, long windowBytes) {
-        long bounded = Math.min(Math.min(maxRecordBytes, strideBytes), windowBytes);
-        return Math.min(bounded, fileLength - pos);
+    static long probeWindow(long pos, long fileLength, int maxRecordBytes, long windowBytes) {
+        return Math.min(Math.min(maxRecordBytes, windowBytes), fileLength - pos);
+    }
+
+    /**
+     * The window the offsets of a fixed grid probe with: the configured width, never wider than the stride
+     * between them.
+     * <p>
+     * Capping at the stride is what keeps one probe's window from reaching into the next probe's offset, so the
+     * boundaries a set of offsets produces stay in the same order as the offsets themselves, and it is what
+     * bounds a grid walk's total read at one pass over the file however many offsets it lays out. It is also
+     * what makes a caller asking for splits smaller than a record's worth of bytes get correspondingly smaller
+     * probes. Where the stride is the smaller of the two it is the stride that binds, so a record longer than
+     * one split yields no boundary even though the streamed path would accept it.
+     * <p>
+     * That last consequence is why it belongs to the grid rather than to a probe. A walk that instead advances
+     * from each boundary it finds gets the same one-pass bound from its offsets being monotonic, so it has no
+     * reason to give up on a record wider than a stride; see {@link #advancingBoundaries}.
+     */
+    static long gridWindow(long strideBytes, long windowBytes) {
+        return Math.min(strideBytes, windowBytes);
     }
 
     /**
@@ -174,8 +187,7 @@ final class RecordBoundaryProbe {
      * occupied rather than a scan of the record cap per offset. Split discovery narrows that wait further by
      * configuring a width, {@link #DEFAULT_SPLIT_PROBE_WINDOW} by default, because its walks are the long ones.
      *
-     * @param strideBytes the distance between the offsets the caller is probing, which bounds the window
-     * @param maxRecordBytes the longest record the splitter will accept, which also bounds the window
+     * @param maxRecordBytes the longest record the splitter will accept, which bounds the window
      * @param windowBytes the bytes one probe may read, which also bounds the window
      */
     static Outcome probeAt(
@@ -184,7 +196,6 @@ final class RecordBoundaryProbe {
         long pos,
         long fileLength,
         long minSegment,
-        long strideBytes,
         int maxRecordBytes,
         long windowBytes,
         BooleanSupplier isCancelled
@@ -192,7 +203,7 @@ final class RecordBoundaryProbe {
         if (isCancelled.getAsBoolean()) {
             throw new TaskCancelledException(CANCELLED_MESSAGE);
         }
-        long window = probeWindow(pos, fileLength, strideBytes, maxRecordBytes, windowBytes);
+        long window = probeWindow(pos, fileLength, maxRecordBytes, windowBytes);
         long skipped;
         InputStream stream = storageObject.newStream(pos, window);
         try (ProbeStream probe = new ProbeStream(storageObject, stream, window)) {
@@ -357,15 +368,98 @@ final class RecordBoundaryProbe {
         long windowBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
+        long window = gridWindow(strideBytes, windowBytes);
         return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
             List<Outcome> outcomes = new ArrayList<>(positions.size());
             for (long pos : positions) {
-                outcomes.add(
-                    probeAt(splitter, storageObject, pos, fileLength, minSegment, strideBytes, maxRecordBytes, windowBytes, isCancelled)
-                );
+                outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, window, isCancelled));
             }
             return outcomes;
         });
+    }
+
+    /**
+     * Boundaries for a strided splitter, probed at the same {@code strideBytes} grid {@link #stridedPositions}
+     * lays out but resumed from each boundary found rather than walked blind.
+     * <p>
+     * A blind grid bounds its total read by capping every window at the stride (see {@link #gridWindow}),
+     * because its offsets are laid out in advance and a wider window would let one probe read into the next
+     * one's offset. That cap is also a ceiling on the records the grid can resolve: an offset inside a record
+     * wider than one stride never reaches that record's terminator, so a file whose records outgrow a segment
+     * is cut into far fewer pieces than its offsets asked for, and one whose record width divides the stride is
+     * not cut at all. Resuming from the boundary gets the same bound out of the walk itself. A probe reads from
+     * its offset to the boundary it finds, and the next offset is the first grid multiple at or after that
+     * boundary, so no two probes read the same byte however wide the windows are. That is what lets the window
+     * here be the record cap, the widest record any split could usefully start after anyway.
+     * <p>
+     * Staying on the grid rather than advancing a full stride past each boundary is what keeps the segments as
+     * small as the caller asked for. Records narrower than a stride resolve to the same offsets, and so the
+     * same segments, a blind grid would have produced; the offsets a resumed walk skips are only the ones that
+     * fall inside a record it has already crossed, which are exactly the ones that could not have contributed
+     * a boundary of their own.
+     * <p>
+     * An offset that finds nothing does not stop the walk. It resumes a window on, past bytes now known to hold
+     * no boundary, so a record the walk cannot get past costs the one segment that spans it rather than every
+     * segment after it. With the window at the record cap, a probe finds nothing only when the record it landed
+     * in is longer than the streamed path will read, so this is the same file the parse is about to fail on.
+     * <p>
+     * Sequential by construction, and unlike {@link #provenBoundaries} that is a choice rather than a property
+     * of the splitter: the same file could be walked at fixed offsets concurrently through {@link #probeAt}.
+     * The caller that wants concurrency is split discovery, which probes a dataset nothing has read yet; a walk
+     * that segments a split its own node is about to parse has no threads to spare for it and gains the wider
+     * window instead.
+     * <p>
+     * No {@link StorageRetryCancellation} scope is installed here, unlike {@link #stridedOutcomes}. This walk
+     * runs on the thread that already carries the read's own scope, and installing one would replace that live
+     * cancel signal with this method's, leaving a probe parked in retry/throttle backoff unable to observe the
+     * cancel at all.
+     *
+     * @param strideBytes the grid the offsets sit on, i.e. how small a span the caller is asking for
+     */
+    static List<Long> advancingBoundaries(
+        RecordSplitter splitter,
+        StorageObject storageObject,
+        long fileLength,
+        long strideBytes,
+        long minSegment,
+        int maxRecordBytes,
+        BooleanSupplier isCancelled
+    ) throws IOException {
+        assert strideBytes > 0 : "stride must be positive, was " + strideBytes;
+        List<Long> boundaries = new ArrayList<>();
+        boundaries.add(0L);
+        long pos = strideBytes;
+        while (pos < fileLength && fileLength - pos >= minSegment) {
+            long window = probeWindow(pos, fileLength, maxRecordBytes, maxRecordBytes);
+            Outcome outcome = probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, maxRecordBytes, isCancelled);
+            switch (outcome.kind()) {
+                case FOUND -> {
+                    assert outcome.boundary() > boundaries.get(boundaries.size() - 1) : "record boundary must be strictly increasing";
+                    boundaries.add(outcome.boundary());
+                    pos = onGridAtOrAfter(outcome.boundary(), strideBytes);
+                }
+                // Every offset past this one resolves to a boundary at least this far in, so they would all
+                // report the same and the last span extends to end-of-file.
+                case TAIL_TOO_SHORT -> {
+                    return boundaries;
+                }
+                case NONE -> pos = onGridAtOrAfter(pos + window, strideBytes);
+            }
+        }
+        return boundaries;
+    }
+
+    /**
+     * The first multiple of {@code strideBytes} at or after {@code pos}, which is where a resumed walk picks the
+     * grid back up.
+     * <p>
+     * At or after rather than strictly after, so a boundary that lands on a multiple is probed from rather than
+     * skipped past. That cannot stall the walk: {@link #probeAt} resolves strictly past its own offset, so the
+     * next offset is strictly past this one either way.
+     */
+    private static long onGridAtOrAfter(long pos, long strideBytes) {
+        long strides = (pos + strideBytes - 1) / strideBytes;
+        return strides * strideBytes;
     }
 
     /**

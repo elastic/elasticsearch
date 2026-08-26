@@ -589,41 +589,28 @@ public final class ParallelParsingCoordinator {
                     + "] supports neither strided nor proven probing and cannot be segmented"
             );
         }
-        // The proven walk is sequential by nature, so it resolves every boundary in one call. Segmentation runs
-        // on the thread that already carries the read's StorageRetryCancellation scope, so it passes no
-        // cancellation supplier of its own: a probe read parked in retry/throttle backoff observes the read's
-        // own cancel signal through that ambient scope, which a supplier here would displace.
+        // Both walks are sequential, so either resolves every boundary in one call. Segmentation runs on the
+        // thread that already carries the read's StorageRetryCancellation scope, so it passes no cancellation
+        // supplier of its own: a probe read parked in retry/throttle backoff observes the read's own cancel
+        // signal through that ambient scope, which a supplier here would displace.
         List<Long> boundaries;
         if (strided) {
-            // Fixed offsets, like planning's newline macro-splits: a probe that yields no boundary merges the
-            // spans either side of it rather than stopping the walk, so a record longer than the probe window
-            // mid-file costs one segment rather than all remaining in-node parallelism after it.
-            // probeAt is called directly (not via stridedOutcomes) so as not to overwrite the ambient
-            // StorageRetryCancellation scope the read installed, which is what lets backoff sleeps abort on cancel.
-            List<Long> positions = RecordBoundaryProbe.stridedPositions(fileLength, nominalSize, minSegment);
-            // The nominal segment size already bounds each of these probes, and they sit one nominal size
-            // apart, so the bytes they read cannot exceed the split this node is about to parse in full: they
-            // are bytes read early rather than bytes read twice. The record cap is the only other bound they
-            // need. A narrower configured width belongs to split discovery, where a probe reads from a dataset
-            // that nothing has read yet and pays for those bytes again at execution.
-            long windowBytes = maxRecordBytes;
-            List<RecordBoundaryProbe.Outcome> outcomes = new ArrayList<>(positions.size());
-            for (long pos : positions) {
-                outcomes.add(
-                    RecordBoundaryProbe.probeAt(
-                        splitter,
-                        storageObject,
-                        pos,
-                        fileLength,
-                        minSegment,
-                        nominalSize,
-                        maxRecordBytes,
-                        windowBytes,
-                        () -> false
-                    )
-                );
-            }
-            boundaries = RecordBoundaryProbe.reduce(outcomes);
+            // The offsets of a nominal-size grid, resumed from each boundary rather than walked blind. Both
+            // walks read the split at most once, but a blind grid buys that by capping every window at the
+            // stride, which is also a ceiling on the records it can resolve: a file whose records outgrow a
+            // segment would be cut into far fewer pieces than its offsets asked for, and one whose record width
+            // divides the stride would not be cut at all. Resuming gets the same bound from the offsets being
+            // monotonic, so its probes can open the record cap instead. The concurrency a blind grid's
+            // independent offsets allow is no loss here: these probes run on the calling thread either way.
+            boundaries = RecordBoundaryProbe.advancingBoundaries(
+                splitter,
+                storageObject,
+                fileLength,
+                nominalSize,
+                minSegment,
+                maxRecordBytes,
+                () -> false
+            );
         } else {
             boundaries = RecordBoundaryProbe.provenBoundaries(splitter, storageObject, fileLength, nominalSize, minSegment, () -> false)
                 .boundaries();

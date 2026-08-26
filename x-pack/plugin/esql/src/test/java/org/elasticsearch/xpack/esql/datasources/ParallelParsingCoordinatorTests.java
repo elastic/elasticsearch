@@ -117,22 +117,24 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
     /**
      * A record longer than the probe window costs only its own split: the probe at its offset yields no boundary,
-     * so the spans either side of it merge into one, but the walk continues at fixed offsets past it and the
-     * probes after the record find boundaries normally. Coverage is preserved exactly, and the long record is
-     * contained in one segment that spans it without stopping in-node parallelism for the rest of the file.
+     * so the spans either side of it merge into one, but the walk resumes a window on and the probes after the
+     * record find boundaries normally. Coverage is preserved exactly, and the long record is contained in one
+     * segment that spans it without stopping in-node parallelism for the rest of the file.
+     * <p>
+     * The window a segment probe opens is the record cap, so outrunning it means outrunning the cap. The cap is
+     * lowered here to reach that without a multi-megabyte record.
      */
     public void testARecordLongerThanTheProbeWindowCostsOnlyItsOwnSegment() throws IOException {
         String row = "0123456789,0123456789,012345678\n";
         long minSegment = 512 * 1024;
         // Parallelism high enough that fileLength / parallelism falls under minSegment, which pins the stride to
-        // minSegment. The stride is the narrowest of the window's terms here, so it is what a probe opens, and
-        // the record below is longer than it.
+        // minSegment.
         int parallelism = 64;
+        int maxRecordBytes = Math.toIntExact(minSegment);
         // Place the long record at exactly two strides in so the probe at that offset lands on the record start
-        // and cannot find a boundary within its window; the probe at three strides (inside the record but within
-        // a window of its end) can.
+        // and cannot reach its end within the cap.
         long longRecordStart = 2 * minSegment;
-        int longRecordBytes = Math.toIntExact(minSegment + 128 * 1024);
+        int longRecordBytes = maxRecordBytes + 128 * 1024;
 
         StringBuilder text = new StringBuilder();
         while (text.length() < longRecordStart) {
@@ -150,7 +152,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             new InMemoryStorageObject(payload),
             payload.length,
             parallelism,
-            minSegment
+            minSegment,
+            maxRecordBytes
         );
 
         // The probe at the long record's stride yields nothing; the spans either side merge into one larger
@@ -190,7 +193,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             new InMemoryStorageObject(shortRowsOnly),
             shortRowsOnly.length,
             parallelism,
-            minSegment
+            minSegment,
+            maxRecordBytes
         );
         assertThat("a file of short rows segments further", unobstructed.size(), Matchers.greaterThan(segments.size()));
     }
@@ -230,6 +234,53 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
 
         assertEquals("every probe must resolve, giving one segment per probe plus the first", parallelism, segments.size());
+        long covered = 0;
+        for (long[] segment : segments) {
+            covered += segment[1];
+            assertTrue(
+                "segment at " + segment[0] + " must start on a record",
+                segment[0] == 0 || payload[Math.toIntExact(segment[0]) - 1] == '\n'
+            );
+        }
+        assertEquals("segments must tile the file", payload.length, covered);
+    }
+
+    /**
+     * Records wider than a segment are segmented on too, one segment per record. A walk at blind grid offsets
+     * cannot do this: its window is capped at the stride so that one probe cannot read into the next probe's
+     * offset, and an offset inside a record wider than a stride never reaches that record's terminator. Here
+     * every record is two strides long, so every offset either sits a full stride short of a terminator or a
+     * stride and a half, and a blind grid resolves none of them at all: the whole split collapses onto one
+     * parsing thread. Resuming each probe from the last boundary lifts the stride cap and recovers every one.
+     */
+    public void testRecordsWiderThanASegmentStillSegment() throws IOException {
+        int recordBytes = 64 * 1024;
+        int records = 16;
+        int parallelism = 32;
+        long fileLength = (long) recordBytes * records;
+        long stride = fileLength / parallelism;
+        assertThat(
+            "the records must outrun a segment, or the walk under test is not exercised",
+            (long) recordBytes,
+            Matchers.greaterThan(stride)
+        );
+
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < records; i++) {
+            text.append("x".repeat(recordBytes - 1)).append('\n');
+        }
+        byte[] payload = text.toString().getBytes(StandardCharsets.UTF_8);
+        assertEquals(fileLength, payload.length);
+
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            new NewlineSegmentableReader(1),
+            new InMemoryStorageObject(payload),
+            payload.length,
+            parallelism,
+            1
+        );
+
+        assertEquals("a record this wide still admits one segment each", records, segments.size());
         long covered = 0;
         for (long[] segment : segments) {
             covered += segment[1];
@@ -321,7 +372,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             RecordBoundaryProbe.probeWindow(
                 stride,
                 fileLength,
-                stride,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
             ),

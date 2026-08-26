@@ -2550,9 +2550,8 @@ public class FileSplitProviderTests extends ESTestCase {
             window,
             payload.length,
             1,
-            window,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            NON_BINDING_PROBE_WINDOW,
+            RecordBoundaryProbe.gridWindow(window, NON_BINDING_PROBE_WINDOW),
             () -> false
         );
         return tracking;
@@ -2645,9 +2644,8 @@ public class FileSplitProviderTests extends ESTestCase {
             window,
             payload.length,
             1,
-            window,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            NON_BINDING_PROBE_WINDOW,
+            RecordBoundaryProbe.gridWindow(window, NON_BINDING_PROBE_WINDOW),
             () -> false
         );
 
@@ -2692,8 +2690,9 @@ public class FileSplitProviderTests extends ESTestCase {
 
     /**
      * Which of the terms binds the window is whichever the caller made narrowest: the record cap above the
-     * configured window leaves the cap in charge, a configured window below it takes over, and a stride below
-     * both binds instead, so a caller asking for small splits still gets small probes.
+     * configured window leaves the cap in charge, and a configured window below it takes over. A grid walk's
+     * stride is folded into the width it asks for rather than being a term of its own, so a caller asking for
+     * small splits still gets small probes.
      */
     public void testTheProbeWindowFollowsWhicheverBoundIsTightest() {
         long fileLength = 64L * 1024 * 1024 * 1024;
@@ -2703,17 +2702,27 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(
             "a window above the record cap leaves the cap what the window is worth",
             maxRecordBytes,
-            RecordBoundaryProbe.probeWindow(0, fileLength, wideStride, maxRecordBytes, 2L * maxRecordBytes)
+            RecordBoundaryProbe.probeWindow(0, fileLength, maxRecordBytes, 2L * maxRecordBytes)
         );
         assertEquals(
             "a window below it is what the probe gets",
             RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW,
-            RecordBoundaryProbe.probeWindow(0, fileLength, wideStride, maxRecordBytes, RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW)
+            RecordBoundaryProbe.probeWindow(0, fileLength, maxRecordBytes, RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW)
+        );
+        assertEquals(
+            "a stride wider than the configured window leaves the window in charge",
+            RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW,
+            RecordBoundaryProbe.gridWindow(wideStride, RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW)
         );
         assertEquals(
             "and a stride below both of those is what binds instead",
             4096L,
-            RecordBoundaryProbe.probeWindow(0, fileLength, 4096, maxRecordBytes, RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW)
+            RecordBoundaryProbe.probeWindow(
+                0,
+                fileLength,
+                maxRecordBytes,
+                RecordBoundaryProbe.gridWindow(4096, RecordBoundaryProbe.DEFAULT_SPLIT_PROBE_WINDOW)
+            )
         );
     }
 
@@ -2732,9 +2741,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 5,
                 payload.length,
                 5,
-                payload.length,
                 maxRecordBytes,
-                NON_BINDING_PROBE_WINDOW,
+                RecordBoundaryProbe.gridWindow(payload.length, NON_BINDING_PROBE_WINDOW),
                 () -> false
             )
         );
@@ -2747,9 +2755,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 5,
                 payload.length,
                 6,
-                payload.length,
                 maxRecordBytes,
-                NON_BINDING_PROBE_WINDOW,
+                RecordBoundaryProbe.gridWindow(payload.length, NON_BINDING_PROBE_WINDOW),
                 () -> false
             )
         );
@@ -2813,9 +2820,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 1024,
                 4096,
                 1,
-                1024,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                NON_BINDING_PROBE_WINDOW,
+                RecordBoundaryProbe.gridWindow(1024, NON_BINDING_PROBE_WINDOW),
                 () -> false
             )
         );
@@ -2846,9 +2852,8 @@ public class FileSplitProviderTests extends ESTestCase {
             window,
             payload.length,
             1,
-            window,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            NON_BINDING_PROBE_WINDOW,
+            RecordBoundaryProbe.gridWindow(window, NON_BINDING_PROBE_WINDOW),
             () -> false
         );
 
@@ -2873,9 +2878,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 window,
                 insideTheWindow.length,
                 1,
-                window,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                NON_BINDING_PROBE_WINDOW,
+                RecordBoundaryProbe.gridWindow(window, NON_BINDING_PROBE_WINDOW),
                 () -> false
             )
         );
@@ -2905,9 +2909,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 stride,
                 payload.length,
                 1,
-                stride,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                NON_BINDING_PROBE_WINDOW,
+                RecordBoundaryProbe.gridWindow(stride, NON_BINDING_PROBE_WINDOW),
                 cancelAfterTheScan
             )
         );
@@ -2962,9 +2965,8 @@ public class FileSplitProviderTests extends ESTestCase {
                 5,
                 payload.length,
                 1,
-                payload.length,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                NON_BINDING_PROBE_WINDOW,
+                RecordBoundaryProbe.gridWindow(payload.length, NON_BINDING_PROBE_WINDOW),
                 () -> true
             )
         );

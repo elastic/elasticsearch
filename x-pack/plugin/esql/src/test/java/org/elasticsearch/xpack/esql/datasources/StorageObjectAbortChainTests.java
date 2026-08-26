@@ -192,14 +192,13 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
     /**
      * The window {@link ParallelParsingCoordinator#computeSegments} opens at its first probe offset, derived the
-     * way it derives it: the segment size and the record cap bound it. The cap is passed as the width too,
-     * because segmentation reads bytes it is about to parse anyway and so takes no narrower width.
+     * way it derives it: the record cap bounds it, and is passed as the width too because segmentation advances
+     * from each boundary it finds and so reads no byte twice however wide its windows are.
      */
     private static long segmentProbeWindow(long fileLength, long stride) {
         return RecordBoundaryProbe.probeWindow(
             stride,
             fileLength,
-            stride,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
         );

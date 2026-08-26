@@ -803,7 +803,7 @@ public class FileSplitProvider implements SplitProvider {
         private String probeBound() {
             long maxRecordBytes = firstAffected.task().maxRecordBytes();
             long strideBytes = firstAffected.strideBytes();
-            long bound = Math.min(Math.min(maxRecordBytes, strideBytes), probeWindowBytes);
+            long bound = Math.min(maxRecordBytes, RecordBoundaryProbe.gridWindow(strideBytes, probeWindowBytes));
             List<String> keys = new ArrayList<>(3);
             if (probeWindowBytes == bound) {
                 keys.add("[" + CONFIG_SPLIT_PROBE_WINDOW + "]");
@@ -937,9 +937,8 @@ public class FileSplitProvider implements SplitProvider {
                 probe.position(),
                 deferred.task().fileLength(),
                 deferred.minSegment(),
-                deferred.strideBytes(),
                 deferred.task().maxRecordBytes(),
-                windowBytes,
+                RecordBoundaryProbe.gridWindow(deferred.strideBytes(), windowBytes),
                 isCancelled
             )
         );

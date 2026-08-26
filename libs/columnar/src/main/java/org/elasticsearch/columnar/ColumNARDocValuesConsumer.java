@@ -67,8 +67,10 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final IOContext context;
     private final IndexOutput data;
     private final IndexOutput meta;
+    private final IndexOutput skipIndex;
     private final List<FieldEntry> fields = new ArrayList<>();
     private final NumericPipelineSelector pipelineSelector;
+    private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final DictionaryPolicy dictionaryPolicy;
 
@@ -81,10 +83,12 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     ColumNARDocValuesConsumer(
         SegmentWriteState state,
         NumericPipelineSelector pipelineSelector,
+        ColumnarFieldTypeSelector typeSelector,
         int blockSize,
         DictionaryPolicy dictionaryPolicy
     ) throws IOException {
         this.pipelineSelector = pipelineSelector;
+        this.typeSelector = typeSelector;
         this.blockSize = blockSize;
         this.dictionaryPolicy = dictionaryPolicy;
         this.maxDoc = state.segmentInfo.maxDoc();
@@ -101,6 +105,20 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             ColumnarCodecUtil.writeHeader(
                 data,
                 ColumNARDocValuesFormat.DATA_CODEC,
+                FormatVersion.CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
+
+            String skipName = IndexFileNames.segmentFileName(
+                state.segmentInfo.name,
+                state.segmentSuffix,
+                ColumNARDocValuesFormat.SKIP_EXTENSION
+            );
+            skipIndex = state.directory.createOutput(skipName, state.context);
+            ColumnarCodecUtil.writeHeader(
+                skipIndex,
+                ColumNARDocValuesFormat.SKIP_CODEC,
                 FormatVersion.CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
@@ -129,7 +147,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
 
     @Override
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        ColumnarFieldType type = ColumnarFieldType.fromField(field);
+        ColumnarFieldType type = typeSelector.select(field);
         // Exhaustive, so a column type added later is a compile error here rather than a surprise at runtime.
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(
@@ -153,7 +171,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      */
     @Override
     public void mergeBinaryField(FieldInfo field, MergeState mergeState) throws IOException {
-        ColumnarFieldType type = ColumnarFieldType.fromField(field);
+        ColumnarFieldType type = typeSelector.select(field);
         switch (type) {
             case LONG, DOUBLE -> writeNumericColumn(field, type, () -> numericMergeCursor(field, mergeState));
             case STRING -> {
@@ -540,7 +558,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
             directory,
             context,
-            data
+            data,
+            skipIndex
         );
         fields.add(new FieldEntry(field.number, type.id(), metadata));
     }
@@ -629,12 +648,13 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             meta.writeInt(-1);
             CodecUtil.writeFooter(meta);
             CodecUtil.writeFooter(data);
+            CodecUtil.writeFooter(skipIndex);
             success = true;
         } finally {
             if (success) {
-                IOUtils.close(data, meta);
+                IOUtils.close(data, skipIndex, meta);
             } else {
-                IOUtils.closeWhileHandlingException(data, meta);
+                IOUtils.closeWhileHandlingException(data, skipIndex, meta);
             }
         }
     }

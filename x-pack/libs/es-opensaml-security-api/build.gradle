@@ -13,10 +13,21 @@ apply plugin: 'com.gradleup.shadow'
 
 dependencies {
   implementation "org.opensaml:opensaml-security-api:${versions.opensaml}"
-  compileOnly "org.opensaml:opensaml-core:${versions.opensaml}"
+  compileOnly "org.opensaml:opensaml-core-api:${versions.opensaml}"
+  compileOnly "org.opensaml:opensaml-core-impl:${versions.opensaml}"
+  // Shadow cryptacular to replace CertUtil with a FIPS-safe version that removes
+  // the direct instantiation of BouncyCastleProvider (which fails in FIPS classloading).
+  // BC jars are excluded to avoid embedding them in the shadow jar (security/idp provide them transitively).
+  implementation ("org.cryptacular:cryptacular:1.3.0") {
+    exclude group: 'org.bouncycastle'
+  }
+  // CertUtil.java references BC types at compile time; at runtime they come from bcprov/bcpkix
+  // transitively via xmlsec and shib-security in the consuming plugins.
+  compileOnly "org.bouncycastle:bcprov-jdk18on:${versions.bouncycastle}"
+  compileOnly "org.bouncycastle:bcpkix-jdk18on:${versions.bouncycastle}"
 }
 
-['jarHell', 'thirdPartyAudit', 'splitPackagesAudit', 'forbiddenApisMain', 'licenseHeaders' ].each {
+['jarHell', 'thirdPartyAudit', 'splitPackagesAudit', 'forbiddenApisMain', 'licenseHeaders', 'checkstyleMain'].each {
   tasks.named(it).configure {
     enabled = false
   }
@@ -24,6 +35,7 @@ dependencies {
 
 tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /opensaml-.*/, to: 'shibboleth'
+  mapping from: /cryptacular.*/, to: 'cryptacular'
 }
 
 tasks.named("shadowJar").configure {

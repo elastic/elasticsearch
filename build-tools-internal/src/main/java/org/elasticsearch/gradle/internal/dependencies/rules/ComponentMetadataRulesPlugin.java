@@ -186,7 +186,10 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("net.sf.ehcache:ehcache", ExcludeAllTransitivesRule.class);
 
         // Shibboleth dependencies
-        components.withModule("net.shibboleth.utilities:java-support", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-support", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-security", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-networking", ExcludeAllTransitivesRule.class);
+        components.withModule("net.shibboleth:shib-velocity", ExcludeAllTransitivesRule.class);
 
         // Apache Arrow dependencies
         components.withModule("org.apache.arrow:arrow-format", ExcludeAllTransitivesRule.class);
@@ -419,7 +422,8 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.openjdk.jmh:jmh-core", ExcludeAllTransitivesRule.class);
 
         // OpenSAML dependencies
-        components.withModule("org.opensaml:opensaml-core", ExcludeAllTransitivesRule.class);
+        components.withModule("org.opensaml:opensaml-core-api", ExcludeAllTransitivesRule.class);
+        components.withModule("org.opensaml:opensaml-core-impl", ExcludeAllTransitivesRule.class);
         components.withModule("org.opensaml:opensaml-messaging-api", ExcludeAllTransitivesRule.class);
         components.withModule("org.opensaml:opensaml-messaging-impl", ExcludeAllTransitivesRule.class);
         components.withModule("org.opensaml:opensaml-profile-api", ExcludeAllTransitivesRule.class);

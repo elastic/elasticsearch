@@ -11,13 +11,19 @@
 # Builds libes_simdjson for all platforms and uploads the artifact to Artifactory.
 #
 # Usage:
-#   ./publish_simdjson_binaries.sh                       # build and upload to Artifactory
-#   ./publish_simdjson_binaries.sh --local               # build and package only, skip upload
+#   ./publish_simdjson_binaries.sh                       # build all platforms and upload to Artifactory
+#   ./publish_simdjson_binaries.sh --local               # build all platforms, package zip, skip upload
 #   ./publish_simdjson_binaries.sh --local --force-upload # build locally, then upload to Artifactory
+#
+# Environment:
+#   TOOLCHAIN_IMAGE      Docker image for cross-compilation
+#                        (default: docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3)
+#   ARTIFACTORY_API_KEY  Required for upload (non --local, or --force-upload)
 
 set -euo pipefail
 
 VERSION="0.1.0"
+DEFAULT_TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3"
 
 LOCAL=false
 FORCE_UPLOAD=false
@@ -39,15 +45,53 @@ if ! command -v zip > /dev/null; then
   exit 1;
 fi
 
+if ! command -v docker > /dev/null; then
+  echo 'Error: docker must be installed.'
+  exit 1;
+fi
+
 if [ "$UPLOAD" = true ] && [ -z "${ARTIFACTORY_API_KEY:-}" ]; then
   echo 'Error: The ARTIFACTORY_API_KEY environment variable must be set.'
   exit 1;
 fi
 
-TOOLCHAIN_IMAGE="docker.elastic.co/elasticsearch-infra/es-native-cross-toolchain:3"
-if [ "$LOCAL" = true ]; then
-  TOOLCHAIN_IMAGE="es-native-cross-toolchain:local"
-fi
+TOOLCHAIN_IMAGE="${TOOLCHAIN_IMAGE:-$DEFAULT_TOOLCHAIN_IMAGE}"
+
+ensure_toolchain_image() {
+  if docker image inspect "$TOOLCHAIN_IMAGE" > /dev/null 2>&1; then
+    return
+  fi
+  echo "Toolchain image not found locally; pulling ${TOOLCHAIN_IMAGE} ..."
+  docker pull "$TOOLCHAIN_IMAGE"
+}
+
+# Older published toolchain images may lack curl/xz, which the Darwin target needs to
+# fetch the macOS SDK via xmac. Install them on demand inside the container.
+run_make_all_in_toolchain() {
+  ensure_toolchain_image
+  docker run --rm \
+    -v "$(pwd)":/workspace \
+    -w /workspace \
+    "$TOOLCHAIN_IMAGE" \
+    bash -lc '
+      set -euo pipefail
+      if ! command -v curl >/dev/null 2>&1 \
+        || ! command -v xz >/dev/null 2>&1 \
+        || ! command -v bzip2 >/dev/null 2>&1; then
+        if ! command -v apt-get >/dev/null 2>&1; then
+          echo "Error: curl, xz, and bzip2 are required to fetch the macOS SDK but are missing from the toolchain image."
+          exit 1
+        fi
+        echo "Installing macOS SDK fetch dependencies (curl, xz-utils, bzip2) ..."
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y --no-install-recommends curl xz-utils bzip2 ca-certificates
+        rm -rf /var/lib/apt/lists/*
+      fi
+      make all
+    '
+}
+
 ARTIFACTORY_REPOSITORY="${ARTIFACTORY_REPOSITORY:-https://artifactory.elastic.dev/artifactory/elasticsearch-native/}"
 TEMP=$(mktemp -d)
 
@@ -58,12 +102,8 @@ if [ "$UPLOAD" = true ]; then
   fi
 fi
 
-echo 'Building all binaries...'
-docker run --rm \
-  -v "$(pwd)":/workspace \
-  -w /workspace \
-  "$TOOLCHAIN_IMAGE" \
-  make all
+echo 'Building all binaries (darwin-aarch64 + linux-aarch64 + linux-x64)...'
+run_make_all_in_toolchain
 
 mkdir -p "$TEMP/darwin-aarch64"
 mkdir -p "$TEMP/linux-aarch64"
@@ -93,4 +133,6 @@ else
   rm -rf "$TEMP" "$TEMP_DBG"
   echo "Local build complete. Artifact: $ZIP"
   echo "Debug info:  $DBG_ZIP"
+  echo "Stage for Gradle (example, aarch64):"
+  echo "  unzip -p ${ZIP} linux-aarch64/libes_simdjson.so > libs/native/libraries/build/platform/linux-aarch64/libes_simdjson.so"
 fi

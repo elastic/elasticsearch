@@ -51,7 +51,7 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
             float centerOffset = 0.5f;
             long totalBytes = (long) planeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                IndexInputUtils.withSlice(in, totalBytes, scratch::get, seg -> {
+                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
                         float ipfb = ipFloatBitSegment256(queryTransformed, seg, offset, nDims);
@@ -60,7 +60,7 @@ final class MSASHD1Q0Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
                     return null;
                 });
             } else {
-                IndexInputUtils.withSlice(in, totalBytes, scratch::get, seg -> {
+                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
                         float ipfb = ipFloatBitSegment128(queryTransformed, seg, offset, nDims);

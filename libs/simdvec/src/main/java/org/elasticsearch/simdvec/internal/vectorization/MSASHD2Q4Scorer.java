@@ -43,7 +43,7 @@ final class MSASHD2Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
         if (planeBytes >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             long totalBytes = (long) packedCodeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                IndexInputUtils.withSlice(in, totalBytes, scratch::get, seg -> {
+                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         MemorySegment docSeg = seg.asSlice((long) j * packedCodeBytes, packedCodeBytes);
                         scores[j] = scoreTwoPlanes256(queryQuantized, docSeg);
@@ -51,7 +51,7 @@ final class MSASHD2Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
                     return null;
                 });
             } else {
-                IndexInputUtils.withSlice(in, totalBytes, scratch::get, seg -> {
+                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         MemorySegment docSeg = seg.asSlice((long) j * packedCodeBytes, packedCodeBytes);
                         scores[j] = scoreTwoPlanes128(queryQuantized, docSeg);

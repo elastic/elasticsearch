@@ -38,7 +38,7 @@ final class MSASHD1Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
             // Each document has 1 bit-plane of planeBytes; query has 4 bit-planes
             long totalBytes = (long) planeBytes * blockSize;
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                IndexInputUtils.withSlice(in, totalBytes, scratch::get, seg -> {
+                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
                         scores[j] = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct256(
@@ -51,7 +51,7 @@ final class MSASHD1Q4Scorer extends MemorySegmentASHVectorsScorer.ASHMemorySegme
                     return null;
                 });
             } else {
-                IndexInputUtils.withSlice(in, totalBytes, scratch::get, seg -> {
+                IndexInputUtils.withSlice(in, totalBytes, scratch, seg -> {
                     for (int j = 0; j < blockSize; j++) {
                         long offset = (long) j * planeBytes;
                         scores[j] = MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer.fourStripeBitDotProduct128(

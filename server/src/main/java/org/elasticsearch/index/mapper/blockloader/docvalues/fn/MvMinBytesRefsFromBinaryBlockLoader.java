@@ -33,10 +33,6 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     private final String fieldName;
     private final ArrayOrderSource arrayOrderSource;
 
-    public MvMinBytesRefsFromBinaryBlockLoader(String fieldName) {
-        this(fieldName, ArrayOrderSource.NONE);
-    }
-
     public MvMinBytesRefsFromBinaryBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
         this.fieldName = fieldName;
         this.arrayOrderSource = arrayOrderSource;

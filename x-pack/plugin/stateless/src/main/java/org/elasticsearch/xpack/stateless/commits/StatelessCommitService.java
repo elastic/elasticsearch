@@ -211,14 +211,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
-    /// We use an optimistic default value of 1 Gb/sec to run unrestricted on a fresh node.
-    /// This is loosely based on the fact that a node provides at least 15 Gigabit max network throughput (which is about ~1.7 GiB).
-    public static final Setting<ByteSizeValue> STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE = Setting.byteSizeSetting(
-        "stateless.upload.average_throughput_initial_value",
-        ByteSizeValue.ofGb(1),
-        Setting.Property.NodeScope
-    );
-
     /**
      * Maximum time to wait for the search tier to respond to a new-uploaded-commit notification before closing the
      * {@link VirtualBatchedCompoundCommit} (and thus freeing its local Lucene files). The VBCC is closed as soon as the notification
@@ -357,7 +349,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             useInternalFilesReplicatedContent ? "enabled" : "disabled",
             estimatedMaxHeaderSizeInBytes
         );
-        this.metrics = new BccUploadMetrics(telemetryProvider, STATELESS_UPLOAD_AVERAGE_THROUGHPUT_INITIAL_VALUE.get(settings));
+        this.metrics = new BccUploadMetrics(telemetryProvider);
         this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
@@ -501,10 +493,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markCommitDeleted(ShardId shardId, long generation) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.markCommitDeleted(generation);
-    }
-
-    public double getAverageCommitUploadThroughputMiBSec() {
-        return metrics.getAverageUploadThroughputMiBSec();
     }
 
     public Stream<? extends ShardCommitUploadStats> getShardCommitStats() {
@@ -884,15 +872,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         // The VBCC must remain open while we wait for the search tier to acknowledge the new-uploaded-commit notification: as long as it
         // is open, search nodes can still fetch chunks of the just-uploaded files directly from the indexing node. On the success path,
-        // afterCopies calls createAfterNotificationCleanup to register a once-guarded cleanup so the VBCC stays reachable until the
+        // afterCopies calls scheduleNotificationCleanup to register a once-guarded cleanup so the VBCC stays reachable until the
         // notification completes or the timeout fires. The blob reference is released in afterCopies (once upload+copies are done).
         // On the failure path the cleanup is a simple immediate close with no deferral.
         return new ActionListener<>() {
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
-                metrics.recordUploadThroughput(uploadResult.uploadThroughputMiBPerSec());
-                commitState.pendingUploadBytes.addAndGet(-1 * virtualBcc.getTotalSizeInBytes());
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 try {
                     // Use the largest translog release file from all CCs to release translog files for cleaning.
@@ -990,30 +976,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 BatchedCompoundCommit uploadedBcc,
                 long ccGeneration
             ) {
-                commitState.fireUploadedGenerationListeners(ccGeneration);
+                final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
                 Releasable cleanup = null;
                 try {
+                    // Schedule the once-guarded notification cleanup before firing generation listeners. Listeners may trigger
+                    // closeShard(); registering the cleanup first ensures close() finds and drains the VBCC rather than leaking it.
                     final long notificationSentAt = threadPool.relativeTimeInMillis();
                     final long bccBlobLength = uploadedBcc.calculateBccBlobLength();
-                    cleanup = commitState.createAfterNotificationCleanup(
-                        virtualBcc,
+                    cleanup = commitState.scheduleNotificationCleanup(
+                        gen,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
                             Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
                         )
                     );
+                    if (commitState.isClosed()) {
+                        return;
+                    }
+                    commitState.fireUploadedGenerationListeners(ccGeneration);
                     commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc, cleanup);
                     cleanup = null;
                 } catch (Exception e) {
                     // TODO: we should assert false here once we fix ES-8336
-                    logger.warn(
-                        () -> format(
-                            "%s failed to send new uploaded BCC [%s] notification",
-                            virtualBcc.getShardId(),
-                            virtualBcc.getPrimaryTermAndGeneration().generation()
-                        ),
-                        e
-                    );
+                    logger.warn(() -> format("%s failed to send new uploaded BCC [%s] notification", virtualBcc.getShardId(), gen), e);
                 } finally {
                     Releasables.close(cleanup);
                     blobReference.decRef();
@@ -1052,7 +1037,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         );
                     }
                 } finally {
-                    // Upload failed: the VBCC never made it to recentlyUploadedVbccs/recentlyUploadedCleanups so close it directly.
+                    // Upload failed: the VBCC never made it to recentlyUploadedVbccs so close it directly.
                     cleanup();
                 }
             }
@@ -1387,18 +1372,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // request from search nodes. A VBCC is removed from this list once it is uploaded.
         // 3. latestUploadedBcc - This field tracks highest generation BCC ever uploaded. It is updated with the VBCC that just gets
         // uploaded which is then removed from pendingUploadBccGenerations.
-        // 4. recentlyUploadedVbccs / recentlyUploadedCleanups - After a VBCC is uploaded and removed from pendingUploadBccGenerations, it
-        // is placed in recentlyUploadedVbccs (for chunk-fetch lookup) and a corresponding once-guarded cleanup Releasable is stored in
-        // recentlyUploadedCleanups. The VBCC stays reachable until the new-uploaded-commit notification is acknowledged by the search
-        // tier (or the configured timeout fires), at which point the cleanup fires, removing the entry and closing the VBCC. This ensures
-        // search nodes can still fetch VBCC chunks from the indexing node during the notification window. See
-        // createAfterNotificationCleanup
-        // and STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
+        // 4. recentlyUploadedVbccs - After a VBCC is uploaded and removed from pendingUploadBccGenerations, it is placed here for
+        // chunk-fetch lookup. The put and the isClosed() check are both inside the same synchronized block as closeAndGetListeners(),
+        // so close() either drains the VBCC from this map or handleUploadedBcc closes it directly; there is no gap. A once-guarded
+        // cleanup is scheduled in afterCopies; when it fires (response, timeout, or close()), it atomically removes and closes the VBCC.
+        // This ensures search nodes can still fetch VBCC chunks from the indexing node during the notification window. See
+        // scheduleNotificationCleanup and STATELESS_UPLOAD_RELEASE_FILES_AFTER_NOTIFICATION_TIMEOUT.
         private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
-        private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
-        private AtomicLong pendingUploadBytes = new AtomicLong(0);
+        private final Map<Long, PendingUploadVirtualBatchCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        // Tracks the time when the oldest pending upload commit was submitted for upload.
+        // We use this to apply backpressure when there is too much upload work.
+        private volatile Long oldestCommitUploadStartTime = null;
         private final Map<Long, VirtualBatchedCompoundCommit> recentlyUploadedVbccs = new ConcurrentHashMap<>();
-        private final Map<Long, Releasable> recentlyUploadedCleanups = new ConcurrentHashMap<>();
         private volatile BatchedCompoundCommit latestUploadedBcc = null;
         // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
         // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
@@ -1763,8 +1748,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             var pendingUploadVirtualBcc = pendingUploadBccGenerations.get(primaryTermAndGeneration.generation());
             if (pendingUploadVirtualBcc != null) {
-                assert pendingUploadVirtualBcc.getPrimaryTermAndGeneration().equals(primaryTermAndGeneration);
-                return pendingUploadVirtualBcc;
+                assert pendingUploadVirtualBcc.commit().getPrimaryTermAndGeneration().equals(primaryTermAndGeneration);
+                return pendingUploadVirtualBcc.commit();
             }
             // Check the recently-uploaded map: VBCCs are moved here after upload so chunk-fetch requests from search nodes can still be
             // served while the new-uploaded-commit notification is in flight (until the after-notification cleanup fires).
@@ -1818,21 +1803,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         @Override
-        public long pendingUploadBytes() {
-            return pendingUploadBytes.get();
+        public Long oldestCommitUploadStartTimeRelativeMillis() {
+            return oldestCommitUploadStartTime;
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
             return pendingUploadBccGenerations.values()
                 .stream()
-                .max(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
+                .max(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBccBeforeGeneration(long generation) {
             return pendingUploadBccGenerations.values()
                 .stream()
-                .filter(vbcc -> vbcc.getPrimaryTermAndGeneration().generation() < generation)
-                .max(Comparator.comparingLong(vbcc -> vbcc.getPrimaryTermAndGeneration().generation()));
+                .filter(pendingVbcc -> pendingVbcc.commit().getPrimaryTermAndGeneration().generation() < generation)
+                .max(Comparator.comparingLong(pendingVbcc -> pendingVbcc.getPrimaryTermAndGeneration().generation()))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
         }
 
         /**
@@ -2010,12 +1997,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
                 final var previous = pendingUploadBccGenerations.put(
                     expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
-                    expectedVirtualBcc
+                    new PendingUploadVirtualBatchCompoundCommit(expectedVirtualBcc, threadPool.relativeTimeInMillis())
                 );
-                pendingUploadBytes.addAndGet(expectedVirtualBcc.getTotalSizeInBytes());
                 assert previous == null : "expected null, but got " + previous;
                 // reset after add to pending list so that vbcc is always visible as either pending or current
                 currentVirtualBcc = null;
+                // If there are no pending upload commits, this commit becomes the oldest since it's the only one.
+                if (oldestCommitUploadStartTime == null) {
+                    oldestCommitUploadStartTime = threadPool.relativeTimeInMillis();
+                }
                 logger.trace(
                     () -> Strings.format(
                         "%s reset current VBCC generation [%s] after freeze",
@@ -2263,12 +2253,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 latestUploadedBcc = uploadedBcc;
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired.
-                    // Move it into recentlyUploadedVbccs so chunk-fetch requests from search nodes can still be served during the
-                    // notification window. The corresponding cleanup in recentlyUploadedCleanups is registered immediately after by
-                    // createAfterNotificationCleanup (called in the same thread, in newUploadTaskListener.onResponse).
+                    // Move it into recentlyUploadedVbccs so chunk-fetch requests from search nodes can still be served during
+                    // the notification window. The isClosed() check and the put are both inside this synchronized block, which is
+                    // the same lock closeAndGetListeners() uses to set state=CLOSED. Therefore close() will either see the VBCC
+                    // in recentlyUploadedVbccs (and drain it) or this branch will see isClosed()=true (and close it directly);
+                    // there is no gap where the VBCC escapes both. The cleanup/timeout are scheduled later in afterCopies.
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
                     assert removed != null : newBccGeneration + "not found";
-                    recentlyUploadedVbccs.put(newBccGeneration, removed);
+                    var vbcc = removed.commit();
+                    if (isClosed()) {
+                        // Shard was closed while the upload was in-flight. close() already drained recentlyUploadedVbccs
+                        // (it was empty at that point). Close the VBCC directly rather than adding it after the drain.
+                        IOUtils.closeWhileHandlingException(vbcc);
+                        return;
+                    }
+                    recentlyUploadedVbccs.put(newBccGeneration, vbcc);
+
+                    var nextPendingUploadVbcc = pendingUploadBccGenerations.get(newBccGeneration + 1);
+                    if (nextPendingUploadVbcc != null) {
+                        oldestCommitUploadStartTime = nextPendingUploadVbcc.submittedForUploadRelativeMillis();
+                    } else {
+                        // Reset so that we don't track this uploaded commit as pending upload.
+                        oldestCommitUploadStartTime = null;
+                    }
                 }
                 if (localUploadedGenerationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
@@ -2639,31 +2646,27 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Registers a once-guarded cleanup in {@link #recentlyUploadedCleanups}, schedules a timeout to fire it, and returns it. When
-         * first invoked (either by the caller or by the timeout), the cleanup removes {@code virtualBcc} from both
-         * {@link #recentlyUploadedVbccs} and {@link #recentlyUploadedCleanups} and closes the VBCC.
-         * Subsequent invocations are no-ops. {@link #close()} drains {@link #recentlyUploadedCleanups} and calls each cleanup, so it is
-         * always safe to call this cleanup more than once.
+         * Creates a once-guarded cleanup for the VBCC at {@code gen}, schedules the notification timeout, and returns the cleanup for
+         * the caller to pass to {@link #sendNewUploadedCommitNotification} as {@code afterNotification}. When first invoked (either by
+         * the caller or by the scheduled timeout), the cleanup atomically removes the VBCC from {@link #recentlyUploadedVbccs} and
+         * closes it. Subsequent invocations are no-ops. Because the removal is a single
+         * {@link java.util.concurrent.ConcurrentHashMap#remove} call, at most one thread ever closes the VBCC, even if the timeout,
+         * the notification response, and {@link #close()} race.
          * <p>
-         * When {@link #releaseFilesAfterNotificationTimeout} is zero the cleanup fires synchronously before this method returns, so the
-         * caller's subsequent {@link Releasable#close()} call becomes a no-op.
+         * If {@link #close()} has already drained {@link #recentlyUploadedVbccs} (shard closed while upload was in-flight), the VBCC
+         * is gone and the cleanup becomes a no-op; the caller should still check {@link #isClosed()} and skip the notification.
          * <p>
-         * {@link #handleUploadedBcc} adds the VBCC to {@link #recentlyUploadedVbccs} just before this method is called (in the same
-         * thread), ensuring there is no gap where the VBCC is findable in neither map.
+         * When {@link #releaseFilesAfterNotificationTimeout} is zero the cleanup fires synchronously before this method returns, so
+         * the caller's subsequent {@link Releasable#close()} call becomes a no-op.
          */
-        Releasable createAfterNotificationCleanup(VirtualBatchedCompoundCommit virtualBcc, Runnable onBeforeCleanup) {
-            final long gen = virtualBcc.getPrimaryTermAndGeneration().generation();
-            assert recentlyUploadedVbccs.get(gen) == virtualBcc;
+        Releasable scheduleNotificationCleanup(long gen, Runnable onBeforeCleanup) {
             final Releasable cleanup = Releasables.releaseOnce(() -> {
                 onBeforeCleanup.run();
-                VirtualBatchedCompoundCommit removedVBCC = recentlyUploadedVbccs.remove(gen);
-                assert removedVBCC != null;
-                assert removedVBCC == virtualBcc;
-                Releasable removedCleanup = recentlyUploadedCleanups.remove(gen);
-                assert removedCleanup != null;
-                IOUtils.closeWhileHandlingException(virtualBcc);
+                VirtualBatchedCompoundCommit vbcc = recentlyUploadedVbccs.remove(gen);
+                if (vbcc != null) {
+                    IOUtils.closeWhileHandlingException(vbcc);
+                }
             });
-            recentlyUploadedCleanups.put(gen, cleanup);
             if (releaseFilesAfterNotificationTimeout.equals(TimeValue.ZERO)) {
                 // Timeout disabled: fire immediately, do not wait for the search tier response.
                 Releasables.close(cleanup);
@@ -2784,10 +2787,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);
             }
-            Releasables.close(new ArrayList<>(recentlyUploadedCleanups.values()));
+            // Drain VBCCs that are still in the notification window. Each remove() is atomic, preventing the
+            // scheduled notification timeout (or a concurrent response handler) from double-closing a VBCC.
+            for (Long gen : new ArrayList<>(recentlyUploadedVbccs.keySet())) {
+                VirtualBatchedCompoundCommit vbcc = recentlyUploadedVbccs.remove(gen);
+                if (vbcc != null) {
+                    IOUtils.closeWhileHandlingException(vbcc);
+                }
+            }
             assert recentlyUploadedVbccs.isEmpty();
-            // production fallback for assertion failure, do nothing is expected
-            IOUtils.closeWhileHandlingException(recentlyUploadedVbccs.values());
 
             if (listenersToFail.isEmpty() == false) {
                 // Have to fork, because we are on applier thread and thus if a listener uses cluster state it will fail.
@@ -3041,7 +3049,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // means it is not yet considered uploaded here.
             Optional<VirtualBatchedCompoundCommit> latestUploading = pendingUploadBccGenerations.values()
                 .stream()
-                .min(Comparator.comparing(VirtualBatchedCompoundCommit::getPrimaryTermAndGeneration));
+                .min(Comparator.comparing(PendingUploadVirtualBatchCompoundCommit::getPrimaryTermAndGeneration))
+                .map(PendingUploadVirtualBatchCompoundCommit::commit);
             var latestUploaded = this.latestUploadedBcc;
             if (latestUploaded == null) {
                 throw new NoShardAvailableActionException(shardId, "indexing shard is initializing");
@@ -3636,6 +3645,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean referencesBCC(PrimaryTermAndGeneration bcc) {
                 return referencedBCCs.contains(bcc);
             }
+        }
+    }
+
+    private record PendingUploadVirtualBatchCompoundCommit(VirtualBatchedCompoundCommit commit, long submittedForUploadRelativeMillis) {
+        public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
+            return commit.getPrimaryTermAndGeneration();
         }
     }
 

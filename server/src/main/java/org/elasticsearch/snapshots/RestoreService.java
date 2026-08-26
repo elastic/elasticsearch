@@ -1190,7 +1190,7 @@ public final class RestoreService implements ClusterStateApplier {
      * Returns {@code true} when the given primary shard routing is actively being restored from a snapshot and that restore is still
      * in progress according to the supplied {@link RestoreInProgress} custom.
      *
-     * <p>All six conditions below must hold simultaneously. The chain exists to distinguish a genuine mid-restore INITIALIZING primary
+     * <p>All seven conditions below must hold simultaneously. The chain exists to distinguish a genuine mid-restore INITIALIZING primary
      * from other INITIALIZING causes (peer recovery, empty-store allocation, relocation target), which must not be affected:
      *
      * <ol>
@@ -1203,6 +1203,8 @@ public final class RestoreService implements ClusterStateApplier {
      *   <li>The entry's source snapshot matches the routing's recovery source snapshot; a mismatch would indicate corrupt or
      *       inconsistent cluster state, where the UUID in the shard routing does not agree with the snapshot recorded in the
      *       corresponding {@link RestoreInProgress.Entry}.</li>
+     *   <li>The entry's overall state is not {@link RestoreInProgress.State#completed() completed}; this is a cheap early-exit
+     *       before the per-shard lookup, since a completed entry implies all shard statuses are also completed.</li>
      *   <li>The entry contains this exact {@link org.elasticsearch.index.shard.ShardId}; it is legitimate for an entry to cover
      *       only a subset of an index's shards.</li>
      *   <li>The shard's restore status is not completed; a {@link RestoreInProgress.State#completed() completed} status
@@ -1217,7 +1219,7 @@ public final class RestoreService implements ClusterStateApplier {
      * @param primary           the primary shard routing being evaluated; must be in the INITIALIZING state
      * @return {@code true} if the shard is demonstrably mid-restore, {@code false} if any condition is not met
      */
-    public static boolean isRestoringShard(RestoreInProgress restoreInProgress, ShardRouting primary) {
+    public static boolean isRestoringShardFromSnapshot(RestoreInProgress restoreInProgress, ShardRouting primary) {
         if (!(primary.recoverySource() instanceof SnapshotRecoverySource source)) {
             return false;
         }

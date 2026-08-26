@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SnapshotIndexCompletenessTests extends ESTestCase {
+public class SnapshotInfoTests extends ESTestCase {
 
     private static final String REPO = "test-repo";
     private static final String SNAP = "test-snap";
@@ -82,23 +82,23 @@ public class SnapshotIndexCompletenessTests extends ESTestCase {
 
     public void testIndexNotInSnapshotIsNotComplete() {
         SnapshotInfo snap = successSnapshot(List.of(OTHER_INDEX));
-        assertFalse(SnapshotIndexCompleteness.isComplete(snap, INDEX));
+        assertFalse(snap.isIndexComplete(INDEX));
     }
 
     public void testSuccessSnapshotIndexIsComplete() {
         SnapshotInfo snap = successSnapshot(List.of(INDEX, OTHER_INDEX));
-        assertTrue(SnapshotIndexCompleteness.isComplete(snap, INDEX));
-        assertTrue(SnapshotIndexCompleteness.isComplete(snap, OTHER_INDEX));
+        assertTrue(snap.isIndexComplete(INDEX));
+        assertTrue(snap.isIndexComplete(OTHER_INDEX));
     }
 
     public void testPartialSnapshotIndexWithNoFailuresIsComplete() {
         SnapshotInfo snap = partialSnapshot(List.of(INDEX, OTHER_INDEX), List.of(shardFailure(OTHER_INDEX)));
-        assertTrue(SnapshotIndexCompleteness.isComplete(snap, INDEX));
+        assertTrue(snap.isIndexComplete(INDEX));
     }
 
     public void testPartialSnapshotIndexWithFailureIsNotComplete() {
         SnapshotInfo snap = partialSnapshot(List.of(INDEX, OTHER_INDEX), List.of(shardFailure(INDEX)));
-        assertFalse(SnapshotIndexCompleteness.isComplete(snap, INDEX));
+        assertFalse(snap.isIndexComplete(INDEX));
     }
 
     public void testPartialSnapshotIndexWithMultipleShardFailuresIsNotComplete() {
@@ -107,7 +107,7 @@ public class SnapshotIndexCompletenessTests extends ESTestCase {
             new SnapshotShardFailure(null, new ShardId(INDEX, randomAlphaOfLength(8), 1), "node left")
         );
         SnapshotInfo snap = partialSnapshot(List.of(INDEX), failures);
-        assertFalse(SnapshotIndexCompleteness.isComplete(snap, INDEX));
+        assertFalse(snap.isIndexComplete(INDEX));
     }
 
     public void testSkippedIndexIsNotComplete() {
@@ -126,7 +126,7 @@ public class SnapshotIndexCompletenessTests extends ESTestCase {
             0L,
             details
         );
-        assertFalse(SnapshotIndexCompleteness.isComplete(snap, INDEX));
+        assertFalse(snap.isIndexComplete(INDEX));
     }
 
     public void testIndexAbsentFromDetailsIsCompleteOnSuccess() {
@@ -145,6 +145,6 @@ public class SnapshotIndexCompletenessTests extends ESTestCase {
             0L,
             Collections.emptyMap()
         );
-        assertTrue(SnapshotIndexCompleteness.isComplete(snap, INDEX));
+        assertTrue(snap.isIndexComplete(INDEX));
     }
 }

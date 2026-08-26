@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -917,7 +916,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
                 used.addAndGet(bytes);
-                if (label.startsWith(ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]")) {
+                if (label.startsWith("fetch[source]")) {
                     sourceCharges.add(label);
                 }
             }

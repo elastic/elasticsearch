@@ -312,8 +312,7 @@ public final class FetchPhase {
         if (streaming) {
             scriptFieldsByteChecker = bytes -> {
                 if (bytes > context.memAccountingBufferSize()) {
-                    context.circuitBreaker()
-                        .addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[script_field]");
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, "fetch[script_field]");
                     streamingHeldBytes[0] += bytes;
                 }
             };
@@ -363,7 +362,7 @@ public final class FetchPhase {
 
             IntConsumer memChecker = streaming ? bytes -> {
                 if (bytes > context.memAccountingBufferSize()) {
-                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[source]");
+                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(bytes, "fetch[source]");
                     streamingHeldBytes[0] += bytes;
                 }
             } : (memoryChecker != null ? memoryChecker : bytes -> {
@@ -383,7 +382,7 @@ public final class FetchPhase {
             protected void onHitSerialized() {
                 long held = streamingHeldBytes[0];
                 if (held > 0) {
-                    context.circuitBreaker().addWithoutBreaking(-held, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+                    context.circuitBreaker().addWithoutBreaking(-held);
                     streamingHeldBytes[0] = 0;
                 }
             }
@@ -598,7 +597,7 @@ public final class FetchPhase {
 
                     long leakedBytes = docsIterator.getRequestBreakerBytes();
                     if (leakedBytes > 0) {
-                        context.circuitBreaker().addWithoutBreaking(-leakedBytes, ChildMemoryCircuitBreaker.CATEGORY_FETCH);
+                        context.circuitBreaker().addWithoutBreaking(-leakedBytes);
                     }
 
                     buildListener.onFailure(e);

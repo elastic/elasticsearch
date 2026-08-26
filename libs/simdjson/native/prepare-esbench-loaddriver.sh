@@ -50,13 +50,18 @@ if [ ! -f "$COPY_ARTIFACT" ]; then
 fi
 
 patch_ansible() {
+  echo "Patching $COPY_ARTIFACT (--source-build-method=default + LOCAL_SIMDJSON_BINARY) ..."
+  # esrally accepts {docker, default} only; "default" runs Gradle on the loaddriver host
+  # so LOCAL_SIMDJSON_BINARY from the ansible environment is visible to Gradle.
+  sed -i \
+    -e 's/--source-build-method=gradle/--source-build-method=default/' \
+    -e 's/--source-build-method=docker/--source-build-method=default/' \
+    "$COPY_ARTIFACT"
   if grep -q 'LOCAL_SIMDJSON_BINARY' "$COPY_ARTIFACT"; then
-    echo "Ansible copy_artifact already patched."
+    echo "LOCAL_SIMDJSON_BINARY already present in $COPY_ARTIFACT"
     return
   fi
-  echo "Patching $COPY_ARTIFACT (gradle build + LOCAL_SIMDJSON_BINARY) ..."
   sed -i \
-    -e 's/--source-build-method=docker/--source-build-method=gradle/' \
     -e '/name: build elasticsearch on loaddriver/,/with_items:/{
       /PATH:.*local\.bin/a\        LOCAL_SIMDJSON_BINARY: "1"
     }' \

@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -22,15 +25,14 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.compute.expression.ConstantEvaluators;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -39,30 +41,24 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * <p>The input is a number between 0 and 1 (or 0 to 100). The output is formatted
  * as a percentage with a `%` suffix.</p>
  */
-public class FmtPercent extends UnaryScalarFunction {
+public class FmtPercent extends UnaryScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FmtPercent",
         FmtPercent::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FmtPercent.class)
-        .unary(FmtPercent::new)
-        .name("fmt_percent");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FmtPercent.class).unary(FmtPercent::new).name("fmt_percent");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = """
-            Returns a human-readable representation of a number as a percentage.
-            For example, `0.75` becomes `"75%"` and `75` becomes `"7500%"`.
-            The input is multiplied by 100 and formatted with a `%` suffix.""",
-        examples = @Example(file = "format", tag = "fmt_percent")
-    )
+    @FunctionInfo(returnType = "keyword", description = """
+        Returns a human-readable representation of a number as a percentage.
+        For example, `0.75` becomes `"75%"` and `75` becomes `"7500%"`.
+        The input is multiplied by 100 and formatted with a `%` suffix.""", examples = @Example(file = "format", tag = "fmt_percent"))
     public FmtPercent(
         Source source,
         @Param(
             name = "value",
-            type = { "integer", "long", "unsigned_long", "float", "double" },
+            type = { "integer", "long", "double" },
             description = "The number to format as a percentage. If `null`, the function returns `null`."
         ) Expression value
     ) {
@@ -91,7 +87,15 @@ public class FmtPercent extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return childrenResolved() == false ? new TypeResolution("Unresolved children") : isNumber(field(), sourceText(), DEFAULT);
+        return childrenResolved() == false
+            ? new TypeResolution("Unresolved children")
+            : isType(
+                field(),
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DOUBLE,
+                sourceText(),
+                DEFAULT,
+                "numeric"
+            );
     }
 
     @Override
@@ -143,7 +147,7 @@ public class FmtPercent extends UnaryScalarFunction {
         if (percent == (long) percent) {
             return ((long) percent) + "%";
         } else {
-            return String.format(java.util.Locale.ROOT, "%.1f%%", percent).replace(',', '.');
+            return String.format(Locale.ROOT, "%.1f%%", percent);
         }
     }
 }

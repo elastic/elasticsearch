@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,7 +32,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * from: {@code nanos}, {@code micros}, {@code ms}, {@code s}, {@code m}, {@code h}, {@code d}.
  * Fractional values are shown with at most one decimal place.</p>
  */
-public class FmtDuration extends UnaryScalarFunction {
+public class FmtDuration extends UnaryScalarFunction implements AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -53,19 +54,15 @@ public class FmtDuration extends UnaryScalarFunction {
         .unary(FmtDuration::new)
         .name("fmt_duration");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = """
-            Returns a human-readable representation of a duration given in nanoseconds.
-            For example, `1500000000` (1.5 billion nanoseconds) becomes `"1.5s"`.
-            Supported units: `nanos`, `micros`, `ms`, `s`, `m`, `h`, `d`.""",
-        examples = @Example(file = "format", tag = "fmt_duration")
-    )
+    @FunctionInfo(returnType = "keyword", description = """
+        Returns a human-readable representation of a duration given in nanoseconds.
+        For example, `1500000000` (1.5 billion nanoseconds) becomes `"1.5s"`.
+        Supported units: `nanos`, `micros`, `ms`, `s`, `m`, `h`, `d`.""", examples = @Example(file = "format", tag = "fmt_duration"))
     public FmtDuration(
         Source source,
         @Param(
             name = "nanoseconds",
-            type = { "integer", "long", "unsigned_long" },
+            type = { "integer", "long" },
             description = "The duration in nanoseconds to format. If `null`, the function returns `null`."
         ) Expression nanoseconds
     ) {
@@ -94,7 +91,9 @@ public class FmtDuration extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return childrenResolved() == false ? new TypeResolution("Unresolved children") : isWholeNumber(field(), sourceText(), DEFAULT);
+        return childrenResolved() == false
+            ? new TypeResolution("Unresolved children")
+            : isType(field(), dt -> dt == DataType.INTEGER || dt == DataType.LONG, sourceText(), DEFAULT, "integer", "long");
     }
 
     @Override

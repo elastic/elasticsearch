@@ -225,13 +225,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytes;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtBytesSi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.FmtPercent;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;

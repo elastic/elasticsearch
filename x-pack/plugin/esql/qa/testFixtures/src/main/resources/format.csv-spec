@@ -1,0 +1,59 @@
+docsFmtBytes
+required_capability: fn_fmt_bytes
+
+// tag::fmt_bytes[]
+ROW bytes = 1536
+| EVAL formatted = FMT_BYTES(bytes)
+// end::fmt_bytes[]
+;
+
+// tag::fmt_bytes-result[]
+bytes:integer    |formatted:keyword
+1536             |1.5kb
+// end::fmt_bytes-result[]
+;
+
+docsFmtBytesSi
+required_capability: fn_fmt_bytes_si
+
+// tag::fmt_bytes_si[]
+ROW bytes = 1500
+| EVAL formatted = FMT_BYTES_SI(bytes)
+// end::fmt_bytes_si[]
+;
+
+// tag::fmt_bytes_si-result[]
+bytes:integer    |formatted:keyword
+1500             |1.5Kb
+// end::fmt_bytes_si-result[]
+;
+
+docsFmtDuration
+required_capability: fn_fmt_duration
+
+// tag::fmt_duration[]
+ROW nanoseconds = 1500000000
+| EVAL duration = FMT_DURATION(nanoseconds)
+// end::fmt_duration[]
+;
+
+// tag::fmt_duration-result[]
+nanoseconds:long |duration:keyword
+1500000000       |1.5s
+// end::fmt_duration-result[]
+;
+
+docsFmtPercent
+required_capability: fn_fmt_percent
+
+// tag::fmt_percent[]
+ROW fraction = 0.75
+| EVAL percentage = FMT_PERCENT(fraction)
+// end::fmt_percent[]
+;
+
+// tag::fmt_percent-result[]
+fraction:double  |percentage:keyword
+0.75             |75%
+// end::fmt_percent-result[]
+;

@@ -13,6 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,15 +26,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.compute.expression.ConstantEvaluators;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -42,30 +43,20 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * {@code gb}, {@code tb}, {@code pb}. Values smaller than 1 kb are shown in bytes.
  * Fractional values are shown with at most one decimal place.</p>
  */
-public class FmtBytes extends UnaryScalarFunction {
+public class FmtBytes extends UnaryScalarFunction implements AnyNullIsNull {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "FmtBytes",
-        FmtBytes::new
-    );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FmtBytes.class)
-        .unary(FmtBytes::new)
-        .name("fmt_bytes");
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "FmtBytes", FmtBytes::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FmtBytes.class).unary(FmtBytes::new).name("fmt_bytes");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = """
-            Returns a human-readable representation of a byte count using binary (base-1024) units.
-            For example, `1536` becomes `"1.5kb"`.
-            Supported units: `b`, `kb`, `mb`, `gb`, `tb`, `pb`.""",
-        examples = @Example(file = "format", tag = "fmt_bytes")
-    )
+    @FunctionInfo(returnType = "keyword", description = """
+        Returns a human-readable representation of a byte count using binary (base-1024) units.
+        For example, `1536` becomes `"1.5kb"`.
+        Supported units: `b`, `kb`, `mb`, `gb`, `tb`, `pb`.""", examples = @Example(file = "format", tag = "fmt_bytes"))
     public FmtBytes(
         Source source,
         @Param(
             name = "bytes",
-            type = { "integer", "long", "unsigned_long" },
+            type = { "integer", "long" },
             description = "The number of bytes to format. If `null`, the function returns `null`."
         ) Expression bytes
     ) {
@@ -94,7 +85,9 @@ public class FmtBytes extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return childrenResolved() == false ? new TypeResolution("Unresolved children") : isWholeNumber(field(), sourceText(), DEFAULT);
+        return childrenResolved() == false
+            ? new TypeResolution("Unresolved children")
+            : isType(field(), dt -> dt == DataType.INTEGER || dt == DataType.LONG, sourceText(), DEFAULT, "integer", "long");
     }
 
     @Override

@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,15 +26,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.compute.expression.ConstantEvaluators;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
@@ -42,7 +43,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  * {@code Gb}, {@code Tb}, {@code Pb}. Values smaller than 1 Kb are shown in bytes.
  * Fractional values are shown with at most one decimal place.</p>
  */
-public class FmtBytesSi extends UnaryScalarFunction {
+public class FmtBytesSi extends UnaryScalarFunction implements AnyNullIsNull {
+
+    private static final long KB = 1_000L;
+    private static final long MB = KB * 1_000;
+    private static final long GB = MB * 1_000;
+    private static final long TB = GB * 1_000;
+    private static final long PB = TB * 1_000;
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -53,19 +60,15 @@ public class FmtBytesSi extends UnaryScalarFunction {
         .unary(FmtBytesSi::new)
         .name("fmt_bytes_si");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = """
-            Returns a human-readable representation of a byte count using SI (base-1000) units.
-            For example, `1500` becomes `"1.5Kb"`.
-            Supported units: `b`, `Kb`, `Mb`, `Gb`, `Tb`, `Pb`.""",
-        examples = @Example(file = "format", tag = "fmt_bytes_si")
-    )
+    @FunctionInfo(returnType = "keyword", description = """
+        Returns a human-readable representation of a byte count using SI (base-1000) units.
+        For example, `1500` becomes `"1.5Kb"`.
+        Supported units: `b`, `Kb`, `Mb`, `Gb`, `Tb`, `Pb`.""", examples = @Example(file = "format", tag = "fmt_bytes_si"))
     public FmtBytesSi(
         Source source,
         @Param(
             name = "bytes",
-            type = { "integer", "long", "unsigned_long" },
+            type = { "integer", "long" },
             description = "The number of bytes to format. If `null`, the function returns `null`."
         ) Expression bytes
     ) {
@@ -94,7 +97,9 @@ public class FmtBytesSi extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return childrenResolved() == false ? new TypeResolution("Unresolved children") : isWholeNumber(field(), sourceText(), DEFAULT);
+        return childrenResolved() == false
+            ? new TypeResolution("Unresolved children")
+            : isType(field(), dt -> dt == DataType.INTEGER || dt == DataType.LONG, sourceText(), DEFAULT, "integer", "long");
     }
 
     @Override
@@ -109,12 +114,41 @@ public class FmtBytesSi extends UnaryScalarFunction {
 
     @Evaluator(extraName = "FromLong")
     static BytesRef processLong(long bytes) {
-        return new BytesRef(ByteSizeValue.ofBytes(bytes).toString());
+        return new BytesRef(formatBytesSi(bytes));
     }
 
     @Evaluator(extraName = "FromInt")
     static BytesRef processInt(int bytes) {
-        return new BytesRef(ByteSizeValue.ofBytes(bytes).toString());
+        return new BytesRef(formatBytesSi(bytes));
+    }
+
+    /**
+     * Mirrors {@link org.elasticsearch.common.unit.ByteSizeValue#toString} formatting rules
+     * (at most one fractional digit, negative values rejected) but with base-1000 units.
+     */
+    static String formatBytesSi(long bytes) {
+        if (bytes < -1) {
+            throw new IllegalArgumentException("Values less than [-1] bytes are not supported: [" + bytes + "]");
+        }
+        double value = bytes;
+        String suffix = "b";
+        if (bytes >= PB) {
+            value = bytes / (double) PB;
+            suffix = "Pb";
+        } else if (bytes >= TB) {
+            value = bytes / (double) TB;
+            suffix = "Tb";
+        } else if (bytes >= GB) {
+            value = bytes / (double) GB;
+            suffix = "Gb";
+        } else if (bytes >= MB) {
+            value = bytes / (double) MB;
+            suffix = "Mb";
+        } else if (bytes >= KB) {
+            value = bytes / (double) KB;
+            suffix = "Kb";
+        }
+        return Strings.format1Decimals(value, suffix);
     }
 
     @Override

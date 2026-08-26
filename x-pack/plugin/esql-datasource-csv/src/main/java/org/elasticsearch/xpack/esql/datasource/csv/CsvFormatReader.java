@@ -1900,6 +1900,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public void acceptReadCpuNanos(long nanos) {
+        counters.addReadCpuNanos(nanos);
+    }
+
+    @Override
     public RecordSplitter recordSplitter() {
         return recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }

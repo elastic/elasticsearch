@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,7 +84,21 @@ public final class FixtureMatrix {
         return new FixtureMatrix(props);
     }
 
+    private final Map<String, List<String>> specPatterns;
+
     private FixtureMatrix(Properties props) {
+        Map<String, List<String>> parsedSpecPatterns = new LinkedHashMap<>();
+        for (String key : props.stringPropertyNames()) {
+            if (key.startsWith("suite.") && key.endsWith(".specs")) {
+                String token = key.substring("suite.".length(), key.length() - ".specs".length());
+                List<String> patterns = Arrays.stream(props.getProperty(key).split(","))
+                    .map(String::trim)
+                    .filter(t -> t.isEmpty() == false)
+                    .toList();
+                parsedSpecPatterns.put(token, patterns);
+            }
+        }
+        this.specPatterns = Map.copyOf(parsedSpecPatterns);
         this.formats = List.copyOf(splitList(required(props, "formats")));
 
         Map<String, List<String>> byFormat = new LinkedHashMap<>();
@@ -95,7 +110,12 @@ public final class FixtureMatrix {
 
         List<String> datasetKeys = props.stringPropertyNames()
             .stream()
-            .filter(k -> k.startsWith("dataset.") && k.endsWith(".reason") == false)
+            // A dataset key is dataset.<name> and nothing further. Attribute keys carry another dot
+            // segment (.reason, .write_dialect, ...); reading one as a dataset name parses its value as a
+            // format list, which is how adding write_dialect produced a dataset called
+            // "apps.write_dialect" restricted to a format called "none" -- in BOTH parsers of this file,
+            // separately. Filter on the key's shape, not on a denylist of the suffixes we happen to know.
+            .filter(k -> k.startsWith("dataset.") && k.indexOf('.', "dataset.".length()) < 0)
             .sorted()
             .toList();
         for (String key : datasetKeys) {
@@ -196,6 +216,29 @@ public final class FixtureMatrix {
     }
 
     /** Layouts, longest name first. */
+    /**
+     * The csv-spec patterns a suite loads, as declared in {@code suite.<token>.specs}.
+     *
+     * <p>Declared once because there are two consumers: the suite's {@code ParametersFactory}, and the
+     * coverage gate that asks whether a declared cell has a reader. While the lists lived in the suites,
+     * the gate could only approximate them by scanning directories, and a spec sitting in a scanned
+     * directory that no suite loaded still counted as a consumer -- which reported the csv column covered
+     * for hive_shadow while zero shadow cases ran on any CSV suite.
+     */
+    public List<String> specPatterns(String suiteToken) {
+        List<String> patterns = specPatterns.get(suiteToken);
+        if (patterns == null) {
+            throw new IllegalStateException(
+                "suite ["
+                    + suiteToken
+                    + "] declares no [suite."
+                    + suiteToken
+                    + ".specs]; its spec routing must be declared so the coverage gate reads the same list the suite loads"
+            );
+        }
+        return patterns;
+    }
+
     public List<Layout> layouts() {
         return layouts;
     }

@@ -752,6 +752,22 @@ public final class IndexOperationBatch {
             return count;
         }
 
+        /**
+         * The sequence numbers of the all rows, in row order. {@link #ROW_PREFLIGHT_ERROR}
+         * rows never consumed a seqNo and are excluded, so the result has
+         * {@link #operationCount()} entries.
+         */
+        public long[] getSeqNos() {
+            final long[] result = new long[operationCount()];
+            int n = 0;
+            for (int i = 0; i < rowStatuses.length; i++) {
+                if (rowStatuses[i] != ROW_PREFLIGHT_ERROR) {
+                    result[n++] = seqNos[i];
+                }
+            }
+            return result;
+        }
+
         private static void checkLength(String name, int length, int expected) {
             assert length == expected : name + " length [" + length + "] does not match row count [" + expected + "]";
         }

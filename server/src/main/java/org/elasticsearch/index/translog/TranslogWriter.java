@@ -248,17 +248,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public Translog.Location addBatch(final Translog.Serialized operation, final IndexOperationBatch.TranslogRecord batch)
         throws IOException {
         // TODO: Pass startSeqNo and operationCount as args. That will fully remove the need for the long[]
-        // since single operations and batches are always continuous ranges.
-        final long[] seqNos = new long[batch.operationCount()];
-        int replayable = 0;
-        for (int i = 0; i < batch.docCount(); i++) {
-            if (batch.rowStatus(i) == IndexOperationBatch.TranslogRecord.ROW_PREFLIGHT_ERROR) {
-                // never consumed a seqNo; contributes nothing to replay or checkpoints
-                continue;
-            }
-            seqNos[replayable++] = batch.seqNo(i);
-        }
-        return addRecord(operation, seqNos, batch);
+        //  since single operations and batches are always continuous ranges.
+        return addRecord(operation, batch.getSeqNos(), batch);
     }
 
     /**

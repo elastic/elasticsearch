@@ -52,6 +52,7 @@ public final class FixtureExclusions {
     public record Exclusion(String suite, String caseName, Kind kind, String reason) {}
 
     private final Map<String, Map<String, Exclusion>> bySuite;
+    private final Set<String> declaredSuites;
 
     public static FixtureExclusions get() {
         return INSTANCE;
@@ -140,6 +141,7 @@ public final class FixtureExclusions {
             parsed.computeIfAbsent(suite, k -> new LinkedHashMap<>()).put(caseName, new Exclusion(suite, caseName, kind, reason));
         }
         this.bySuite = Map.copyOf(parsed);
+        this.declaredSuites = Set.copyOf(declaredSuites);
     }
 
     /** The case names the given suite does not run. */
@@ -155,6 +157,16 @@ public final class FixtureExclusions {
     /** The exclusion for a case on a suite, or {@code null} if the suite runs it. */
     public Exclusion find(String suite, String caseName) {
         return bySuite.getOrDefault(suite, Map.of()).get(caseName);
+    }
+
+    /**
+     * Every suite token the declaration recognises -- the single authority. Tests and callers read this
+     * rather than restating it: the previous hand-copied lists (one in the test asserting five tokens,
+     * another asserting eight) drifted from each other and from this file, which is the same
+     * duplicate-registry failure the declaration exists to remove.
+     */
+    public Set<String> declaredSuites() {
+        return declaredSuites;
     }
 
     /** Every suite that declares at least one exclusion. */

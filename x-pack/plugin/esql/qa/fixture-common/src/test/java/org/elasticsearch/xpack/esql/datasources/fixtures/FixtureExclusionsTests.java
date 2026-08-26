@@ -12,10 +12,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -33,11 +33,16 @@ public class FixtureExclusionsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Every suite an exclusion names must be one the declaration recognises. Reads the declaration rather
+     * than restating it: this test previously carried its own five-token list and a second test carried an
+     * eight-token one, so three registries disagreed about which suites exist -- the duplicate-registry
+     * failure this whole declaration exists to remove, reproduced inside its own tests.
+     */
     public void testSuitesAreNamedByTheirFormatToken() {
-        // A suite name that does not match a token is a typo that would silently exclude nothing.
-        Set<String> known = Set.of("ndjson", "ndjson-compressed", "orc", "parquet", "parquet-rs");
-        for (String suite : FixtureExclusions.get().suites()) {
-            assertTrue("unknown suite token [" + suite + "] in the exclusion declaration", known.contains(suite));
+        FixtureExclusions exclusions = FixtureExclusions.get();
+        for (String suite : exclusions.suites()) {
+            assertThat("exclusion names a suite the declaration does not recognise", exclusions.declaredSuites(), hasItem(suite));
         }
     }
 
@@ -71,20 +76,4 @@ public class FixtureExclusionsTests extends ESTestCase {
         assertThat(onRs.kind(), equalTo(FixtureExclusions.Kind.BUG));
     }
 
-    /**
-     * The check the old version of this test only looked like: that every suite an exclusion names is a
-     * suite that exists. It replaces an assertion that could not fail -- suites() is the key set of the
-     * same map casesFor() reads, so a key existed only because an entry had created it.
-     *
-     * <p>What it guards is a typo. Before the declared 'suites' list, exclude.parqet.someCase parsed
-     * happily, created a "parqet" suite, and excluded nothing -- indistinguishable from a working
-     * exclusion, and silent forever.
-     */
-    public void testEverySuiteNamedByAnExclusionIsDeclared() {
-        FixtureExclusions exclusions = FixtureExclusions.get();
-        Set<String> declared = Set.of("csv", "tsv", "ndjson", "ndjson-compressed", "orc", "parquet", "parquet-compressed", "parquet-rs");
-        for (String suite : exclusions.suites()) {
-            assertThat("exclusion names a suite that is not declared", declared, hasItem(suite));
-        }
-    }
 }

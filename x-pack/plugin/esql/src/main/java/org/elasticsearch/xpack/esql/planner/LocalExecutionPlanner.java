@@ -347,6 +347,7 @@ public class LocalExecutionPlanner {
             settings,
             shardContexts,
             physicalOperationProviders.analysisRegistry(),
+            new Holder<>(),
             new Holder<>()
         );
 
@@ -867,51 +868,64 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
-        PhysicalOperation source = plan(topNExec.child(), context);
-        // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
-        // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
-        // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
-        // make the decision here — rather than as a separate plan node + optimizer rule — because
-        // the choice is purely an implementation detail (same TopN semantics, different operator)
-        // and every input we need is already on hand at translation time. If the predicate
-        // doesn't match we fall through to the generic factory below; the rule predicate and the
-        // generic fallback share the same plan node.
-        NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
-        if (numericFactory != null) {
-            return source.with(numericFactory, source.layout);
+        LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory);
+        if (luceneMinCompetitivePilot != null) {
+            context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
         }
-        var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
-        TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
-        if (parallelWorkerExecutor != null) {
-            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
-            parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
-                parallelWorkerExecutor,
-                workerCount,
-                2 * workerCount,
-                context.plannerSettings.parallelTopNPromotionThresholdRows()
+        try {
+            PhysicalOperation source = plan(topNExec.child(), context);
+            // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
+            // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
+            // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
+            // make the decision here — rather than as a separate plan node + optimizer rule — because
+            // the choice is purely an implementation detail (same TopN semantics, different operator)
+            // and every input we need is already on hand at translation time. If the predicate
+            // doesn't match we fall through to the generic factory below; the rule predicate and the
+            // generic fallback share the same plan node.
+            NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
+            if (numericFactory != null) {
+                return source.with(numericFactory, source.layout);
+            }
+            var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
+            TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
+            if (parallelWorkerExecutor != null) {
+                int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), esqlWorkerPoolSize / 2));
+                parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
+                    parallelWorkerExecutor,
+                    workerCount,
+                    2 * workerCount,
+                    context.plannerSettings.parallelTopNPromotionThresholdRows()
+                );
+            }
+            // For a single keyword/text sort key directly over an external source, publish the generic
+            // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
+            // can skip row groups/stripes that cannot contain a globally competitive row. This is the
+            // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
+            // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
+            // the TopNExec can never reach the operator without the readers also being wired to it.
+            SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
+            if (minCompetitive == null && luceneMinCompetitivePilot != null) {
+                minCompetitive = luceneMinCompetitivePilot.supplier();
+            }
+            return source.with(
+                new TopNOperatorFactory(
+                    common.limit,
+                    asList(common.elementTypes),
+                    asList(common.encoders),
+                    common.orders,
+                    context.pageSize(topNExec, rowSize),
+                    context.plannerSettings.valuesLoadingJumboSize().getBytes(),
+                    topNExec.inputOrdering(),
+                    minCompetitive,
+                    parallelWorkerConfig
+                ),
+                source.layout
             );
+        } finally {
+            if (luceneMinCompetitivePilot != null) {
+                context.luceneMinCompetitivePilot.set(null);
+            }
         }
-        // For a single keyword/text sort key directly over an external source, publish the generic
-        // TopNOperator's competitive BytesRef bound to DynamicThresholdAware format readers so they
-        // can skip row groups/stripes that cannot contain a globally competitive row. This is the
-        // BYTES_REF counterpart to the numeric NumericTopNOperator + SharedNumericThreshold path.
-        // Wiring the readers and obtaining the supplier are done together so a pre-set supplier on
-        // the TopNExec can never reach the operator without the readers also being wired to it.
-        SharedMinCompetitive.Supplier minCompetitive = tryBuildExternalMinCompetitive(topNExec, source, topNExec.minCompetitive());
-        return source.with(
-            new TopNOperatorFactory(
-                common.limit,
-                asList(common.elementTypes),
-                asList(common.encoders),
-                common.orders,
-                context.pageSize(topNExec, rowSize),
-                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
-                topNExec.inputOrdering(),
-                minCompetitive,
-                parallelWorkerConfig
-            ),
-            source.layout
-        );
     }
 
     /**
@@ -1103,6 +1117,58 @@ public class LocalExecutionPlanner {
             externalSourceFactory.setNumericThresholdSupplier(thresholdSupplier, sortAttribute.name(), keyElementType, asc, nullsFirst);
         }
         return new NumericTopNOperator.NumericTopNOperatorFactory(limit, keyElementType, asc, nullsFirst, thresholdSupplier);
+    }
+
+    /**
+     * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
+     * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
+     * with a single {@code @timestamp}-like sort key.
+     */
+    @Nullable
+    private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(TopNExec topNExec, BlockFactory blockFactory) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order order = orders.get(0);
+        if (order.child() instanceof FieldAttribute fa == false) {
+            return null;
+        }
+        FieldAttribute sortField = (FieldAttribute) order.child();
+        if (PlannerUtils.toElementType(sortField.dataType()) != ElementType.LONG) {
+            return null;
+        }
+        if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
+            return null;
+        }
+        EsQueryExec esQuery = findEsQueryExecForMinCompetitivePilot(topNExec.child());
+        if (esQuery == null) {
+            return null;
+        }
+        if (esQuery.sorts() != null && esQuery.sorts().isEmpty() == false) {
+            return null;
+        }
+        if (esQuery.queryBuilderAndTags().size() != 1) {
+            return null;
+        }
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            topNExec.minCompetitiveKeyConfig()
+        );
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName());
+    }
+
+    @Nullable
+    private static EsQueryExec findEsQueryExecForMinCompetitivePilot(PhysicalPlan plan) {
+        PhysicalPlan current = plan;
+        while (current instanceof UnaryExec unary) {
+            if (current instanceof FilterExec || current instanceof ProjectExec || current instanceof FieldExtractExec) {
+                current = unary.child();
+                continue;
+            }
+            break;
+        }
+        return current instanceof EsQueryExec esQueryExec ? esQueryExec : null;
     }
 
     /**
@@ -2487,7 +2553,8 @@ public class LocalExecutionPlanner {
         Settings settings,
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry,
-        Holder<TopNExec> lastVisitedTopN
+        Holder<TopNExec> lastVisitedTopN,
+        Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

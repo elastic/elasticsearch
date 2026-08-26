@@ -63,7 +63,9 @@ import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 
+import java.io.Closeable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +82,7 @@ import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeployment
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
-public class TrainedModelAssignmentClusterService implements ClusterStateListener {
+public class TrainedModelAssignmentClusterService implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelAssignmentClusterService.class);
 
@@ -177,6 +179,14 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private void setAllocatedProcessorsScale(int scale) {
         this.allocatedProcessorsScale = scale;
+    }
+
+    @Override
+    public void close() {
+        Scheduler.Cancellable task = observedMemoryTask;
+        if (task != null && task.isCancelled() == false) {
+            task.cancel();
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -553,10 +563,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(state);
-        if (metadata.allAssignments().isEmpty()) {
+        // Adaptive-allocations deployments are already covered by AdaptiveAllocationsScalerService's 10-second
+        // stats cycle (via the statsResponseConsumer callback). Only query the remaining deployments here.
+        String deploymentIds = metadata.allAssignments()
+            .entrySet()
+            .stream()
+            .filter(
+                e -> e.getValue().getAdaptiveAllocationsSettings() == null
+                    || e.getValue().getAdaptiveAllocationsSettings().getEnabled() != Boolean.TRUE
+            )
+            .map(Map.Entry::getKey)
+            .collect(Collectors.joining(","));
+        if (deploymentIds.isEmpty()) {
             return;
         }
-        String deploymentIds = String.join(",", metadata.allAssignments().keySet());
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.ML_ORIGIN,
@@ -569,7 +589,16 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         );
     }
 
-    private void processObservedMemoryStats(GetDeploymentStatsAction.Response response) {
+    /**
+     * Updates the observed-memory estimator from a deployment stats response and writes any significant changes back to
+     * cluster state in a single batched task. Called directly from {@code AdaptiveAllocationsScalerService} for
+     * adaptive-allocations deployments (avoiding a separate 60-second scatter-gather for those), and from the
+     * {@link #updateObservedMemoryFromStats()} periodic task for non-adaptive deployments.
+     */
+    public void processObservedMemoryStats(GetDeploymentStatsAction.Response response) {
+        // Read current state once so we can pre-check significance without hitting the cluster-state queue.
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
+        Map<String, Long> toWriteBack = new HashMap<>();
         for (AssignmentStats stats : response.getStats().results()) {
             // Use the worst (largest) peak RSS across the deployment's nodes so the estimate is conservative and
             // OOM-safe: it must cover the busiest node, not the average.
@@ -588,34 +617,49 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 continue;
             }
             long effectivePerAllocation = observedMemoryEstimator.update(stats.getDeploymentId(), worstNodePeakRss, allocationsOnWorstNode);
-            writeBackObservedMemory(stats.getDeploymentId(), effectivePerAllocation);
+            // Skip the write-back if the value hasn't changed enough to matter. The significance check inside
+            // writeBackObservedMemoryBatch's execute() is the authoritative guard; this pre-check just avoids
+            // queuing a no-op task in the common (stable) case.
+            TrainedModelAssignment existing = metadata.getDeploymentAssignment(stats.getDeploymentId());
+            Long currentStored = existing != null ? existing.getObservedPerAllocationMemoryBytes() : null;
+            if (isSignificantMemoryChange(currentStored, effectivePerAllocation)) {
+                toWriteBack.put(stats.getDeploymentId(), effectivePerAllocation);
+            }
+        }
+        if (toWriteBack.isEmpty() == false) {
+            writeBackObservedMemoryBatch(toWriteBack);
         }
     }
 
-    private void writeBackObservedMemory(String deploymentId, long observedPerAllocationMemoryBytes) {
-        submitUnbatchedTask("update observed memory for deployment [" + deploymentId + "]", new ClusterStateUpdateTask() {
+    private void writeBackObservedMemoryBatch(Map<String, Long> observedPerAllocationByDeployment) {
+        submitUnbatchedTask("update observed memory for deployments", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
-                TrainedModelAssignment existing = metadata.getDeploymentAssignment(deploymentId);
-                if (existing == null || existing.getAssignmentState() == AssignmentState.STOPPING) {
-                    return currentState;
-                }
-                if (isSignificantMemoryChange(existing.getObservedPerAllocationMemoryBytes(), observedPerAllocationMemoryBytes) == false) {
-                    return currentState;
-                }
                 TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
-                builder.updateAssignment(
-                    deploymentId,
-                    TrainedModelAssignment.Builder.fromAssignment(existing)
-                        .setObservedPerAllocationMemoryBytes(observedPerAllocationMemoryBytes)
-                );
-                return update(currentState, builder);
+                boolean anyUpdated = false;
+                for (Map.Entry<String, Long> entry : observedPerAllocationByDeployment.entrySet()) {
+                    String deploymentId = entry.getKey();
+                    long bytes = entry.getValue();
+                    TrainedModelAssignment existing = metadata.getDeploymentAssignment(deploymentId);
+                    if (existing == null || existing.getAssignmentState() == AssignmentState.STOPPING) {
+                        continue;
+                    }
+                    if (isSignificantMemoryChange(existing.getObservedPerAllocationMemoryBytes(), bytes) == false) {
+                        continue;
+                    }
+                    builder.updateAssignment(
+                        deploymentId,
+                        TrainedModelAssignment.Builder.fromAssignment(existing).setObservedPerAllocationMemoryBytes(bytes)
+                    );
+                    anyUpdated = true;
+                }
+                return anyUpdated ? update(currentState, builder) : currentState;
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> format("[%s] failed to write back observed memory", deploymentId), e);
+                logger.debug("failed to write back observed memory for deployments", e);
             }
 
             @Override

@@ -153,7 +153,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         int findExcessAllocations(int maxAllocations, long availableMemoryBytes) {
             if (perAllocationMemoryBytes > 0) {
-                return (int) Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes, perAllocationMemoryBytes));
+                return (int) Math.max(0, Math.min(maxAllocations, Math.floorDiv(availableMemoryBytes, perAllocationMemoryBytes)));
             }
             return maxAllocations;
         }

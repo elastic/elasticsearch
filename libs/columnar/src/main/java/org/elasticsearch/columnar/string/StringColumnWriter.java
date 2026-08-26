@@ -188,7 +188,9 @@ public final class StringColumnWriter {
         }
         final int size = vocabulary.size();
         ValueStream.Metadata terms = null;
-        if (metadata.layout() != StringColumnLayout.DICTIONARY) {
+        if (metadata instanceof StringColumnMetadata.Dictionary column) {
+            assert column.dictionarySize() == size : column.dictionarySize() + " != " + size;
+        } else {
             final BytesRef term = new BytesRef();
             try (
                 ValueStream.Writer writer = new ValueStream.Writer(
@@ -208,8 +210,6 @@ public final class StringColumnWriter {
                 }
                 terms = writer.finish();
             }
-        } else {
-            assert metadata.dictionarySize() == size : metadata.dictionarySize() + " != " + size;
         }
         final long countsOffset = data.getFilePointer();
         for (int ordinal = 0; ordinal < size; ordinal++) {

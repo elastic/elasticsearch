@@ -100,6 +100,18 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
     }
 
     /** Verbatim or compressed; a value must read back the same either way. */
+    /** The column as the layout that names its values with ordinals, failing the test when it is not one. */
+    protected static StringColumnMetadata.Dictionary dictionaryOf(StringColumnMetadata metadata) {
+        assertTrue("expected a dictionary column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Dictionary);
+        return (StringColumnMetadata.Dictionary) metadata;
+    }
+
+    /** The column as the layout that stores its values, failing the test when it is not one. */
+    protected static StringColumnMetadata.Plain plainOf(StringColumnMetadata metadata) {
+        assertTrue("expected a plain column, got " + metadata.layout(), metadata instanceof StringColumnMetadata.Plain);
+        return (StringColumnMetadata.Plain) metadata;
+    }
+
     protected static ChunkCodec randomChunkCodec() {
         return randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD);
     }

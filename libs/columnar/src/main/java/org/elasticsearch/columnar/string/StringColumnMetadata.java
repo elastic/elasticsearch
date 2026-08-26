@@ -25,30 +25,49 @@ import java.io.IOException;
  * offset table is per block rather than per value so its size is a fraction of the column's — the position of a
  * value inside its block comes from decoding the block, which a read has to do anyway.
  *
- * <p>{@link #layout()} says how a block is encoded, and which trailing fields are meaningful.
- * {@link StringColumnLayout#PLAIN} reads its values straight out of {@link #values()}.
- * {@link StringColumnLayout#DICTIONARY} instead reads an ordinal from {@link #ordinals()} and resolves it
- * against {@link #dictionary()}; its {@link #values()} stream holds nothing, since a value is either named
- * by a term or held in {@link #escapes()}.
+ * <p>A column takes one of two layouts, and each says only what its own layout has. {@link Plain} reads its
+ * values straight out of {@link Plain#values()}. {@link Dictionary} instead reads an ordinal from
+ * {@link Dictionary#ordinals()} and resolves it against {@link Dictionary#dictionary()}; it stores no values
+ * of its own, since a value is either named by a term or held in {@link Dictionary#escapes()}.
  *
- * <p>An ordinal equal to {@link #dictionarySize()} is the escape: the value is not in the dictionary and
- * its bytes are in the escapes stream instead. Which one is found by counting escapes, which
- * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
+ * <p>What both layouts have is here: how many documents and values the column holds, what its values would
+ * occupy stored plainly, and what it recorded of the terms it holds most.
  */
-public record StringColumnMetadata(
-    ColumnIteratorMetadata iterator,
-    int numDocsWithField,
-    long numValues,
-    long valueBytes,
-    StringColumnLayout layout,
-    ValueStream.Metadata values,
-    ValueStream.Metadata dictionary,
-    NumericColumnMetadata ordinals,
-    ValueStream.Metadata escapes,
-    MonotonicWriter.Table escapeRanks,
-    int dictionarySize,
-    Summary summary
-) implements ColumnMetadata {
+public sealed interface StringColumnMetadata extends ColumnMetadata permits StringColumnMetadata.Plain, StringColumnMetadata.Dictionary {
+
+    /** The documents that have a value, and where each one's values begin. */
+    ColumnIteratorMetadata iterator();
+
+    /** How many documents have a value. */
+    int numDocsWithField();
+
+    /** How many values the column holds across all documents. */
+    long numValues();
+
+    /** What the column's values would occupy stored plainly, which a decision about its layout is weighed against. */
+    long valueBytes();
+
+    /** What the column recorded of the terms it holds most, or null when it recorded nothing. */
+    Summary summary();
+
+    /** Which layout the column takes, as written on disk. */
+    StringColumnLayout layout();
+
+    /** The same column, with what it surveyed recorded beside it. */
+    StringColumnMetadata withSummary(Summary summary);
+
+    /** Writes what this layout has, between the fields both layouts share. */
+    void writeBody(DataOutput out) throws IOException;
+
+    /** Whether this column recorded what it surveyed. */
+    default boolean hasSummary() {
+        return summary() != null;
+    }
+
+    /** True when at least one document has more than one value. */
+    default boolean multiValued() {
+        return numValues() > numDocsWithField();
+    }
 
     /**
      * What a column records of the terms it holds most, so a merge can work out a vocabulary from its
@@ -61,40 +80,106 @@ public record StringColumnMetadata(
      * @param countsLength how many bytes they occupy
      * @param numValues    the values the survey saw, which the counts are a share of
      */
-    public record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
+    record Summary(ValueStream.Metadata terms, long countsOffset, long countsLength, long numValues) {}
+
+    /** A column that stores its values as they were written. */
+    record Plain(
+        ColumnIteratorMetadata iterator,
+        int numDocsWithField,
+        long numValues,
+        long valueBytes,
+        ValueStream.Metadata values,
+        Summary summary
+    ) implements StringColumnMetadata {
+
+        @Override
+        public StringColumnLayout layout() {
+            return StringColumnLayout.PLAIN;
+        }
+
+        @Override
+        public Plain withSummary(Summary summary) {
+            return new Plain(iterator, numDocsWithField, numValues, valueBytes, values, summary);
+        }
+
+        @Override
+        public void writeBody(DataOutput out) throws IOException {
+            values.writeTo(out);
+        }
+    }
+
+    /**
+     * A column that names its values with ordinals into {@link #dictionary()}. A value the dictionary does
+     * not hold escapes into {@link #escapes()}, found by counting the escapes before it, which
+     * {@link #escapeRanks()} makes bounded work by recording how many came before every block of values.
+     *
+     * <p>An ordinal equal to {@link #dictionarySize()} is the escape marker.
+     */
+    record Dictionary(
+        ColumnIteratorMetadata iterator,
+        int numDocsWithField,
+        long numValues,
+        long valueBytes,
+        ValueStream.Metadata dictionary,
+        NumericColumnMetadata ordinals,
+        ValueStream.Metadata escapes,
+        MonotonicWriter.Table escapeRanks,
+        int dictionarySize,
+        Summary summary
+    ) implements StringColumnMetadata {
+
+        @Override
+        public StringColumnLayout layout() {
+            return StringColumnLayout.DICTIONARY;
+        }
+
+        /** Whether any value escaped the dictionary. */
+        public boolean hasEscapes() {
+            return escapes != null && escapes.numValues() > 0;
+        }
+
+        @Override
+        public Dictionary withSummary(Summary summary) {
+            return new Dictionary(
+                iterator,
+                numDocsWithField,
+                numValues,
+                valueBytes,
+                dictionary,
+                ordinals,
+                escapes,
+                escapeRanks,
+                dictionarySize,
+                summary
+            );
+        }
+
+        @Override
+        public void writeBody(DataOutput out) throws IOException {
+            out.writeVInt(dictionarySize);
+            dictionary.writeTo(out);
+            ordinals.writeTo(out);
+            escapes.writeTo(out);
+            if (escapes.numValues() > 0) {
+                out.writeVLong(escapeRanks.dataOffset());
+                out.writeVLong(escapeRanks.dataLength());
+                out.writeVInt(escapeRanks.meta().length);
+                out.writeBytes(escapeRanks.meta(), 0, escapeRanks.meta().length);
+            }
+        }
+    }
 
     static StringColumnMetadata empty(ColumnIteratorMetadata iterator) {
         return plain(iterator, 0, 0, ValueStream.Metadata.empty());
     }
 
     /** A column that stores its values as they were written. */
-    public static StringColumnMetadata plain(
-        ColumnIteratorMetadata iterator,
-        int numDocsWithField,
-        long numValues,
-        ValueStream.Metadata values
-    ) {
-        return new StringColumnMetadata(
-            iterator,
-            numDocsWithField,
-            numValues,
-            values.valueBytes(),
-            StringColumnLayout.PLAIN,
-            values,
-            null,
-            null,
-            null,
-            MonotonicWriter.Table.NONE,
-            0,
-            null
-        );
+    static Plain plain(ColumnIteratorMetadata iterator, int numDocsWithField, long numValues, ValueStream.Metadata values) {
+        return new Plain(iterator, numDocsWithField, numValues, values.valueBytes(), values, null);
     }
 
-    /**
-     * A column that names its values with ordinals into {@code dictionary}. Values the dictionary does not
-     * hold escape into {@code escapes}, found through {@code escapeRanks}.
-     */
-    public static StringColumnMetadata dictionary(
+    /** A column that names its values with ordinals into {@code dictionary}. */
+    static Dictionary dictionary(
         ColumnIteratorMetadata iterator,
         int numDocsWithField,
         long numValues,
@@ -105,13 +190,11 @@ public record StringColumnMetadata(
         MonotonicWriter.Table escapeRanks,
         int dictionarySize
     ) {
-        return new StringColumnMetadata(
+        return new Dictionary(
             iterator,
             numDocsWithField,
             numValues,
             valueBytes,
-            StringColumnLayout.DICTIONARY,
-            ValueStream.Metadata.empty(),
             dictionary,
             ordinals,
             escapes,
@@ -121,64 +204,18 @@ public record StringColumnMetadata(
         );
     }
 
-    /** The same column, with what it surveyed recorded beside it. */
-    public StringColumnMetadata withSummary(Summary summary) {
-        return new StringColumnMetadata(
-            iterator,
-            numDocsWithField,
-            numValues,
-            valueBytes,
-            layout,
-            values,
-            dictionary,
-            ordinals,
-            escapes,
-            escapeRanks,
-            dictionarySize,
-            summary
-        );
-    }
-
-    /** Whether this column recorded what it surveyed. */
-    public boolean hasSummary() {
-        return summary != null;
-    }
-
-    /** Whether any value escaped the dictionary. */
-    public boolean hasEscapes() {
-        return escapes != null && escapes.numValues() > 0;
-    }
-
-    /** True when at least one document has more than one value. */
-    public boolean multiValued() {
-        return numValues > numDocsWithField;
-    }
-
     @Override
-    public void writeTo(DataOutput out) throws IOException {
-        iterator.writeTo(out);
-        out.writeVInt(numDocsWithField);
-        if (numDocsWithField == 0) {
+    default void writeTo(DataOutput out) throws IOException {
+        iterator().writeTo(out);
+        out.writeVInt(numDocsWithField());
+        if (numDocsWithField() == 0) {
             return;
         }
-        out.writeVLong(numValues);
-        out.writeVLong(valueBytes);
-        out.writeByte(layout.id());
-        switch (layout) {
-            case PLAIN -> values.writeTo(out);
-            case DICTIONARY -> {
-                out.writeVInt(dictionarySize);
-                dictionary.writeTo(out);
-                ordinals.writeTo(out);
-                escapes.writeTo(out);
-                if (escapes.numValues() > 0) {
-                    out.writeVLong(escapeRanks.dataOffset());
-                    out.writeVLong(escapeRanks.dataLength());
-                    out.writeVInt(escapeRanks.meta().length);
-                    out.writeBytes(escapeRanks.meta(), 0, escapeRanks.meta().length);
-                }
-            }
-        }
+        out.writeVLong(numValues());
+        out.writeVLong(valueBytes());
+        out.writeByte(layout().id());
+        writeBody(out);
+        final Summary summary = summary();
         out.writeByte((byte) (summary == null ? 0 : 1));
         if (summary != null) {
             // A dictionary column's summary terms are its dictionary, so only the counts are written.
@@ -204,7 +241,7 @@ public record StringColumnMetadata(
      * }
      * }</pre>
      */
-    public static StringColumnMetadata readFrom(DataInput in, int maxDoc, final FormatVersion formatVersion) throws IOException {
+    static StringColumnMetadata readFrom(DataInput in, int maxDoc, final FormatVersion formatVersion) throws IOException {
         ColumnIteratorMetadata iterator = ColumnIteratorMetadata.readFrom(in, maxDoc, formatVersion);
         int numDocsWithField = in.readVInt();
         if (numDocsWithField == 0) {
@@ -247,5 +284,4 @@ public record StringColumnMetadata(
         final ValueStream.Metadata summaryTerms = in.readByte() == 0 ? null : ValueStream.Metadata.readFrom(in);
         return column.withSummary(new Summary(summaryTerms, in.readVLong(), in.readVLong(), in.readVLong()));
     }
-
 }

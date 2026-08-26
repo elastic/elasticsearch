@@ -76,7 +76,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         }
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertEquals("one ordinal per distinct term", terms.length, metadata.dictionarySize());
+            assertEquals("one ordinal per distinct term", terms.length, dictionaryOf(metadata).dictionarySize());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -103,8 +103,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         docValues[between(0, docValues.length - 1)] = new BytesRef("seen-exactly-once");
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertTrue("the lone value escaped", metadata.hasEscapes());
-            assertEquals("one escape", 1L, metadata.escapes().numValues());
+            assertTrue("the lone value escaped", dictionaryOf(metadata).hasEscapes());
+            assertEquals("one escape", 1L, dictionaryOf(metadata).escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -126,8 +126,8 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = values.toArray(BytesRef[]::new);
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertEquals("the head is the dictionary", head.length, metadata.dictionarySize());
-            assertEquals("the tail escaped", 400L, metadata.escapes().numValues());
+            assertEquals("the head is the dictionary", head.length, dictionaryOf(metadata).dictionarySize());
+            assertEquals("the tail escaped", 400L, dictionaryOf(metadata).escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -144,7 +144,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         }
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertTrue("some values escaped", metadata.hasEscapes());
+            assertTrue("some values escaped", dictionaryOf(metadata).hasEscapes());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -168,7 +168,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         }
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertFalse("nothing escaped", metadata.hasEscapes());
+            assertFalse("nothing escaped", dictionaryOf(metadata).hasEscapes());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -219,11 +219,11 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
             final StringColumnMetadata read = roundTrip(metadata, docValues.length);
             assertEquals("layout", metadata.layout(), read.layout());
-            assertEquals("dictionary size", metadata.dictionarySize(), read.dictionarySize());
-            assertEquals("dictionary terms", metadata.dictionary().numValues(), read.dictionary().numValues());
-            assertEquals("ordinals", metadata.ordinals().numValues(), read.ordinals().numValues());
+            assertEquals("dictionary size", dictionaryOf(metadata).dictionarySize(), dictionaryOf(read).dictionarySize());
+            assertEquals("dictionary terms", dictionaryOf(metadata).dictionary().numValues(), dictionaryOf(read).dictionary().numValues());
+            assertEquals("ordinals", dictionaryOf(metadata).ordinals().numValues(), dictionaryOf(read).ordinals().numValues());
             assertEquals("numValues", metadata.numValues(), read.numValues());
-            assertEquals("escapes", metadata.escapes().numValues(), read.escapes().numValues());
+            assertEquals("escapes", dictionaryOf(metadata).escapes().numValues(), dictionaryOf(read).escapes().numValues());
         });
     }
 
@@ -234,11 +234,19 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             docValues[d] = d % 40 == 3 ? new BytesRef("rare-" + d) : new BytesRef(d % 2 == 0 ? "up" : "down");
         }
         withDictionary(docValues, (metadata, reader) -> {
-            assertTrue("some values escaped", metadata.hasEscapes());
+            assertTrue("some values escaped", dictionaryOf(metadata).hasEscapes());
             final StringColumnMetadata read = roundTrip(metadata, docValues.length);
-            assertEquals("escapes", metadata.escapes().numValues(), read.escapes().numValues());
-            assertEquals("rank table length", metadata.escapeRanks().dataLength(), read.escapeRanks().dataLength());
-            assertEquals("rank table offset", metadata.escapeRanks().dataOffset(), read.escapeRanks().dataOffset());
+            assertEquals("escapes", dictionaryOf(metadata).escapes().numValues(), dictionaryOf(read).escapes().numValues());
+            assertEquals(
+                "rank table length",
+                dictionaryOf(metadata).escapeRanks().dataLength(),
+                dictionaryOf(read).escapeRanks().dataLength()
+            );
+            assertEquals(
+                "rank table offset",
+                dictionaryOf(metadata).escapeRanks().dataOffset(),
+                dictionaryOf(read).escapeRanks().dataOffset()
+            );
         });
     }
 
@@ -335,7 +343,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         final BytesRef[] docValues = withEscapesAt(size, escapeAt);
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertEquals("one escape per position", escapeAt.length, (int) metadata.escapes().numValues());
+            assertEquals("one escape per position", escapeAt.length, (int) dictionaryOf(metadata).escapes().numValues());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -363,7 +371,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
         }
         withDictionary(docValues, (metadata, reader) -> {
             assertEquals("layout", StringColumnLayout.DICTIONARY, metadata.layout());
-            assertEquals("one term", 1, metadata.dictionarySize());
+            assertEquals("one term", 1, dictionaryOf(metadata).dictionarySize());
             assertEveryValueReadsBack(docValues, reader);
         });
     }
@@ -381,7 +389,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
             }
             withDictionary(docValues, (metadata, reader) -> {
                 assertEquals("layout at " + terms + " terms", StringColumnLayout.DICTIONARY, metadata.layout());
-                assertEquals("dictionary size", terms, metadata.dictionarySize());
+                assertEquals("dictionary size", terms, dictionaryOf(metadata).dictionarySize());
                 assertEveryValueReadsBack(docValues, reader);
             });
         }

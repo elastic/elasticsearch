@@ -46,6 +46,11 @@ public final class StringColumnReader {
     private final ValueStream.Reader escapes;
     private final LongValues escapeRanks;
 
+    /** How many terms the dictionary holds, and how many values it did not name; zero on a plain column. */
+    private final int dictionarySize;
+    private final long escapeCount;
+    private final int blockSize;
+
     /** The last value {@link #escapeRankOf} answered, and its rank, so an ascending pass carries on. */
     private long escapeCursorAddress = -1;
     private long escapeCursorRank;
@@ -60,29 +65,39 @@ public final class StringColumnReader {
         assert meta.multiValued() == false : "this surface carries one value per document";
         this.meta = meta;
         this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
-        if (meta.layout() == StringColumnLayout.DICTIONARY) {
-            this.values = null;
-            this.dictionary = meta.dictionary().open(data);
-            this.ordinals = new NumericColumnReader(meta.ordinals(), data);
-            if (meta.hasEscapes()) {
-                this.escapes = meta.escapes().open(data);
-                this.escapeRanks = MonotonicReader.open(
-                    data,
-                    meta.escapeRanks().meta(),
-                    StringColumnWriter.escapeRankEntries(meta.numValues()),
-                    meta.escapeRanks().dataOffset(),
-                    meta.escapeRanks().dataLength()
-                );
-            } else {
+        switch (meta) {
+            case StringColumnMetadata.Dictionary column -> {
+                this.values = null;
+                this.dictionary = column.dictionary().open(data);
+                this.ordinals = new NumericColumnReader(column.ordinals(), data);
+                this.dictionarySize = column.dictionarySize();
+                this.blockSize = column.dictionary().valuesPerBlock();
+                if (column.hasEscapes()) {
+                    this.escapes = column.escapes().open(data);
+                    this.escapeCount = column.escapes().numValues();
+                    this.escapeRanks = MonotonicReader.open(
+                        data,
+                        column.escapeRanks().meta(),
+                        StringColumnWriter.escapeRankEntries(column.numValues()),
+                        column.escapeRanks().dataOffset(),
+                        column.escapeRanks().dataLength()
+                    );
+                } else {
+                    this.escapes = null;
+                    this.escapeCount = 0;
+                    this.escapeRanks = null;
+                }
+            }
+            case StringColumnMetadata.Plain column -> {
+                this.values = column.numDocsWithField() == 0 ? null : column.values().open(data);
+                this.dictionary = null;
+                this.ordinals = null;
                 this.escapes = null;
                 this.escapeRanks = null;
+                this.dictionarySize = 0;
+                this.escapeCount = 0;
+                this.blockSize = column.values().valuesPerBlock();
             }
-        } else {
-            this.values = meta.numDocsWithField() == 0 ? null : meta.values().open(data);
-            this.dictionary = null;
-            this.ordinals = null;
-            this.escapes = null;
-            this.escapeRanks = null;
         }
     }
 
@@ -112,7 +127,7 @@ public final class StringColumnReader {
         if (dictionary != null) {
             // The ordinals are one per value in the same order, so a value address addresses them directly.
             final long ordinal = ordinals.valueAt(valueAddress);
-            if (ordinal == meta.dictionarySize()) {
+            if (ordinal == dictionarySize) {
                 escapes.get(escapeRankOf(valueAddress), value);
             } else {
                 dictionary.get(ordinal, value);
@@ -144,7 +159,7 @@ public final class StringColumnReader {
             rank = escapeRanks.get(block);
         }
         for (; at < valueAddress; at++) {
-            if (ordinals.valueAt(at) == meta.dictionarySize()) {
+            if (ordinals.valueAt(at) == dictionarySize) {
                 rank++;
             }
         }
@@ -171,7 +186,7 @@ public final class StringColumnReader {
     public void readSummary(List<BytesRef> terms, List<Long> counts) throws IOException {
         final StringColumnMetadata.Summary summary = meta.summary();
         final ValueStream.Reader source = summary.terms() == null ? dictionary : summary.terms().open(data);
-        final int size = summary.terms() == null ? meta.dictionarySize() : Math.toIntExact(summary.terms().numValues());
+        final int size = summary.terms() == null ? dictionarySize : Math.toIntExact(summary.terms().numValues());
         final BytesRef term = new BytesRef();
         for (int ordinal = 0; ordinal < size; ordinal++) {
             source.get(ordinal, term);
@@ -187,7 +202,7 @@ public final class StringColumnReader {
 
     /** How many terms the dictionary holds, or zero on a column that stores its values. */
     public int dictionarySize() {
-        return meta.dictionarySize();
+        return dictionarySize;
     }
 
     /** Whether this column names its values with ordinals rather than storing them. */
@@ -197,7 +212,7 @@ public final class StringColumnReader {
 
     /** How many values the dictionary did not name. */
     public long escapeCount() {
-        return meta.hasEscapes() ? meta.escapes().numValues() : 0;
+        return escapeCount;
     }
 
     /** What this column's values would occupy stored plainly, which a decision about it is weighed against. */
@@ -221,7 +236,7 @@ public final class StringColumnReader {
 
     /** Values behind one offset in the byte stream. */
     public int blockSize() {
-        return meta.layout() == StringColumnLayout.DICTIONARY ? meta.dictionary().valuesPerBlock() : meta.values().valuesPerBlock();
+        return blockSize;
     }
 
     /** Total number of values across all documents. */

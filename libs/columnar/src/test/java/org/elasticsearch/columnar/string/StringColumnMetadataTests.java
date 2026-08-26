@@ -30,9 +30,9 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
             assertEquals("numDocsWithField", metadata.numDocsWithField(), read.numDocsWithField());
             assertEquals("numValues", metadata.numValues(), read.numValues());
             assertEquals("layout", metadata.layout(), read.layout());
-            assertEquals("stream values", metadata.values().numValues(), read.values().numValues());
-            assertEquals("values per block", metadata.values().valuesPerBlock(), read.values().valuesPerBlock());
-            assertEquals("stream value bytes", metadata.values().valueBytes(), read.values().valueBytes());
+            assertEquals("stream values", plainOf(metadata).values().numValues(), plainOf(read).values().numValues());
+            assertEquals("values per block", plainOf(metadata).values().valuesPerBlock(), plainOf(read).values().valuesPerBlock());
+            assertEquals("stream value bytes", plainOf(metadata).values().valueBytes(), plainOf(read).values().valueBytes());
             assertEquals("multi-valued", metadata.multiValued(), read.multiValued());
         });
     }
@@ -68,7 +68,7 @@ public class StringColumnMetadataTests extends ColumnarStringTestCase {
                 metadata.iterator(),
                 metadata.numDocsWithField(),
                 metadata.numValues() + 1,
-                metadata.values()
+                plainOf(metadata).values()
             );
             assertTrue("more values than documents", several.multiValued());
         });

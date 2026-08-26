@@ -1080,7 +1080,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             newReadShape,
             directBlockEnabled,
             declaredDateFormats,
-            declaredPathBinding
+            declaredProvenanceBinding
         );
     }
 

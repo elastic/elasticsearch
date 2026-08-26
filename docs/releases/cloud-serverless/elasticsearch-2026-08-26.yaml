@@ -1,0 +1,550 @@
+products:
+- product: cloud-serverless
+  target: 2026-08-26
+  repo: elasticsearch
+  owner: elastic
+release-date: 2026-08-26
+hide-features:
+- data-federation
+entries:
+- file:
+    name: 156796.yaml
+    checksum: bd7da6fdc24f76fca1904363f476a28935c47bbd
+  type: bug-fix
+  title: Fix nested `IN` subqueries with `FORK` in ES|QL
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes ES|QL queries that previously failed when `FORK` appeared inside nested `IN` subqueries.
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156796
+- file:
+    name: 157144.yaml
+    checksum: fc2ee7ea809d59d2c1d1fd0acf6f62dad02785df
+  type: enhancement
+  title: Speed up ES|QL Parquet discovery by reusing footer parses
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157144
+- file:
+    name: 156344.yaml
+    checksum: 74054d6b058279319e9bb4b1b6d5cf6a085148f1
+  type: enhancement
+  title: Avoid re-encoding binary doc values after field-level security
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Avoids a redundant decode, re-encode, and decode cycle for binary doc values that field-level security has already filtered.
+  areas:
+  - Logs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156344
+- file:
+    name: 156980.yaml
+    checksum: 603bdf03e448f1544c38df0a4b14c717e1670895
+  type: bug-fix
+  title: Fix ES|QL type checks for fused block-loader functions
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes type checking so exactness used for type checks is no longer coupled to pushdown exactness for fused block-loader functions.
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156980
+- file:
+    name: 157112.yaml
+    checksum: ab508ed8209acce73eb27eafce8ddacda5e170d9
+  type: bug-fix
+  title: Fix ES|QL hang on short reads from coalesced range readers
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157112
+- file:
+    name: 155877.yaml
+    checksum: 094771d9e4105b05754e1b2c91de2ec987b9b37b
+  type: enhancement
+  title: Add `max_connection` setting for Azure repository clients
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Introduces a per-client `max_connection` parameter for Azure snapshot repository clients.
+  areas:
+  - Distributed
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155877
+- file:
+    name: 156952.yaml
+    checksum: 64cab00ba9d11f20f31e0d2ea6cd3dd1f2f9f360
+  type: enhancement
+  title: Improve errors when searching closed indices
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Returns a descriptive error instead of a null pointer exception when creating a search context for a closed index.
+  areas:
+  - Distributed
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156952
+- file:
+    name: 157247.yaml
+    checksum: 499b9889ffe10cb9d3be704bb0201e797be660e7
+  type: bug-fix
+  title: Fix Parquet I/O failures reported as HTTP 400 in ES|QL
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157247
+- file:
+    name: 149259.yaml
+    checksum: f96c83cb31d63ed7f59467169e20e81751436a79
+  type: bug-fix
+  title: Fix ES|QL failures on `unsigned_long` counter fields
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes null pointer exception when ES|QL queries `unsigned_long` counter fields. Those fields are treated as unsupported.
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/149259
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/148032
+- file:
+    name: 157375.yaml
+    checksum: 91f0163c77df6dca9c7adbcdbda5685f7e258973
+  type: enhancement
+  title: Reduce ES|QL Parquet memory by reusing decompress buffers
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157375
+- file:
+    name: 155831.yaml
+    checksum: 47201ae8fed97671c12a1f73574c2eabeb5a32c9
+  type: enhancement
+  title: Add OpenTelemetry schema support for Universal Profiling
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Adds OpenTelemetry profiling data streams and a `schema` parameter on the stack traces API so deployments can ingest and query profiling data without ILM-based ECS indices.
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155831
+- file:
+    name: 156162.yaml
+    checksum: c5abfcc04c2965248925fa4c158c381ad129ce11
+  type: bug-fix
+  title: Fix ES|QL `CIDR_MATCH` optimizer and implicit casting
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes incorrect `CIDR_MATCH` optimization and unresolved references after implicit casting in the ES|QL analyzer.
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156162
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/155979
+- file:
+    name: 156772.yaml
+    checksum: 4c4d06c0cd6244e823030a1556536e7670ea760a
+  type: bug-fix
+  title: Define coordinating-only nodes as having no roles
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes the `coordinating_only` node selector so dedicated machine learning and transform nodes are no longer treated as coordinating-only. This affects `GET /_nodes` and task APIs scoped with that filter.
+  areas:
+  - Distributed
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156772
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/139587
+- file:
+    name: 157114.yaml
+    checksum: f4fc492b870f4f888b87cefad1256cdc0d565251
+  type: enhancement
+  title: Add `region_display_name` to inference endpoint metadata
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157114
+- file:
+    name: 156545.yaml
+    checksum: e77134cfa26a3508b04ca0a2683fbdc0cb00f9bb
+  type: bug-fix
+  title: Fix incorrect recovery byte metrics under concurrent recovery
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Recovery
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156545
+- file:
+    name: 157211.yaml
+    checksum: c4ad09a690853f8c4247ebf05bd35664c0d14e5e
+  type: enhancement
+  title: Optimize `bitmap_terms` queries on sorted point fields
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157211
+- file:
+    name: 152269.yaml
+    checksum: 04ad43989c6f8148ebb3fc37d3d2b6514e758b3d
+  type: deprecation
+  title: Deprecate legacy monitoring REST APIs
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  impact: The `_monitoring/bulk` and `_monitoring/migrate/alerts` APIs, used by legacy internal collection for Stack Monitoring, are deprecated and will be removed in a future release. Calling either endpoint now returns a deprecation warning.
+  action: Migrate Stack Monitoring from internal collection to Metricbeat or Elastic Agent.
+  areas:
+  - Infra/Core
+  - Monitoring
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/152269
+- file:
+    name: 157269.yaml
+    checksum: 85555201129c6586c6d9a768aa063506d6d9a9b1
+  type: enhancement
+  title: Speed up ES|QL `MIN` and `MAX` using skipper metadata
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Engine
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157269
+- file:
+    name: 156803.yaml
+    checksum: 66fa05cd811e229a1280140bf74288852c051ef6
+  type: bug-fix
+  title: Fix phrase queries on nested `match_only_text` documents
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes phrase queries against `match_only_text` fields that did not return nested documents because the wrong `_source` document was loaded to check term positions.
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156803
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/132352
+- file:
+    name: 157160.yaml
+    checksum: c99ee397b3e0e2d9d20d81dbc6d0f1ecffb55df1
+  type: bug-fix
+  title: Fix wildcard and regexp queries on keyed flattened fields returning HTTP 500
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Returns HTTP 4xx instead of HTTP 500 when wildcard or regexp queries run on keyed flattened fields, which are not supported.
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157160
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/157064
+- file:
+    name: 155520.yaml
+    checksum: 706415bf6e994ceef9f0d1a509c16af6ac3bb70c
+  type: enhancement
+  title: Improve ES|QL time-series `STATS` window dispatch
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Improves how ES|QL dispatches time-series aggregation windows per aggregate.
+  areas:
+  - TSDB
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/155520
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/147995
+- file:
+    name: 157008.yaml
+    checksum: 8020f8bb41d1f4ff8a365ee233534d60705817dc
+  type: enhancement
+  title: Count histogram values in ES|QL buckets
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157008
+- file:
+    name: 157049.yaml
+    checksum: 28af34204d7aaf9b2e6462264ef68256caedc041
+  type: enhancement
+  title: Grant ES|QL view read to viewer and editor roles
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Authorization
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157049
+- file:
+    name: 157182.yaml
+    checksum: 697f59ac3fb04fc4da94fb10b2a48443af993df3
+  type: enhancement
+  title: Surface Elastic Inference Service HTTP 422 errors as validation errors
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157182
+- file:
+    name: 157157.yaml
+    checksum: 1ebc64fe1679feafaf5c486d9eb39d295893095e
+  type: enhancement
+  title: Identify shards that are currently restoring from a snapshot
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Adds a restore-service check that tells whether a primary shard is actively restoring from a snapshot, rather than only waiting to restore.
+  areas:
+  - Recovery
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157157
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/4795
+- file:
+    name: 157229.yaml
+    checksum: abd5265b99f224310f8a5bd1060c8f9980e03e3d
+  type: bug-fix
+  title: Fix incorrect IVF search scores across segments
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Vector search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157229
+- file:
+    name: 157131.yaml
+    checksum: ef0c12b673e4d19d27edac5bf14380df0cc7fc42
+  type: enhancement
+  title: Track Zstandard memory with the ES|QL circuit breaker
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157131
+- file:
+    name: 156624.yaml
+    checksum: 9ba1990db1ac6afdfbb6950354c36cbadf525b92
+  type: bug-fix
+  title: Fix field-level security hiding LogsDB `.counts` fields
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes field-level security so `.counts` companion fields stay visible under their parent field.
+  areas:
+  - Logs
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156624
+- file:
+    name: 157150.yaml
+    checksum: 0e667064b59f19b52c1977e85d713a0dde0dbbfd
+  type: bug-fix
+  title: Fix missing warnings for duplicate dynamic template names
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157150
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/151416
+- file:
+    name: 157015.yaml
+    checksum: 114feef20640a65e706837f3c1895e6ee5d99063
+  type: bug-fix
+  title: Fix error messages for invalid `index.mode` values
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Returns a clear error listing valid index modes when `index.mode` is not recognized, instead of a Java enum exception such as `No enum constant org.elasticsearch.index.IndexMode.VECTORDB`.
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157015
+- file:
+    name: 157214.yaml
+    checksum: 9b588b3e9f7f60dcb0dd17bda0e0aabf2e22cff4
+  type: bug-fix
+  title: Fix `inference/_update` API to allow rotating secrets
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Inference
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157214
+- file:
+    name: 156690.yaml
+    checksum: 45147862db8a424bf25472753c04e66e650238b4
+  type: feature
+  title: Support ES|QL `STATS` command when `SET_UNMAPPED_FIELDS=LOAD_ALL`
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156690
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/156402
+- file:
+    name: 157254.yaml
+    checksum: 943808386b72f62600f9f8e359cc06f7f188e1d1
+  type: bug-fix
+  title: Fix percentiles aggregations failing with a closed circuit breaker
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Aggregations
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157254
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/157206
+- file:
+    name: 157203.yaml
+    checksum: 3486dda1adb1785596e5ab0bb7dff24a0291ed84
+  type: bug-fix
+  title: Fix diversify retriever ignoring diversification field embeddings
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  areas:
+  - Relevance
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/157203
+  issues:
+  - https://github.com/elastic/elasticsearch/issues/154748
+- file:
+    name: 152703.yaml
+    checksum: 702b992b5103518fea922000c7136e12f6ecb4b8
+  type: breaking-change
+  title: Ingest pipelines are now subject to size and count limits
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: 'Enforces three dynamic settings when a pipeline is created or updated: `ingest.pipeline.max_pipelines` (default 10000), `ingest.pipeline.max_pipeline_size` (default 1mb), and `ingest.pipeline.max_total_metadata_size` (default 25mb). Existing pipelines are never invalidated.'
+  impact: A request to create or update an ingest pipeline that would exceed one of these limits is rejected with an HTTP 400 error naming the setting. Most deployments will see no change. Existing pipelines continue to work and can be replaced by a definition no larger than the one they supersede.
+  action: If you hit a limit, delete unused pipelines or raise the relevant setting with the cluster update settings API. On Elastic Cloud Serverless these settings are not self-configurable; request an increase through support.
+  subtype: configuration
+  areas:
+  - Ingest node
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/152703
+- file:
+    name: 156799.yaml
+    checksum: 23ba1a3e9faa70af6408a07008526271ed70a6c0
+  type: enhancement
+  title: Speed up searches that return both hits and aggregations
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Improves search performance when a request collects hits (`size` greater than 0) and aggregations by skipping documents that cannot compete, whenever both collectors can prune.
+  areas:
+  - Search
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156799
+- file:
+    name: 156326.yaml
+    checksum: 18f420314db20af6e79cbe22ca968e2e77105dab
+  type: bug-fix
+  title: Fix ES|QL failures for conflicting multi-field types
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes query failures when a multi-field sub-field has conflicting types across indices.
+  areas:
+  - ES|QL
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156326
+- file:
+    name: 156920.yaml
+    checksum: ebf288f04b7b19fb6669508d7e27e33f7ae72e71
+  type: bug-fix
+  title: Fix keyword range queries on columnar binary doc values
+  products:
+  - product: cloud-serverless
+    target: 2026-08-26
+  - product: elasticsearch
+  description: Fixes keyword range queries that compared Java strings instead of indexed bytes on the binary doc-values path, which could miss matches such as emoji in columnar index modes.
+  areas:
+  - Mapping
+  prs:
+  - https://github.com/elastic/elasticsearch/pull/156920

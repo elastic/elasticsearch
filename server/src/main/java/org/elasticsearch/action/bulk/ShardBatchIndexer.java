@@ -62,12 +62,6 @@ public final class ShardBatchIndexer {
         this.recycler = recycler;
     }
 
-    /**
-     * Returns {@code true} when the three cluster-level gates for batch indexing are all satisfied:
-     * the {@code indices.batch_indexing} cluster setting is enabled, the {@code batch_indexing}
-     * feature flag is enabled, and every node in the cluster supports
-     * {@link BulkShardRequest#BULK_SHARD_BATCH}.
-     */
     public static boolean isBatchIndexingSupported(ClusterService clusterService) {
         return BATCH_INDEXING.get(clusterService.getSettings())
             && BATCH_INDEXING_FEATURE_FLAG.isEnabled()

@@ -191,9 +191,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        // A bulk takes exactly one of the two batching paths, never both. Either the producer already
-        // built the batches (items carry row references instead of inline source, and the coordinator
-        // only has to scatter them), or the items carry x-content that this node encodes as it routes.
         boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(clusterService);
         if (bulkRequest.getPreBuiltBatches() != null) {
             // If the gates are not open the batch cannot be used and there is no fallback: the items
@@ -316,7 +313,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private Map<ShardId, List<BulkItemRequest>> drainAndGroupRedirectsByShards(ClusterState clusterState) {
-        // Redirects are freshly built requests carrying inline source, so neither batching helper applies.
         return groupRequestsByShards(
             clusterState,
             Iterators.fromSupplier(failureStoreRedirects::poll),
@@ -460,9 +456,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         }
 
         // Build per-shard source batches. For the inline-encoder path, batches are finalized here
-        // (rows were accumulated during routing). For the pre-built-batch path, the whole-index
-        // batch is scattered into per-shard sub-batches now. The two paths are mutually exclusive
-        // because BulkBatchEncoders.isItemBatchEligible returns false for row-bearing items.
+        // (rows were accumulated during routing).
         Map<ShardId, SourceBatch> shardBatches;
         if (batchEncoders != null) {
             shardBatches = batchEncoders.finalizeBatches();
@@ -773,10 +767,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexRequest failureStoreRequest;
         try {
             // If the original request carries only a row reference (no inline bytes), materialize
-            // the source now so that transformFailedRequest can read the document content. This reads
-            // whatever batch the item currently points at: the whole-request batch before scatter, the
-            // per-shard batch at its shard-local row after. Both are correct only because this always
-            // runs after shardBatches() has re-pointed the items.
+            // the source now so that transformFailedRequest can read the document content.
             IndexRequest writeRequest = TransportBulkAction.getIndexWriteRequest(request.request());
             if (writeRequest != null && writeRequest.indexSource().hasSourceRow()) {
                 writeRequest.indexSource().ensureInlineSource();

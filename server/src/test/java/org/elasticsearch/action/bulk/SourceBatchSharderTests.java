@@ -314,10 +314,6 @@ public class SourceBatchSharderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("at most one is supported in step 1"));
     }
 
-    // -------------------------------------------------------------------------
-    // Tests: single concrete index
-    // -------------------------------------------------------------------------
-
     public void testSingleShardAllRowsRouted() throws IOException {
         int numDocs = randomIntBetween(3, 20);
         EscfBatch batch = buildBatch(numDocs);

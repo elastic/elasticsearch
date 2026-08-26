@@ -2504,7 +2504,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 clusterService.localNode().getId(),
                 clusterService,
                 ActionListener.wrap(searchNodesAndCommitsResult -> {
-                    afterNotification.close();
+                    // afterNotification.close() may trigger VBCC cleanup, which involves blocking I/O (blob cache reads via
+                    // Lucene commit deletion). Fork to generic to avoid blocking the transport thread.
+                    threadPool.generic().execute(afterNotification::close);
                     onNewUploadedCommitNotificationResponse(
                         // Open PITs might be transferred between search nodes during relocations, for that reason we are conservative,
                         // and we just consider responses from started or old nodes retaining commits, that way we won't delete any
@@ -2517,7 +2519,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                 }, e -> {
                     // Treat failures the same as a successful response: the indexing node cannot meaningfully wait any longer.
-                    afterNotification.close();
+                    threadPool.generic().execute(afterNotification::close);
                     logNotificationException(
                         notificationCommitGeneration,
                         uploadedBcc.primaryTermAndGeneration().generation(),

@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -21,16 +19,16 @@ import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEm
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequestEntity.convertInputTypeToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_UrlDefined() throws IOException {
+    public void testCreateRequest_UrlDefined() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
@@ -39,19 +37,17 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
@@ -63,7 +59,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         }
     }
 
-    public void testCreateRequest_AllOptionsDefined() throws IOException {
+    public void testCreateRequest_AllOptionsDefined() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
@@ -72,19 +68,17 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
@@ -97,7 +91,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
 
     }
 
-    public void testCreateRequest_DimensionDefined() throws IOException {
+    public void testCreateRequest_DimensionDefined() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
@@ -113,19 +107,17 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
@@ -166,7 +158,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         }
     }
 
-    public void testCreateRequest_EmbeddingTypeDefined() throws IOException {
+    public void testCreateRequest_EmbeddingTypeDefined() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
@@ -183,19 +175,17 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
@@ -236,7 +226,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         }
     }
 
-    public void testCreateRequest_TaskSettingsInputType() throws IOException {
+    public void testCreateRequest_TaskSettingsInputType() throws IOException, URISyntaxException {
         var inputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
@@ -252,19 +242,17 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertInputTypeToString(inputType);
             MatcherAssert.assertThat(
@@ -276,7 +264,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         }
     }
 
-    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
+    public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException, URISyntaxException {
         var requestInputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var taskSettingsInputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
@@ -293,19 +281,17 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-
-        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
-        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getUri().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         MatcherAssert.assertThat(
             httpPost.getLastHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(),
             is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
         );
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         if (InputType.isSpecified(requestInputType)) {
             var convertedInputType = convertInputTypeToString(requestInputType);
             MatcherAssert.assertThat(

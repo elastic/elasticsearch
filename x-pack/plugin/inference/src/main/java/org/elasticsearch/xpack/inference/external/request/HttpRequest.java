@@ -7,22 +7,16 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 
 import java.util.Objects;
 
 /**
  * Provides a thin wrapper to give access the inference entity id that manages the settings for this request.
  */
-public record HttpRequest(HttpRequestBase httpRequestBase, String inferenceEntityId) {
+public record HttpRequest(SimpleHttpRequest httpRequest, String inferenceEntityId) {
     public HttpRequest {
-        Objects.requireNonNull(httpRequestBase);
+        Objects.requireNonNull(httpRequest);
         Objects.requireNonNull(inferenceEntityId);
-    }
-
-    public HttpAsyncRequestProducer requestProducer() {
-        return HttpAsyncMethods.create(httpRequestBase);
     }
 }

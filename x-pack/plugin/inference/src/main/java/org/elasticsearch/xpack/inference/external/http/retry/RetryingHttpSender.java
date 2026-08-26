@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -235,7 +235,7 @@ public class RetryingHttpSender implements RequestSender {
 
         /**
          * If the connection gets closed by the server or because of the connections time to live is exceeded we'll likely get a
-         * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException.
+         * {@link org.apache.hc.core5.http.ConnectionClosedException} exception which is a child of IOException.
          *
          * @param e the Exception received while sending the request
          * @return a {@link RetryException} if this exception can be retried
@@ -310,8 +310,8 @@ public class RetryingHttpSender implements RequestSender {
                 "Failed to process the response for request from inference entity id [%s] of type [%s] with status [%s] [%s]",
                 outboundRequest.getInferenceEntityId(),
                 requestType,
-                result.response().getStatusLine().getStatusCode(),
-                result.response().getStatusLine().getReasonPhrase()
+                result.response().getCode(),
+                result.response().getReasonPhrase()
             ),
             causeException
         );

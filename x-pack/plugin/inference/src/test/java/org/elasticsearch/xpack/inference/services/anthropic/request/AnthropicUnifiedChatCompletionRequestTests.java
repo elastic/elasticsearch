@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionModelTests;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +27,6 @@ import static org.elasticsearch.xpack.inference.services.anthropic.request.Anthr
 import static org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils.X_API_KEY;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -40,20 +37,19 @@ public class AnthropicUnifiedChatCompletionRequestTests extends ESTestCase {
     private static final String INPUT = "Hello, world!";
     private static final String ROLE = "user";
 
-    public void testCreateHttpRequestSetsAnthropicHeaders() throws IOException {
+    public void testCreateHttpRequestSetsAnthropicHeaders() throws IOException, URISyntaxException {
         var maxTokens = 1024;
         var model = AnthropicChatCompletionModelTests.createChatCompletionModel(API_KEY, MODEL_NAME, maxTokens);
         var request = new AnthropicUnifiedChatCompletionRequest(unifiedChatInput(true), model);
         var httpRequest = createHttpRequest(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        assertThat(httpPost.getURI(), is(request.getURI()));
+        var httpPost = httpRequest.httpRequest();
+        assertThat(httpPost.getUri(), is(request.getURI()));
         assertThat(httpPost.getFirstHeader(X_API_KEY).getValue(), is(API_KEY));
         assertThat(httpPost.getFirstHeader(VERSION).getValue(), is(ANTHROPIC_VERSION_2023_06_01));
-        assertThat(httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("model"), is(MODEL_NAME));
         assertThat(requestMap.get("stream"), is(true));
@@ -69,8 +65,8 @@ public class AnthropicUnifiedChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(false, maxTokens);
         var httpRequest = createHttpRequest(request);
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap.get("stream"), is(false));
         assertThat(requestMap.get("max_tokens"), is(maxTokens));
     }

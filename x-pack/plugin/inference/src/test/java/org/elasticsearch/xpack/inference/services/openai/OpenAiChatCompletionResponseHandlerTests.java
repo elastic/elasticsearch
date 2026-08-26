@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -39,14 +37,10 @@ public class OpenAiChatCompletionResponseHandlerTests extends ESTestCase {
         ByteArrayInputStream responseBodyStream = new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8));
 
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
 
         var httpResponse = mock(HttpResponse.class);
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(429);
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());

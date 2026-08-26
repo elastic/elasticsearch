@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.buildUriPreservingColons;
 
 public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
 
@@ -140,13 +141,14 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
     }
 
     public static URI buildUri(String model) throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
-            .setPathSegments(
-                GoogleAiStudioUtils.V1,
-                GoogleAiStudioUtils.MODELS,
-                format("%s:%s", model, GoogleAiStudioUtils.BATCH_EMBED_CONTENTS_ACTION)
-            )
-            .build();
+        return buildUriPreservingColons(
+            new URIBuilder().setScheme("https")
+                .setHost(GoogleAiStudioUtils.HOST_SUFFIX)
+                .setPathSegments(
+                    GoogleAiStudioUtils.V1,
+                    GoogleAiStudioUtils.MODELS,
+                    format("%s:%s", model, GoogleAiStudioUtils.BATCH_EMBED_CONTENTS_ACTION)
+                )
+        );
     }
 }

@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicHttpResponse;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -165,10 +164,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         String modelId,
         Map<String, String> headers
     ) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = new BasicHttpResponse(statusLine);
+        var httpResponse = new BasicHttpResponse(statusCode);
         givenResponseHasHeaders(httpResponse, headers);
 
         String responseJson = Strings.format("""

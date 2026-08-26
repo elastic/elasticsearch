@@ -99,7 +99,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
         HttpResult result,
         ErrorResponse errorResponse
     ) {
-        var responseStatusCode = result.response().getStatusLine().getStatusCode();
+        var responseStatusCode = result.response().getCode();
         return new ElasticsearchStatusException(
             constructErrorMessage(message, outboundRequest, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)

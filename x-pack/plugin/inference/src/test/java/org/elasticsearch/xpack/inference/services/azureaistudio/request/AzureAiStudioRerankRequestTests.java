@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioPro
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModelTests;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_N_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioRerankRequestTests extends ESTestCase {
@@ -35,19 +34,19 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
     private static final String QUERY = "query";
     private static final Integer TOP_N = 2;
 
-    public void testCreateRequest_WithCohereProviderTokenEndpoint_NoParams() throws IOException {
+    public void testCreateRequest_WithCohereProviderTokenEndpoint_NoParams() throws IOException, URISyntaxException {
         final var input = randomAlphaOfLength(3);
         final var query = randomAlphaOfLength(3);
         final var apikey = randomAlphaOfLength(3);
         final var request = createRequest(TARGET_URI, AzureAiStudioProvider.COHERE, AzureAiStudioEndpointType.TOKEN, apikey, query, input);
         final var httpPost = getHttpPost(request, apikey);
-        final var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        final var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get(QUERY), is(query));
         assertThat(requestMap.get(INPUT), is(List.of(input)));
     }
 
-    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithTopNParam() throws IOException {
+    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithTopNParam() throws IOException, URISyntaxException {
         final var input = randomAlphaOfLength(3);
         final var query = randomAlphaOfLength(3);
         final var apikey = randomAlphaOfLength(3);
@@ -62,14 +61,14 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
             input
         );
         final var httpPost = getHttpPost(request, apikey);
-        final var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        final var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get(QUERY), is(query));
         assertThat(requestMap.get(INPUT), is(List.of(input)));
         assertThat(requestMap.get(TOP_N_FIELD), is(TOP_N));
     }
 
-    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithReturnDocumentsParam() throws IOException {
+    public void testCreateRequest_WithCohereProviderTokenEndpoint_WithReturnDocumentsParam() throws IOException, URISyntaxException {
         final var input = randomAlphaOfLength(3);
         final var query = randomAlphaOfLength(3);
         final var apikey = randomAlphaOfLength(3);
@@ -84,14 +83,14 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
             input
         );
         final var httpPost = getHttpPost(request, apikey);
-        final var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        final var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get(QUERY), is(query));
         assertThat(requestMap.get(INPUT), is(List.of(input)));
         assertThat(requestMap.get(RETURN_DOCUMENTS_FIELD), is(true));
     }
 
-    private HttpPost getHttpPost(AzureAiStudioRerankRequest request, String apikey) {
+    private SimpleHttpRequest getHttpPost(AzureAiStudioRerankRequest request, String apikey) throws URISyntaxException {
         final var httpRequest = RequestTests.getHttpRequestSync(request);
 
         final var httpPost = validateRequestUrlAndContentType(httpRequest, TARGET_URI + "/v1/rerank");
@@ -99,16 +98,15 @@ public class AzureAiStudioRerankRequestTests extends ESTestCase {
         return httpPost;
     }
 
-    private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) {
-        assertThat(request.httpRequestBase(), instanceOf(HttpPost.class));
-        final var httpPost = (HttpPost) request.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is(expectedUrl));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+    private SimpleHttpRequest validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) throws URISyntaxException {
+        final var httpPost = request.httpRequest();
+        assertThat(httpPost.getUri().toString(), is(expectedUrl));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         return httpPost;
     }
 
     private void validateRequestApiKey(
-        HttpPost httpPost,
+        SimpleHttpRequest httpPost,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
         String apiKey

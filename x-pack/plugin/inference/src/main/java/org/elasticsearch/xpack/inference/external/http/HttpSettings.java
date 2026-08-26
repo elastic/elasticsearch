@@ -52,10 +52,6 @@ public class HttpSettings {
         return maxResponseSize;
     }
 
-    public int connectionTimeout() {
-        return connectionTimeout;
-    }
-
     public Duration connectionTimeoutDuration() {
         return Duration.ofMillis(connectionTimeout);
     }

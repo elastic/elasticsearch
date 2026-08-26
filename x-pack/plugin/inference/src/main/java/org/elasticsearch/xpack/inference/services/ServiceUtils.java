@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -329,6 +330,18 @@ public final class ServiceUtils {
         }
 
         return createUri(url);
+    }
+
+    /**
+     * Builds the URI while keeping colons in path segments unencoded. The HttpClient 4.x {@code URIBuilder} never percent-encoded
+     * colons in path segments (they are legal per RFC 3986), but the 5.x builder does, which breaks Google-style method URLs
+     * such as {@code models/gemini-pro:generateContent}.
+     *
+     * TODO (httpclient5 migration): this post-processing also un-encodes a literal ':' contained in user-provided segments
+     * (project/model ids), exactly matching the 4.x behavior. Revisit if the library ever offers per-segment encoding control.
+     */
+    public static URI buildUriPreservingColons(URIBuilder uriBuilder) throws URISyntaxException {
+        return new URI(uriBuilder.build().toString().replace("%3A", ":"));
     }
 
     public static SecureString extractRequiredSecureString(

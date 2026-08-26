@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
@@ -39,28 +40,32 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 
 public final class IbmWatsonxRequestUtils {
 
-    public static void decorateWithBearerToken(HttpPost httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
+    public static void decorateWithBearerToken(SimpleHttpRequest httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
         String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
         String bearerToken = "";
 
+        // TODO (httpclient5 migration): this synchronous IAM token fetch moved from the 4.x classic client to the 5.x classic
+        // client, using execute(request, responseHandler) which also releases the connection deterministically. Verify against a
+        // live watsonx IAM endpoint (token parsing + non-2xx handling) before merging.
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPostForBearerToken = new HttpPost(bearerTokenGenUrl);
 
             String body = "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=" + secretSettings.apiKey().toString();
-            ByteArrayEntity byteEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8));
+            ByteArrayEntity byteEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8), null);
 
             httpPostForBearerToken.setEntity(byteEntity);
             httpPostForBearerToken.setHeader(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded");
 
-            HttpResponse response = httpClient.execute(httpPostForBearerToken);
-            validateResponse(bearerTokenGenUrl, inferenceId, response);
-            HttpEntity entity = response.getEntity();
-            Map<String, Object> map;
-            try (InputStream content = entity.getContent()) {
-                XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
-                map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-            }
-            bearerToken = (String) map.get("access_token");
+            bearerToken = httpClient.execute(httpPostForBearerToken, response -> {
+                validateResponse(bearerTokenGenUrl, inferenceId, response);
+                HttpEntity entity = response.getEntity();
+                Map<String, Object> map;
+                try (InputStream content = entity.getContent()) {
+                    XContentType xContentType = XContentType.fromMediaType(entity.getContentType());
+                    map = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+                }
+                return (String) map.get("access_token");
+            });
         } catch (IOException e) {
             throw new XContentParseException("Failed to add Bearer token to the request");
         }
@@ -70,7 +75,7 @@ public final class IbmWatsonxRequestUtils {
     }
 
     static void validateResponse(String bearerTokenGenUrl, String inferenceId, HttpResponse response) {
-        int statusCode = response.getStatusLine().getStatusCode();
+        int statusCode = response.getCode();
         if (RestStatus.isSuccessful(statusCode)) {
             return;
         }
@@ -97,8 +102,8 @@ public final class IbmWatsonxRequestUtils {
     }
 
     private static Exception buildError(String message, String inferenceId, HttpResponse response) {
-        var errorMsg = response.getStatusLine().getReasonPhrase();
-        var responseStatusCode = response.getStatusLine().getStatusCode();
+        var errorMsg = response.getReasonPhrase();
+        var responseStatusCode = response.getCode();
 
         if (errorMsg == null) {
             return new ElasticsearchStatusException(

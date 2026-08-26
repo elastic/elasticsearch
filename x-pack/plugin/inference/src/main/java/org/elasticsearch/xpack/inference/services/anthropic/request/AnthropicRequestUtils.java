@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.common.settings.SecureString;
 
 public class AnthropicRequestUtils {

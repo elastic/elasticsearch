@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.threadpool.ThreadPool;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -503,7 +503,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             assertThat(result.asMap(), is(buildExpectationCompletions(List.of("result"))));
             var request = webServer.requests().get(0);
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo("application/json; charset=UTF-8"));
             assertThat(request.getHeader(AnthropicRequestUtils.X_API_KEY), Matchers.equalTo(API_KEY_VALUE));
             assertThat(
                 request.getHeader(AnthropicRequestUtils.VERSION),

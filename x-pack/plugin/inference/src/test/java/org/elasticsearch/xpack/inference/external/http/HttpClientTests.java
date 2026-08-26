@@ -7,19 +7,24 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.reactor.IOReactorException;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.core5.function.Supplier;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.nio.AsyncPushConsumer;
+import org.apache.hc.core5.http.nio.AsyncRequestProducer;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.http.nio.HandlerFactory;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.io.CloseMode;
+import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.reactor.IOReactorStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -48,11 +53,14 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -61,12 +69,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class HttpClientTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -110,10 +112,10 @@ public class HttpClientTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
+            assertThat(result.response().getCode(), equalTo(responseCode));
             assertThat(new String(result.body(), StandardCharsets.UTF_8), is(body));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequestBase().getURI().getPath()));
+            assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(httpPost.httpRequest().getUri().getPath()));
             assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
         }
@@ -139,13 +141,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testSend_FailedCallsOnFailure() throws Exception {
-        var asyncClient = mock(CloseableHttpAsyncClient.class);
-
-        doAnswer(invocation -> {
-            FutureCallback<?> listener = invocation.getArgument(2);
-            listener.failed(new ElasticsearchException("failure"));
-            return mock(Future.class);
-        }).when(asyncClient).execute(any(HttpUriRequest.class), any(), any());
+        var asyncClient = new CallbackInvokingHttpAsyncClient(callback -> callback.failed(new ElasticsearchException("failure")));
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -161,13 +157,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testSend_CancelledCallsOnFailure() throws Exception {
-        var asyncClient = mock(CloseableHttpAsyncClient.class);
-
-        doAnswer(invocation -> {
-            FutureCallback<?> listener = invocation.getArgument(2);
-            listener.cancelled();
-            return mock(Future.class);
-        }).when(asyncClient).execute(any(HttpUriRequest.class), any(), any());
+        var asyncClient = new CallbackInvokingHttpAsyncClient(FutureCallback::cancelled);
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -186,13 +176,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testStream_FailedCallsOnFailure() throws Exception {
-        var asyncClient = mock(CloseableHttpAsyncClient.class);
-
-        doAnswer(invocation -> {
-            FutureCallback<?> listener = invocation.getArgument(3);
-            listener.failed(new ElasticsearchException("failure"));
-            return mock(Future.class);
-        }).when(asyncClient).execute(any(HttpAsyncRequestProducer.class), any(), any(), any());
+        var asyncClient = new CallbackInvokingHttpAsyncClient(callback -> callback.failed(new ElasticsearchException("failure")));
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -208,13 +192,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testStream_CancelledCallsOnFailure() throws Exception {
-        var asyncClient = mock(CloseableHttpAsyncClient.class);
-
-        doAnswer(invocation -> {
-            FutureCallback<?> listener = invocation.getArgument(3);
-            listener.cancelled();
-            return mock(Future.class);
-        }).when(asyncClient).execute(any(HttpAsyncRequestProducer.class), any(), any(), any());
+        var asyncClient = new CallbackInvokingHttpAsyncClient(FutureCallback::cancelled);
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -232,10 +210,8 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testStart_MultipleCallsOnlyStartTheClientOnce() throws Exception {
-        var asyncClient = mock(CloseableHttpAsyncClient.class);
-        when(asyncClient.execute(any(HttpUriRequest.class), any(), any())).thenReturn(mock(Future.class));
+        var asyncClient = new CallbackInvokingHttpAsyncClient(callback -> {});
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -246,21 +222,20 @@ public class HttpClientTests extends ESTestCase {
             client.send(httpPost, HttpClientContext.create(), listener);
             client.send(httpPost, HttpClientContext.create(), listener);
 
-            verify(asyncClient, times(1)).start();
+            assertThat(asyncClient.startCalls(), equalTo(1));
         }
     }
 
     /**
      * Given a streaming response where the server holds the connection open after sending an initial chunk
-     * And a tiny MAX_HTTP_RESPONSE_SIZE so the publisher pauses the producer on the first chunk
      * When the subscriber cancels the subscription without ever calling request()
      * Then the connection lease must be released back to the pool.
      *
-     * Without the IOControl#shutdown() call from Flow.Subscription#cancel(), Apache never schedules
-     * another read on the paused channel and the lease stays held until TCP keepalive (~hours) or
-     * until the server side closes the socket. The standard MockWebServer closes immediately after
-     * each response, which would mask the bug, so this test uses a raw ServerSocket that keeps the
-     * socket open until the test signals completion.
+     * The downstream cancel() must propagate through {@link ByteArrayFlowPublisher} to the reactive response
+     * consumer, which cancels the exchange at the channel level and releases the lease. Without that propagation
+     * the lease stays held until TCP keepalive (~hours) or until the server side closes the socket. The standard
+     * MockWebServer closes immediately after each response, which would mask the bug, so this test uses a raw
+     * ServerSocket that keeps the socket open until the test signals completion.
      */
     public void testStream_CancelAfterPauseReleasesConnection() throws Exception {
         var serverDone = new CountDownLatch(1);
@@ -294,13 +269,10 @@ public class HttpClientTests extends ESTestCase {
         serverThread.start();
 
         try {
-            var httpSettings = createHttpSettings(
-                Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build()
-            );
             var connectionManager = createConnectionManager();
             try (
                 var httpClient = HttpClient.create(
-                    httpSettings,
+                    emptyHttpSettings(),
                     threadPool,
                     connectionManager,
                     mockThrottlerManager(),
@@ -314,11 +286,10 @@ public class HttpClientTests extends ESTestCase {
                     .setPort(serverSocket.getLocalPort())
                     .setPath("/" + randomAlphaOfLength(5))
                     .build();
-                HttpPost httpPost = new HttpPost(uri);
-                httpPost.setEntity(
-                    new ByteArrayEntity(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON)
-                );
-                httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+                var httpPost = SimpleRequestBuilder.post(uri)
+                    .setBody(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON)
+                    .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
+                    .build();
                 var request = new HttpRequest(httpPost, "inferenceEntityId");
 
                 var listener = new TestPlainActionFuture<StreamingHttpResult>();
@@ -333,8 +304,8 @@ public class HttpClientTests extends ESTestCase {
                     public void onSubscribe(Flow.Subscription subscription) {
                         subscriptionRef.set(subscription);
                         subscribed.countDown();
-                        // Intentionally do NOT call subscription.request — the queue must fill so the
-                        // producer pauses and never resumes, which is the scenario the fix targets.
+                        // Intentionally do NOT call subscription.request — without downstream demand the exchange
+                        // never progresses, which is the scenario where cancel() must still release the lease.
                     }
 
                     @Override
@@ -358,9 +329,9 @@ public class HttpClientTests extends ESTestCase {
 
                 subscriptionRef.get().cancel();
 
-                // With the fix: IOControl#shutdown is invoked, Apache tears down the channel, and the
-                // FutureCallback fires which releases the lease. Without the fix: the connection stays
-                // leased indefinitely (the server never closes), and this assertBusy times out.
+                // With the cancel propagated: the reactive consumer cancels the exchange, the channel is torn down,
+                // and the lease is released. Without it: the connection stays leased indefinitely (the server never
+                // closes), and this assertBusy times out.
                 assertBusy(
                     () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(0)),
                     TEST_REQUEST_TIMEOUT.seconds(),
@@ -426,24 +397,20 @@ public class HttpClientTests extends ESTestCase {
         URI uri = new URIBuilder().setScheme("http")
             .setHost("localhost")
             .setPort(port)
-            .setPathSegments("/" + randomAlphaOfLength(5))
+            .setPath("/" + randomAlphaOfLength(5))
             .setParameter(paramKey, paramValue)
             .build();
 
-        HttpPost httpPost = new HttpPost(uri);
+        var httpPost = SimpleRequestBuilder.post(uri)
+            .setBody(randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON)
+            .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
+            .build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8),
-            ContentType.APPLICATION_JSON
-        );
-        httpPost.setEntity(byteEntity);
-
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         return new HttpRequest(httpPost, "inferenceEntityId");
     }
 
-    public static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
-        return new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
+    public static PoolingAsyncClientConnectionManager createConnectionManager() {
+        return PoolingAsyncClientConnectionManagerBuilder.create().build();
     }
 
     public static HttpSettings emptyHttpSettings() {
@@ -452,5 +419,61 @@ public class HttpClientTests extends ESTestCase {
 
     private static HttpSettings createHttpSettings(Settings settings) {
         return new HttpSettings(settings, mockClusterService(settings));
+    }
+
+    /**
+     * A minimal {@link CloseableHttpAsyncClient} that immediately hands the {@link FutureCallback} of every execution to the
+     * given consumer. A hand-rolled subclass is used instead of a Mockito mock because all of the client's {@code execute}
+     * methods are final and funnel into the protected {@code doExecute}, which a mock cannot stub.
+     */
+    private static class CallbackInvokingHttpAsyncClient extends CloseableHttpAsyncClient {
+        private final Consumer<FutureCallback<?>> callbackConsumer;
+        private final AtomicInteger startCalls = new AtomicInteger(0);
+
+        CallbackInvokingHttpAsyncClient(Consumer<FutureCallback<?>> callbackConsumer) {
+            this.callbackConsumer = callbackConsumer;
+        }
+
+        int startCalls() {
+            return startCalls.get();
+        }
+
+        @Override
+        public void start() {
+            startCalls.incrementAndGet();
+        }
+
+        @Override
+        public IOReactorStatus getStatus() {
+            return IOReactorStatus.ACTIVE;
+        }
+
+        @Override
+        public void awaitShutdown(org.apache.hc.core5.util.TimeValue waitTime) {}
+
+        @Override
+        public void initiateShutdown() {}
+
+        @Override
+        protected <T> Future<T> doExecute(
+            HttpHost target,
+            AsyncRequestProducer requestProducer,
+            AsyncResponseConsumer<T> responseConsumer,
+            HandlerFactory<AsyncPushConsumer> pushHandlerFactory,
+            HttpContext context,
+            FutureCallback<T> callback
+        ) {
+            callbackConsumer.accept(callback);
+            return new CompletableFuture<>();
+        }
+
+        @Override
+        public void register(String hostname, String uriPattern, Supplier<AsyncPushConsumer> supplier) {}
+
+        @Override
+        public void close(CloseMode closeMode) {}
+
+        @Override
+        public void close() {}
     }
 }

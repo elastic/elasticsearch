@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -1066,7 +1067,10 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().getFirst().getUri().getQuery());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(ContentType.APPLICATION_JSON.toString())
+            );
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(authHeaderValue));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());

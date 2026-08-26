@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
@@ -22,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -42,18 +41,17 @@ import static org.elasticsearch.xpack.inference.services.contextualai.request.Co
 import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.QUERY_FIELD;
 import static org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequestEntity.TOP_N_FIELD;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ContextualAiRerankRequestTests extends ESTestCase {
 
-    public void testCreateRequest_WithRequiredFieldsOnly() throws IOException {
+    public void testCreateRequest_WithRequiredFieldsOnly() throws IOException, URISyntaxException {
         var requestMap = assertCreateHttpRequest(createRequest(ContextualAiRerankTaskSettings.EMPTY_SETTINGS, null));
         // Verifying that only query, documents, and model fields are present in the request
         assertThat(requestMap, aMapWithSize(3));
     }
 
-    public void testCreateRequest_WithTopNAndInstructionFromTaskSettings() throws IOException {
+    public void testCreateRequest_WithTopNAndInstructionFromTaskSettings() throws IOException, URISyntaxException {
         var requestMap = assertCreateHttpRequest(
             createRequest(new ContextualAiRerankTaskSettings(null, TEST_TOP_N, TEST_INSTRUCTION), null)
         );
@@ -63,7 +61,7 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
         assertThat(requestMap, aMapWithSize(5));
     }
 
-    public void testCreateRequest_TopNFromRequestOverridesTopNFromTaskSettings() throws IOException {
+    public void testCreateRequest_TopNFromRequestOverridesTopNFromTaskSettings() throws IOException, URISyntaxException {
         var requestMap = assertCreateHttpRequest(
             createRequest(new ContextualAiRerankTaskSettings(null, INITIAL_TEST_TOP_N, null), NEW_TEST_TOP_N)
         );
@@ -72,19 +70,18 @@ public class ContextualAiRerankRequestTests extends ESTestCase {
         assertThat(requestMap, aMapWithSize(4));
     }
 
-    private static Map<String, Object> assertCreateHttpRequest(ContextualAiRerankRequest request) throws IOException {
+    private static Map<String, Object> assertCreateHttpRequest(ContextualAiRerankRequest request) throws IOException, URISyntaxException {
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is(DEFAULT_RERANK_URL));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertThat(httpPost.getUri().toString(), is(DEFAULT_RERANK_URL));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(Strings.format("Bearer %s", TEST_API_KEY)));
 
         assertThat(httpRequest.inferenceEntityId(), is(TEST_INFERENCE_ENTITY_ID));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
 
         assertThat(requestMap.get(QUERY_FIELD), is(TEST_QUERY));
         assertThat(requestMap.get(DOCUMENTS_FIELD), is(TEST_DOCUMENTS));

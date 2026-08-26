@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -40,12 +39,10 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest imp
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(this.uri);
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(this.uri).build();
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(createRequestEntity()).getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
+        httpPost.setBody(Strings.toString(createRequestEntity()).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         setAuthHeader(httpPost, completionModel);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));

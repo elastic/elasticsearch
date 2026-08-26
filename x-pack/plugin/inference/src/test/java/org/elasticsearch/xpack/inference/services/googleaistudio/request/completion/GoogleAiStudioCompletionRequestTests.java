@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio.request.completion;
 
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
@@ -16,31 +15,29 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.completion.Goog
 import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioCompletionRequest;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GoogleAiStudioCompletionRequestTests extends ESTestCase {
 
-    public void testCreateRequest() throws IOException {
+    public void testCreateRequest() throws IOException, URISyntaxException {
         var apiKey = "api_key";
         var input = "input";
 
         var request = new GoogleAiStudioCompletionRequest(listOf(input), GoogleAiStudioCompletionModelTests.createModel("model", apiKey));
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = httpRequest.httpRequest();
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        assertThat(httpPost.getUri().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
 
-        assertThat(httpPost.getURI().toString(), endsWith(Strings.format("%s=%s", "key", apiKey)));
-
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(
             requestMap,
             is(

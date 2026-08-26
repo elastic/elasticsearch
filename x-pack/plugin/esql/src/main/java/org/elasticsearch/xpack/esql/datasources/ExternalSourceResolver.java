@@ -851,10 +851,12 @@ public class ExternalSourceResolver {
                 // Prefetch the dataset-level aggregate BEFORE the per-file stats gather — see
                 // applyDatasetAggregate for why post-gather reads self-defeat under cache pressure.
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
+                // Filled by the gather below, before this listener runs.
+                Map<String, String> ffwReadShapes = new HashMap<>(listing.fileCount());
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
                         Map<String, Object> effective = applyDatasetAggregate(
-                            null,
+                            ffwReadShapes,
                             datasetPrefetch,
                             aggregatedStats,
                             listing,
@@ -867,9 +869,9 @@ public class ExternalSourceResolver {
                     }
                 }, listener::onFailure);
                 if (cacheable) {
-                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, statsListener);
+                    readAndAggregateAllFileStatsWithCache(listing, config, implicitNulls, ffwReadShapes, statsListener);
                 } else {
-                    readAndAggregateAllFileStats(listing, config, implicitNulls, statsListener);
+                    readAndAggregateAllFileStats(listing, config, implicitNulls, ffwReadShapes, statsListener);
                 }
             } else if (listing.fileCount() > 1) {
                 // Defer branch (requiresStats == false): skip the N footer reads. The anchor-only stats are not
@@ -1885,9 +1887,11 @@ public class ExternalSourceResolver {
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
+        Map<String, String> readShapesOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, false, ActionListener.wrap(allMeta -> {
+            collectReadShapes(listing, allMeta, readShapesOut);
             listener.onResponse(aggregateFileStatistics(allMeta, implicitNulls));
         }, e -> {
             // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
@@ -1913,13 +1917,32 @@ public class ExternalSourceResolver {
      * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
      * stats.
      */
+    /**
+     * Records each file's stamped read shape, keyed by path, as the gather walks the listing. The dataset-aggregate
+     * promise needs a shape PER PATH — a glob's files are not necessarily read alike — and the gather is the only
+     * place on the first-file-wins rail where per-file metadata exists.
+     */
+    private static void collectReadShapes(FileList listing, List<SourceMetadata> allMeta, Map<String, String> into) {
+        int count = Math.min(listing.fileCount(), allMeta.size());
+        for (int i = 0; i < count; i++) {
+            SourceMetadata meta = allMeta.get(i);
+            Map<String, Object> fileMeta = meta == null ? null : meta.sourceMetadata();
+            Object shape = fileMeta == null ? null : fileMeta.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+            if (shape instanceof String str) {
+                into.put(listing.path(i).toString(), str);
+            }
+        }
+    }
+
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
         Map<String, Object> config,
         boolean implicitNulls,
+        Map<String, String> readShapesOut,
         ActionListener<Map<String, Object>> listener
     ) {
         gatherPerFile(listing, config, true, ActionListener.wrap(allMeta -> {
+            collectReadShapes(listing, allMeta, readShapesOut);
             List<Map<String, Object>> perFileStats = new ArrayList<>(allMeta.size());
             for (SourceMetadata meta : allMeta) {
                 Map<String, Object> fileMeta = meta.sourceMetadata();

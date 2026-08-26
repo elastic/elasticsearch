@@ -12,26 +12,22 @@ package org.elasticsearch.test.otelfilter;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryLogEventFilter;
-import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Test plugin that exercises the two hooks the OTel logs export offers plugins.
+ * Test plugin that installs a {@link TelemetryLoggingFilterProvider} on the querylog OTel appender.
  *
- * <p>It installs a {@link TelemetryLoggingFilterProvider} on the querylog OTel appender, whose filter:
+ * <p>The filter:
  * <ul>
  *   <li>Drops events whose {@code indices} field contains DROP_INDEX_NAME.</li>
  *   <li>Adds {@code MARKER_FIELD: MARKER_VALUE} to all other events, so tests can assert the
  *       filter ran.</li>
  * </ul>
- *
- * <p>It also implements {@link TelemetryLogResourceProvider} to override the {@code service.name} on
- * the log-delivery resource, standing in for the plugin Serverless supplies in production.
  */
-public class TestOtelFilterPlugin extends Plugin implements TelemetryLoggingFilterProvider, TelemetryLogResourceProvider {
+public class TestOtelFilterPlugin extends Plugin implements TelemetryLoggingFilterProvider {
 
     public static final String DROP_INDEX_NAME = "filter_test_drop_index";
 
@@ -40,16 +36,6 @@ public class TestOtelFilterPlugin extends Plugin implements TelemetryLoggingFilt
 
     /** Value of {@link #MARKER_FIELD}. */
     public static final String MARKER_VALUE = "yes";
-
-    /**
-     * The {@code service.name} this plugin puts on exported log records.
-     */
-    public static final String LOG_SERVICE_NAME = "elasticsearch-build-hamster";
-
-    @Override
-    public String serviceName() {
-        return LOG_SERVICE_NAME;
-    }
 
     @Override
     public TelemetryLogEventFilter getLogFilter(String appenderName) {

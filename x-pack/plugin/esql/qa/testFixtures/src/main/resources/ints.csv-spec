@@ -354,6 +354,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 
 convertStringToBaseIndexGroup5
 required_capability: base_conversion
+required_capability: fn_to_long_fix_double_to_long_overflow
 
   FROM  base_conversion
 | WHERE group == 5
@@ -366,6 +367,7 @@ warningRegex:Line 3:55: evaluation of \[TO_INTEGER\(string, base\)\] failed, tre
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[8000000000000000\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Unable to convert \[-8000000000000001\] to number of base \[16\]
 warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[7fffffff\]
+warningRegex:Line 3:19: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[2147483648\]
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775807\]
 warningRegex:Line 3:55: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \[9223372036854775808\]
@@ -384,7 +386,7 @@ string:keyword       | base:integer | to_long:long         | to_integer:integer
 2147483647           | 10           | 2147483647	   | 2147483647
 2147483648           | 10           | 2147483648	   | null
 9223372036854775807  | 10           | 9223372036854775807  | null
-9223372036854775808  | 10           | 9223372036854775807  | null
+9223372036854775808  | 10           | null                 | null
 7fffffff             | 16           | 2147483647	   | 2147483647
 7fffffffffffffff     | 16           | 9223372036854775807  | null
 80000000             | 16           | 2147483648	   | null
@@ -1675,6 +1677,27 @@ ROW words = ["apple", "cherry"]
 words:keyword       | in_range:boolean
 [apple, cherry]     | true
 // end::mv_in_range_keyword-result[]
+;
+
+mvInRangeTextNotExactRow
+required_capability: fn_mv_in_range
+required_capability: fn_to_text
+ROW t = TO_TEXT("Connected to 10.1.0.1")
+| EVAL in_range = mv_in_range(t, "a", "u")
+;
+
+t:text                | in_range:boolean
+Connected to 10.1.0.1 | false
+;
+
+mvInRangeTextNotExactFrom
+required_capability: fn_mv_in_range
+FROM mv_text
+| WHERE mv_in_range(message, "a", "u")
+| KEEP message
+;
+
+message:text
 ;
 
 mvInRangeHalfOpen

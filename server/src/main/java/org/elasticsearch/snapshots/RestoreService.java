@@ -673,7 +673,7 @@ public final class RestoreService implements ClusterStateApplier {
     ) {
         final Map<String, IndexId> indicesToRestore = new HashMap<>();
         final Map<String, DataStreamRestoreTarget> guardedDataStreamTargets = new HashMap<>();
-        final List<DataStream> dataStreamsToRestore = new ArrayList<>();
+        final Map<String, DataStream> dataStreamsToRestore = new HashMap<>();
         final ProjectMetadata.Builder snapshotProjectBuilder = ProjectMetadata.builder(projectId);
         for (DataStreamRestoreTarget target : targets) {
             if (guardedDataStreamTargets.put(target.destinationDataStream().getName(), target) != null) {
@@ -684,25 +684,21 @@ public final class RestoreService implements ClusterStateApplier {
                         + "] because it is targeted by more than one restore target"
                 );
             }
-            dataStreamsToRestore.add(target.snapshotDataStream());
+            dataStreamsToRestore.put(target.snapshotDataStream().getName(), target.snapshotDataStream());
             for (Map.Entry<String, DataStreamRestoreTarget.SnapshotIndex> entry : target.snapshotIndices().entrySet()) {
                 indicesToRestore.put(entry.getKey(), entry.getValue().indexId());
                 // mirrors the equivalent step in #restoreSnapshot, right after reading each IndexMetadata from the repository
                 snapshotProjectBuilder.put(indexMetadataRestoreTransformer.updateIndexMetadata(entry.getValue().metadata()), false);
             }
         }
-        final Set<String> dataStreamNamesToRestore = dataStreamsToRestore.stream().map(DataStream::getName).collect(Collectors.toSet());
         final Map<String, DataStreamAlias> restoredDataStreamAliases = new HashMap<>();
         for (DataStreamAlias alias : snapshotDataStreamAliases.values()) {
-            final DataStreamAlias intersected = alias.intersect(dataStreamNamesToRestore::contains);
+            final DataStreamAlias intersected = alias.intersect(dataStreamsToRestore::containsKey);
             if (intersected.getDataStreams().isEmpty() == false) {
                 restoredDataStreamAliases.put(alias.getName(), intersected);
             }
         }
-        snapshotProjectBuilder.dataStreams(
-            dataStreamsToRestore.stream().collect(Collectors.toMap(DataStream::getName, Function.identity())),
-            restoredDataStreamAliases
-        );
+        snapshotProjectBuilder.dataStreams(dataStreamsToRestore, restoredDataStreamAliases);
         final Metadata snapshotMetadata = Metadata.builder().put(snapshotProjectBuilder).build();
         final RestoreSnapshotRequest request = new RestoreSnapshotRequest(
             masterNodeTimeout,
@@ -718,7 +714,7 @@ public final class RestoreService implements ClusterStateApplier {
                 indicesToRestore,
                 snapshotInfo,
                 snapshotMetadata,
-                dataStreamsToRestore,
+                dataStreamsToRestore.values(),
                 (state, builder) -> {},
                 clusterService.getSettings(),
                 listener,

@@ -803,7 +803,7 @@ setup:
 ---
 "Test MMR diversification with encoded float vectors stored in source":
   - requires:
-      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      cluster_features: [ "retriever.diversify_encoded_source_vector_fix" ]
       reason: "Diversify retriever fetches dense_vector embeddings from doc values"
 
   - do:
@@ -860,7 +860,7 @@ setup:
 ---
 "Test MMR diversification with encoded bfloat16 vectors stored in source":
   - requires:
-      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      cluster_features: [ "retriever.diversify_encoded_source_vector_fix" ]
       reason: "Diversify retriever fetches dense_vector embeddings from doc values"
   - requires:
       cluster_features: [ "mapper.vectors.generic_vector_format" ]
@@ -920,7 +920,7 @@ setup:
 ---
 "Test MMR diversification with encoded byte vectors stored in source":
   - requires:
-      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      cluster_features: [ "retriever.diversify_encoded_source_vector_fix" ]
       reason: "Diversify retriever fetches dense_vector embeddings from doc values"
 
   - do:
@@ -977,7 +977,7 @@ setup:
 ---
 "Test MMR diversification with encoded bit vectors stored in source":
   - requires:
-      cluster_features: [ "retriever.mmr_encoded_source_vector_fix" ]
+      cluster_features: [ "retriever.diversify_encoded_source_vector_fix" ]
       reason: "Diversify retriever fetches dense_vector embeddings from doc values"
 
   - do:

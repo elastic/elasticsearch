@@ -594,7 +594,18 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         // PARQUET_1_0 PLAIN aliases the reused dest. Fixed-width values keep page uncompressed
         // sizes equal so dest is reused rather than grown (a grow would leave the old array
         // alive and hide a missing copy-out). PARQUET_2_0 DELTA_BYTE_ARRAY copies the page in
-        // initDecoders, so it would not catch a missing copy-out.
+        // initDecoders, so it would not catch a missing copy-out. Loop every dest-reuse codec:
+        // a destLen vs dest.length bug is codec-specific (Zstd).
+        for (CompressionCodecName codec : new CompressionCodecName[] {
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW }) {
+            assertCompressedUniqueStringsAcrossPages(codec);
+        }
+    }
+
+    private void assertCompressedUniqueStringsAcrossPages(CompressionCodecName codec) throws IOException {
         int rows = 200;
         int batchSize = 128;
         MessageType schema = Types.buildMessage()
@@ -613,7 +624,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                 .withCodecFactory(codecFactory)
                 .withType(schema)
                 .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
-                .withCompressionCodec(CompressionCodecName.SNAPPY)
+                .withCompressionCodec(codec)
                 .withDictionaryEncoding(false)
                 .withRowGroupSize(64L * 1024 * 1024)
                 .withPageSize(64)
@@ -630,14 +641,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         byte[] data = out.toByteArray();
         try (ParquetFileReader parquetReader = openReader(data)) {
             OffsetIndex oi = parquetReader.readOffsetIndex(parquetReader.getRowGroups().getFirst().getColumns().getFirst());
-            assertNotNull("column must have an offset index", oi);
-            assertTrue("need ≥2 data pages so dest reuse can clobber", oi.getPageCount() >= 2);
-            assertTrue("batch must span page 0", batchSize > oi.getFirstRowIndex(1));
+            assertNotNull(codec + " column must have an offset index", oi);
+            assertTrue(codec + " need ≥2 data pages so dest reuse can clobber", oi.getPageCount() >= 2);
+            assertTrue(codec + " batch must span page 0", batchSize > oi.getFirstRowIndex(1));
         }
         List<String> columns = List.of("req", "opt");
         List<Page> pages = readAll(new ParquetFormatReader(blockFactory), data, columns, batchSize);
         try {
-            assertEquals(batchSize, pages.getFirst().getPositionCount());
+            assertEquals(codec + " first batch", batchSize, pages.getFirst().getPositionCount());
             int pos = 0;
             for (Page page : pages) {
                 BytesRefBlock req = (BytesRefBlock) page.getBlock(0);
@@ -645,14 +656,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                 for (int i = 0; i < page.getPositionCount(); i++) {
                     assertBytesRefAt(req, i, String.format(Locale.ROOT, "req_%05d", pos));
                     if (pos % 7 == 0) {
-                        assertTrue("opt null@" + pos, opt.isNull(i));
+                        assertTrue(codec + " opt null@" + pos, opt.isNull(i));
                     } else {
                         assertBytesRefAt(opt, i, String.format(Locale.ROOT, "opt_%05d", pos));
                     }
                     pos++;
                 }
             }
-            assertEquals(rows, pos);
+            assertEquals(codec + " rows", rows, pos);
         } finally {
             pages.forEach(Page::releaseBlocks);
         }

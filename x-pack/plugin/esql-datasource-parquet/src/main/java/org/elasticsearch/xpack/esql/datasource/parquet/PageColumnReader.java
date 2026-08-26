@@ -1260,7 +1260,7 @@ final class PageColumnReader implements Releasable {
                         if (allEqualTo(vals, fromPage, vals[0])) {
                             constant = BytesRef.deepCopyOf(vals[0]);
                         } else {
-                            builder = blockFactory.newBytesRefBlockBuilder(maxRows, firstPageBytes);
+                            builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
                             appendAll(builder, vals, fromPage);
                         }
                     } else if (allEqualTo(vals, fromPage, constant) == false) {
@@ -1306,7 +1306,7 @@ final class PageColumnReader implements Releasable {
                 if (builder != null) {
                     appendNullableBinaries(builder, vals, pageNulls, fromPage);
                 } else if (nonNull > 0) {
-                    builder = blockFactory.newBytesRefBlockBuilder(maxRows, firstPageBytes);
+                    builder = blockFactory.newBytesRefBlockBuilder(maxRows, extrapolateByteHint(firstPageBytes, fromPage, maxRows));
                     for (int i = 0; i < produced; i++) {
                         builder.appendNull();
                     }
@@ -1322,7 +1322,8 @@ final class PageColumnReader implements Releasable {
             if (builder != null) {
                 return builder.build();
             }
-            try (var empty = blockFactory.newBytesRefBlockBuilder(produced)) {
+            assert produced == 0;
+            try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
                 return empty.build();
             }
         } finally {
@@ -1348,6 +1349,21 @@ final class PageColumnReader implements Releasable {
         return n;
     }
 
+    private static long extrapolateByteHint(long seenBytes, int seenPositions, int totalPositions) {
+        if (seenPositions <= 0) {
+            return seenBytes;
+        }
+        // Batch 2+ often starts on a leftover tail of 1-few values. Scaling that by maxRows
+        // pre-sizes Bytes.pages[] to a huge empty pointer array that build() never shrinks.
+        if (seenPositions < totalPositions && seenPositions < 32) {
+            return seenBytes;
+        }
+        if (totalPositions > 0 && seenBytes > Long.MAX_VALUE / totalPositions) {
+            return Long.MAX_VALUE;
+        }
+        return seenBytes * totalPositions / seenPositions;
+    }
+
     private static boolean allEqualTo(BytesRef[] vals, int count, BytesRef expected) {
         for (int i = 0; i < count; i++) {
             if (expected.bytesEquals(vals[i]) == false) {
@@ -1370,6 +1386,12 @@ final class PageColumnReader implements Releasable {
     }
 
     private static void appendNullableBinaries(BytesRefBlock.Builder builder, BytesRef[] vals, WordMask pageNulls, int fromPage) {
+        if (vals == null) {
+            for (int i = 0; i < fromPage; i++) {
+                builder.appendNull();
+            }
+            return;
+        }
         int valIdx = 0;
         for (int i = 0; i < fromPage; i++) {
             if (pageNulls.get(i)) {
@@ -1559,7 +1581,7 @@ final class PageColumnReader implements Releasable {
                 }
             }
             if (prefixHasValue) {
-                builder = blockFactory.newBytesRefBlockBuilder(total);
+                builder = blockFactory.newBytesRefBlockBuilder(total, dictPrefixBytes(dict, ordinals, combinedNulls, produced));
                 appendDictPrefix(builder, dict, ordinals, combinedNulls, produced);
             }
             int filled = produced;
@@ -1609,12 +1631,23 @@ final class PageColumnReader implements Releasable {
             if (builder != null) {
                 return builder.build();
             }
-            try (var empty = blockFactory.newBytesRefBlockBuilder(filled)) {
+            assert filled == 0;
+            try (var empty = blockFactory.newBytesRefBlockBuilder(0)) {
                 return empty.build();
             }
         } finally {
             Releasables.closeExpectNoException(builder);
         }
+    }
+
+    private static long dictPrefixBytes(BytesRef[] dict, int[] ordinals, WordMask nulls, int produced) {
+        long n = 0;
+        for (int i = 0; i < produced; i++) {
+            if (nulls == null || nulls.get(i) == false) {
+                n += dict[ordinals[i]].length;
+            }
+        }
+        return n;
     }
 
     private static void appendDictPrefix(BytesRefBlock.Builder builder, BytesRef[] dict, int[] ordinals, WordMask nulls, int produced) {

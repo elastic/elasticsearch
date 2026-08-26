@@ -315,7 +315,8 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
      * {@code ColumnChunkPageReadStore} is {@code BytesInput}/{@code byte[]} via
      * {@link PanamaZstd#decompressHeap}, bound with {@code Linker.Option.critical(true)} so heap
      * segments cross into libzstd without an off-heap staging copy and without zstd-jni's G1
-     * region pinning. Production readers use this {@code BytesInput} overload.
+     * region pinning. Production data pages use {@link #decompressInto}; {@code decompress(BytesInput,
+     * int)} still allocates for parquet-mr and dictionary pages.
      * The {@code ByteBuffer} overload remains for the parquet-mr SPI and tests; it still uses a
      * direct-to-direct Panama path when both sides are direct.
      *

@@ -51,7 +51,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>{@link #readPage()} / {@link #readDictionaryPage()} run on the iterator thread.
  * {@link #close()} may race another {@link #close()} (hence {@link #closed}) and may race
  * a read on cancel. Charge counters are {@link java.util.concurrent.atomic.AtomicLong} so
- * that race cannot silently skew the breaker.
+ * that race cannot silently skew the breaker. {@link #reusableDecompBuf} is {@code volatile}
+ * so a close that nulls the dest is visible to a concurrent read; the read path snapshots
+ * the array into a local and does not re-read the field after {@code decompressInto}.
  */
 final class PrefetchedPageReader implements PageReader, Releasable {
 
@@ -78,8 +80,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     /**
      * Grow-only dest for {@link PlainCompressionCodecFactory.HeapDestDecompressor}. Never shrunk.
      * Returned data-page {@link BytesInput}s alias this array for the life of the current page.
+     * {@code volatile}: {@link #close()} may null it from another thread while a read is in flight.
      */
-    private byte[] reusableDecompBuf;
+    private volatile byte[] reusableDecompBuf;
     /** Live capacity of {@link #reusableDecompBuf}, or the current allocating-decompress page. */
     private final AtomicLong dataPageCharge = new AtomicLong();
     private final AtomicLong dictCharge = new AtomicLong();
@@ -293,14 +296,7 @@ final class PrefetchedPageReader implements PageReader, Releasable {
         }
         if (heapDest != null) {
             byte[] dest = ensureDecompCapacity(decompressedSize);
-            try {
-                heapDest.decompressInto(compressed, dest, decompressedSize);
-            } catch (IOException e) {
-                if (closed.get()) {
-                    dropReusableDest();
-                }
-                throw e;
-            }
+            heapDest.decompressInto(compressed, dest, decompressedSize);
             BytesInput decompressed = BytesInput.from(dest, 0, decompressedSize);
             if (closed.get()) {
                 dropReusableDest();

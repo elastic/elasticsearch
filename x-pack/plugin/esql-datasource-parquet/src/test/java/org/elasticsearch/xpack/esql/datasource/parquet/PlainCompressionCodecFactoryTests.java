@@ -96,7 +96,7 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         byte[] dest = new byte[original.length + between(16, 256)];
         Arrays.fill(dest, (byte) 0x5A);
         int destLen = original.length / 2;
-        assumeTrue("need destLen strictly smaller than the stream", destLen > 0 && destLen < original.length);
+        assert destLen > 0 && destLen < original.length;
         PlainCompressionCodecFactory.HeapDestDecompressor decompressor = (PlainCompressionCodecFactory.HeapDestDecompressor) factory
             .getDecompressor(CompressionCodecName.GZIP);
         IOException e = expectThrows(IOException.class, () -> decompressor.decompressInto(compressed, dest, destLen));
@@ -129,7 +129,7 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         byte[] dest = new byte[original.length + between(16, 256)];
         Arrays.fill(dest, (byte) 0x5A);
         int destLen = original.length / 2;
-        assumeTrue("need destLen strictly smaller than the stream", destLen > 0 && destLen < original.length);
+        assert destLen > 0 && destLen < original.length;
         PlainCompressionCodecFactory.HeapDestDecompressor decompressor = (PlainCompressionCodecFactory.HeapDestDecompressor) factory
             .getDecompressor(CompressionCodecName.SNAPPY);
         IOException e = expectThrows(IOException.class, () -> decompressor.decompressInto(compressed, dest, destLen));

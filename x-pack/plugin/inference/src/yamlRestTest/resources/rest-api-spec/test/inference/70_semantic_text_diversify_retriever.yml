@@ -363,7 +363,7 @@ setup:
 ---
 "Validate diversification rejects sparse vector data":
   - requires:
-      cluster_features: [ "retriever.diversify.non_embeddings_field_error" ]
+      cluster_features: [ "retriever.diversify_incompatible_embeddings_field_error" ]
       reason: "diversifying on a field that cannot produce dense embeddings is now rejected"
 
   - do:

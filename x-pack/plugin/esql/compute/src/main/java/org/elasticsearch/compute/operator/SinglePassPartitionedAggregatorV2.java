@@ -161,7 +161,9 @@ public final class SinglePassPartitionedAggregatorV2 implements Operator {
         this.driverContext = driverContext;
         this.swissHashFactory = factory;
         this.bigArrays = driverContext.bigArrays();
-        // TODO: wire a per-operator CircuitBreaker for tighter CB isolation
+        // TODO: per-worker CB isolation — each Worker should call driverContext.createChildBlockFactory()
+        // and use its breaker (matching the ParallelTopNOperator pattern). Blocked on ensuring
+        // localBreakerSettings is always non-null in the SPPA v2 construction path.
         this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
 
         this.ppw = NUM_PARTITIONS / workerCount;

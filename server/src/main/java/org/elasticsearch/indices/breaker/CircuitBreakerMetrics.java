@@ -96,13 +96,13 @@ public class CircuitBreakerMetrics {
         final Supplier<Collection<LongWithAttributes>> limitSupplier,
         final Supplier<Collection<LongWithAttributes>> estimatedSupplier
     ) {
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             ES_BREAKER_MEMORY_LIMIT,
             "Configured memory limit per circuit breaker, in bytes",
             "By",
             limitSupplier
         );
-        meterRegistry.registerLongsGauge(
+        meterRegistry.registerLongsAsyncGauge(
             ES_BREAKER_MEMORY_ESTIMATED,
             "Current estimated charged memory per circuit breaker, in bytes",
             "By",

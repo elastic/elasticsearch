@@ -58,10 +58,11 @@ public final class RangeMinEvaluator implements ExpressionEvaluator {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       LongRangeBlockBuilder.LongRange rangeScratch = new LongRangeBlockBuilder.LongRange();
       position: for (int p = 0; p < positionCount; p++) {
+        if (rangeBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (rangeBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

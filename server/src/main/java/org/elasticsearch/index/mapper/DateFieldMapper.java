@@ -45,6 +45,7 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfLongColumn;
 import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -664,7 +665,7 @@ public final class DateFieldMapper extends FieldMapper {
          * to send the numbers with up to six digits after the decimal place
          * and we'll parse them as {@code millis.nanos}. The source
          * deseralization code isn't particularly careful here and can return
-         * {@link double} instead of the exact string in the {@code _source}.
+         * {@code double} instead of the exact string in the {@code _source}.
          * So we have to *get* that string.
          * <p>
          * Nik chose not to use {@link String#format} for this because it feels
@@ -1300,7 +1301,7 @@ public final class DateFieldMapper extends FieldMapper {
         // values without re-scanning the Lucene column list. Mirrors DateFieldMapper.indexValue's
         // DataStreamTimestampFieldMapper.storeTimestampValueForReuse call on the row path.
         if (isDataStreamTimestampField && ctx.isDataStreamTimestampFieldEnabled()) {
-            ctx.recordTimestampColumn(outData);
+            ctx.setTimestamps((EscfLongColumn) EscfColumn.from(outData));
         }
     }
 

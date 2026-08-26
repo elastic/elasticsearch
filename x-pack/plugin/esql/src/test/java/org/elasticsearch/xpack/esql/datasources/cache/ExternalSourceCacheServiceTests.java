@@ -678,6 +678,101 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testReconcileDiscriminatesOnReadShape() throws Exception {
+        // The defect this closes: a declared dataset and an inferred one over the SAME file under the SAME options
+        // address one entry, so under a lenient error policy — where a declared coercion drops a record the inferred
+        // read keeps — whichever ran first published its count and the other served it. Identity now includes how the
+        // file was read, so a foreign-shaped harvest may not enrich this entry at all.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/file.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred"),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> foreign = new LinkedHashMap<>();
+            foreign.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            foreign.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            foreign.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-declared");
+            foreign.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 41L);
+            service.reconcileSourceStats(Map.of(path, foreign));
+
+            SchemaCacheEntry afterForeign = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertFalse(
+                "a read of a different shape measured different rows and must not enrich this entry",
+                afterForeign.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+
+            Map<String, Object> own = new LinkedHashMap<>(foreign);
+            own.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred");
+            own.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            service.reconcileSourceStats(Map.of(path, own));
+
+            SchemaCacheEntry afterOwn = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals("its own shape enriches normally", 42L, afterOwn.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
+    }
+
+    public void testFailFastLicensesOnlyTheRowCountAcrossShapes() throws Exception {
+        // The one deliberate crossing: under FAIL_FAST a committed count is the file's physical record count, the same
+        // number for every declaration, so the producer licenses it to cross. Column statistics never cross — their
+        // values depend on the type the column was read at.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/file.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(
+                    schema,
+                    "csv",
+                    path,
+                    Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp", ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-inferred"),
+                    Map.of()
+                )
+            );
+
+            Map<String, Object> licensed = new LinkedHashMap<>();
+            licensed.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
+            licensed.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, "shape-declared");
+            licensed.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
+            licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
+            service.reconcileSourceStats(Map.of(path, licensed));
+
+            SchemaCacheEntry entry = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "FAIL_FAST licenses the physical record count to cross read shapes",
+                42L,
+                entry.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertFalse(
+                "a column extremum depends on the type the column was read at and must not cross",
+                entry.safeMetadata().containsKey(SourceStatisticsSerializer.columnMinKey("id"))
+            );
+            assertEquals(
+                "the entry keeps its own shape rather than being relabelled as the foreign one",
+                "shape-inferred",
+                entry.safeMetadata().get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY)
+            );
+        }
+    }
+
     public void testReconcileDeduplicatesDuplicateWholeFileContributions() throws Exception {
         // A whole-file read can be captured more than once for the same file in a single query
         // (e.g. a schema-probe pass plus the data scan on the non-seekable compressed path). Each

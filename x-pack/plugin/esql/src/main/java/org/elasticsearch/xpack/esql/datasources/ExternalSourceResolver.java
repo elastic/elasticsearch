@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadata;
 import org.elasticsearch.xpack.esql.datasources.cache.FileMetadataCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.ReadShapeFingerprint;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
@@ -2511,7 +2512,12 @@ public class ExternalSourceResolver {
                         ExternalStats.MTIME_MILLIS_KEY,
                         mtimeMillis,
                         ExternalStats.CONFIG_FINGERPRINT_KEY,
-                        SchemaCacheKey.buildFormatConfig(config)
+                        SchemaCacheKey.buildFormatConfig(config),
+                        // Seed the shape too, from the declaration this entry was minted for. Without it the seed
+                        // would carry no shape while every harvest carries one, so the first contribution would match
+                        // nothing and the strict warm rail would die silently — the failure the reverted stopgap hit.
+                        ExternalStats.READ_SHAPE_FINGERPRINT_KEY,
+                        ReadShapeFingerprint.of(logicalSchema, declaredReadSpecOf(declaredMapping))
                     ),
                     Map.of()
                 )

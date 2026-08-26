@@ -739,6 +739,38 @@ public class ExternalSourceCacheService implements Closeable {
      * would corrupt its row-count-only contract — enforce it rather than rely on the structural accident.
      * (Strict-declared per-file entries, the other reserved suffix, MUST remain matchable.)
      */
+    /**
+     * The part of {@code contribution} that may legitimately enrich {@code entry}, or {@code null} when none of it
+     * may — the second tier of contribution matching, after path/mtime/config identity.
+     * <p>
+     * A statistic measures the rows a read produced, so a contribution harvested under a different READ SHAPE
+     * measured a different set of rows and may not enrich this entry at all. The single exception is the physical
+     * record count under {@code FAIL_FAST}, which the producer licenses explicitly (see
+     * {@link ExternalStats#ROW_COUNT_SHAPE_INDEPENDENT_KEY}) because a committed count there is the same number for
+     * every way of reading the file. That licence is what keeps the strict warm {@code COUNT(*)} rail alive across
+     * differently-declared datasets, which is correct and deliberate.
+     * <p>
+     * Two absent shapes compare equal on purpose: a rail that stamps no shape enriches entries that carry none,
+     * exactly as it did before shapes existed. A known shape never matches an absent one — "unknown" must not be
+     * license to share.
+     * <p>
+     * The count tier deliberately carries ONLY the row count across: writing the foreign shape or its column
+     * families would relabel this entry as a read it did not come from.
+     */
+    @Nullable
+    private static Map<String, Object> applicableStats(SchemaCacheEntry entry, Map<String, Object> contribution) {
+        Object entryShape = entry.safeMetadata().get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+        Object contributionShape = contribution.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+        if (Objects.equals(entryShape, contributionShape)) {
+            return contribution;
+        }
+        if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY))
+            && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount) {
+            return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        }
+        return null;
+    }
+
     private static boolean matchesContribution(
         SchemaCacheKey key,
         SchemaCacheEntry entry,
@@ -782,6 +814,8 @@ public class ExternalSourceCacheService implements Closeable {
         long lastStripeOrdinal,
         long mtimeMillis,
         String fingerprint,
+        /** The read shape every fragment in this delta agreed on; {@code null} when the rail stamped none. */
+        String readShape,
         long stripeSize
     ) {}
 
@@ -811,6 +845,7 @@ public class ExternalSourceCacheService implements Closeable {
         long stripeSize = -1L;
         long mtime = -1L;
         String fingerprint = null;
+        String readShape = null;
         // ordinal -> (start offset -> fragments starting there). Multiple fragments can share a start
         // (the same stripe prefix observed by two scans), so the value is a list.
         Map<Long, Map<Long, List<SourceStatsContribution.StripeFragment>>> byStripe = new HashMap<>();
@@ -822,15 +857,19 @@ public class ExternalSourceCacheService implements Closeable {
                 stripeSize = f.stripeSize();
                 mtime = f.mtimeMillis();
                 fingerprint = f.configFingerprint();
+                readShape = f.readShape();
             } else if (stripeSize != f.stripeSize()) {
                 return null; // mixed grids (mid-upgrade settings skew) — bail rather than guess
-            } else if (mtime != f.mtimeMillis() || Objects.equals(fingerprint, f.configFingerprint()) == false) {
-                // Fragments for the same path observed at different mtimes (the file was modified between
-                // sibling scans) or under different configs describe different file versions. Folding them
-                // would mix versions and commit the result under the first fragment's freshness key — a
-                // wrong stat. Bail rather than guess; the next query re-harvests against the live version.
-                return null;
-            }
+            } else if (mtime != f.mtimeMillis() || Objects.equals(fingerprint, f.configFingerprint()) == false
+            // Fragments from reads of different SHAPES describe different row sets; folding them into one cover
+            // would mix them, so the same disagreement rule the fingerprint gets applies here.
+                || Objects.equals(readShape, f.readShape()) == false) {
+                    // Fragments for the same path observed at different mtimes (the file was modified between
+                    // sibling scans) or under different configs describe different file versions. Folding them
+                    // would mix versions and commit the result under the first fragment's freshness key — a
+                    // wrong stat. Bail rather than guess; the next query re-harvests against the live version.
+                    return null;
+                }
             byStripe.computeIfAbsent(f.ordinal(), k -> new HashMap<>()).computeIfAbsent(f.start(), s -> new ArrayList<>()).add(f);
         }
         Map<Long, Map<String, Object>> complete = new HashMap<>();
@@ -854,7 +893,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (complete.isEmpty()) {
             return null;
         }
-        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, stripeSize);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readShape, stripeSize);
     }
 
     /**
@@ -992,6 +1031,12 @@ public class ExternalSourceCacheService implements Closeable {
         for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
             SchemaCacheKey key = match.getKey();
             SchemaCacheEntry existing = match.getValue();
+            // Read-shape gate, stricter than the whole-file path's: stripe state is an accumulating per-entry fold,
+            // so a foreign-shaped delta cannot contribute even its row count without mixing two reads' stripes into
+            // one cover. Same-shape only; anything else safe-misses to a scan.
+            if (Objects.equals(existing.safeMetadata().get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY), delta.readShape()) == false) {
+                continue;
+            }
             Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
             // Grid identity gate: stripe ordinals are only comparable within one grid. If the entry's
             // committed stripe state was accumulated on a DIFFERENT grid (data nodes running different
@@ -1341,12 +1386,18 @@ public class ExternalSourceCacheService implements Closeable {
                 for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
                     SchemaCacheKey key = match.getKey();
                     SchemaCacheEntry existing = match.getValue();
+                    Map<String, Object> applicable = applicableStats(existing, mergedStats);
+                    if (applicable == null) {
+                        // Harvested under a different read shape, with no licence to cross: enriching would serve one
+                        // read's measurement as another's. Safe-miss — the foreign read re-scans.
+                        continue;
+                    }
                     Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
                     // Push the resolved column type down before enriching. This whole-file path is
                     // last-writer-wins (no POISON fold), so an unrepresentable value (e.g. a Double past
                     // Long.MAX for a LONG-resolved column) is DROPPED rather than stored — otherwise the
                     // serve would coerce it to the resolved type and produce a wrong value.
-                    enriched.putAll(coerceColumnStatsToResolvedTypes(mergedStats, existing.columnNames(), existing.columnTypes(), true));
+                    enriched.putAll(coerceColumnStatsToResolvedTypes(applicable, existing.columnNames(), existing.columnTypes(), true));
                     schemaCache.put(key, existing.withSafeMetadata(enriched));
                 }
             }

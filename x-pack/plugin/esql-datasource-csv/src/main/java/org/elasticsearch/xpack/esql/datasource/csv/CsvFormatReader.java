@@ -3594,6 +3594,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (readShape.isEmpty() == false) {
                 base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
             }
+            // Only FAIL_FAST licenses this count to cross read shapes: any structural mismatch aborts before publish,
+            // so a committed count is the physical record count for every declaration. Under the lenient policies a
+            // width-overflow row is dropped, which makes the count a function of the declared column count.
+            if (errorPolicy.isStrict()) {
+                base.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
+            }
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             }

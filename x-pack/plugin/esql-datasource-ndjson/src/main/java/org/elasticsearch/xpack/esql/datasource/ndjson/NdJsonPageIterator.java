@@ -91,6 +91,11 @@ final class NdJsonPageIterator extends BufferingPageIterator {
     private final Function<List<Attribute>, String> fingerprinter;
     /** Identity of how THIS file is read; stamped beside the config fingerprint. Empty when unknown. */
     private final String readShape;
+    /**
+     * Whether this read's error policy makes its row count independent of the read shape (FAIL_FAST only). Derived at
+     * construction because the policy itself is consumed while opening the stream and is not retained.
+     */
+    private final boolean rowCountShapeIndependent;
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
@@ -227,6 +232,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
         this.readShape = readShape == null ? "" : readShape;
+        this.rowCountShapeIndependent = errorPolicy.isStrict();
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
         this.chunkMode = chunkMode;
@@ -735,6 +741,10 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
         if (readShape.isEmpty() == false) {
             base.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        }
+        // See CsvFormatReader: only FAIL_FAST makes a committed row count shape-independent.
+        if (rowCountShapeIndependent) {
+            base.put(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY, Boolean.TRUE);
         }
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

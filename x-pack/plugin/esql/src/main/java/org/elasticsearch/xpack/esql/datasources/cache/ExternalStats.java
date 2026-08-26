@@ -47,6 +47,19 @@ public final class ExternalStats {
     public static final String READ_SHAPE_FINGERPRINT_KEY = "_stats.read_shape_fingerprint";
 
     /**
+     * Set by a producer whose error policy makes the harvested row count INDEPENDENT of the read shape: under
+     * {@code FAIL_FAST} any structural mismatch aborts the query before publish, so a committed row count is the
+     * file's physical record count and is the same number for every way of reading it. That is the one statistic
+     * that may legitimately cross read shapes, and this flag is how the producer — the only party that knows its
+     * effective policy — licenses the crossing.
+     * <p>
+     * Absent means "no licence": the row count is treated as shape-scoped like every other statistic. Under
+     * {@code skip_row} or {@code null_field} a width-overflow row is dropped, so the count becomes a function of the
+     * declared column count and may not be shared.
+     */
+    public static final String ROW_COUNT_SHAPE_INDEPENDENT_KEY = "_stats.row_count_shape_independent";
+
+    /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as
      * opposed to a whole-file read). {@code SourceStatsContribution.classify} routes a partial to the
      * stripe-fragment path: a stripe-addressed partial (carries {@link #STRIPE_SIZE_KEY} etc.) folds

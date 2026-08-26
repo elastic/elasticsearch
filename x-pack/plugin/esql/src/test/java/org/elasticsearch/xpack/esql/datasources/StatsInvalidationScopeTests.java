@@ -81,7 +81,10 @@ public class StatsInvalidationScopeTests extends ESTestCase {
         ExternalStats.STRIPE_AT_END_KEY,
         ExternalStats.STRIPE_ENTRY_PREFIX,
         ExternalStats.STRIPE_LAST_INDEX_KEY,
-        ExternalStats.STRIPE_GRID_KEY
+        ExternalStats.STRIPE_GRID_KEY,
+        // A licence attached to the row count, not a measurement of its own: it records that the producing policy
+        // makes the count shape-independent. Invalidated with the entry that carries it.
+        ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY
     );
 
     /**

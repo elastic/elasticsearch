@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -628,6 +629,7 @@ public class LocalExecutionPlanner {
                     inferenceId,
                     inputEvaluatorFactory,
                     inputType,
+                    InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
                     denseVector.timeout(),
                     denseVector.source(),
                     true
@@ -636,6 +638,7 @@ public class LocalExecutionPlanner {
                     inferenceService,
                     inferenceId,
                     inputEvaluatorFactory,
+                    InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
                     denseVector.timeout(),
                     denseVector.source(),
                     true

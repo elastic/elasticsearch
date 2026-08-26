@@ -63,7 +63,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromD
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -761,11 +760,11 @@ public final class DateFieldMapper extends FieldMapper {
                     if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
-                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                        query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     }
                     if (hasDocValues() && context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -878,11 +877,11 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
+                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);

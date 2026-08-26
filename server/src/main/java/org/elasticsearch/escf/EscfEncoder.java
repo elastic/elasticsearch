@@ -81,13 +81,15 @@ public final class EscfEncoder implements SourceBatchEncoder {
         if (tryDirectWalkSingle(source, xContentType, sink)) {
             return;
         }
+        EscfRowBuffer row = backend.beginRow();
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, xContentType)) {
             if (xContentType == XContentType.JSON) {
                 parser.allowDuplicateKeys(true);
             }
             parser.nextToken(); // START_OBJECT
-            flattenObject(row, parser, parser.nextToken(), sink); // TODO: fix post merge
+            flattenObject(row, parser, parser.nextToken(), sink);
         }
+        row.finishRow();
     }
 
     /**
@@ -116,7 +118,7 @@ public final class EscfEncoder implements SourceBatchEncoder {
                 buf = copyToScratch(source);
                 offset = 0;
             }
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             return false;
         }
         int len = source.length();
@@ -138,13 +140,6 @@ public final class EscfEncoder implements SourceBatchEncoder {
             logger.warn("Unexpected direct walk failure, falling back to Jackson", e);
             return false;
         }
-    }
-
-    private void flattenDocument(XContentParser parser, LeafSink sink) throws IOException {
-        EscfRowBuffer row = backend.beginRow();
-        parser.nextToken(); // START_OBJECT
-        flattenObject(row, parser, parser.nextToken(), sink);
-        row.finishRow();
     }
 
     /**

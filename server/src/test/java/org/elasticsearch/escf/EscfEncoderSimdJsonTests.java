@@ -17,7 +17,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.eirf.EirfRowToXContent;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -347,9 +347,8 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
     }
 
     /**
-     * Direct walker fails on depth, falls back to trySimdParse which also fails on depth (its
-     * internal maxDepth), then falls back to Jackson which succeeds. Verifies the full
-     * three-tier fallback chain produces correct output.
+     * Direct walker fails when nesting exceeds {@code maxDepth} (64); {@link EscfEncoder} falls back
+     * to Jackson, which must still produce output identical to a Jackson-only encoder.
      */
     public void testDepthFallbackChainProducesCorrectOutput() throws IOException {
         StringBuilder sb = new StringBuilder();
@@ -369,6 +368,27 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
             jacksonEncoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
             try (EscfBatch simdBatch = simdEncoder.buildPartition(0); EscfBatch jacksonBatch = jacksonEncoder.buildPartition(0)) {
                 assertEquals("depth fallback row mismatch", reconstruct(jacksonBatch, 0), reconstruct(simdBatch, 0));
+            }
+        }
+    }
+
+    /**
+     * When the direct walker calls {@code beginRow()} and throws mid-document (before
+     * {@code finishRow()}), {@link EscfEncoder#parseToScratch} falls back to Jackson, which
+     * calls {@code beginRow()} again to discard the partial scratch row. Only the completed
+     * Jackson row is committed — not the abandoned SIMD staging.
+     */
+    public void testSimdFailureAfterBeginRowResetsRowBeforeJacksonFallback() throws IOException {
+        // Root scalars are written by SIMD before maxDepth is exceeded inside "deep".
+        String json = "{\"a\":1,\"b\":2,\"deep\":" + nestedObjectJson(65, 99) + "}";
+
+        Recycler<BytesRef> recycler = newRecycler();
+        try (EscfEncoder encoder = new EscfEncoder(recycler, true)) {
+            encoder.addDocument(new BytesArray(json), XContentType.JSON, 0);
+            assertEquals(1, encoder.docCount(0));
+            try (EscfBatch batch = encoder.buildPartition(0)) {
+                assertEquals(1, batch.docCount());
+                assertEquals(asMap(json), reconstruct(batch, 0));
             }
         }
     }
@@ -1107,7 +1127,7 @@ public class EscfEncoderSimdJsonTests extends ESTestCase {
 
     private static Map<String, Object> reconstruct(EscfBatch batch, int row) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            EirfRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
+            SourceRowToXContent.writeRow(batch.row(row), batch.schema(), builder);
             return XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
         }
     }

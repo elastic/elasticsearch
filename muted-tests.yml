@@ -775,3 +775,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/157521
+- class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
+  method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
+  issue: https://github.com/elastic/elasticsearch/issues/157793

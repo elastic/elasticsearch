@@ -778,3 +778,6 @@ tests:
 - class: org.elasticsearch.snapshots.RestoreOverOpenIndexIT
   method: testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore
   issue: https://github.com/elastic/elasticsearch/issues/157793
+- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
+  method: testFallbackMultiValueViolationRestoredIdenticallyAcrossSourceModes
+  issue: https://github.com/elastic/elasticsearch/issues/157799

@@ -39,7 +39,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         true
     );
 
-    private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
+    static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
         {
           "heuristics": {
             "properties": ["heuristic1", "heuristic2"],
@@ -244,17 +244,17 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithNullFingerprint2), is(true));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
-        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintXyz1), is(false));
+        assertTrue(fingerprintMatches(endpointWithNullFingerprint1, endpointWithNullFingerprint2));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintAbc1));
+        assertFalse(fingerprintMatches(endpointWithNullFingerprint1, endpointWithFingerprintXyz1));
 
-        assertThat(endpointWithFingerprintAbc1.fingerprintMatches(endpointWithFingerprintAbc2), is(true));
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintXyz2), is(true));
+        assertTrue(fingerprintMatches(endpointWithFingerprintAbc1, endpointWithFingerprintAbc2));
+        assertTrue(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintXyz2));
 
-        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+        assertFalse(fingerprintMatches(endpointWithFingerprintXyz1, endpointWithFingerprintAbc1));
     }
 
-    public void testHasNewerVersionThan() {
+    public void testIsNewerThan() {
         EndpointMetadata endpointWithNullVersion1 = new EndpointMetadata(
             randomHeuristics(),
             new EndpointMetadata.Internal(null, null),
@@ -291,13 +291,21 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             false
         );
 
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithNullVersion2), is(false));
-        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithNullVersion1), is(true));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(anotherEndpointWithVersionFour), is(false));
-        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithVersionFive), is(false));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithVersionFour), is(true));
-        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithNullVersion2), is(true));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithNullVersion2));
+        assertFalse(isNewerThan(endpointWithNullVersion1, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFour, endpointWithNullVersion1));
+        assertFalse(isNewerThan(endpointWithVersionFour, anotherEndpointWithVersionFour));
+        assertFalse(isNewerThan(endpointWithVersionFour, endpointWithVersionFive));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithVersionFour));
+        assertTrue(isNewerThan(endpointWithVersionFive, endpointWithNullVersion2));
+    }
+
+    private static boolean fingerprintMatches(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().fingerprintMatches(second.internal());
+    }
+
+    private static boolean isNewerThan(EndpointMetadata first, EndpointMetadata second) {
+        return first.internal().isNewerThan(second.internal());
     }
 
     @Override

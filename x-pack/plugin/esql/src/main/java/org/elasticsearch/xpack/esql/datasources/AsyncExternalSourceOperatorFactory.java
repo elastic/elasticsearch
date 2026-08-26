@@ -2042,7 +2042,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     rangeEnd,
                     PhysicalNames.translateSchema(perFileResolvedAttributes, renames),
                     errorPolicy,
-                    bufferedInformationalWarningSink(state.buffer)
+                    bufferedInformationalWarningSink(state.buffer),
+                    rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining
                 );
                 if (fileContext != null) {
                     rangeCtx.setFileContext(fileContext);

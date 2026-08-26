@@ -9,7 +9,6 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.lang.foreign.Arena;
@@ -67,42 +66,6 @@ public final class Zstd {
 
     Zstd(ZstdLibrary zstdLib) {
         this.zstdLib = zstdLib;
-    }
-
-    /**
-     * Compress the content of {@code src} into {@code dst} at compression level {@code level}, and return the number of compressed bytes.
-     * {@link ByteBuffer#position()} and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
-     */
-    public int compress(CloseableByteBuffer dst, CloseableByteBuffer src, int level) {
-        Objects.requireNonNull(dst, "Null destination buffer");
-        Objects.requireNonNull(src, "Null source buffer");
-        long dstSize = dst.buffer().remaining();
-        long srcSize = src.buffer().remaining();
-        long ret = zstdLib.compress(MemorySegment.ofBuffer(dst.buffer()), dstSize, MemorySegment.ofBuffer(src.buffer()), srcSize, level);
-        if (zstdLib.isError(ret)) {
-            throw new IllegalArgumentException(zstdLib.getErrorName(ret));
-        } else if (ret < 0 || ret > Integer.MAX_VALUE) {
-            throw new IllegalStateException("Integer overflow? ret=" + ret);
-        }
-        return (int) ret;
-    }
-
-    /**
-     * Decompress the content of {@code src} into {@code dst}, and return the number of decompressed bytes. {@link ByteBuffer#position()}
-     * and {@link ByteBuffer#limit()} of both {@link ByteBuffer}s are left unmodified.
-     */
-    public int decompress(CloseableByteBuffer dst, CloseableByteBuffer src) {
-        Objects.requireNonNull(dst, "Null destination buffer");
-        Objects.requireNonNull(src, "Null source buffer");
-        long dstSize = dst.buffer().remaining();
-        long srcSize = src.buffer().remaining();
-        long ret = zstdLib.decompress(MemorySegment.ofBuffer(dst.buffer()), dstSize, MemorySegment.ofBuffer(src.buffer()), srcSize);
-        if (zstdLib.isError(ret)) {
-            throw new IllegalArgumentException(zstdLib.getErrorName(ret));
-        } else if (ret < 0 || ret > Integer.MAX_VALUE) {
-            throw new IllegalStateException("Integer overflow? ret=" + ret);
-        }
-        return (int) ret;
     }
 
     /**

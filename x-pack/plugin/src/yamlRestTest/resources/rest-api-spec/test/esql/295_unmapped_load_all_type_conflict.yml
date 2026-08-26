@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_load_all, report_original_types, suggested_cast, optional_fields_fix_load_object_from_synthetic_source ]
+          capabilities: [ optional_fields_load_all_v2 ]
       reason: "SET unmapped_fields=\"LOAD_ALL\" surfaces a field mapped as different types across indices as an unsupported type conflict, reported with original_types and suggested_cast"
       #
       # Simplified analogue of the unmapped-load-all.csv-spec multiIndexTypeConflict* tests: the dotted leaves under "unmapped" are mapped as

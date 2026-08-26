@@ -230,7 +230,7 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
         assumeTrue(
             "Requires unmapped_fields=LOAD_ALL support",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName()))
         );
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM " + INDEX_PARTIAL_MAPPING + " | SORT salary | LIMIT 10 | DROP @timestamp";
 

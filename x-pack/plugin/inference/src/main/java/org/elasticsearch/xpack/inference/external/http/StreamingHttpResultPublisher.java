@@ -163,9 +163,10 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         if (isDone.compareAndSet(false, true)) {
             if (responseFullyReceived) {
                 publisher.onComplete();
-            } else {
+            } else if (exception == null) {
                 // The exchange was torn down (cancelled, aborted, or the connection closed) before Apache signaled
-                // responseCompleted. Completing the stream here would silently truncate the response, so fail it instead.
+                // responseCompleted, and consumeContent() did not already report a cause. Completing the stream here
+                // would silently truncate the response, so fail it instead.
                 var closedEarly = new ConnectionClosedException(
                     format("Stream for inference entity [%s] closed before the response was fully received", inferenceEntityId)
                 );
@@ -176,6 +177,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                     publisher.onError(closedEarly);
                 }
             }
+            // else: consumeContent() already set exception and forwarded it via publisher.onError()
         }
     }
 

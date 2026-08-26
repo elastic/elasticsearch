@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner.mapper;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.ArrayList;
@@ -151,6 +153,18 @@ public class Mapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+
+            // SPPA v2 path: when the child is a raw-scan fragment and key types match what
+            // SinglePassPartitionedAggregatorV2 supports (two LONGs, or LONG+INT), route all
+            // shard rows through a raw-row exchange to a single SPPA on the coordinator.
+            // No INITIAL aggregator is pushed into the shard fragment; SPPA handles pre-agg
+            // and merge internally. The supplier-level supportsPartitionedSplit() check is
+            // deferred to AbstractPhysicalOperationProviders; if it fails the query falls
+            // through to HashAggregationOperator[SINGLE], which is still correct.
+            if (mappedChild instanceof FragmentExec && isSppaKeyEligible(aggregate)) {
+                PhysicalPlan rawExchange = new ExchangeExec(mappedChild.source(), mappedChild);
+                return MapperUtils.aggExec(aggregate, rawExchange, AggregatorMode.SINGLE, intermediate);
+            }
 
             // create both sides of the aggregate (for parallelism purposes), if no fragment is present
             // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this
@@ -354,6 +368,27 @@ public class Mapper {
             return new ExchangeExec(plan.source(), plan);
         }
         return plan;
+    }
+
+    /**
+     * Returns {@code true} when the aggregate's key shape matches what
+     * {@link org.elasticsearch.compute.operator.SinglePassPartitionedAggregatorV2} supports:
+     * exactly two grouping keys where the first is LONG and the second is LONG or INT.
+     * Does not check grouping functions or supplier-level {@code supportsPartitionedSplit()};
+     * those checks are deferred to
+     * {@link org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders}.
+     */
+    private static boolean isSppaKeyEligible(Aggregate aggregate) {
+        List<?> groupings = aggregate.groupings();
+        if (groupings.size() != 2) {
+            return false;
+        }
+        if (aggregate.groupings().stream().anyMatch(g -> g.anyMatch(e -> e instanceof GroupingFunction.NonEvaluatableGroupingFunction))) {
+            return false;
+        }
+        ElementType et0 = PlannerUtils.toElementType(aggregate.groupings().get(0).dataType());
+        ElementType et1 = PlannerUtils.toElementType(aggregate.groupings().get(1).dataType());
+        return et0 == ElementType.LONG && (et1 == ElementType.LONG || et1 == ElementType.INT);
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

@@ -323,6 +323,16 @@ public interface StorageObject {
         return false;
     }
 
+    /**
+     * CPU nanoseconds accumulated on background threads whose CPU is not visible to the
+     * caller's {@link java.lang.management.ThreadMXBean}. Backends that dispatch reads to
+     * executor threads (e.g. GCS) override this; all others return 0 because their async
+     * CPU is already on the calling thread or negligible.
+     */
+    default long asyncCpuNanos() {
+        return 0L;
+    }
+
     // === METRICS API (optional - default returns the zero-valued snapshot) ===
 
     /**

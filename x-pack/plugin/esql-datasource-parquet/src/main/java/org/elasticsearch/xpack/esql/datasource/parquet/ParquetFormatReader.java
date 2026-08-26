@@ -1264,7 +1264,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
             long footerStartNanos = System.nanoTime();
             ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
             counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
-            return buildIterator(
+            CloseableIterator<Page> iter = buildIterator(
                 object,
                 parquetInputFile,
                 reader,
@@ -1284,6 +1284,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 resolveErrorPolicy(context.errorPolicy()),
                 context.informationalWarningSink()
             );
+            return ThreadCpuTimer.withAsyncCpuOnClose(iter, object, counters::addTotalReadCpuNanos);
         } finally {
             // This covers only the synchronous open/setup phase (footer, row-group filtering,
             // index/dictionary/bloom prefetch dispatch). The returned iterator's own hasNext()/
@@ -1630,7 +1631,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN)
                     ? computeRangeBlockFileGlobalOffsets(fullFooter, rangeStart, rangeEnd)
                     : null;
-            return buildIterator(
+            CloseableIterator<Page> iter = buildIterator(
                 object,
                 parquetInputFile,
                 reader,
@@ -1659,6 +1660,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, NoConfigForm
                 resolveErrorPolicy(context.errorPolicy()),
                 context.informationalWarningSink()
             );
+            return ThreadCpuTimer.withAsyncCpuOnClose(iter, object, counters::addTotalReadCpuNanos);
         } finally {
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
             if (startCpuNanos >= 0) {

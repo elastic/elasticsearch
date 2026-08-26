@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
@@ -516,7 +518,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         // Fingerprint is computed lazily in the iterator's close hook once the decoder has resolved
         // its projected attributes — schema resolution can lag past iterator construction.
-        return new NdJsonPageIterator(
+        CloseableIterator<Page> iter = new NdJsonPageIterator(
             object,
             context.projectedColumns(),
             context.batchSize(),
@@ -542,6 +544,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsColumnScope(),
             context.informationalWarningSink()
         );
+        return ThreadCpuTimer.withAsyncCpuOnClose(iter, object, counters::addReadCpuNanos);
     }
 
     /**

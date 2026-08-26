@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * StorageObject implementation for Google Cloud Storage.
@@ -50,6 +52,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private final String bucket;
     private final String objectName;
     private final StoragePath path;
+    private final AtomicLong executorCpuNanos = new AtomicLong();
 
     private Long cachedLength;
     private Instant cachedLastModified;
@@ -229,6 +232,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         try {
             executor.execute(() -> {
                 long startNanos = System.nanoTime();
+                long startCpuNanos = ThreadCpuTimer.currentNanos();
                 int payloadBytes = 0;
                 try {
                     BlobId blobId = BlobId.of(bucket, objectName);
@@ -254,9 +258,14 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                     drb.close();
                     listener.onFailure(e);
                     return;
+                } finally {
+                    if (startCpuNanos >= 0) {
+                        executorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                    }
                 }
                 // I/O succeeded; deliver outside the I/O catch blocks so a throw from
                 // onResponse does not double-close drb or invoke listener.onFailure.
+                startCpuNanos = ThreadCpuTimer.currentNanos();
                 counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
                 try {
                     listener.onResponse(drb);
@@ -267,6 +276,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                         e.addSuppressed(closeEx);
                     }
                     throw e;
+                } finally {
+                    // Count listener response time too, since it's on executor thread
+                    if (startCpuNanos >= 0) {
+                        executorCpuNanos.addAndGet(ThreadCpuTimer.elapsedNanos(startCpuNanos));
+                    }
                 }
             });
         } catch (RuntimeException e) {
@@ -280,6 +294,11 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return true;
+    }
+
+    @Override
+    public long asyncCpuNanos() {
+        return executorCpuNanos.get();
     }
 
     @SuppressForbidden(reason = "GCS ReadChannel is not a FileChannel; Channels.* helpers do not apply")

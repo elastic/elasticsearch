@@ -36,6 +36,7 @@ import org.apache.orc.StripeStatistics;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
+
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -473,7 +474,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink()
         );
-        return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+        CloseableIterator<Page> result = rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+        return ThreadCpuTimer.withAsyncCpuOnClose(result, object, counters::addReadCpuNanos);
     }
 
     private static int countProjected(boolean[] include, int totalColumns) {
@@ -605,7 +607,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(
+        CloseableIterator<Page> iter = new OrcPageIterator(
             reader,
             rows,
             schema,
@@ -620,6 +622,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             resolveErrorPolicy(context.errorPolicy()),
             context.informationalWarningSink()
         );
+        return ThreadCpuTimer.withAsyncCpuOnClose(iter, object, counters::addReadCpuNanos);
     }
 
     /** Returns {@code object.length()} if known, or 0 when unavailable. Best-effort sizing for

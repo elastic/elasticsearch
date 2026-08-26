@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FmtDurationTests extends AbstractScalarFunctionTestCase {
 
@@ -120,12 +121,11 @@ public class FmtDurationTests extends AbstractScalarFunctionTestCase {
                 List.of(nanosTypedData),
                 "FmtDurationFromIntEvaluator[nanoseconds=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                org.hamcrest.Matchers.nullValue()
+                nullValue()
             );
             return testCase.withWarning(
                 "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
             ).withWarning("Line 1:1: java.lang.IllegalArgumentException: duration cannot be negative, was given [" + nanoseconds + "]");
         });
     }
-
 }

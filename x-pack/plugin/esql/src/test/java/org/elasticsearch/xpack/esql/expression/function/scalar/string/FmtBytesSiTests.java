@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FmtBytesSiTests extends AbstractScalarFunctionTestCase {
 
@@ -144,12 +145,11 @@ public class FmtBytesSiTests extends AbstractScalarFunctionTestCase {
                 List.of(bytesTypedData),
                 "FmtBytesSiFromIntEvaluator[bytes=Attribute[channel=0]]",
                 DataType.KEYWORD,
-                org.hamcrest.Matchers.nullValue()
+                nullValue()
             );
             return testCase.withWarning(
                 "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
             ).withWarning("Line 1:1: java.lang.IllegalArgumentException: Values less than [-1] bytes are not supported: [" + bytes + "]");
         });
     }
-
 }

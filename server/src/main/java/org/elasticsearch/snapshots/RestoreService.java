@@ -583,22 +583,19 @@ public final class RestoreService implements ClusterStateApplier {
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed
-        submitUnbatchedTask(
+        submitRestoreSnapshotStateTask(
             "restore_snapshot[" + snapshotId.getName() + ']',
-            new RestoreSnapshotStateTask(
-                request,
-                snapshot,
-                featureStatesToRestore.keySet(),
-                indicesToRestore,
-                snapshotInfo,
-                metadataBuilder.build(),
-                dataStreamsToRestore.values(),
-                updater,
-                clusterService.getSettings(),
-                listener,
-                UUIDs.randomBase64UUID(),
-                guardedOpenIndexTargets
-            )
+            request,
+            snapshot,
+            featureStatesToRestore.keySet(),
+            indicesToRestore,
+            snapshotInfo,
+            metadataBuilder.build(),
+            dataStreamsToRestore.values(),
+            updater,
+            UUIDs.randomBase64UUID(),
+            guardedOpenIndexTargets,
+            listener
         );
     }
 
@@ -612,27 +609,27 @@ public final class RestoreService implements ClusterStateApplier {
      * @param snapshotIndexId      the repository-side identity of the index to restore from within {@code snapshot}
      * @param snapshotIndexMetadata the metadata of {@code snapshotIndexId} as recorded in the snapshot
      */
-    public record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
+    record OpenIndexRestoreTarget(Index destinationIndex, IndexId snapshotIndexId, IndexMetadata snapshotIndexMetadata) {}
 
     /**
-     * The guarded atomic open-index restore operation: restores the given snapshot indices over
-     * already-open destination indices of the same name, in one cluster-state update that atomically applies the restored metadata and
-     * a new history UUID, rebuilds the index blocks, replaces routing with snapshot-recovery routing, adds the correlated
-     * {@link RestoreInProgress} entry, and reroutes. Every target is validated before anything is mutated, so a conflict on any one
-     * target — most notably an active snapshot of the destination, which is treated as a transient condition the caller should retry
-     * once the snapshot finishes — leaves every destination unchanged.
+     * Submits a guarded restore over already-open destination indices from pre-resolved targets, in one cluster-state update that
+     * atomically applies the restored metadata and a new history UUID, rebuilds the index blocks, replaces routing with snapshot-recovery
+     * routing, adds the correlated {@link RestoreInProgress} entry, and reroutes. Every target is validated before anything is mutated, so
+     * a conflict on any one target — most notably an active snapshot of the destination, a transient condition that should be retried once
+     * the snapshot finishes — leaves every destination unchanged. A retry that supplies the same {@code restoreUUID} as an already-applied
+     * guarded restore observes the correlated {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
      * <p>
-     * Unlike {@link #restoreSnapshot}, this does not resolve indices by name against a {@link RestoreSnapshotRequest}: the caller has
-     * already completed recovery-point lookup, source expansion, destination mapping, and preflight, and supplies the exact resolved
-     * {@link Index} identity and snapshot metadata for every target directly. Renaming, feature states, global state restore, and
-     * partial restore are not supported here.
-     * <p>
-     * A retry that supplies the same {@code restoreUUID} as an already-applied guarded restore observes the correlated
-     * {@link RestoreInProgress} entry and is a no-op rather than a second initialization.
+     * This is not a production entry point: the public REST path reaches the guarded restore through {@link #restoreSnapshot} with
+     * {@link RestoreSnapshotRequest#restoreOverOpenIndex()} set, which resolves the open destinations by name itself and submits through
+     * the same {@link #submitRestoreSnapshotStateTask} path. This package-private variant instead takes the exact resolved {@link Index}
+     * identities and snapshot metadata directly, bypassing request-based index resolution, so that tests can exercise the guard logic
+     * (node-feature gate, exact-identity check, idempotent retry) in isolation, and can separate resolving a target from publishing its
+     * transition — for example to publish a transition while the repository is deliberately broken. Renaming, feature states, global state
+     * restore, and partial restore are not supported here.
      *
      * @param restoreUUID the caller-supplied UUID correlating this restore, matching {@link RestoreInProgress.Entry#uuid()}
      */
-    public void restoreOverOpenIndices(
+    void restoreOverOpenIndices(
         ProjectId projectId,
         Snapshot snapshot,
         SnapshotInfo snapshotInfo,
@@ -656,17 +653,52 @@ public final class RestoreService implements ClusterStateApplier {
             snapshot.getRepository(),
             snapshot.getSnapshotId().getName()
         );
-        submitUnbatchedTask(
+        submitRestoreSnapshotStateTask(
             "restore_snapshot_over_open_index[" + restoreUUID + "]",
+            request,
+            snapshot,
+            Set.of(),
+            indicesToRestore,
+            snapshotInfo,
+            snapshotMetadata,
+            List.of(),
+            (clusterState, builder) -> {},
+            restoreUUID,
+            guardedOpenIndexTargets,
+            listener
+        );
+    }
+
+    /**
+     * Builds and submits the single {@link RestoreSnapshotStateTask} cluster-state update that both {@link #restoreSnapshot} and the
+     * test-facing {@link #restoreOverOpenIndices} apply a restore through, so the two callers share the exact same task-construction and
+     * submission code rather than each maintaining their own copy of it.
+     */
+    private void submitRestoreSnapshotStateTask(
+        String taskSource,
+        RestoreSnapshotRequest request,
+        Snapshot snapshot,
+        Set<String> featureStatesToRestore,
+        Map<String, IndexId> indicesToRestore,
+        SnapshotInfo snapshotInfo,
+        Metadata metadata,
+        Collection<DataStream> dataStreamsToRestore,
+        BiConsumer<ClusterState, ProjectMetadata.Builder> updater,
+        String restoreUUID,
+        Map<String, Index> guardedOpenIndexTargets,
+        ActionListener<RestoreCompletionResponse> listener
+    ) {
+        submitUnbatchedTask(
+            taskSource,
             new RestoreSnapshotStateTask(
                 request,
                 snapshot,
-                Set.of(),
+                featureStatesToRestore,
                 indicesToRestore,
                 snapshotInfo,
-                snapshotMetadata,
-                List.of(),
-                (clusterState, builder) -> {},
+                metadata,
+                dataStreamsToRestore,
+                updater,
                 clusterService.getSettings(),
                 listener,
                 restoreUUID,
@@ -1536,7 +1568,7 @@ public final class RestoreService implements ClusterStateApplier {
          * Renamed index name to the expected exact current {@link Index} identity (name and UUID) for indices that the caller has
          * explicitly authorized restoring over while still open. Empty unless the destination is
          * allowed to be open: either an ordinary restore with {@link RestoreSnapshotRequest#restoreOverOpenIndex()} set, resolved just
-         * before this task was submitted, or the guarded {@link #restoreOverOpenIndices} entry point, whose caller resolved the exact
+         * before this task was submitted, or the test-facing {@link #restoreOverOpenIndices} path, whose caller resolved the exact
          * identity itself.
          */
         private final Map<String, Index> guardedOpenIndexTargets;

@@ -42,10 +42,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
-    /**
-     * Guards {@link #restoreOverOpenIndex}: a node without this transport version cannot recreate the {@code IndexService} for the
-     * open-to-open history-UUID transition that restoring over an open index requires.
-     */
     private static final TransportVersion RESTORE_OVER_OPEN_INDEX = TransportVersion.fromName("restore_over_open_index");
 
     private String snapshot;
@@ -368,8 +364,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     /**
      * Returns true if the restore is allowed to target a destination index that is currently open, in which case Elasticsearch
      * atomically combines the equivalent of closing that index with restore initialization in a single cluster-state update, rather
-     * than requiring the caller to close the destination first. Defaults to {@code false},
-     * preserving the existing requirement that an existing destination be closed.
+     * than requiring the caller to close the destination first. Defaults to {@code false}, preserving the older behavior.
      *
      * @return true if the destination index for a matching restore may be open
      */

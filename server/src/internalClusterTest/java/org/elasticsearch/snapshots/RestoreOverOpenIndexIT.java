@@ -76,8 +76,8 @@ import static org.hamcrest.Matchers.nullValue;
  * recreate its index service with reopened-index semantics rather than update it in place, while keeping the shard store on disk so that
  * the restore file diff can reuse identical local Lucene files.
  * <p>
- * {@link #initializeRestoreOverOpenIndex} drives this through the real {@link RestoreService#restoreOverOpenIndices} master-side entry
- * point, except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}, which instead publishes the equivalent
+ * {@link #initializeRestoreOverOpenIndex} drives this through the guarded {@link RestoreService#restoreOverOpenIndices} restore path,
+ * except for {@link #testOverlappingRestoreTransitionsDoNotCorruptTheSecondRestore}, which instead publishes the equivalent
  * transition directly via {@link #initializeRestoreOverOpenIndexBypassingMasterGuard}: that test simulates a hypothetical caller that
  * isn't guarded against overlapping restores the way {@link RestoreService#restoreOverOpenIndices} itself now is, so the node-side
  * transition's own robustness needs to be verified independently of any single caller's guard.

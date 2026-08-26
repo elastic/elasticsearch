@@ -1168,15 +1168,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private List<Engine.IndexResult> indexBatch(Engine engine, EngineBatch batch) throws IOException {
-        final IndexOperationBatch operationBatch = indexingOperationListeners.preIndexBatch(shardId, batch.batch());
         try {
-            final List<Engine.IndexResult> results = engine.indexBatch(batch);
+            final List<Engine.IndexResult> results;
+            final IndexOperationBatch operationBatch = indexingOperationListeners.preIndexBatch(shardId, batch.batch());
+            try {
+                results = engine.indexBatch(batch);
+            } catch (Exception e) {
+                // engine level failure: the per-result hook below is never invoked, mirroring index(Engine, Engine.Index)
+                indexingOperationListeners.postIndexBatch(shardId, operationBatch, e);
+                throw e;
+            }
             indexingOperationListeners.postIndexBatch(shardId, operationBatch, results);
-            active.set(true);
             return results;
-        } catch (Exception e) {
-            indexingOperationListeners.postIndexBatch(shardId, operationBatch, e);
-            throw e;
+        } finally {
+            active.set(true);
         }
     }
 

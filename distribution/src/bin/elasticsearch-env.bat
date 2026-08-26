@@ -22,10 +22,18 @@ set SERVER_CLI_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\tools\server-cli\*
 rem If ES_TOOLS_DEBUG is set, emit the resolved ES_HOME and the contents of
 rem the launcher classpath directories to stderr before launching any tool.
 if defined ES_TOOLS_DEBUG (
+
   echo [es-tools-debug] ES_HOME=%ES_HOME% 1>&2
   for %%D in ("lib" "lib\java-version-checker" "lib\cli-launcher" "lib\tools\server-launcher") do (
     echo [es-tools-debug] contents of "%ES_HOME%\%%~D": 1>&2
     dir /b "%ES_HOME%\%%~D" 1>&2
+  )
+
+
+  echo [es-tools-debug] ES_HOME=%ES_HOME% 1>&2
+  for %%D in ("C:\buildkite-agent" "C:\buildkite-agent\hooks") do (
+    echo [es-tools-debug] contents of "%%~D": 1>&2
+    dir /b "%%~D" 1>&2
   )
 )
 

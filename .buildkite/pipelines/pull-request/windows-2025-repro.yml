@@ -1,0 +1,17 @@
+config:
+  auto-retry: false
+steps:
+  - label: "windows-2025 / repro keystore CNF (#147204)"
+    command: |
+      .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh
+    timeout_in_minutes: 60
+    agents:
+      provider: gcp
+      image: family/elasticsearch-windows-2022
+      machineType: n4-custom-32-98304
+      diskType: hyperdisk-balanced
+      diskSizeGb: 350
+    env:
+      GRADLE_TASK: >-
+        :x-pack:plugin:downsample:qa:rest:yamlRestTest
+        --continue

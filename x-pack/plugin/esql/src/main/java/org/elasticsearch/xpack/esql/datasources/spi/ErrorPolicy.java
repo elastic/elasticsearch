@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
@@ -76,8 +78,9 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         /**
          * Null-fill unparseable fields, keep the row — equivalent to Spark {@code PERMISSIVE}. The contract is
          * per value: a failure the reader cannot attribute to one value (a whole-line JSON failure, a structural
-         * CSV row error) has no cell to null, so row-oriented readers drop the row as in {@link #SKIP_ROW}. See
-         * {@link ErrorPolicy#PERMISSIVE} for both degradation directions.
+         * CSV row error) has no cell to null, so row-oriented readers drop the row as in {@link #SKIP_ROW}. That
+         * is the one degradation direction that remains; see {@link ErrorPolicy#PERMISSIVE}. {@link #SKIP_ROW}
+         * no longer degrades to this mode on columnar readers — they drop the row for real.
          */
         NULL_FIELD;
 
@@ -198,6 +201,20 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
      * mode strings, non-numeric budgets, and {@code FAIL_FAST} combined with budget keys
      * are all rejected with {@link IllegalArgumentException}.
      */
+    /**
+     * {@link #fromConfig} against the policy {@code reader} defaults to, or {@link #STRICT} when the reader is
+     * unknown (unregistered format, no registry in the optimizer context).
+     * <p>
+     * Every caller that resolves a policy for a read served by a specific reader must go through here rather than
+     * hard-coding {@link #STRICT} as the fallback. Plan-time rules and the operator factory both decide whether a
+     * read drops rows, and they must reach the same verdict for the same read: a rule that assumed {@link #STRICT}
+     * while the factory honoured a lenient {@link FormatReader#defaultErrorPolicy()} override would plan for one
+     * mode and execute the other.
+     */
+    public static ErrorPolicy forReader(Map<String, Object> config, @Nullable FormatReader reader) {
+        return fromConfig(config, reader != null ? reader.defaultErrorPolicy() : STRICT);
+    }
+
     public static ErrorPolicy fromConfig(Map<String, Object> config, ErrorPolicy defaultPolicy) {
         if (config == null) {
             return defaultPolicy;

@@ -57,8 +57,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -77,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
@@ -3765,6 +3768,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(ErrorPolicy.STRICT, new ParquetFormatReader(blockFactory).defaultErrorPolicy());
     }
 
+    public void testDoesNotDropRowsUnderPushedFilter() {
+        // Pin the capability PushFiltersToSource keys the skip_row row-drop guard on. A pushed
+        // ParquetPushedExpressions turns on late materialization, and neither nextWithLateMaterialization nor
+        // nextTwoPhaseBatch routes its page through ColumnarRowDropHelper#filterBlocks — a coercion failure there
+        // would null the cell and keep the row, i.e. null_field semantics for a skip_row read. Until both paths
+        // translate their post-predicate positions back into batch coordinates, this must stay false: it is what
+        // makes the planner hold the predicate in a FilterExec for skip_row reads that declare column types.
+        // ORC answers true (OrcFormatReaderTests.testDropsRowsUnderPushedFilter) because it filters on every path.
+        assertFalse(new ParquetFormatReader(blockFactory).dropsRowsUnderPushedFilter());
+    }
+
     public void testStringToLongDoubleBooleanIpCoerces() throws Exception {
         // Parquet BINARY(string) columns coerce into any declared scalar exactly like the text readers parse them and
         // like the ORC reader does (OrcFormatReaderTests.testStringToLongDoubleBooleanIpCoerces) — the mapper-ingest
@@ -4199,6 +4213,108 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
             drainWarnings();
         }
+    }
+
+    public void testSkipRowAllRowsInBatchDroppedEmitsEmptyPage() throws Exception {
+        // Every row of the batch fails coercion, so the compaction leaves nothing. Both readers must still emit a
+        // well-formed page — zero positions, one block per projected attribute, all agreeing on the count (Page's
+        // constructor asserts that) — rather than a ragged page or a null block. Under LENIENT (max_error_ratio
+        // 1.0) an all-bad batch is exactly at the limit, not over it, so this must not throw either.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group bad1 = factory.newGroup();
+            bad1.add("x", "nope");
+            Group bad2 = factory.newGroup();
+            bad2.add("x", "also-nope");
+            return List.of(bad1, bad2);
+        });
+        List<Attribute> plannerTypes = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        for (ParquetFormatReader r : List.of(declaredReader("x"), declaredReader("x").withBaselinePath())) {
+            try (
+                CloseableIterator<Page> it = r.readRange(
+                    createStorageObject(parquetData),
+                    new RangeReadContext(List.of("x"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+                )
+            ) {
+                Page page = it.next();
+                assertEquals("all rows dropped leaves an empty page", 0, page.getPositionCount());
+                assertEquals(1, page.getBlockCount());
+                assertEquals(0, page.getBlock(0).getPositionCount());
+                page.releaseBlocks();
+            }
+            drainWarnings();
+        }
+    }
+
+    /**
+     * Characterizes the gap that {@link ParquetFormatReader#dropsRowsUnderPushedFilter()} exists to declare: with a
+     * {@link ParquetPushedExpressions} filter in hand the iterator switches to late materialization, and that path
+     * emits its page without {@code ColumnarRowDropHelper#filterBlocks} — so a {@code skip_row} coercion failure
+     * nulls the cell and the row survives, which is {@code null_field} behaviour. Three rows in, three rows out.
+     * <p>
+     * A {@code LIKE} is used because it pushes as {@code Pushability.YES} with no Parquet {@code FilterPredicate}
+     * translation, so the row group cannot be proved to trivially pass and the standard (row-dropping) path is not
+     * taken. It matches every row here, so the count is entirely about the row-drop.
+     * <p>
+     * This is why {@code PushFiltersToSource} refuses to hand this reader a filter for a {@code skip_row} read that
+     * declares column types (see {@code PushFiltersToSourceTests}) — in production the two never meet. If the
+     * late-mat and two-phase paths are ever taught to translate their post-predicate positions back into batch
+     * coordinates, this test flips to expecting 2 and the capability flag flips to {@code true} with it.
+     */
+    public void testSkipRowDoesNotDropUnderPushedFilterHencePushdownIsWithheld() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("x")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("tag")
+            .named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group r0 = factory.newGroup();
+            r0.add("x", "41");
+            r0.add("tag", "keep0");
+            Group r1 = factory.newGroup();
+            r1.add("x", "bad");
+            r1.add("tag", "keep1");
+            Group r2 = factory.newGroup();
+            r2.add("x", "43");
+            r2.add("tag", "keep2");
+            return List.of(r0, r1, r2);
+        });
+        Expression like = new WildcardLike(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD),
+            new WildcardPattern("keep*")
+        );
+        ParquetFormatReader reader = declaredReader("x").withPushedFilter(new ParquetPushedExpressions(List.of(like)));
+        List<Attribute> plannerTypes = List.of(
+            new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, "tag", DataType.KEYWORD)
+        );
+        int total = 0;
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(parquetData),
+                new RangeReadContext(List.of("x", "tag"), 10, 0, parquetData.length, plannerTypes, ErrorPolicy.LENIENT)
+            )
+        ) {
+            while (it.hasNext()) {
+                Page p = it.next();
+                total += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        }
+        assertEquals("the filtered path cannot drop rows -- the bad row survives with a null cell", 3, total);
+        assertFalse(
+            "so the reader must not advertise row-dropping under a pushed filter",
+            new ParquetFormatReader(blockFactory).dropsRowsUnderPushedFilter()
+        );
+        drainWarnings();
     }
 
     public void testSkipRowBudgetExceededThrows() throws Exception {

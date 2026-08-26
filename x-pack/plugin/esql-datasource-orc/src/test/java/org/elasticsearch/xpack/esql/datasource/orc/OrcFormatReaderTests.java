@@ -1911,6 +1911,15 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals(ErrorPolicy.STRICT, new OrcFormatReader(blockFactory).defaultErrorPolicy());
     }
 
+    public void testDropsRowsUnderPushedFilter() {
+        // ORC has one decode path: convertToPage always applies ColumnarRowDropHelper#filterBlocks, and a pushed
+        // predicate only prunes whole stripes (never individual rows within a batch), so skip_row keeps working
+        // with the pushdown on. Hence the base FormatReader default, unlike Parquet's late-materialization path
+        // (ParquetFormatReaderTests.testDoesNotDropRowsUnderPushedFilter). Pinned so a future row-level ORC
+        // predicate path cannot quietly inherit "true" and start null-filling instead of dropping.
+        assertTrue(new OrcFormatReader(blockFactory).dropsRowsUnderPushedFilter());
+    }
+
     public void testCoercionUnparseableValueEmitsWarningAndNull() throws Exception {
         // Per-cell leniency under an explicit null_field (PERMISSIVE) error policy: a token the declared type
         // cannot coerce nulls THAT cell and records a response Warning header; the surrounding cells still decode.
@@ -2041,6 +2050,34 @@ public class OrcFormatReaderTests extends ESTestCase {
             BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
             assertEquals("a", tags.getBytesRef(tags.getFirstValueIndex(0), new org.apache.lucene.util.BytesRef()).utf8ToString());
             assertEquals("c", tags.getBytesRef(tags.getFirstValueIndex(1), new org.apache.lucene.util.BytesRef()).utf8ToString());
+            page.releaseBlocks();
+        }
+        drainWarnings();
+    }
+
+    public void testSkipRowAllRowsInBatchDroppedEmitsEmptyPage() throws Exception {
+        // Every row of the batch fails coercion, so the compaction leaves nothing. The reader must still emit a
+        // well-formed page — zero positions, one block per projected attribute, all agreeing on the count (Page's
+        // constructor asserts that) — rather than a ragged page or a null block. Under LENIENT (max_error_ratio
+        // 1.0) an all-bad batch is exactly at the limit, not over it, so this must not throw either.
+        TypeDescription schema = TypeDescription.createStruct().addField("n", TypeDescription.createString());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            ((BytesColumnVector) batch.cols[0]).setVal(0, "nope".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) batch.cols[0]).setVal(1, "also-nope".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = declaredReader("n");
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+        try (
+            CloseableIterator<Page> it = reader.readRange(
+                createStorageObject(orcData),
+                new RangeReadContext(List.of("n"), 10, 0, orcData.length, plannerSchema, ErrorPolicy.LENIENT)
+            )
+        ) {
+            Page page = it.next();
+            assertEquals("all rows dropped leaves an empty page", 0, page.getPositionCount());
+            assertEquals(1, page.getBlockCount());
+            assertEquals(0, page.getBlock(0).getPositionCount());
             page.releaseBlocks();
         }
         drainWarnings();

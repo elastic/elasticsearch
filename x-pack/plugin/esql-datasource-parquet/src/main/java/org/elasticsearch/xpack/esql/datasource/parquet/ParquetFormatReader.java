@@ -459,6 +459,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Parquet cannot drop rows once a filter is pushed into it. A pushed
+     * {@link ParquetPushedExpressions} turns on late materialization in
+     * {@link OptimizedParquetColumnIterator}, whose {@code nextWithLateMaterialization} /
+     * {@code nextTwoPhaseBatch} paths emit their pages without going through
+     * {@code ColumnarRowDropHelper#filterBlocks} — a coercion failure there would null the cell and keep
+     * the row. Only the {@code nextStandard} path drops. Returning {@code false} makes the planner keep
+     * the predicate in a {@code FilterExec} above the source for {@code skip_row} reads that declare
+     * column types, which routes every batch through {@code nextStandard}.
+     * <p>
+     * Lifting this restriction means teaching both filtered paths to translate their post-predicate
+     * positions back into batch coordinates before reporting them to the helper (see the "Coordinate
+     * spaces" note on {@code ColumnarRowDropHelper}).
+     */
+    @Override
+    public boolean dropsRowsUnderPushedFilter() {
+        return false;
+    }
+
+    /**
      * Coercion-failure leniency for one read: {@code fail_fast} is strict — a per-value coercion
      * failure must propagate, which the coercion sinks express as a {@code null}
      * {@link SkipWarnings}. Every other mode ({@code skip_row} and {@code null_field}) allows the
@@ -2949,15 +2968,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ) {
             this.errorPolicy = errorPolicy;
             this.warningSink = warningSink;
-            if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
-                SkipWarnings dropWarnings = new SkipWarnings(
-                    "Parquet file [" + fileLocation + "] rows dropped due to skip_row coercion failures",
-                    warningSink
-                );
-                this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, dropWarnings, fileLocation);
-            } else {
-                this.rowDropHelper = null;
-            }
+            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.projectedSchema = projectedSchema;
             this.attributes = attributes;
@@ -3200,10 +3211,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
                         producedRows = rowsToRead - rowDropHelper.failedCount();
                     }
-                    if (rowDropHelper != null) {
-                        rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
-                        rowDropHelper.checkBudget();
-                    }
                 } catch (CircuitBreakingException e) {
                     Releasables.closeExpectNoException(blocks);
                     throw e;
@@ -3219,6 +3226,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             + fileLocation
                             + "]"
                     );
+                }
+
+                // Budget accounting sits outside the try on purpose: checkBudget throws ParsingException to mark a
+                // client-data problem (HTTP 400), and routing it through ParquetReadFailures.wrap above would put it
+                // at the mercy of that mapping rather than stating the classification here. Mirrors OrcFormatReader.
+                if (rowDropHelper != null) {
+                    rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
+                    try {
+                        rowDropHelper.checkBudget(coercionWarnings());
+                    } catch (Exception e) {
+                        Releasables.closeExpectNoException(blocks);
+                        throw e;
+                    }
                 }
 
                 pageBatchIndexInRowGroup++;

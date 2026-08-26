@@ -1275,15 +1275,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             @Nullable Consumer<String> warningSink
         ) {
             this.errorPolicy = errorPolicy;
-            if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
-                SkipWarnings dropWarnings = new SkipWarnings(
-                    "ORC file [" + fileLocation + "] rows dropped due to skip_row coercion failures",
-                    warningSink
-                );
-                this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, dropWarnings, fileLocation);
-            } else {
-                this.rowDropHelper = null;
-            }
+            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
             this.reader = reader;
             this.rows = rows;
             this.attributes = attributes;
@@ -1534,7 +1526,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (rowDropHelper != null) {
                 rowDropHelper.addToTotals(batch.size, rowDropHelper.failedCount());
                 try {
-                    rowDropHelper.checkBudget();
+                    rowDropHelper.checkBudget(coercionWarnings());
                 } catch (Exception e) {
                     page.releaseBlocks();
                     throw e;
@@ -1620,15 +1612,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             }
 
+            // Every slot is populated by the loop above (the ancestor-null shortcut fills its slot before
+            // nulling `vector`), so filterBlocks has no null slots to skip and none are left to backfill —
+            // unlike the Parquet iterators, which leave absent columns null until after the compaction.
             if (rowDropHelper != null && rowDropHelper.hasFailures()) {
                 blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
-                int survivorCount = rowCount - rowDropHelper.failedCount();
-                // Fill any null slots with zero-size constant-null blocks if all rows dropped.
-                for (int col = 0; col < blocks.length; col++) {
-                    if (blocks[col] == null) {
-                        blocks[col] = blockFactory.newConstantNullBlock(survivorCount);
-                    }
-                }
             }
             return new Page(blocks);
         }

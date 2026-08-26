@@ -471,18 +471,22 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     partitionValues = fileSplit.partitionValues();
                 }
 
-                boolean skipRowWithCoercions = errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                    && physicalDeclaredTypeColumns(context.declaredReadSpec()).isEmpty() == false;
+                // Whether this read drops whole rows on a coercion failure. The plan already accounted for it:
+                // PushFiltersToSource withheld the pushdown for readers that cannot drop rows once filtered, and
+                // InsertExternalFieldExtraction skipped the extract exec. Recomputed here (rather than trusted from
+                // the plan) so the factory's own deferred-extraction decision cannot drift from the rule's — both
+                // resolve the policy against the same reader default via ErrorPolicy.forReader.
+                boolean dropsRowsOnCoercionFailure = context.declaredReadSpec().dropsRowsOnCoercionFailure(errorPolicy);
 
                 List<Expression> pushedExpressions = context.pushedExpressions();
-                // Withhold pushdown under skip_row + declared coercions: the optimized iterator arms
-                // filterBlocks only for row groups where stats prove the filter trivially passes, so
-                // groups that actually evaluate the predicate silently null-fill failures instead of
-                // dropping the row. Disabling pushdown keeps all batches on the standard path where
-                // filterBlocks is always called.
-                FilterPushdownSupport pushdownSupport = (pushedExpressions != null
-                    && pushedExpressions.isEmpty() == false
-                    && skipRowWithCoercions == false) ? format.filterPushdownSupport() : null;
+                // Note: this only controls the per-file re-mint in AsyncExternalSourceOperatorFactory#readerForFile
+                // (schema-drifted files whose ColumnMapping needs the predicate adapted). It does NOT control whether
+                // the reader sees a pushed filter at all — that rides withPushedFilter above, straight off the plan.
+                // Suppressing it here would strand a drifted file with an un-adapted predicate, so it stays keyed on
+                // the pushed expressions alone.
+                FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
+                    ? format.filterPushdownSupport()
+                    : null;
 
                 // Per-query fairness: draw a dynamic slice of the per-scheme permit budget so one query cannot starve the
                 // rest on the same backend. Storage also carries reactive retry/backoff (per-store 503 backoff) from the
@@ -516,7 +520,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // that fail coercion; the columnar iterator must do the filtering at emit time instead.
                 boolean deferredExtraction = format instanceof ColumnExtractorAware
                     && context.deferredExtraction()
-                    && skipRowWithCoercions == false;
+                    && dropsRowsOnCoercionFailure == false;
 
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
                     storage,
@@ -629,10 +633,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
         return physical;
     }
 
-    /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
-     *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
+    /** Delegates to {@link ErrorPolicy#forReader(Map, FormatReader)}, the one resolution the plan-time rules use too.
+     *  Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
-        return ErrorPolicy.fromConfig(config, format.defaultErrorPolicy());
+        return ErrorPolicy.forReader(config, format);
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {

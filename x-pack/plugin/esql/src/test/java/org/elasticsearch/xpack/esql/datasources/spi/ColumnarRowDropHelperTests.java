@@ -27,14 +27,14 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
     // ---- factory contract ----
 
     public void testNullForNonSkipRowPolicy() {
-        assertNull(ColumnarRowDropHelper.forPolicy(null, null, "f.parquet"));
-        assertNull(ColumnarRowDropHelper.forPolicy(ErrorPolicy.STRICT, null, "f.parquet"));
-        assertNull(ColumnarRowDropHelper.forPolicy(ErrorPolicy.PERMISSIVE, null, "f.parquet"));
+        assertNull(ColumnarRowDropHelper.forPolicy(null, "f.parquet"));
+        assertNull(ColumnarRowDropHelper.forPolicy(ErrorPolicy.STRICT, "f.parquet"));
+        assertNull(ColumnarRowDropHelper.forPolicy(ErrorPolicy.PERMISSIVE, "f.parquet"));
     }
 
     public void testNonNullForSkipRowPolicy() {
-        assertNotNull(ColumnarRowDropHelper.forPolicy(new ErrorPolicy(10, true), null, "f.parquet"));
-        assertNotNull(ColumnarRowDropHelper.forPolicy(ErrorPolicy.LENIENT, null, "f.parquet"));
+        assertNotNull(ColumnarRowDropHelper.forPolicy(new ErrorPolicy(10, true), "f.parquet"));
+        assertNotNull(ColumnarRowDropHelper.forPolicy(ErrorPolicy.LENIENT, "f.parquet"));
     }
 
     // ---- single failure ----
@@ -172,7 +172,18 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.markFailed(0);
         helper.markFailed(1); // 2 errors, budget is 1
         helper.addToTotals(3, 2);
-        expectThrows(ParsingException.class, helper::checkBudget);
+        expectThrows(ParsingException.class, () -> helper.checkBudget(SkipWarnings.NOOP));
+    }
+
+    /** A reader with no live warning collector (strict paths, or one that never lazily created one) must
+     *  still get the exception rather than an NPE on the way to emitting the warning. */
+    public void testBudgetExceededWithNoWarningCollectorStillThrows() {
+        ColumnarRowDropHelper helper = helper(1);
+        helper.beginBatch(3);
+        helper.markFailed(0);
+        helper.markFailed(1);
+        helper.addToTotals(3, 2);
+        expectThrows(ParsingException.class, () -> helper.checkBudget(null));
     }
 
     public void testBudgetNotExceededDoesNotThrow() {
@@ -180,7 +191,7 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         helper.beginBatch(3);
         helper.markFailed(0);
         helper.addToTotals(3, 1);
-        helper.checkBudget(); // should not throw
+        helper.checkBudget(SkipWarnings.NOOP); // should not throw
     }
 
     // ---- beginBatch resets state between batches ----
@@ -197,7 +208,31 @@ public class ColumnarRowDropHelperTests extends ESTestCase {
         assertThat(helper.failedCount(), equalTo(0));
     }
 
+    // ---- coordinate-space violations are rejected, not silently mis-applied ----
+
+    /**
+     * The {@code failed[]} array is reused across batches and only ever grows, so a position past the current
+     * batch would land in a stale slot left by an earlier, larger batch and drop the wrong row. That must be a
+     * hard failure regardless of whether assertions are on.
+     */
+    public void testMarkFailedRejectsPositionPastBatch() {
+        ColumnarRowDropHelper helper = helper(100);
+        helper.beginBatch(8);
+        helper.markFailed(7);
+
+        helper.beginBatch(3); // smaller batch; failed[] still has 8 slots
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> helper.markFailed(7));
+        assertThat(e.getMessage(), equalTo("position [7] out of batch [0, 3)"));
+        assertFalse("the rejected mark must not have been recorded", helper.hasFailures());
+    }
+
+    public void testMarkFailedRejectsNegativePosition() {
+        ColumnarRowDropHelper helper = helper(100);
+        helper.beginBatch(3);
+        expectThrows(IllegalStateException.class, () -> helper.markFailed(-1));
+    }
+
     private ColumnarRowDropHelper helper(long maxErrors) {
-        return ColumnarRowDropHelper.forPolicy(new ErrorPolicy(maxErrors, true), SkipWarnings.NOOP, "test.parquet");
+        return ColumnarRowDropHelper.forPolicy(new ErrorPolicy(maxErrors, true), "test.parquet");
     }
 }

@@ -27,6 +27,14 @@ import java.util.Arrays;
  * ({@code max_errors} / {@code max_error_ratio}) cumulatively across all batches for the iterator's
  * lifetime.
  *
+ * <h2>Budget scope</h2>
+ * One helper per iterator means the budget is per <em>file</em>, and on a range-split read per
+ * <em>split</em> — so a {@code max_errors} of N tolerates up to N bad rows in each split rather than N
+ * across the query, and the effective tolerance grows with the split count. This matches how the text
+ * readers already scope theirs ({@code CsvFormatReader}); it is called out here because
+ * {@code max_error_ratio} is the option that behaves intuitively under splitting and {@code max_errors}
+ * is the one that does not.
+ *
  * <h2>Lifecycle</h2>
  * <ol>
  *   <li>Create once per iterator via {@link #forPolicy} — returns {@code null} for non-{@code SKIP_ROW}
@@ -36,15 +44,19 @@ import java.util.Arrays;
  *       failures on the same row count as one dropped row).</li>
  *   <li>At the emit point: call {@link #filterBlocks(Block[], BlockFactory)} to compact the blocks and
  *       remove all failed rows; call {@link #addToTotals(int, int)} to update the cumulative budget
- *       counters; call {@link #checkBudget()} to throw a {@link ParsingException} (HTTP 400) if the
- *       configured error budget is exceeded.</li>
+ *       counters; call {@link #checkBudget(SkipWarnings)} to throw a {@link ParsingException} (HTTP 400)
+ *       if the configured error budget is exceeded.</li>
  * </ol>
  *
  * <h2>Coordinate spaces</h2>
  * All positions passed to {@link #markFailed} must be in the same coordinate space as the blocks
- * passed to {@link #filterBlocks} — typically the batch-level page coordinates where position 0 is
- * the first row in the current batch. Callers on paths that pre-filter rows (late-materialization,
- * two-phase predicate evaluation) must perform the coordinate transform before calling this helper.
+ * passed to {@link #filterBlocks} — the batch-level page coordinates where position 0 is the first row
+ * in the current batch, and where the batch is exactly as wide as {@link #beginBatch} was told. A caller
+ * on a path that pre-filters rows (late materialization, two-phase predicate evaluation) would have to
+ * transform its post-predicate positions back into batch coordinates first; none does today, which is
+ * why {@code FormatReader#dropsRowsUnderPushedFilter} lets such a reader decline the pushdown outright
+ * rather than silently mixing the two spaces. Both ends are checked: {@link #markFailed} rejects an
+ * out-of-range position and {@link #filterBlocks} asserts each block's width.
  *
  * <h2>Exception contract</h2>
  * Budget-exceeded failures surface as {@link ParsingException} (an HTTP 400 client-data error), matching
@@ -54,7 +66,6 @@ import java.util.Arrays;
 public final class ColumnarRowDropHelper {
 
     private final ErrorPolicy policy;
-    private final SkipWarnings warnings;
     private final String fileLocation;
 
     /** Cumulative error count (dropped rows) across all batches this iterator has processed. */
@@ -73,21 +84,21 @@ public final class ColumnarRowDropHelper {
     /** Count of distinct failed positions in the current batch. */
     private int failedCount;
 
-    private ColumnarRowDropHelper(ErrorPolicy policy, SkipWarnings warnings, String fileLocation) {
+    private ColumnarRowDropHelper(ErrorPolicy policy, String fileLocation) {
         this.policy = policy;
-        this.warnings = warnings;
         this.fileLocation = fileLocation;
     }
 
     /**
      * Factory method: returns a new helper when the error policy is {@link ErrorPolicy.Mode#SKIP_ROW},
      * or {@code null} for any other mode. Callers store the result as a nullable field; a null reference
-     * means no helper is active and all per-batch logic should be skipped.
+     * means no helper is active and all per-batch logic should be skipped — so the mode check belongs
+     * here and callers should not repeat it.
      */
     @Nullable
-    public static ColumnarRowDropHelper forPolicy(@Nullable ErrorPolicy policy, @Nullable SkipWarnings warnings, String fileLocation) {
+    public static ColumnarRowDropHelper forPolicy(@Nullable ErrorPolicy policy, String fileLocation) {
         if (policy != null && policy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
-            return new ColumnarRowDropHelper(policy, warnings != null ? warnings : new SkipWarnings(fileLocation), fileLocation);
+            return new ColumnarRowDropHelper(policy, fileLocation);
         }
         return null;
     }
@@ -110,9 +121,17 @@ public final class ColumnarRowDropHelper {
      * Marks {@code position} as having a coercion failure in the current batch. Idempotent: calling
      * multiple times for the same position (failures in different columns for the same row) counts
      * as one dropped row.
+     *
+     * @throws IllegalStateException if {@code position} is outside the current batch, which means the
+     *         caller reported a position in a coordinate space this helper does not share (see the
+     *         "Coordinate spaces" note on the class). Checked unconditionally rather than asserted:
+     *         {@link #failed} is reused and only ever grows, so an out-of-range position would land in
+     *         a stale slot left by an earlier, larger batch and silently drop the wrong row.
      */
     public void markFailed(int position) {
-        assert position >= 0 && position < batchSize : "position " + position + " out of batch [0, " + batchSize + ")";
+        if (position < 0 || position >= batchSize) {
+            throw new IllegalStateException("position [" + position + "] out of batch [0, " + batchSize + ")");
+        }
         if (failed[position] == false) {
             failed[position] = true;
             failedCount++;
@@ -155,6 +174,9 @@ public final class ColumnarRowDropHelper {
                     if (b == null) {
                         continue;
                     }
+                    // Clear the slot before closing: if newConstantNullBlock then trips the breaker, the catch below
+                    // must not find (and re-close) the block we just released.
+                    blocks[col] = null;
                     b.close();
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 }
@@ -165,9 +187,19 @@ public final class ColumnarRowDropHelper {
                     if (b == null) {
                         continue;
                     }
+                    assert b.getPositionCount() == batchSize
+                        : "block ["
+                            + col
+                            + "] has ["
+                            + b.getPositionCount()
+                            + "] positions but the batch was opened for ["
+                            + batchSize
+                            + "]; failure positions and survivor positions are in different coordinate spaces";
                     Block filtered = b.filter(false, survivors);
-                    b.close();
+                    // Publish the replacement before releasing the original, so a throwing close() cannot strand
+                    // the filtered block with no owner.
                     blocks[col] = filtered;
+                    b.close();
                 }
             }
         } catch (RuntimeException e) {
@@ -223,22 +255,30 @@ public final class ColumnarRowDropHelper {
      * (HTTP 400 — client-data problem) if so. Emits a budget-exceeded warning before throwing,
      * matching {@code CsvFormatReader.checkBudget}'s contract so clients see which batch tripped
      * the limit even when the request fails.
+     *
+     * @param warnings the reader's per-value coercion-warning collector, or {@code null} when it has
+     *                 none. The budget line goes into that same collector — as CSV does — so the
+     *                 response carries one summary header followed by the per-cell details and then
+     *                 the line saying which batch tripped the limit, rather than two competing
+     *                 summaries from two collectors.
      */
-    public void checkBudget() {
+    public void checkBudget(@Nullable SkipWarnings warnings) {
         if (policy.isBudgetExceeded(errorCount, rowCount)) {
-            warnings.add(
-                "Columnar error budget exceeded at ["
-                    + fileLocation
-                    + "]: ["
-                    + errorCount
-                    + "] dropped rows in ["
-                    + rowCount
-                    + "] decoded rows, maximum ["
-                    + policy.maxErrors()
-                    + "] errors or ratio ["
-                    + policy.maxErrorRatio()
-                    + "]"
-            );
+            if (warnings != null) {
+                warnings.add(
+                    "Columnar error budget exceeded at ["
+                        + fileLocation
+                        + "]: ["
+                        + errorCount
+                        + "] dropped rows in ["
+                        + rowCount
+                        + "] decoded rows, maximum ["
+                        + policy.maxErrors()
+                        + "] errors or ratio ["
+                        + policy.maxErrorRatio()
+                        + "]"
+                );
+            }
             throw new ParsingException(
                 Source.EMPTY,
                 "Error budget exceeded: [{}] dropped rows in [{}] decoded rows in [{}]; " + "maximum allowed is [{}] errors or [{}] ratio",

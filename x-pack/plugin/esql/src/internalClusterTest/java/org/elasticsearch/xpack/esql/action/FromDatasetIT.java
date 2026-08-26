@@ -4050,6 +4050,46 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
+     * End-to-end: {@code skip_row} drops the bad row for a query that also filters. Exercises the whole stack —
+     * planner rules, operator factory, columnar reader — for the shape where the two features meet, and pins that
+     * the row count reflects the row-drop rather than the predicate.
+     * <p>
+     * The discriminating coverage for <em>why</em> this holds lives at the two ends and not here: the Parquet
+     * reader cannot drop rows once a filter is pushed into it
+     * ({@code ParquetFormatReaderTests#testSkipRowDoesNotDropUnderPushedFilterHencePushdownIsWithheld}), so
+     * {@code PushFiltersToSource} withholds the pushdown for this combination
+     * ({@code PushFiltersToSourceTests#testDoesNotPushWhenReaderCannotDropRowsUnderPushedFilter}). This test does
+     * not by itself prove the predicate reached the reader, so do not treat it as the regression test for that.
+     */
+    public void testParquetSkipRowDropsBadRowWithFilteredQuery() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        long good0 = 1704067200L, good2 = 1704067201L, overflow = Long.MAX_VALUE;
+        Path parquet = writeScalingFixture("epoch_ovf_filtered", new long[] { good0, overflow, good2 });
+        // `msg` is "m0"/"m1"/"m2" in the fixture, so the LIKE matches every row: the filter changes nothing about
+        // which rows qualify, leaving the row-drop as the only thing that can change the row count.
+        String suffix = " | WHERE msg LIKE \"m*\" | SORT pri | EVAL v = ts::long | KEEP v";
+
+        putEpochOverflowDataset("epoch_ovf_flt_skip", "parquet", parquet.toUri().toString(), "skip_row", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_flt_skip" + suffix), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("skip_row must drop the bad row for a filtered query too", rows, hasSize(2));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(good2 * 1000L));
+        }
+
+        // Same query, same filter, null_field: all three rows survive with the bad cell nulled. Pins that the
+        // filter itself matches everything, so the row count above is the row-drop and not the predicate.
+        putEpochOverflowDataset("epoch_ovf_flt_null", "parquet", parquet.toUri().toString(), "null_field", false);
+        try (var response = run(syncEsqlQueryRequest("FROM epoch_ovf_flt_null" + suffix), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(good0 * 1000L));
+            assertThat(rows.get(1).get(0), equalTo(null));
+            assertThat(rows.get(2).get(0), equalTo(good2 * 1000L));
+        }
+    }
+
+    /**
      * Epoch-scaling overflow on the CSV (text) path: same malformed value, same declaration. {@code skip_row} drops
      * the bad record (two rows survive), while {@code null_field} keeps it with a null cell. {@code fail_fast} aborts.
      */

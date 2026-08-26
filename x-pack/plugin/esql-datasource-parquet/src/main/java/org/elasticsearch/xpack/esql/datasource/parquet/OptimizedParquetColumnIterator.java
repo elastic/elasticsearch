@@ -447,15 +447,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         );
         this.prefetchDepthFloor = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
         this.prefetchDepth = this.prefetchDepthFloor;
-        if (errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW) {
-            SkipWarnings dropWarnings = new SkipWarnings(
-                "Parquet file [" + fileLocation + "] rows dropped due to skip_row coercion failures",
-                warningSink
-            );
-            this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, dropWarnings, fileLocation);
-        } else {
-            this.rowDropHelper = null;
-        }
+        this.rowDropHelper = ColumnarRowDropHelper.forPolicy(errorPolicy, fileLocation);
 
         reader.setRequestedSchema(projectedSchema);
 
@@ -2219,17 +2211,16 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 // block and replaces it with a filtered copy (or a 0-position constant-null
                 // block when all rows fail). The _rowPosition block, if present, is filtered
                 // together with the data blocks: failed rows disappear from all columns at once.
+                // Derived from producedRows, not rowsToRead: the two agree today (rowsRemainingInGroup
+                // already counts only the rows column-index RowRanges selected), but producedRows is
+                // what the blocks above actually carry, and it is what the null-fill below must match.
                 blocks = rowDropHelper.filterBlocks(blocks, blockFactory);
-                producedRows = rowsToRead - rowDropHelper.failedCount();
+                producedRows -= rowDropHelper.failedCount();
             }
             for (int col = 0; col < columnInfos.length; col++) {
                 if (blocks[col] == null) {
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
-            }
-            if (rowDropHelper != null) {
-                rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
-                rowDropHelper.checkBudget();
             }
         } catch (CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
@@ -2246,6 +2237,18 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + fileLocation
                     + "]"
             );
+        }
+        // Budget accounting sits outside the try on purpose: checkBudget throws ParsingException to mark a
+        // client-data problem (HTTP 400), and routing it through ParquetReadFailures.wrap above would put it
+        // at the mercy of that mapping rather than stating the classification here. Mirrors OrcFormatReader.
+        if (rowDropHelper != null) {
+            rowDropHelper.addToTotals(rowsToRead, rowDropHelper.failedCount());
+            try {
+                rowDropHelper.checkBudget(coercionWarnings());
+            } catch (Exception e) {
+                Releasables.closeExpectNoException(blocks);
+                throw e;
+            }
         }
         counters.addRowsEmitted(producedRows);
         return new Page(blocks);

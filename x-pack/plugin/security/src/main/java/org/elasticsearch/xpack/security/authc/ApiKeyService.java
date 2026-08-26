@@ -30,6 +30,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -70,6 +71,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
@@ -1298,8 +1301,20 @@ public class ApiKeyService implements Closeable {
                 listener.onResponse(AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
             }
         }, e -> {
-            if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof EsRejectedExecutionException) {
                 listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+            } else if (TransportActions.isShardNotAvailableException(e) || cause instanceof ConnectTransportException) {
+                // Surface a 503 so clients retry
+                listener.onResponse(
+                    AuthenticationResult.terminate(
+                        "authentication backend temporarily unavailable",
+                        Exceptions.authenticationProcessError(
+                            "authentication backend for apikey with id " + credentials.getId() + " is temporarily unavailable",
+                            e
+                        )
+                    )
+                );
             } else {
                 listener.onResponse(
                     AuthenticationResult.unsuccessful("apikey authentication for id " + credentials.getId() + " encountered a failure", e)

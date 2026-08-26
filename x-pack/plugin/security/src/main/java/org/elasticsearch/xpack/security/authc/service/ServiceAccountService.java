@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -220,6 +221,31 @@ public class ServiceAccountService {
             return;
         }
         userManagedServiceAccountStore.putAccount(accountId, roles, enabled, refreshPolicy, listener);
+    }
+
+    /**
+     * Reports the stored accounts, narrowed to a namespace and a service name when they are given. A node that cannot
+     * hold user-managed accounts has none to report, so it answers with an empty list rather than failing: this feeds
+     * a read that also covers built-in accounts, and that read must keep working.
+     */
+    public void getUserManagedAccountInfos(
+        @Nullable String namespace,
+        @Nullable String serviceName,
+        ActionListener<List<ServiceAccountInfo>> listener
+    ) {
+        if (userManagedServiceAccountStore == null) {
+            listener.onResponse(List.of());
+            return;
+        }
+        userManagedServiceAccountStore.listAccounts(
+            namespace,
+            serviceName,
+            listener.map(accounts -> accounts.stream().map(ServiceAccountService::toServiceAccountInfo).toList())
+        );
+    }
+
+    private static ServiceAccountInfo toServiceAccountInfo(UserManagedServiceAccount account) {
+        return new ServiceAccountInfo.UserManaged(account.id().asPrincipal(), account.roles(), account.enabled());
     }
 
     /**

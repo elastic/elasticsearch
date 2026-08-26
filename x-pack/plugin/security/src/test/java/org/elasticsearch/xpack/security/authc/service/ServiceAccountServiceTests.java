@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -61,8 +62,10 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -97,6 +100,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         when(fileServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.FILE);
         when(indexServiceAccountTokenStore.getTokenSource()).thenReturn(TokenInfo.TokenSource.INDEX);
         stubNoUserManagedAccounts();
+        stubListAccounts(List.of());
         stubTokenAuthentication(fileServiceAccountTokenStore, false);
         stubTokenAuthentication(indexServiceAccountTokenStore, false);
         stubHasTokensFor(false);
@@ -916,6 +920,40 @@ public class ServiceAccountServiceTests extends ESTestCase {
         verify(indexServiceAccountTokenStore, never()).hasTokensFor(any(), any());
     }
 
+    public void testGetUserManagedAccountInfosReportsWhatTheStoreHolds() {
+        final UserManagedServiceAccount enabled = new UserManagedServiceAccount(USER_MANAGED_ACCOUNT_ID, List.of("role_a", "role_b"), true);
+        final UserManagedServiceAccount disabled = new UserManagedServiceAccount(
+            new ServiceAccountId("engineering", "audit_bot"),
+            List.of(),
+            false
+        );
+        stubListAccounts(List.of(enabled, disabled));
+
+        final PlainActionFuture<List<ServiceAccountInfo>> future = new PlainActionFuture<>();
+        serviceAccountService.getUserManagedAccountInfos("engineering", "deploy_bot", future);
+
+        assertThat(
+            future.actionGet(),
+            contains(
+                new ServiceAccountInfo.UserManaged("engineering/deploy_bot", List.of("role_a", "role_b"), true),
+                new ServiceAccountInfo.UserManaged("engineering/audit_bot", List.of(), false)
+            )
+        );
+        verify(userManagedServiceAccountStore).listAccounts(eq("engineering"), eq("deploy_bot"), any());
+    }
+
+    /**
+     * Unlike writing an account, reading one is reachable through an API that also reports built-in accounts, so a
+     * node that cannot hold user-managed accounts reports that it holds none rather than failing the whole read.
+     */
+    public void testGetUserManagedAccountInfosIsEmptyWhereTheAccountStoreIsNotConfigured() {
+        final ServiceAccountService service = newServiceAccountService(null);
+        final PlainActionFuture<List<ServiceAccountInfo>> future = new PlainActionFuture<>();
+        service.getUserManagedAccountInfos(randomFrom("engineering", null), randomFrom("deploy_bot", null), future);
+        assertThat(future.actionGet(), empty());
+        verify(userManagedServiceAccountStore, never()).listAccounts(any(), any(), any());
+    }
+
     public void testFindTokensFor() {
         final String namespace = randomAlphaOfLengthBetween(3, 8);
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
@@ -991,6 +1029,16 @@ public class ServiceAccountServiceTests extends ESTestCase {
             listener.onResponse(account);
             return null;
         }).when(userManagedServiceAccountStore).getByPrincipal(eq(account.id().asPrincipal()), any());
+    }
+
+    private void stubListAccounts(List<UserManagedServiceAccount> accounts) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<List<UserManagedServiceAccount>> listener = (ActionListener<List<UserManagedServiceAccount>>) invocation
+                .getArguments()[2];
+            listener.onResponse(accounts);
+            return null;
+        }).when(userManagedServiceAccountStore).listAccounts(any(), any(), any());
     }
 
     private void stubIndexTokenAuthentication(boolean success) {

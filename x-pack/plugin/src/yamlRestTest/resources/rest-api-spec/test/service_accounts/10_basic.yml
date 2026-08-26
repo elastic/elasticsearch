@@ -29,6 +29,10 @@ teardown:
   - is_true: "elastic/fleet-server"
   - is_true: "elastic/fleet-server-remote"
   - is_true: "elastic/kibana"
+  - match: { "elastic/auto-ops.managed_by": "elastic" }
+  - match: { "elastic/fleet-server.managed_by": "elastic" }
+  - match: { "elastic/fleet-server-remote.managed_by": "elastic" }
+  - match: { "elastic/kibana.managed_by": "elastic" }
 
   - do:
       security.get_service_accounts:
@@ -45,6 +49,7 @@ teardown:
         service: fleet-server
   - length: { '': 1 }
   - is_true: "elastic/fleet-server"
+  - match: { "elastic/fleet-server.managed_by": "elastic" }
 
 ---
 "Test service account tokens":

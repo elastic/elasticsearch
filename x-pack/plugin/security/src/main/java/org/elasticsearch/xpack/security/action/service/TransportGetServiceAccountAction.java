@@ -50,7 +50,7 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             .values()
             .stream()
             .filter(filter)
-            .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
+            .map(v -> new ServiceAccountInfo.BuiltIn(v.id().asPrincipal(), v.roleDescriptor()))
             .toArray(ServiceAccountInfo[]::new);
         listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
     }

@@ -19,7 +19,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,47 +35,59 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected GetServiceAccountResponse createTestInstance() {
-        final String principal = randomPrincipal();
-        return new GetServiceAccountResponse(
-            randomBoolean()
-                ? new ServiceAccountInfo[] { new ServiceAccountInfo(principal, getRoleDescriptorFor(principal)) }
-                : new ServiceAccountInfo[0]
-        );
+        return new GetServiceAccountResponse(randomServiceAccountInfos(randomIntBetween(0, 3)));
     }
 
     @Override
     protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) {
-        if (instance.getServiceAccountInfos().length == 0) {
-            final String principal = randomPrincipal();
-            return new GetServiceAccountResponse(
-                new ServiceAccountInfo[] { new ServiceAccountInfo(principal, getRoleDescriptorFor(principal)) }
-            );
-        } else {
-            return new GetServiceAccountResponse(new ServiceAccountInfo[0]);
-        }
+        final int length = instance.getServiceAccountInfos().length;
+        return new GetServiceAccountResponse(randomServiceAccountInfos(randomValueOtherThan(length, () -> randomIntBetween(0, 3))));
+    }
+
+    public void testToXContentReportsEveryAccountWithHowItIsManaged() throws IOException {
+        final RoleDescriptor roleDescriptor = getRoleDescriptorFor("elastic/fleet-server");
+        final GetServiceAccountResponse response = new GetServiceAccountResponse(
+            new ServiceAccountInfo[] {
+                new ServiceAccountInfo.BuiltIn("elastic/fleet-server", roleDescriptor),
+                new ServiceAccountInfo.UserManaged("my-team/worker", List.of("role-a", "role-b"), false) }
+        );
+
+        final Map<String, Object> responseMap = toMap(response);
+
+        assertThat(responseMap.size(), equalTo(2));
+        final Map<String, Object> builtIn = fragment(responseMap, "elastic/fleet-server");
+        assertThat(builtIn.get("managed_by"), equalTo("elastic"));
+        assertRoleDescriptorEquals(builtIn, roleDescriptor);
+        assertThat(
+            fragment(responseMap, "my-team/worker"),
+            equalTo(Map.of("managed_by", "user", "roles", List.of("role-a", "role-b"), "enabled", false))
+        );
+    }
+
+    public void testToXContentOfNoAccountsIsAnEmptyObject() throws IOException {
+        assertThat(toMap(new GetServiceAccountResponse(new ServiceAccountInfo[0])), anEmptyMap());
+    }
+
+    private ServiceAccountInfo[] randomServiceAccountInfos(int count) {
+        // Principals are distinct because a response renders each account as a field named for its principal.
+        return IntStream.range(0, count).mapToObj(i -> randomServiceAccountInfo("ns" + i + "/svc" + i)).toArray(ServiceAccountInfo[]::new);
+    }
+
+    private ServiceAccountInfo randomServiceAccountInfo(String principal) {
+        return randomBoolean()
+            ? new ServiceAccountInfo.BuiltIn(principal, getRoleDescriptorFor(principal))
+            : new ServiceAccountInfo.UserManaged(principal, randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)), randomBoolean());
+    }
+
+    private static Map<String, Object> toMap(GetServiceAccountResponse response) throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
     @SuppressWarnings("unchecked")
-    public void testToXContent() throws IOException {
-        final GetServiceAccountResponse response = createTestInstance();
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
-            .v2();
-        final ServiceAccountInfo[] serviceAccountInfos = response.getServiceAccountInfos();
-        if (serviceAccountInfos.length == 0) {
-            assertThat(responseMap, anEmptyMap());
-        } else {
-            assertThat(responseMap.size(), equalTo(serviceAccountInfos.length));
-            for (int i = 0; i < serviceAccountInfos.length - 1; i++) {
-                final String key = serviceAccountInfos[i].getPrincipal();
-                assertRoleDescriptorEquals((Map<String, Object>) responseMap.get(key), serviceAccountInfos[i].getRoleDescriptor());
-            }
-        }
-    }
-
-    private String randomPrincipal() {
-        return randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
+    private static Map<String, Object> fragment(Map<String, Object> responseMap, String principal) {
+        return (Map<String, Object>) responseMap.get(principal);
     }
 
     private RoleDescriptor getRoleDescriptorFor(String name) {

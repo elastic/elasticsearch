@@ -44,7 +44,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
         assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(4));
         assertThat(
-            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::getPrincipal).toList(),
+            Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::principal).toList(),
             containsInAnyOrder("elastic/auto-ops", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
         );
 
@@ -53,7 +53,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         transportGetServiceAccountAction.doExecute(mock(Task.class), request2, future2);
         final GetServiceAccountResponse getServiceAccountResponse2 = future2.actionGet();
         assertThat(getServiceAccountResponse2.getServiceAccountInfos().length, equalTo(1));
-        assertThat(getServiceAccountResponse2.getServiceAccountInfos()[0].getPrincipal(), equalTo("elastic/fleet-server"));
+        assertThat(getServiceAccountResponse2.getServiceAccountInfos()[0].principal(), equalTo("elastic/fleet-server"));
 
         final GetServiceAccountRequest request3 = randomFrom(
             new GetServiceAccountRequest("foo", null),

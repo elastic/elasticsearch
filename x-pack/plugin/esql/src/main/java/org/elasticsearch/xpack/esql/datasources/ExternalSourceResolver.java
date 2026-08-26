@@ -1435,6 +1435,7 @@ public class ExternalSourceResolver {
                 // FAIL_FAST aborts the read cold before it can cache, so both keep the row count.
                 boolean dropPinnedRowCount = resolvesToSkipRow(firstMeta.sourceType(), config);
                 Map<String, Object> aggregatedStats = aggregateFileStatistics(
+                    fileList,
                     allMetadata,
                     perFileTypes,
                     reconciledTypes,
@@ -1681,6 +1682,7 @@ public class ExternalSourceResolver {
      */
     @Nullable
     static Map<String, Object> aggregateFileStatistics(
+        FileList listing,
         Map<StoragePath, SourceMetadata> allMetadata,
         Map<StoragePath, Map<String, DataType>> perFileTypes,
         Map<String, DataType> reconciledTypes,
@@ -1688,21 +1690,27 @@ public class ExternalSourceResolver {
         boolean dropPinnedRowCount,
         boolean implicitNullsForAbsentColumn
     ) {
-        List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
-        for (Map.Entry<StoragePath, SourceMetadata> entry : allMetadata.entrySet()) {
-            Map<String, Object> flat = flatStatsOf(entry.getValue());
+        // Fold by listing POSITION, not by unique path. A comma-separated list can name the same file twice, and
+        // the scan reads it twice (FileSplitProvider enumerates positionally, and glob expansion preserves
+        // duplicates), so summing one copy per unique path would undercount warm against a cold scan of the same
+        // query. The per-path metadata is identical for a repeated path, so the same entry simply folds twice.
+        List<Map<String, Object>> perFileFlatStats = new ArrayList<>(listing.fileCount());
+        for (int i = 0; i < listing.fileCount(); i++) {
+            StoragePath path = listing.path(i);
+            SourceMetadata meta = allMetadata.get(path);
+            Map<String, Object> flat = meta == null ? null : flatStatsOf(meta);
             if (flat == null) {
                 // At least one file has no statistics — cannot produce accurate global stats. Name the
                 // first offender: an all-or-nothing miss over hundreds of files is otherwise
                 // undiagnosable (the 20-minute warm re-scan with no trace of WHICH file broke it).
-                LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", entry.getKey());
+                LOGGER.debug("multi-file stats aggregate incomplete: [{}] has no statistics", path);
                 return null;
             }
-            Map<String, DataType> fileTypes = perFileTypes.get(entry.getKey());
+            Map<String, DataType> fileTypes = perFileTypes.get(path);
             if (fileTypes != null) {
                 flat = SourceStatisticsSerializer.normalizeStatsToReconciled(flat, fileTypes, reconciledTypes);
             }
-            Set<String> pinnedColumns = perFilePinnedColumns.get(entry.getKey());
+            Set<String> pinnedColumns = perFilePinnedColumns.get(path);
             if (pinnedColumns != null && pinnedColumns.isEmpty() == false) {
                 flat = SourceStatisticsSerializer.overlayPinnedColumnsOnStats(flat, pinnedColumns, dropPinnedRowCount);
             }

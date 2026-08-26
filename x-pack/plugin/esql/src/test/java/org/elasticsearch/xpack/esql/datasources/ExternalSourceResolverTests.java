@@ -463,6 +463,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<StoragePath, Set<String>> perFilePinnedColumns = Map.of(pathA, Set.of("val"));
 
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            listingOf(pathA, pathB),
             allMetadata,
             perFileTypes,
             reconciledTypes,
@@ -517,6 +518,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<StoragePath, Set<String>> perFilePinnedColumns = Map.of(pathA, Set.of("val"));
 
         Map<String, Object> agg = ExternalSourceResolver.aggregateFileStatistics(
+            listingOf(pathA, pathB),
             allMetadata,
             perFileTypes,
             reconciledTypes,
@@ -4911,4 +4913,98 @@ public class ExternalSourceResolverTests extends ESTestCase {
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, settings);
     }
 
+    /**
+     * A comma-separated list can name the same file twice, and the scan reads it twice — it enumerates the listing by
+     * position. The warm aggregate must agree: folding one copy per unique path returns a different number for the
+     * same query depending only on cache state.
+     */
+    public void testDuplicateListingPathFoldsOncePerPosition() {
+        StoragePath path = StoragePath.of("file:///tmp/hits.csv");
+        List<Attribute> schema = List.of(new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.TRUE, null, false));
+        Map<String, Object> flat = new HashMap<>();
+        flat.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
+
+        Map<StoragePath, SourceMetadata> allMetadata = new HashMap<>();
+        allMetadata.put(path, new SimpleSourceMetadata(schema, "csv", path.toString(), null, null, flat, null));
+        Map<StoragePath, Map<String, DataType>> perFileTypes = Map.of(path, Map.of("id", DataType.LONG));
+
+        Map<String, Object> once = ExternalSourceResolver.aggregateFileStatistics(
+            listingOf(path),
+            allMetadata,
+            perFileTypes,
+            Map.of("id", DataType.LONG),
+            Map.of(),
+            false,
+            false
+        );
+        Map<String, Object> twice = ExternalSourceResolver.aggregateFileStatistics(
+            listingOf(path, path),
+            allMetadata,
+            perFileTypes,
+            Map.of("id", DataType.LONG),
+            Map.of(),
+            false,
+            false
+        );
+
+        assertEquals(10L, ((Number) once.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue());
+        assertEquals(
+            "a path listed twice is scanned twice, so it must fold twice",
+            20L,
+            ((Number) twice.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+        );
+    }
+
+    /**
+     * A listing over {@code paths} in order, duplicates included. Only the positional accessors matter here: the
+     * aggregate folds by listing POSITION, which is what makes a repeated path count twice, as the scan does.
+     */
+    private static FileList listingOf(StoragePath... paths) {
+        return new FileList() {
+            @Override
+            public int fileCount() {
+                return paths.length;
+            }
+
+            @Override
+            public StoragePath path(int i) {
+                return paths[i];
+            }
+
+            @Override
+            public long size(int i) {
+                return 0;
+            }
+
+            @Override
+            public long lastModifiedMillis(int i) {
+                return 0;
+            }
+
+            @Override
+            public String originalPattern() {
+                return "test-listing";
+            }
+
+            @Override
+            public PartitionMetadata partitionMetadata() {
+                return null;
+            }
+
+            @Override
+            public boolean isResolved() {
+                return true;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return paths.length == 0;
+            }
+
+            @Override
+            public long estimatedBytes() {
+                return 0;
+            }
+        };
+    }
 }

@@ -678,6 +678,48 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testDatasetAggregateRefusesForeignShapedContributions() throws Exception {
+        // The multi-file rail is the way around the per-file gate if it is left shape-blind: a glob promise summing
+        // per-file counts would sum counts harvested by a DIFFERENT read. Same rule as the per-file tier — the
+        // shape this resolution expects for that path, or the FAIL_FAST licence, or no fold at all.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String pathA = "file:///data/a.ndjson";
+            String pathB = "file:///data/b.ndjson";
+            long mtime = 1000L;
+            SchemaCacheKey key = datasetKey();
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, mtime, pathB, mtime),
+                2,
+                "fp",
+                Map.of(pathA, "shape-promised", pathB, "shape-promised"),
+                "ndjson",
+                "file:///data/*.ndjson"
+            );
+
+            service.reconcileSourceStatsFromContributions(
+                Map.of(
+                    pathA,
+                    List.of(wholeFileWithShape(mtime, "fp", "shape-foreign", 40L)),
+                    pathB,
+                    List.of(wholeFileWithShape(mtime, "fp", "shape-foreign", 60L))
+                )
+            );
+
+            assertNull("a promise must not be fulfilled by counts harvested under another read shape", service.getDatasetAggregate(key));
+        }
+    }
+
+    /** A whole-file contribution carrying an explicit read shape. */
+    private static Map<String, Object> wholeFileWithShape(long mtime, String fingerprint, String readShape, long rowCount) {
+        Map<String, Object> raw = new LinkedHashMap<>();
+        raw.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+        raw.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+        raw.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
+        raw.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
+        return raw;
+    }
+
     public void testReconcileDiscriminatesOnReadShape() throws Exception {
         // The defect this closes: a declared dataset and an inferred one over the SAME file under the SAME options
         // address one entry, so under a lenient error policy — where a declared coercion drops a record the inferred
@@ -1963,7 +2005,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             for (int i = 0; i < overBudget; i++) {
                 paths.put("s3://bucket/data/f" + i + ".csv", (long) i);
             }
-            service.registerPendingDatasetAggregate(datasetKey(), paths, overBudget, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(datasetKey(), paths, overBudget, "fp", Map.of(), "csv", "s3://bucket/data/*.csv");
             assertEquals("an over-budget glob registers no promise", 0, service.usageStats().get("dataset_aggregate.pending"));
         }
     }
@@ -1985,7 +2027,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     "csv",
                     Map.of("format", "csv")
                 );
-                service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", "csv", "s3://bucket/g" + g + "/*.csv");
+                service.registerPendingDatasetAggregate(key, paths, pathsPerGlob, "fp", Map.of(), "csv", "s3://bucket/g" + g + "/*.csv");
             }
             int pending = (Integer) service.usageStats().get("dataset_aggregate.pending");
             // Well under the count bound (64), so the path budget is what evicted, deterministically:
@@ -2030,7 +2072,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, 1000L, pathB, 2000L),
+                2,
+                "fp",
+                Map.of(),
+                "csv",
+                "s3://bucket/data/*.csv"
+            );
             assertNull("promise alone must not serve", service.getDatasetAggregate(key));
 
             service.reconcileSourceStatsFromContributions(
@@ -2053,7 +2103,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             seedSchemaCache(service, SchemaCacheKey.build(pathA, mtime, ".ndjson", Map.of("format", "ndjson")), pathA, "fp");
             seedSchemaCache(service, SchemaCacheKey.build(pathB, mtime, ".ndjson", Map.of("format", "ndjson")), pathB, "fp");
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, mtime, pathB, mtime), 2, "fp", "ndjson", "file:///data/*.ndjson");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, mtime, pathB, mtime),
+                2,
+                "fp",
+                Map.of(),
+                "ndjson",
+                "file:///data/*.ndjson"
+            );
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(
@@ -2081,7 +2139,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathB = "file:///data/b.ndjson";
             long mtime = 1000L;
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, mtime, pathB, mtime), 2, "fp", "ndjson", "file:///data/*.ndjson");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, mtime, pathB, mtime),
+                2,
+                "fp",
+                Map.of(),
+                "ndjson",
+                "file:///data/*.ndjson"
+            );
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(
@@ -2106,7 +2172,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, 1000L, pathB, 2000L),
+                2,
+                "fp",
+                Map.of(),
+                "csv",
+                "s3://bucket/data/*.csv"
+            );
 
             Map<String, Object> poison = new LinkedHashMap<>();
             poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
@@ -2125,7 +2199,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, 1000L, pathB, 2000L),
+                2,
+                "fp",
+                Map.of(),
+                "csv",
+                "s3://bucket/data/*.csv"
+            );
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2001L, "fp", 200L)))
@@ -2140,7 +2222,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, 1000L, pathB, 2000L),
+                2,
+                "fp",
+                Map.of(),
+                "csv",
+                "s3://bucket/data/*.csv"
+            );
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "other-fp", 200L)))
@@ -2157,7 +2247,15 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(
+                key,
+                Map.of(pathA, 1000L, pathB, 2000L),
+                2,
+                "fp",
+                Map.of(),
+                "csv",
+                "s3://bucket/data/*.csv"
+            );
 
             service.reconcileSourceStatsFromContributions(Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L))));
 
@@ -2173,10 +2271,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathB = "s3://bucket/data/b.csv";
             Map<String, Long> paths = Map.of(pathA, 1000L, pathB, 2000L);
             SchemaCacheKey oldest = SchemaCacheKey.forDatasetAggregate("g0", new FileSetFingerprint(0, 0), "csv", Map.of());
-            service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", "csv", "g0");
+            service.registerPendingDatasetAggregate(oldest, paths, 2, "fp", Map.of(), "csv", "g0");
             for (int i = 1; i <= 64; i++) {
                 SchemaCacheKey k = SchemaCacheKey.forDatasetAggregate("g" + i, new FileSetFingerprint(i, i), "csv", Map.of());
-                service.registerPendingDatasetAggregate(k, paths, 2, "fp", "csv", "g" + i);
+                service.registerPendingDatasetAggregate(k, paths, 2, "fp", Map.of(), "csv", "g" + i);
             }
 
             service.reconcileSourceStatsFromContributions(
@@ -2197,7 +2295,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String pathA = "s3://bucket/data/a.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L), 1, "fp", "csv", "s3://bucket/data/*.csv");
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L), 1, "fp", Map.of(), "csv", "s3://bucket/data/*.csv");
             service.reconcileSourceStatsFromContributions(Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L))));
             assertNull(service.getDatasetAggregate(key));
         }
@@ -2213,7 +2311,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
             // 3 listed files (b.csv listed twice) but only 2 unique paths.
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 3, "fp", "csv", "dup-glob");
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 3, "fp", Map.of(), "csv", "dup-glob");
 
             service.reconcileSourceStatsFromContributions(
                 Map.of(pathA, List.of(wholeFileStats(1000L, "fp", 100L)), pathB, List.of(wholeFileStats(2000L, "fp", 200L)))
@@ -2232,7 +2330,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             String pathA = "s3://bucket/data/a.csv";
             String pathB = "s3://bucket/data/b.csv";
             SchemaCacheKey key = datasetKey();
-            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", "csv", "slow-scan-glob");
+            service.registerPendingDatasetAggregate(key, Map.of(pathA, 1000L, pathB, 2000L), 2, "fp", Map.of(), "csv", "slow-scan-glob");
 
             Thread.sleep(200); // stand in for a multi-minute cold scan between register and fulfill
 

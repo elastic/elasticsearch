@@ -1178,6 +1178,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             SchemaCacheKey duplicatedKey = resolver.datasetAggregateKey(duplicated, Map.of());
             assertNotNull("the key factory itself does not police duplicates", duplicatedKey);
             Map<String, Object> served = resolver.applyDatasetAggregate(
+                null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(duplicatedKey, null),
                 aggregated,
                 duplicated,
@@ -1193,6 +1194,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             SchemaCacheKey distinctKey = resolver.datasetAggregateKey(distinct, Map.of());
             resolver.applyDatasetAggregate(
+                null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(distinctKey, null),
                 aggregated,
                 distinct,
@@ -1223,6 +1225,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             // First warm resolve, prefetch missed (null): the successful merge writes through.
             resolver.applyDatasetAggregate(
+                null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
                 Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L),
                 distinct,
@@ -1236,6 +1239,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             // Second warm resolve, prefetch HIT (non-null): the write-through is skipped, so the probe
             // count (999) is NOT persisted — the memoized value stays as first written.
             Map<String, Object> served = resolver.applyDatasetAggregate(
+                null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(key, memoized),
                 Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 999L),
                 distinct,
@@ -1269,6 +1273,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             // Needed (per-file merge null) AND present (prefetch hit) -> one hit, no miss.
             resolver.applyDatasetAggregate(
+                null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(key, Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L)),
                 null,
                 distinct,
@@ -1280,6 +1285,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             // Needed AND absent (prefetch miss) -> one miss, hit unchanged.
             resolver.applyDatasetAggregate(
+                null,
                 new ExternalSourceResolver.DatasetAggregatePrefetch(key, null),
                 null,
                 distinct,

@@ -95,6 +95,12 @@ public class ExternalSourceCacheService implements Closeable {
         SchemaCacheKey datasetKey,
         Map<String, Long> pathToMtimeMillis,
         String configFingerprint,
+        /**
+         * The read shape this resolution expects PER PATH, or empty when it could not say. Per path rather than one
+         * value for the glob: the files of a glob are not necessarily read alike, so a single shape taken from a
+         * reference file would refuse every honest contribution from its siblings.
+         */
+        Map<String, String> pathToReadShape,
         String sourceType,
         String location,
         long registeredAtNanos
@@ -311,6 +317,7 @@ public class ExternalSourceCacheService implements Closeable {
         Map<String, Long> pathToMtimeMillis,
         int expectedFileCount,
         String configFingerprint,
+        Map<String, String> pathToReadShape,
         String sourceType,
         String location
     ) {
@@ -330,6 +337,7 @@ public class ExternalSourceCacheService implements Closeable {
             datasetKey,
             Map.copyOf(pathToMtimeMillis),
             configFingerprint,
+            pathToReadShape == null ? Map.of() : Map.copyOf(pathToReadShape),
             sourceType,
             location,
             System.nanoTime()
@@ -556,7 +564,13 @@ public class ExternalSourceCacheService implements Closeable {
         // aggregate (sumIfFullyCovered), which reads row_count/mtime/fingerprint — never per-column
         // min/max. If GA extends the dataset aggregate to MIN/MAX, this fold must coerce like the
         // committed path (or the two folds must share the coercion) before per-column keys are served.
-        return foldStripes(delta.lastStripeOrdinal(), k -> delta.stripes().get(k), delta.mtimeMillis(), delta.fingerprint());
+        return foldStripes(
+            delta.lastStripeOrdinal(),
+            k -> delta.stripes().get(k),
+            delta.mtimeMillis(),
+            delta.fingerprint(),
+            delta.readShape()
+        );
     }
 
     /**
@@ -571,7 +585,8 @@ public class ExternalSourceCacheService implements Closeable {
         long lastOrdinal,
         LongFunction<Map<String, Object>> stripeAt,
         long mtimeMillis,
-        String fingerprint
+        String fingerprint,
+        String readShape
     ) {
         if (lastOrdinal < 0) {
             return null;
@@ -584,7 +599,7 @@ public class ExternalSourceCacheService implements Closeable {
             }
             stripes.add(stripe);
         }
-        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint);
+        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readShape);
     }
 
     /**
@@ -598,7 +613,12 @@ public class ExternalSourceCacheService implements Closeable {
      * so it safe-misses, matching the cross-file text merge in {@code ExternalSourceResolver}.
      */
     @Nullable
-    private static Map<String, Object> mergeStripesAndRekey(List<Map<String, Object>> stripes, long mtimeMillis, String fingerprint) {
+    private static Map<String, Object> mergeStripesAndRekey(
+        List<Map<String, Object>> stripes,
+        long mtimeMillis,
+        String fingerprint,
+        String readShape
+    ) {
         Map<String, Object> whole = stripes.size() == 1
             ? new HashMap<>(stripes.get(0))
             : SourceStatisticsSerializer.mergeStatistics(stripes, false);
@@ -608,6 +628,13 @@ public class ExternalSourceCacheService implements Closeable {
             }
             if (fingerprint != null) {
                 whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            }
+            // The merge keeps only recognised _stats.* keys, so the shape has to be re-attached here like the mtime
+            // and the fingerprint. Losing it turns a folded whole-file result into a shapeless contribution, which
+            // every identity gate downstream then treats as "unknown" — the stripe rail's counts stop matching the
+            // very entry they came from.
+            if (readShape != null && readShape.isEmpty() == false) {
+                whole.put(ExternalStats.READ_SHAPE_FINGERPRINT_KEY, readShape);
             }
         }
         return whole;
@@ -637,6 +664,18 @@ public class ExternalSourceCacheService implements Closeable {
             }
             if (Objects.equals(stats.get(ExternalStats.CONFIG_FINGERPRINT_KEY), pending.configFingerprint()) == false) {
                 return null; // harvested under a different row-interpretation config — not this promise's stats
+            }
+            // Same rule as the per-file tier: a count harvested under a different READ SHAPE measured a different set
+            // of rows. Without it the multi-file rail is a way around that gate — a declared glob could be handed the
+            // sum of an inferred read's counts. Compared per path, and only where this resolution recorded what it
+            // expects for that path; an unrecorded path falls back to the config-level check alone.
+            String expectedShape = pending.pathToReadShape().get(expected.getKey());
+            if (expectedShape != null) {
+                Object contributionShape = stats.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+                boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_SHAPE_INDEPENDENT_KEY));
+                if (Objects.equals(contributionShape, expectedShape) == false && licensed == false) {
+                    return null;
+                }
             }
             sum += ((Number) rowCount).longValue();
         }
@@ -987,7 +1026,7 @@ public class ExternalSourceCacheService implements Closeable {
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
         // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey
         // is an idempotent overwrite.
-        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint);
+        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint, chain.isEmpty() ? null : chain.get(0).readShape());
     }
 
     /**
@@ -1253,7 +1292,7 @@ public class ExternalSourceCacheService implements Closeable {
                 return stripeMap;
             }
             return null; // ordinal missing — knowledge incomplete, keep accumulating
-        }, delta.mtimeMillis(), delta.fingerprint());
+        }, delta.mtimeMillis(), delta.fingerprint(), delta.readShape());
     }
 
     /**

@@ -853,7 +853,14 @@ public class ExternalSourceResolver {
                 DatasetAggregatePrefetch datasetPrefetch = prefetchDatasetAggregate(listing, config, cacheable);
                 ActionListener<Map<String, Object>> statsListener = ActionListener.wrap(aggregatedStats -> {
                     try {
-                        Map<String, Object> effective = applyDatasetAggregate(datasetPrefetch, aggregatedStats, listing, base, config);
+                        Map<String, Object> effective = applyDatasetAggregate(
+                            null,
+                            datasetPrefetch,
+                            aggregatedStats,
+                            listing,
+                            base,
+                            config
+                        );
                         listener.onResponse(finishFirstFileWins(listing, applyFirstFileWinsAggregatedStats(base, effective)));
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -1324,6 +1331,7 @@ public class ExternalSourceResolver {
      */
     @Nullable
     Map<String, Object> applyDatasetAggregate(
+        @Nullable Map<String, String> pathToReadShape,
         DatasetAggregatePrefetch prefetch,
         @Nullable Map<String, Object> aggregatedStats,
         FileList listing,
@@ -1376,6 +1384,7 @@ public class ExternalSourceResolver {
             pathToMtime,
             listing.fileCount(),
             fingerprint,
+            pathToReadShape,
             referenceMeta.sourceType(),
             listing.originalPattern()
         );
@@ -1467,7 +1476,15 @@ public class ExternalSourceResolver {
                     dropPinnedRowCount,
                     foldsAbsentColumnAsImplicitNull(firstMeta.sourceType())
                 );
-                aggregatedStats = applyDatasetAggregate(datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
+                Map<String, String> pathToReadShape = new HashMap<>(allMetadata.size());
+                for (Map.Entry<StoragePath, SourceMetadata> e : allMetadata.entrySet()) {
+                    Map<String, Object> meta = e.getValue().sourceMetadata();
+                    Object shape = meta == null ? null : meta.get(ExternalStats.READ_SHAPE_FINGERPRINT_KEY);
+                    if (shape instanceof String str) {
+                        pathToReadShape.put(e.getKey().toString(), str);
+                    }
+                }
+                aggregatedStats = applyDatasetAggregate(pathToReadShape, datasetPrefetch, aggregatedStats, fileList, firstMeta, config);
                 ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
                 // Mirror the FFW invariants: file count enables canSkipSplitDiscovery; partial-stats

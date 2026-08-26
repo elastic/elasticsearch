@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.snapshots;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 public class StatelessSnapshotResiliencyWithEnabledTests extends StatelessSnapshotResiliencyTests {
 
@@ -32,6 +33,7 @@ public class StatelessSnapshotResiliencyWithEnabledTests extends StatelessSnapsh
                         StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.ENABLED
                     )
                     .put(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), randomBoolean())
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
                     .build();
             }
         };

@@ -129,7 +129,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     protected TestClusterNodes testClusterNodes;
 
-    private final boolean monotonicSnapshotEndTime = randomBoolean();
+    protected final boolean monotonicSnapshotEndTime = randomBoolean();
 
     protected Path tempDir;
 

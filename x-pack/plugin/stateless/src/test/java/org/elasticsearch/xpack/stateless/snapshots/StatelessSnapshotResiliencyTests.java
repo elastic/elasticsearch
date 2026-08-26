@@ -89,6 +89,7 @@ import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes
 import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
 import org.elasticsearch.snapshots.SnapshotResiliencyTests;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -204,6 +205,12 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             ThreadPool.Names.REFRESH
         );
 
+        private final boolean monotonicSnapshotEndTime;
+
+        StatelessDeterministicTaskQueue(boolean monotonicSnapshotEndTime) {
+            this.monotonicSnapshotEndTime = monotonicSnapshotEndTime;
+        }
+
         @Override
         public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
             return new StatelessDeterministicThreadPool(runnableWrapper);
@@ -234,7 +241,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 // Schedule a task immediately if the delay is within 10ms. A current known case for this is to schedule
                 // translog upload right away so that indexing operations, which wait for translog upload, can complete
                 // with `runAllRunnableTasks` without advancing time.
-                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0 ? TimeValue.ZERO : delay;
+                // Exception: when monotonic snapshot end times are enabled, SnapshotFinalization reschedules itself by
+                // 1ms to wait for the clock to advance; collapsing that delay to zero would cause an infinite spin loop.
+                final boolean isSnapshotFinalization = command.getClass().getName().equals(
+                    SnapshotsService.class.getName() + "$SnapshotFinalization"
+                );
+                final var actualDelay = delay.compareTo(SHORT_TRANSLOG_FLUSH_INTERVAL) <= 0
+                    && (monotonicSnapshotEndTime == false || isSnapshotFinalization == false) ? TimeValue.ZERO : delay;
                 return super.schedule(command, actualDelay, executor);
             }
         }
@@ -242,7 +255,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
     @Override
     protected DeterministicTaskQueue createDeterministicTaskQueue() {
-        return new StatelessDeterministicTaskQueue();
+        return new StatelessDeterministicTaskQueue(monotonicSnapshotEndTime);
     }
 
     @Override
@@ -273,7 +286,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             deterministicTaskQueue,
             transportInterceptorFactory,
             expectedWarnings -> assertWarnings(expectedWarnings)
-        );
+        ) {
+            @Override
+            protected Settings nodeSettings(DiscoveryNode node) {
+                return Settings.builder()
+                    .put(super.nodeSettings(node))
+                    .put(SnapshotsService.SNAPSHOT_MONOTONIC_END_TIME_SETTING.getKey(), monotonicSnapshotEndTime)
+                    .build();
+            }
+        };
         startCluster();
     }
 

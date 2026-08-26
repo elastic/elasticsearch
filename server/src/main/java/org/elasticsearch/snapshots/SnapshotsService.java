@@ -926,6 +926,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         private final Snapshot snapshot;
         private final Metadata metadata;
         private final RepositoryData repositoryData;
+
         SnapshotFinalization(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
             this.snapshot = snapshot;
             this.metadata = metadata;
@@ -942,7 +943,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // to be strictly greater than every previously recorded snapshot end time in the repository.
             // If the required end time is in the future (i.e. a previous snapshot ended during  the same millisecond),
             // this task reschedules itself until the clock catches up.
-            final long wallClock = threadPool.absoluteTimeInMillis();
             final long endTimeMillis;
             if (monotonicEndTime) {
                 final long prevMaxEndTime = repositoryData.getSnapshotIds()
@@ -953,6 +953,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     .filter(t -> t >= 0)
                     .max()
                     .orElse(-1L);
+                final long wallClock = threadPool.absoluteTimeInMillis();
                 endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
                 final long waitMillis = endTimeMillis - wallClock;
                 if (waitMillis > 0) {
@@ -961,7 +962,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     return;
                 }
             } else {
-                endTimeMillis = wallClock;
+                endTimeMillis = threadPool.absoluteTimeInMillis();
             }
 
             SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);

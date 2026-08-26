@@ -679,17 +679,10 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var blobName = randomIdentifier();
         final int blobSize = randomIntBetween(1, 1024);
 
-        assertEquals(
-            RestStatus.OK,
-            executeMultipartUpload(handler, bucket, blobName, randomBytesReference(blobSize), null).restStatus()
-        );
+        assertEquals(RestStatus.OK, executeMultipartUpload(handler, bucket, blobName, randomBytesReference(blobSize), null).restStatus());
 
         // Without a fields restriction every standard field is present
-        final var fullResponse = handleRequest(
-            handler,
-            "GET",
-            "/storage/v1/b/" + bucket + "/o" + generateQueryString("prefix", blobName)
-        );
+        final var fullResponse = handleRequest(handler, "GET", "/storage/v1/b/" + bucket + "/o" + generateQueryString("prefix", blobName));
         assertEquals(RestStatus.OK, fullResponse.restStatus());
         final var fullJson = XContentTestUtils.createJsonMapView(new ByteArrayInputStream(BytesReference.toBytes(fullResponse.body())));
         final var fullItem = (Map<?, ?>) ((List<?>) fullJson.get("items")).get(0);
@@ -701,7 +694,9 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var restrictedResponse = handleRequest(
             handler,
             "GET",
-            "/storage/v1/b/" + bucket + "/o"
+            "/storage/v1/b/"
+                + bucket
+                + "/o"
                 + generateQueryString("prefix", blobName, "fields", "items/name,items/size,nextPageToken,prefixes")
         );
         assertEquals(RestStatus.OK, restrictedResponse.restStatus());

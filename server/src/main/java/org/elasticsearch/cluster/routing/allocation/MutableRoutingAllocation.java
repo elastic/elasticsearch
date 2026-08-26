@@ -121,6 +121,9 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
+        // The proportions are derived from the RoutingNodes and the ClusterInfo,
+        // so they must be recomputed for the new ClusterInfo.
+        invalidateNodeMaxShardWriteLoadProportion();
     }
 
     /**
@@ -178,5 +181,26 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         assert isReconciling == false : "already reconciling";
         isReconciling = true;
         return () -> isReconciling = false;
+    }
+
+    /**
+     * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any
+     * cached max write-load proportion values for the affected node(s)
+     * <p>
+     * Note that there are other transitions which would affect this number
+     * (e.g., shard failures, relocation failures), but they don't occur in
+     * desired balance computation or reconciliation, so we don't handle them.
+     */
+    private class MaxWriteLoadProportionCacheInvalidator implements RoutingChangesObserver {
+
+        @Override
+        public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+        }
+
+        @Override
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+            invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
+        }
     }
 }

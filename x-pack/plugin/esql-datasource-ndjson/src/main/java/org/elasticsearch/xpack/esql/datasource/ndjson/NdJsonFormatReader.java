@@ -121,10 +121,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final String readConfig;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
-    private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
+    private final NdJsonReaderCounters counters;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of(), "");
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null, "", Map.of(), "", null);
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -140,7 +140,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         DateFormatter datetimeFormatter,
         String canonicalConfig,
         Map<String, String> declaredDateFormats,
-        String readConfig
+        String readConfig,
+        NdJsonReaderCounters sharedCounters
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
@@ -151,6 +152,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this.canonicalConfig = canonicalConfig;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.readConfig = readConfig == null ? "" : readConfig;
+        this.counters = sharedCounters != null ? sharedCounters : new NdJsonReaderCounters();
     }
 
     @Override
@@ -164,7 +166,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             declaredDateFormats,
-            readConfig
+            readConfig,
+            counters
         );
     }
 
@@ -182,7 +185,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             declaredDateFormats,
-            newReadConfig
+            newReadConfig,
+            // Shares this reader's counters: the status envelope is snapshotted from the factory's shared reader,
+            // and this wither runs at the per-file seam, so a copy with fresh counters accumulates where nobody
+            // reads. The CSV twin had the same defect and it surfaced as a zero read time in query metrics.
+            counters
         );
     }
 
@@ -200,7 +207,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             datetimeFormatter,
             canonicalConfig,
             physicalNameToPattern,
-            readConfig
+            readConfig,
+            counters
         );
     }
 
@@ -226,7 +234,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             newDatetimeFormatter,
             canon,
             declaredDateFormats,
-            readConfig
+            readConfig,
+            counters
         );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }

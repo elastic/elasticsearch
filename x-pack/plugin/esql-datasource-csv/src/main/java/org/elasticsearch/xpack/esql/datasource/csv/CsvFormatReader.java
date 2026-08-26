@@ -558,6 +558,43 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Map<String, String> declaredDateFormats,
         boolean declaredProvenanceBinding
     ) {
+        this(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            null
+        );
+    }
+
+    /**
+     * As above, but adopting an existing counters instance rather than starting fresh ones. Used by the per-file
+     * withers: the operator snapshots its status envelope from the factory's shared reader, so a per-file copy that
+     * started its own counters would accumulate where nobody reads, and the reported figures would be zero.
+     */
+    private CsvFormatReader(
+        BlockFactory blockFactory,
+        CsvFormatOptions options,
+        String format,
+        List<String> extensions,
+        List<Attribute> resolvedSchema,
+        int schemaSampleSize,
+        ErrorPolicy effectivePolicy,
+        String canonicalConfig,
+        String readConfig,
+        boolean directBlockEnabled,
+        Map<String, String> declaredDateFormats,
+        boolean declaredProvenanceBinding,
+        CsvReaderCounters sharedCounters
+    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
@@ -570,7 +607,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.directBlockEnabled = directBlockEnabled;
         this.declaredDateFormats = declaredDateFormats != null ? Map.copyOf(declaredDateFormats) : Map.of();
         this.declaredProvenanceBinding = declaredProvenanceBinding;
-        this.counters = new CsvReaderCounters(format);
+        this.counters = sharedCounters != null ? sharedCounters : new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -1068,6 +1105,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (newReadConfig == null || newReadConfig.equals(readConfig)) {
             return this;
         }
+        // Shares this reader's counters. The status envelope is snapshotted from the factory's shared reader, but
+        // this wither runs at the per-file seam, so the copy is the instance that actually reads. Starting fresh
+        // counters leaves the reported read time at zero for every query — telemetry goes quiet, not the data.
         return new CsvFormatReader(
             blockFactory,
             options,
@@ -1080,7 +1120,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             newReadConfig,
             directBlockEnabled,
             declaredDateFormats,
-            declaredProvenanceBinding
+            declaredProvenanceBinding,
+            counters
         );
     }
 

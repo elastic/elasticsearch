@@ -1076,6 +1076,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
 
+    public void testUsesMultivaluedBinaryDocValues() throws IOException {
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        KeywordFieldMapper.KeywordFieldType columnarMultivalue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            columnarSettings,
+            fieldMapping(b -> b.field("type", "keyword"))
+        ).fieldType("field");
+        assertTrue(columnarMultivalue.usesMultivaluedBinaryDocValues());
+
+        KeywordFieldMapper.KeywordFieldType columnarSingleValue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            columnarSettings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
+        ).fieldType("field");
+        assertFalse(columnarSingleValue.usesMultivaluedBinaryDocValues());
+
+        KeywordFieldMapper.KeywordFieldType standardMultivalue = (KeywordFieldMapper.KeywordFieldType) createMapperService(
+            fieldMapping(b -> b.field("type", "keyword"))
+        ).fieldType("field");
+        assertFalse(standardMultivalue.usesMultivaluedBinaryDocValues());
+    }
+
     /**
      * Keyword high-cardinality doc values have used the SeparateCount format since 9.4.0. This test pins that contract for the
      * current index version.

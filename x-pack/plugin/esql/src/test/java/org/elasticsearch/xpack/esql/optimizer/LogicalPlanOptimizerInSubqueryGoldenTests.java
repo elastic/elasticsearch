@@ -754,4 +754,220 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                  == COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
             """, STAGES);
     }
+
+    // -- IN subquery inside EVAL --
+
+    public void testInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testNotInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testConstantInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = 10001 IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryWithMultipleFieldsInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = 1, m = emp_no IN (FROM employees | KEEP emp_no), b = salary
+            """, STAGES);
+    }
+
+    public void testInSubqueryReferencingAnotherAttributeInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 1, m = a IN (FROM employees | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalAndReferencedInWhere() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | KEEP emp_no)
+            | WHERE m
+            """, STAGES);
+    }
+
+    public void testInSubqueryEvalFieldRenamed() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL matches = emp_no IN (FROM employees | KEEP emp_no)
+            | RENAME matches AS renamed_matches
+            """, STAGES);
+    }
+
+    public void testInSubqueryEvalFieldDropped() {
+        // validate pruneUnusedMarkJoin in PruneColumns
+        runGoldenTest("""
+            FROM employees
+            | EVAL matches = emp_no IN (FROM employees | KEEP emp_no)
+            | DROP matches
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalWithKeep() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL matches = emp_no IN (FROM employees | KEEP emp_no)
+            | KEEP emp_no
+            """, STAGES);
+    }
+
+    public void testCaseWithInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = CASE(emp_no IN (FROM employees | KEEP emp_no), "yes", "no")
+            """, STAGES);
+    }
+
+    public void testCoalesceWithInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+            """, STAGES);
+    }
+
+    public void testIsNullOfInSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = (emp_no IN (FROM employees | KEEP emp_no)) IS NULL
+            """, STAGES);
+    }
+
+    public void testDisjunctiveInSubqueriesInEvalOnOneField() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM employees | KEEP emp_no) OR emp_no IN (FROM employees | WHERE salary > 50000 | KEEP emp_no)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalReferencingView() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (FROM emps_view)
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
+    }
+
+    public void testInSubqueryInEvalInsideViewDefinition() {
+        runGoldenTest("""
+            FROM marked_emps
+            | KEEP emp_no, m
+            """, STAGES, Map.of("marked_emps", "FROM employees | EVAL m = emp_no IN (FROM employees | KEEP emp_no)"));
+    }
+
+    public void testInTsSubqueryInEval() {
+        builder("""
+            TS k8s
+            | EVAL m = cluster IN (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster | KEEP cluster)
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster, m
+            | SORT cluster
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testMultiColumnInTsSubqueryInEval() {
+        requireMultiColumnInSubquerySupport();
+        builder("""
+            TS k8s
+            | EVAL m = (pod, cluster) IN (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY pod, cluster | KEEP pod, cluster)
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY pod, cluster, m
+            | SORT pod, cluster
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testInRowSubqueryInEval() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = emp_no IN (ROW emp_no = 1)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInRowSubqueryInEval() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = (emp_no, languages) IN (ROW emp_no = 1, languages = 2)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInCaseInEval() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = CASE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), true, false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInCoalesceInEval() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = COALESCE((emp_no, languages) IN (FROM employees | KEEP emp_no, languages), false)
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInIsNullInEval() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NULL
+            """, STAGES);
+    }
+
+    public void testMultiColumnInSubqueryNestedInIsNotNullInEval() {
+        requireMultiColumnInSubquerySupport();
+        runGoldenTest("""
+            FROM employees
+            | EVAL m = ((emp_no, languages) IN (FROM employees | KEEP emp_no, languages)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalInsideNestedSubqueryPlan() {
+        runGoldenTest("""
+             FROM employees
+             | WHERE emp_no IN (
+                 FROM employees
+                 | EVAL m = emp_no IN (FROM employees | KEEP emp_no)
+                 | WHERE m
+                 | KEEP emp_no
+               )
+            """, STAGES);
+    }
+
+    // -- EVAL IN subquery: name-collision flush --
+
+    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+        assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 10000, z = a * 2, a = salary IN (FROM employees | KEEP salary)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalNameCollisionNoInterveningField() {
+        assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no + 10000, a = salary IN (FROM employees | KEEP salary)
+            """, STAGES);
+    }
+
+    public void testInSubqueryInEvalNameCollisionBothInSubquery() {
+        assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | EVAL a = emp_no IN (FROM employees | KEEP emp_no), a = salary IN (FROM employees | KEEP salary)
+            """, STAGES);
+    }
 }

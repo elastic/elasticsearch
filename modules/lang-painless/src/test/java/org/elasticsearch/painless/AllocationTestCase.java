@@ -9,7 +9,6 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.script.ScriptException;
@@ -36,7 +35,7 @@ public abstract class AllocationTestCase extends ScriptTestCase {
     /** Compiles {@code source} for the test context under {@code limit} and returns a fresh script instance. */
     protected PainlessTestScript compile(String source, String limit) {
         Settings settings = Settings.builder().put(LIMIT_KEY, limit).build();
-        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts());
+        PainlessScriptEngine engine = new PainlessScriptEngine(settings, scriptContexts(), () -> AllocationMetrics.NOOP, false);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }
@@ -55,9 +54,7 @@ public abstract class AllocationTestCase extends ScriptTestCase {
      * Use this overload when you need to assert on recorded samples.
      */
     protected PainlessTestScript compileWithMetrics(String source, AllocationMetrics metrics) {
-        SetOnce<AllocationMetrics> holder = new SetOnce<>();
-        holder.set(metrics);
-        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), holder, true);
+        PainlessScriptEngine engine = new PainlessScriptEngine(Settings.EMPTY, scriptContexts(), () -> metrics, true);
         PainlessTestScript.Factory factory = engine.compile("test", source, PainlessTestScript.CONTEXT, Map.of());
         return factory.newInstance(Map.of());
     }

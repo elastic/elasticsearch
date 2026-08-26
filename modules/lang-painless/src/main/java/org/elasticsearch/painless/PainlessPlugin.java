@@ -49,6 +49,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     private volatile Map<ScriptContext<?>, List<Whitelist>> whitelists;
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
+
+    /**
+     * Populated in {@link #createComponents}, which is the first hook handed a {@code MeterRegistry}. The engine is built
+     * earlier, in {@link #getScriptEngine}, so it receives {@link #allocationMetrics()} — a read-only view that reads through
+     * to this holder on every compile and stands in {@link AllocationMetrics#NOOP} until it is set.
+     */
     private final SetOnce<AllocationMetrics> allocationMetrics = new SetOnce<>();
 
     public static List<Whitelist> baseWhiteList() {
@@ -94,8 +100,24 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists, allocationMetrics));
+        painlessScriptEngine.set(
+            new PainlessScriptEngine(
+                settings,
+                contextsWithWhitelists,
+                this::allocationMetrics,
+                CompilerSettings.readAllocationMetricsEnabledProperty()
+            )
+        );
         return painlessScriptEngine.get();
+    }
+
+    /**
+     * The node-level allocation metrics, or {@link AllocationMetrics#NOOP} if telemetry is not available yet. Scripts compiled
+     * before {@link #createComponents} runs record nothing; every later compile picks up the real instance.
+     */
+    private AllocationMetrics allocationMetrics() {
+        AllocationMetrics metrics = allocationMetrics.get();
+        return metrics != null ? metrics : AllocationMetrics.NOOP;
     }
 
     @Override

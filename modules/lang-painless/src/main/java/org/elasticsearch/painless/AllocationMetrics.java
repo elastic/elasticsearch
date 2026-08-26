@@ -26,8 +26,8 @@ import java.util.stream.LongStream;
  * deliberately not an attribute, since inline scripts are named per source and cardinality would be unbounded.
  * <p>
  * Instances are held as a {@code final} field on each compiled script class, injected by the factory at instantiation time.
- * {@code PainlessPlugin} owns a {@code SetOnce<AllocationMetrics>} that it passes to the engine constructor and populates
- * in {@code createComponents}; a node without telemetry keeps {@link #NOOP}.
+ * {@code PainlessPlugin} owns the instance and passes the engine a {@code Supplier} view of it, since the engine is built
+ * before {@code createComponents} provides a {@code MeterRegistry}; a node without telemetry keeps {@link #NOOP}.
  */
 public final class AllocationMetrics {
 

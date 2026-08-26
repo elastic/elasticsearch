@@ -9,7 +9,6 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
@@ -35,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 
@@ -58,41 +58,27 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final Map<ScriptContext<?>, CompilerSettings> contextsToDefaultCompilerSettings;
 
     /**
-     * Node-level allocation metrics. Owned by {@code PainlessPlugin}, which populates it in {@code createComponents} after
-     * telemetry is available. Held here as a {@code final} field so the engine never mutates it.
+     * Supplies the node-level allocation metrics, read once per compile. A supplier rather than the instance itself because
+     * {@code PainlessPlugin} builds the engine in {@code getScriptEngine}, which runs before {@code createComponents} hands it
+     * a {@code MeterRegistry}; the plugin owns a {@code SetOnce} and passes a read-only view of it. Never returns {@code null}
+     * — the plugin substitutes {@link AllocationMetrics#NOOP} while its holder is still unset.
      */
-    private final SetOnce<AllocationMetrics> allocationMetrics;
+    private final Supplier<AllocationMetrics> allocationMetrics;
 
     /**
-     * Constructor. Reads whether to record allocation metrics from
-     * {@link CompilerSettings#ALLOCATION_METRICS_ENABLED_PROPERTY}.
+     * Both allocation-metrics arguments are passed in rather than resolved here: enablement so that a caller (in practice a
+     * test) can exercise the recording path without mutating the global system property, and the metrics themselves as a
+     * {@link Supplier} because {@code PainlessPlugin} builds the engine before telemetry exists. The engine therefore reads no
+     * global state of its own — {@code PainlessPlugin} is the sole place
+     * {@link CompilerSettings#ALLOCATION_METRICS_ENABLED_PROPERTY} is read.
      * @param settings The settings to initialize the engine with.
-     */
-    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
-        this(settings, contexts, new SetOnce<>(), CompilerSettings.readAllocationMetricsEnabledProperty());
-    }
-
-    /**
-     * Constructor for use by {@code PainlessPlugin}: reads the allocation-metrics flag from the system property and stores the
-     * provided {@link SetOnce} as a {@code final} field so the plugin can populate it after telemetry is available.
+     * @param allocationMetrics Supplies the metrics to record into; must not return {@code null}. Pass
+     *                          {@code () -> AllocationMetrics.NOOP} to record nothing.
      */
     public PainlessScriptEngine(
         Settings settings,
         Map<ScriptContext<?>, List<Whitelist>> contexts,
-        SetOnce<AllocationMetrics> allocationMetrics
-    ) {
-        this(settings, contexts, allocationMetrics, CompilerSettings.readAllocationMetricsEnabledProperty());
-    }
-
-    /**
-     * Constructor taking allocation-metrics enablement directly rather than reading the system property, so a caller (in
-     * practice a test) can exercise the metrics-enabled path without mutating global state. The provided {@link SetOnce}
-     * must already be populated before any script factory is used.
-     */
-    public PainlessScriptEngine(
-        Settings settings,
-        Map<ScriptContext<?>, List<Whitelist>> contexts,
-        SetOnce<AllocationMetrics> allocationMetrics,
+        Supplier<AllocationMetrics> allocationMetrics,
         boolean allocationMetricsEnabled
     ) {
         this.allocationMetrics = allocationMetrics;
@@ -156,7 +142,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
         AllocationMetrics metrics = contextsToDefaultCompilerSettings.get(context).isAllocationMetricsEnabled()
-            ? (allocationMetrics.get() != null ? allocationMetrics.get() : AllocationMetrics.NOOP)
+            ? allocationMetrics.get()
             : null;
 
         ScriptScope scriptScope = compile(

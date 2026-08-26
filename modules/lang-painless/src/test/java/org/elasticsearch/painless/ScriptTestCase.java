@@ -52,7 +52,7 @@ public abstract class ScriptTestCase extends ESTestCase {
      * has no use for a shared one; {@link #exec} is then unavailable.
      */
     protected PainlessScriptEngine buildScriptEngine() {
-        return new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
+        return new PainlessScriptEngine(scriptEngineSettings(), scriptContexts(), () -> AllocationMetrics.NOOP, false);
     }
 
     /**

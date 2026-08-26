@@ -61,17 +61,22 @@ matrix.authoredLayouts().each { layout ->
   }
 }
 
-// Hive: one file per distinct value of the bucket column, under <partition-column>=<value>/.
-if (skip.contains('hive') == false) {
-  def hiveDataset = matrix.derivedFrom('hive')
-  def hiveDir = file("${layoutRoot}/${matrix.layoutDir('hive')}")
-  def hiveCsv = new File(dataDir, "${hiveDataset}.csv")
-  def hiveTaskName = "generate${formatTaskPart}Layout_hive_${hiveDataset}"
-  tasks.register(hiveTaskName, JavaExec) {
-    configureGenerator(it)
-    args = [hiveCsv.path, hiveDir.path, '--hive-by', matrix.hiveBucketBy(), matrix.hivePartitionColumn()]
-    inputs.file(hiveCsv)
-    outputs.dir(hiveDir)
+// Partitioned layouts: one file per distinct value of the bucket column, under
+// <partition-column>=<value>/. Every layout declaring bucket_by is generated here, so adding one to
+// the declaration is enough -- no branch to edit.
+matrix.partitionedLayouts().each { layoutName ->
+  if (skip.contains(layoutName)) {
+    return
   }
-  registered.add(tasks.named(hiveTaskName))
+  def dataset = matrix.derivedFrom(layoutName)
+  def outDir = file("${layoutRoot}/${matrix.layoutDir(layoutName)}")
+  def sourceCsv = new File(dataDir, "${dataset}.csv")
+  def taskName = "generate${formatTaskPart}Layout_${layoutName}_${dataset}"
+  tasks.register(taskName, JavaExec) {
+    configureGenerator(it)
+    args = [sourceCsv.path, outDir.path, '--hive-by', matrix.layoutBucketBy(layoutName), matrix.layoutPartitionColumn(layoutName)]
+    inputs.file(sourceCsv)
+    outputs.dir(outDir)
+  }
+  registered.add(tasks.named(taskName))
 }

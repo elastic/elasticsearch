@@ -150,6 +150,10 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final String FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE =
         "_force_rekeying requires a cloud-authenticated caller and an environment that supports cross-project calls";
 
+    public static final String PROJECT_ROUTING_INERT_WITHOUT_CPS_MESSAGE =
+        "project_routing is stored but has no effect because cross-project search is not enabled in this environment; "
+            + "the datafeed will search local indices only";
+
     public static ElasticsearchStatusException forceRekeyingRequiresCpsAndCloudAuthException() {
         return new ElasticsearchStatusException(FORCE_REKEYING_REQUIRES_CPS_AND_CLOUD_AUTH_MESSAGE, RestStatus.BAD_REQUEST);
     }
@@ -200,22 +204,6 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Builder.checkNoMoreCompositeAggregations(histogramAggregation.getSubAggregations());
         Builder.checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
         Builder.checkHistogramIntervalIsPositive(histogramAggregation);
-    }
-
-    public ElasticsearchException validateNoCrossProjectWhenCrossProjectIsDisabled(
-        CrossProjectModeDecider crossProjectModeDecider,
-        ElasticsearchException validationException
-    ) {
-        if (crossProjectModeDecider.crossProjectEnabled() == false) {
-            // When cross-project is disabled, check if indices have cross-project mode enabled
-            if (indicesOptions != null && indicesOptions.crossProjectModeOptions().resolveIndexExpression()) {
-                validationException = new ElasticsearchStatusException(
-                    "Cross-project search is not enabled for Datafeeds",
-                    RestStatus.FORBIDDEN
-                );
-            }
-        }
-        return validationException;
     }
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
@@ -426,21 +414,21 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Objects.requireNonNull(datafeed, "datafeed must not be null");
         Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
 
-        if (isCPSAllowed(crossProjectModeDecider, featureEnabled) && crossProjectAllowed) {
-            IndicesOptions baseOptions = datafeed.getIndicesOptions();
-            // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
-            if (baseOptions.resolveCrossProjectIndexExpression() == false) {
-                IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build();
-                return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
-            }
-            return datafeed;
-        }
         if (isCPSAllowed(crossProjectModeDecider, featureEnabled) == false) {
             return normalizeExecutionForLocalOnlySearch(datafeed);
         }
-        return datafeed;
+        if (crossProjectAllowed == false) {
+            // No minted credential to fan out with: keep the datafeed origin-only.
+            return datafeed;
+        }
+        IndicesOptions baseOptions = datafeed.getIndicesOptions();
+        // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
+        if (baseOptions.resolveCrossProjectIndexExpression()) {
+            return datafeed;
+        }
+        return new DatafeedConfig.Builder(datafeed).setIndicesOptions(
+            IndicesOptions.builder(baseOptions).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build()
+        ).build();
     }
 
     /**

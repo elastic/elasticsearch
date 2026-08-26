@@ -1603,12 +1603,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
               "job_id": "test-job",
               "indices": ["remote-1:src"]
             }""");
-        assertNull(
-            datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
-                new CrossProjectModeDecider(Settings.EMPTY),
-                (org.elasticsearch.action.ActionRequestValidationException) null
-            )
-        );
+        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(new CrossProjectModeDecider(Settings.EMPTY), null));
     }
 
     public void testCloudInternalApiKeyPersistedForInternalStorage() throws IOException {

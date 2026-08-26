@@ -119,7 +119,7 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
      * such pins and its contribution reaches the cache untouched. And the victim must run FIRST: the reconcile only
      * enriches entries that already exist, so a poisoner-first ordering seeds nothing and quietly self-heals.
      *
-     * <p>On main the third query answers 199 with nothing scanned — the poisoner's count, served to a dataset whose
+     * <p>On main the final query answers 199 with nothing scanned — the poisoner's count, served to a dataset whose
      * own answer is 200.
      */
     public void testStrictDeclaredReadDoesNotPoisonTheInferredCount() throws Exception {
@@ -202,6 +202,18 @@ public class ExternalReadConfigContaminationIT extends AbstractExternalDataSourc
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("ts", DatasetFieldMapping.withFormat("datetime", null, "yyyy-dd-MM'T'HH:mm:ss"));
         return new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+    }
+
+    private String registerWithSettings(String name, String uri, DatasetMapping mapping, Map<String, Object> settings) {
+        registerDataSource(SRC, Map.of());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, SRC, uri, null, new LinkedHashMap<>(settings), mapping)
+            )
+        );
+        datasets.add(name);
+        return name;
     }
 
     private String register(String name, String uri, DatasetMapping mapping) {

@@ -1905,12 +1905,6 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Cache-aware variant of {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime) for
-     * each file so repeated multi-file resolves do not re-read footers. Responds with {@code null} if any file cannot
-     * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
-     * stats.
-     */
-    /**
      * Records each file's stamped resolved read configuration, keyed by path, as the gather walks the listing. The dataset-aggregate
      * promise needs a read configuration PER PATH — a glob's files are not necessarily read alike — and the gather is the only
      * place on the first-file-wins rail where per-file metadata exists.
@@ -1927,6 +1921,12 @@ public class ExternalSourceResolver {
         }
     }
 
+    /**
+     * Cache-aware variant of {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime) for
+     * each file so repeated multi-file resolves do not re-read footers. Responds with {@code null} if any file cannot
+     * be resolved or lacks statistics; a bare cancellation is surfaced as a failure so it is never masked as partial
+     * stats.
+     */
     /**
      * Reads metadata from all files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * then aggregates statistics across all files. Responds with a merged flat stats map, or {@code null} if any file
@@ -2540,7 +2540,7 @@ public class ExternalSourceResolver {
      *       returning the correct count.</li>
      * </ul>
      * The two guards make the served row-count a correct NUMBER for every declaration, but the file+config key leaves one
-     * residual — disclosed here, closed only by the fingerprint follow-up: a strict dataset that declares FEWER columns
+     * residual, disclosed here and NOT closed by this work: a strict dataset that declares FEWER columns
      * than the file has (a legal narrower binding) would on its own ERROR on {@code COUNT(*)} (its rows overflow its
      * declared width under {@code FAIL_FAST}); once a wider — or inferred — dataset over the same file+config has warmed
      * the shared entry, that dataset's {@code COUNT(*)} folds to the physical row-count instead of erroring. That is a
@@ -2558,7 +2558,8 @@ public class ExternalSourceResolver {
      * columnar coercibility check seeds a physical-schema entry under the inferred key. The non-cacheable branch (e.g.
      * HTTP, no stable mtime) keeps the stat-less metadata: there is nothing to warm from. Warming MIN/MAX and the
      * multi-file glob correctly needs the declared schema woven into the cross-node stats fingerprint — which is what the
-     * read-configuration component now does; the remaining limit here is the columnar exclusion above, not the identity.
+     * read-configuration component now does. Two limits remain on this rail regardless: the columnar exclusion
+     * above, and {@link #rowCountOnlyStats}, which strips per-column stats so MIN/MAX never warms here at all.
      */
     private ExternalSourceMetadata strictSingleFileMetadata(
         String path,

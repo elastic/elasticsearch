@@ -564,7 +564,8 @@ public class ExternalSourceCacheService implements Closeable {
             k -> delta.stripes().get(k),
             delta.mtimeMillis(),
             delta.fingerprint(),
-            delta.readConfig()
+            delta.readConfig(),
+            delta.rowCountReadConfigIndependent()
         );
     }
 
@@ -581,7 +582,8 @@ public class ExternalSourceCacheService implements Closeable {
         LongFunction<Map<String, Object>> stripeAt,
         long mtimeMillis,
         String fingerprint,
-        String readConfig
+        String readConfig,
+        boolean rowCountReadConfigIndependent
     ) {
         if (lastOrdinal < 0) {
             return null;
@@ -594,7 +596,7 @@ public class ExternalSourceCacheService implements Closeable {
             }
             stripes.add(stripe);
         }
-        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readConfig);
+        return mergeStripesAndRekey(stripes, mtimeMillis, fingerprint, readConfig, rowCountReadConfigIndependent);
     }
 
     /**
@@ -612,7 +614,8 @@ public class ExternalSourceCacheService implements Closeable {
         List<Map<String, Object>> stripes,
         long mtimeMillis,
         String fingerprint,
-        String readConfig
+        String readConfig,
+        boolean rowCountReadConfigIndependent
     ) {
         Map<String, Object> whole = stripes.size() == 1
             ? new HashMap<>(stripes.get(0))
@@ -630,6 +633,12 @@ public class ExternalSourceCacheService implements Closeable {
             // very entry they came from.
             if (readConfig != null && readConfig.isEmpty() == false) {
                 whole.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
+            }
+            // The licence too: the statistics merge emits only row/size/column families, so it is dropped here just
+            // like the mtime and the fingerprint. Losing it leaves a chunked FAIL_FAST read unable to license the
+            // crossing an unchunked one can — a safe-miss, but one with no reason behind it.
+            if (rowCountReadConfigIndependent) {
+                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
             }
         }
         return whole;
@@ -862,6 +871,7 @@ public class ExternalSourceCacheService implements Closeable {
         long mtimeMillis,
         String fingerprint,
         String readConfig,
+        boolean rowCountReadConfigIndependent,
         long stripeSize
     ) {}
 
@@ -939,7 +949,11 @@ public class ExternalSourceCacheService implements Closeable {
         if (complete.isEmpty()) {
             return null;
         }
-        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, stripeSize);
+        // The licence is a property of the producing policy, so it holds for the delta only if EVERY fragment
+        // carried it — one unlicensed fragment means part of this cover came from a policy that can drop rows.
+        boolean licensed = fragments.isEmpty() == false
+            && fragments.stream().allMatch(SourceStatsContribution.StripeFragment::rowCountReadConfigIndependent);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint, readConfig, licensed, stripeSize);
     }
 
     /**
@@ -1022,7 +1036,11 @@ public class ExternalSourceCacheService implements Closeable {
         // Shared merge+rekey tail: for a single-fragment chain toFlatMap already attached the same
         // mtime/fingerprint (foldStripeFragments enforces they agree across the chain), so the rekey
         // is an idempotent overwrite.
-        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint, chain.isEmpty() ? null : chain.get(0).readConfig());
+        // Every fragment in a chain agrees on its read configuration; the licence is a property of the producing
+        // policy, so it holds only if EVERY fragment carried it.
+        boolean licensed = chain.isEmpty() == false
+            && chain.stream().allMatch(SourceStatsContribution.StripeFragment::rowCountReadConfigIndependent);
+        return mergeStripesAndRekey(maps, mtimeMillis, fingerprint, chain.isEmpty() ? null : chain.get(0).readConfig(), licensed);
     }
 
     /**
@@ -1288,7 +1306,7 @@ public class ExternalSourceCacheService implements Closeable {
                 return stripeMap;
             }
             return null; // ordinal missing — knowledge incomplete, keep accumulating
-        }, delta.mtimeMillis(), delta.fingerprint(), delta.readConfig());
+        }, delta.mtimeMillis(), delta.fingerprint(), delta.readConfig(), delta.rowCountReadConfigIndependent());
     }
 
     /**

@@ -112,7 +112,7 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         // Delegate: a compressed .csv.gz is read exactly like the plain file, so its harvest must carry the same read
         // read configuration. Without this the interface default returns the wrapper, the inner reader stamps nothing, and its
         // contribution can no longer match the entry the resolver seeded — the warm rail dies for compressed files
-        // only, which is precisely how this was found.
+        // only.
         FormatReader configured = inner.withReadConfig(readConfig);
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }

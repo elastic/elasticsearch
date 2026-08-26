@@ -677,8 +677,8 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             // fingerprint), the resolved read configuration (stamped beside it -- a declared type or date pattern
             // decides which values coerce), and the PROJECTION, since only projected columns are coerced. The
             // first three are in the identity, so a dropped line does not make these stats wrong for this read.
-            // The fourth cannot be -- it is per-query -- leaving the residual the CSV twin documents: no serve path
-            // has been shown to hand such a count back, so it is disclosed rather than guarded. NONE scope
+            // The fourth cannot be -- it is per-query -- leaving an open, measured residual; the CSV twin carries
+            // the reproduction and why guarding it is not a one-liner. NONE scope
             // suppresses all publishing. A scan cut short mid-way (LIMIT, cancellation, a chunk exceeding its error
             // budget) leaves naturallyExhausted false or an uncovered stripe, so it safe-misses rather than
             // serving; the coordinator's whole-file poison covers the non-clean-close case.

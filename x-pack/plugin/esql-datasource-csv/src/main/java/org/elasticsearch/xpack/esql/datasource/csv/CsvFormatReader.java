@@ -3557,11 +3557,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     // The first three are in the identity, so a dropped row does not make these stats wrong for this
                     // read: they are committed as this configuration's measurement and the cache refuses to serve
                     // them to a read configured differently. The fourth is not, and cannot be -- projection is
-                    // per-query, and the coordinator and a data node see different ones. That leaves a residual: a
-                    // lenient read that drops on a projection-limited scan commits a count a plain COUNT(*) over the
-                    // same dataset would not produce. No serve path has been shown to hand that count back (the
-                    // declared shapes it needs do not warm under a lenient policy), so it is disclosed here rather
-                    // than guarded — a guard was tried and no test could redden it.
+                    // per-query, and the coordinator and a data node see different ones. That leaves an OPEN
+                    // residual, measured and reachable with no declaration anywhere: an inferred column typed from a
+                    // sample window, a non-coercing value beyond that window, error_mode=skip_row. A query reading
+                    // the column drops the row and commits N-1; a plain COUNT(*) over the same dataset then serves
+                    // N-1 where its own scan answers N. Both carry the same identity, so no gate downstream can
+                    // separate them — only suppressing this publish can, and doing that safely means first
+                    // establishing which drop paths are projection-dependent: structural drops are not (they drop
+                    // whatever is projected), and null_field does not drop at all. Suppressing on any dropped row
+                    // breaks three contracts these tests pin. Left open deliberately, not overlooked.
                     //
                     // FAIL_FAST aborts before EOF, so naturallyExhausted gates it out. NONE scope suppresses all
                     // publishing. (A scan cut short mid-way -- LIMIT, cancellation, a chunk exceeding its error
@@ -4174,7 +4178,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 SyntheticColumns.Kind kind = syntheticKinds[i];
                 if (kind != null) {
-                    // Registry-driven: the Kind carries its own attribute read configuration, so a new member
+                    // Registry-driven: the Kind carries its own attribute shape, so a new member
                     // works here without a per-kind dispatch arm.
                     projectedTypes[i] = kind.dataType();
                     projectedAttrs[i] = SyntheticColumns.newAttribute(kind);

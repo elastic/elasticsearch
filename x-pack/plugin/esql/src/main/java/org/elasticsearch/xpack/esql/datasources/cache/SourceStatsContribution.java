@@ -33,7 +33,7 @@ sealed interface SourceStatsContribution {
      * <p>
      * {@code readConfig} and {@code rowCountReadConfigIndependent} ride alongside the config fingerprint because the
      * identity gate needs both: a whole-file contribution that arrives without its shape compares against
-     * {@code null}, and the gate then passes everything silently — which is the bug this record shape caused once
+     * {@code null}, and the gate then passes everything silently — which is the failure mode this record shape invites
      * already.
      */
     record WholeFile(

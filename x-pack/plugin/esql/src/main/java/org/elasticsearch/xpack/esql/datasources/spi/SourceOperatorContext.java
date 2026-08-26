@@ -455,7 +455,11 @@ public record SourceOperatorContext(
             return this;
         }
 
-        /** The pre-prune Unified schema; see the record component. */
+        /**
+         * The pre-prune unified schema, distinct from {@code attributes}, which the optimizer prunes to the
+         * query projection. A projection-dependent schema cannot identify how a file is read: a coordinator
+         * resolving the full schema and a data node reading a subset would derive different identities.
+         */
         public Builder unifiedSchema(@Nullable ExternalSchema unifiedSchema) {
             this.unifiedSchema = unifiedSchema;
             return this;

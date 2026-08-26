@@ -102,8 +102,9 @@ public final class ExternalStats {
      * Classified as {@code Poison}: the coordinator discards every contribution for the file rather
      * than commit stats whose extent another scan would not reproduce. A row DROPPED by the error
      * policy (skip_row, or a structural malformed row under null_field) is deliberately NOT an error
-     * here: which rows survive is a deterministic function of the file bytes and the policy (pinned by
-     * the config fingerprint), so a clean-completing scan commits exact stats over the survivors.
+     * here: which rows survive is a function of the file bytes, the policy (pinned by the config fingerprint), the
+     * read configuration and the projection, so a clean-completing scan commits stats that are exact for THAT read
+     * over the survivors — the producer suppresses the publish where the projection is what decided them.
      */
     public static final String CHUNK_HAD_ERRORS_KEY = "_stats.chunk_had_errors";
 

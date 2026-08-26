@@ -56,8 +56,8 @@ import java.util.Map;
  *       split a renamed dataset off from its own harvests. Renames are normalized away by physicalizing here; a pure
  *       rename changes no value a statistic measures.</li>
  *   <li><b>NOT {@code declaredTypeColumns}</b> — it licenses a narrowing coercion only in the by-name columnar
- *       readers, and no columnar format stamps statistics. Should one ever start, this exclusion becomes a hole; the
- *       tripwire for that lives in the identity-scope tests.</li>
+ *       readers, and no columnar format stamps statistics. Should one ever start, this exclusion becomes a hole,
+ *       and nothing enforces it today.</li>
  * </ul>
  *
  * <h2>Encoding</h2>

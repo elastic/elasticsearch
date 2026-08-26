@@ -939,9 +939,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert repositoryOperations.assertNotQueued(snapshot);
 
             // Compute the snapshot end time. When SNAPSHOT_MONOTONIC_END_TIME_SETTING is enabled, the end time is guaranteed
-            // to be strictly greater than every previously recorded snapshot end time in the repository, while staying as close
-            // to wall-clock time as possible. If the required end time is in the future (i.e. a previous snapshot ended during
-            // the same millisecond), this task reschedules itself until the clock catches up.
+            // to be strictly greater than every previously recorded snapshot end time in the repository.
+            // If the required end time is in the future (i.e. a previous snapshot ended during  the same millisecond),
+            // this task reschedules itself until the clock catches up.
             final long wallClock = threadPool.absoluteTimeInMillis();
             final long endTimeMillis;
             if (monotonicEndTime) {
@@ -956,7 +956,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 endTimeMillis = prevMaxEndTime < 0 ? wallClock : Math.max(wallClock, prevMaxEndTime + 1);
                 final long waitMillis = endTimeMillis - wallClock;
                 if (waitMillis > 0) {
-                    logger.trace("[{}] delaying snapshot finalization by [{}ms] for monotonic end time", snapshot, waitMillis);
+                    logger.info("[{}] delaying snapshot finalization by [{} ms] for monotonic end time", snapshot, waitMillis);
                     threadPool.schedule(this, TimeValue.timeValueMillis(waitMillis), threadPool.executor(ThreadPool.Names.SNAPSHOT));
                     return;
                 }

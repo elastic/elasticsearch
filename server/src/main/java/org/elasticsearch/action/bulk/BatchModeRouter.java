@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.core.Nullable;
@@ -27,19 +28,29 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Scatters the single pre-built batch attached to a {@link BulkRequest} into the per-shard batches
- * that {@link BulkShardRequest}s carry: {@link #prepareRouting} per item before it is routed,
- * {@link #recordRoutedShard} once its shard is known, {@link #shardBatches} when all are routed.
+ * Per-bulk router that decides each item's destination shard and produces the {@link SourceBatch}
+ * each shard request carries.
  *
- * <p>Step-1 constraint: exactly one pre-built batch per bulk, and that batch must resolve to
- * exactly one concrete write index. TSDB data streams whose documents span two backing indices, and
- * bulks that supply multiple named batches, are rejected with a clear error message and will be
- * supported in a follow-up.
+ * <p>Two modes, one class:
  *
- * <p>Items carry no source, so routing must be resolvable without one; {@link #prepareRouting}
- * fails hard otherwise. All rows must route successfully — if any item is dropped before
- * {@link #recordRoutedShard} is called for it, {@link #shardBatches} throws. Discard-bucket
- * support for dropped rows will be added in a follow-up.
+ * <ul>
+ *   <li><b>Provided-batch mode</b>: the caller built one {@link EscfBatch} up front and attached
+ *       it to the {@link BulkRequest} via {@link BulkRequest#setPreBuiltBatches}. Items carry row
+ *       references instead of inline {@code _source}. Routing fills
+ *       {@code partitionIds[row] = shardId}; {@link #shardBatches} then passes the batch straight
+ *       through (single shard) or scatters it.
+ *   <li><b>X-content mode</b>: items carry inline {@code _source}. Encoding and shard assignment
+ *       are delegated entirely to {@link BulkBatchEncoders}; this class exposes the same surface so
+ *       {@link BulkOperation} has one branch-free reference.
+ * </ul>
+ *
+ * <p>TODO: the x-content encode step is temporary. Once producers build ESCF at the
+ * index-abstraction level, this router will always receive a batch and {@link BulkBatchEncoders}
+ * goes away.
+ *
+ * <p>Step-1 constraint (provided-batch mode): exactly one pre-built batch per bulk, and that batch
+ * must resolve to exactly one concrete write index. See {@link BulkBatchEncoders} for the x-content
+ * mode's own constraints.
  *
  * <p>Callers must not close the scattered batches: they are read asynchronously and, being backed
  * by {@link BytesRefRecycler#NON_RECYCLING_INSTANCE}, are GC-reclaimed.
@@ -47,13 +58,19 @@ import java.util.Map;
  * <p>TODO: pooled recycler requires ref-counting each per-shard batch against shard-request
  * completion.
  */
-final class SourceBatchSharder implements Releasable {
+final class BatchModeRouter implements Releasable {
 
+    // --- provided-batch mode state (null in x-content mode) ---
+
+    @Nullable
     private final String batchName;
+    @Nullable
     private final EscfBatch source;
-    /** row -> shardId; set by {@link #recordRoutedShard}, read by {@link #shardBatches}. */
+    /** row → shardId; set by {@link #recordRoutedShard}, read by {@link #shardBatches}. */
+    @Nullable
     private final int[] partitionIds;
     /** The request holding each routed row. */
+    @Nullable
     private final IndexRequest[] items;
 
     /**
@@ -72,44 +89,105 @@ final class SourceBatchSharder implements Releasable {
     private int routedCount;
     private boolean scattered;
 
-    private SourceBatchSharder(String batchName, EscfBatch source) {
+    // --- x-content mode state (null in provided-batch mode) ---
+
+    @Nullable
+    private final BulkBatchEncoders encoders;
+
+    private BatchModeRouter(String batchName, EscfBatch source) {
         this.batchName = batchName;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
         this.items = new IndexRequest[source.docCount()];
+        this.encoders = null;
+    }
+
+    private BatchModeRouter(BulkBatchEncoders encoders) {
+        this.batchName = null;
+        this.source = null;
+        this.partitionIds = null;
+        this.items = null;
+        this.encoders = encoders;
     }
 
     /**
-     * Returns a sharder for {@code bulkRequest}'s pre-built batches, or {@code null} if it has
-     * none.
+     * Returns the router for this bulk, or {@code null} when batch indexing does not apply: the
+     * cluster gate is shut and no pre-built batches were supplied, or the bulk is a mixed
+     * (non-index-only) set of requests.
      *
+     * @throws IllegalStateException    if the request carries pre-built batches but the cluster gate
+     *                                  is shut (those items have no inline source to fall back to)
      * @throws IllegalArgumentException if more than one batch was supplied (not yet supported)
      * @throws IllegalArgumentException if the single batch is not an {@link EscfBatch}
      */
     @Nullable
-    static SourceBatchSharder create(BulkRequest bulkRequest) {
-        Map<String, SourceBatch> batches = bulkRequest.getPreBuiltBatches();
-        if (batches == null || batches.isEmpty()) {
-            return null;
-        }
-        if (batches.size() > 1) {
+    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported) {
+        Map<String, SourceBatch> provided = bulkRequest.getPreBuiltBatches();
+        if (provided != null && provided.isEmpty() == false) {
+            if (batchIndexingSupported == false) {
+                throw new IllegalStateException(
+                    "pre-built source batch submitted but batch indexing is not supported"
+                        + " (setting disabled, feature flag off, or mixed-version cluster)"
+                );
+            }
+            if (provided.size() > 1) {
+                throw new IllegalArgumentException(
+                    "pre-built source batch bulk carries "
+                        + provided.size()
+                        + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
+                );
+            }
+            Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
+            String name = only.getKey();
+            SourceBatch batch = only.getValue();
+            if (batch instanceof EscfBatch escfBatch) {
+                return new BatchModeRouter(name, escfBatch);
+            }
             throw new IllegalArgumentException(
-                "pre-built source batch bulk carries "
-                    + batches.size()
-                    + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
+                "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
             );
         }
-        Map.Entry<String, SourceBatch> only = batches.entrySet().iterator().next();
-        return new SourceBatchSharder(only.getKey(), requireEscfBatch(only.getKey(), only.getValue()));
+        // Mixed bulks (UpdateRequest/DeleteRequest interleaved with IndexRequests) take the
+        // inline-source path end-to-end: there is no per-shard fallback that would batch only the
+        // all-IndexRequest shards.
+        return batchIndexingSupported && BulkBatchEncoders.isBulkBatchEligible(bulkRequest)
+            ? new BatchModeRouter(new BulkBatchEncoders())
+            : null;
     }
 
-    private static EscfBatch requireEscfBatch(String batchName, SourceBatch batch) {
-        if (batch instanceof EscfBatch escfBatch) {
-            return escfBatch;
+    /**
+     * Routes one item to its shard, performing all batch bookkeeping for this mode. Owns
+     * {@link DocWriteRequest#preRoutingProcess} and {@link DocWriteRequest#postRoutingProcess} so
+     * {@link BulkOperation} can treat both modes uniformly with a single call.
+     *
+     * @throws IllegalArgumentException for item-level problems; {@code BulkOperation}'s existing
+     *                                  {@code catch} turns these into per-item failures
+     */
+    int route(
+        DocWriteRequest<?> request,
+        IndexAbstraction abstraction,
+        Index concreteIndex,
+        IndexRouting routing,
+        ProjectMetadata project
+    ) {
+        if (encoders != null) {
+            // X-content mode: delegate entirely to the encoder/extractor.
+            request.preRoutingProcess(routing);
+            int shardId = encoders.tryEncodeAndRoute((IndexRequest) request, concreteIndex, routing);
+            if (shardId == BulkBatchEncoders.NOT_BATCHABLE) {
+                shardId = request.route(routing);
+            }
+            request.postRoutingProcess(routing);
+            return shardId;
         }
-        throw new IllegalArgumentException(
-            "pre-built batch for index [" + batchName + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
-        );
+        // Provided-batch mode.
+        IndexRequest batchItem = requireBatchItem(request);
+        prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
+        request.preRoutingProcess(routing);
+        int shardId = request.route(routing);
+        request.postRoutingProcess(routing);
+        recordRoutedShard(batchItem, shardId);
+        return shardId;
     }
 
     /**
@@ -139,18 +217,24 @@ final class SourceBatchSharder implements Releasable {
      * {@link IndexRequest#route(IndexRouting)}, which would parse the empty inline source.
      *
      * @throws IllegalArgumentException if the item holds no row, if no batch was supplied for the
-     *                                  name it targets, if the request carries inline source, if a
-     *                                  second distinct concrete index is seen (not yet supported),
-     *                                  or if its routing strategy needs {@code _source}
+     *                                  abstraction it targets, if the request carries inline source,
+     *                                  if a second distinct concrete index is seen (not yet
+     *                                  supported), or if its routing strategy needs {@code _source}
      */
-    void prepareRouting(IndexRequest request, Index concreteIndex, IndexRouting routing, ProjectMetadata project) {
-        if (batchName.equals(request.index()) == false) {
+    void prepareRouting(
+        IndexRequest request,
+        IndexAbstraction abstraction,
+        Index concreteIndex,
+        IndexRouting routing,
+        ProjectMetadata project
+    ) {
+        if (batchName.equals(abstraction.getName()) == false) {
             if (request.indexSource().hasSourceRow()) {
                 throw new IllegalArgumentException(
                     "item targeting index ["
                         + request.index()
                         + "] carries a source-row reference but no pre-built batch was supplied under that name;"
-                        + " batches must be keyed by the index name set on the requests whose rows they hold"
+                        + " batches must be keyed by the name set on the requests whose rows they hold"
                 );
             }
             throw new IllegalArgumentException(
@@ -245,17 +329,20 @@ final class SourceBatchSharder implements Releasable {
     }
 
     /**
-     * Scatters the batch per shard and re-points every recorded item at its shard-local row.
-     * A batch whose rows all landed on a single shard skips the scatter entirely. Returned batches
-     * must not be closed by the caller.
-     *
-     * <p>Throws if any rows were dropped before routing (0 &lt; routedCount &lt; docCount). Discard-
-     * bucket support for partially-dropped batches will be added in a follow-up.
-     *
-     * <p>Empty on any call after the first: the failure-store redirect pass re-enters
-     * {@code executeBulkRequestsByShard} and must not re-scatter batches already in flight.
+     * Returns the per-shard batches. For x-content mode, finalizes and returns the encoder's
+     * batches. For provided-batch mode, scatters the source and re-points every item at its
+     * shard-local row; returns empty on any call after the first (the failure-store redirect pass
+     * re-enters {@code executeBulkRequestsByShard} and must not re-scatter batches already in
+     * flight).
      */
     Map<ShardId, SourceBatch> shardBatches() {
+        if (encoders != null) {
+            return encoders.finalizeBatches();
+        }
+        return providedBatchShardBatches();
+    }
+
+    private Map<ShardId, SourceBatch> providedBatchShardBatches() {
         if (scattered) {
             return Map.of();
         }
@@ -304,8 +391,7 @@ final class SourceBatchSharder implements Releasable {
      * Verifies every shard request can carry its rows over the wire. The wire format has no row
      * numbers — {@link BulkShardBatch#attachBatchToItems} rebuilds them from item ordinal — so a
      * shard's items must map 1:1 and in order onto its batch's rows, and no item may keep a row
-     * reference no batch backs (it would index an empty source). Runs for every bulk: losing the
-     * batches entirely is one way this breaks.
+     * reference no batch backs (it would index an empty source). Runs for every bulk.
      *
      * @throws IllegalStateException on any mismatch; too late for per-item recovery
      */
@@ -342,6 +428,9 @@ final class SourceBatchSharder implements Releasable {
 
     @Override
     public void close() {
-        // Source batches are owned by the caller; scattered sub-batches are GC'd.
+        if (encoders != null) {
+            encoders.close();
+        }
+        // Provided sources are owned by the caller; scattered sub-batches are GC-reclaimed.
     }
 }

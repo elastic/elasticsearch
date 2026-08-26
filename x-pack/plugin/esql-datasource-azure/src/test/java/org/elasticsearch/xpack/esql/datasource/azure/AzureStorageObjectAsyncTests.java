@@ -25,7 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -158,23 +158,22 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
      * caller.
      */
     public void testReadBytesAsyncSynchronousThrowClosesBufferAndFailsListener() throws Exception {
-        String hookKey = "azure-sync-throw-" + Thread.currentThread().getId();
+        String hookKey = "azure-sync-throw-test";
         Thread testThread = Thread.currentThread();
         Hooks.onEachOperator(hookKey, publisher -> {
             if (Thread.currentThread() == testThread) {
-                throw new RejectedExecutionException("simulated Reactor scheduler rejection");
+                throw new RejectedExecutionException("simulated Reactor assembly-time throw");
             }
             return publisher;
         });
 
         try {
-            AtomicBoolean bufferClosed = new AtomicBoolean(false);
-            // Plain direct buffer — no Arrow lifecycle, just track whether close() is called.
-            DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), () -> bufferClosed.set(true));
+            AtomicInteger closeCount = new AtomicInteger(0);
+            // Plain direct buffer — no Arrow lifecycle, just track how many times close() is called.
+            DirectBufferFactory trackingFactory = len -> new DirectReadBuffer(ByteBuffer.allocateDirect(len), closeCount::incrementAndGet);
 
             AzureStorageObject obj = new AzureStorageObject(blobClient(), blobAsyncClient(), "container", "blob.parquet", PATH);
 
-            CountDownLatch latch = new CountDownLatch(1);
             AtomicReference<Exception> error = new AtomicReference<>();
 
             obj.readBytesAsync(0, 100, trackingFactory, Runnable::run, new ActionListener<>() {
@@ -186,13 +185,14 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
                 @Override
                 public void onFailure(Exception e) {
                     error.set(e);
-                    latch.countDown();
                 }
             });
 
-            assertTrue("listener must be completed (synchronously)", latch.await(0, TimeUnit.MILLISECONDS));
-            assertThat(error.get(), instanceOf(RejectedExecutionException.class));
-            assertTrue("buffer must be closed when chain throws synchronously", bufferClosed.get());
+            assertNotNull("listener must be called synchronously", error.get());
+            // mapReadFailure wraps non-BlobStorageException failures into IOException
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getCause(), instanceOf(RejectedExecutionException.class));
+            assertEquals("buffer must be closed exactly once", 1, closeCount.get());
         } finally {
             Hooks.resetOnEachOperator(hookKey);
         }
